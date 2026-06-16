@@ -105,7 +105,11 @@ def get_trends():
             .eq("status", "rising") \
             .order("velocity_avg", desc=True) \
             .execute()
-        return res.data or []
+        trends = res.data or []
+        for t in trends:
+            t["song"] = t.get("audio_title")
+            t["artist"] = t.get("audio_artist")
+        return trends
     except Exception as e:
         logger.error(f"Error fetching trends: {e}", exc_info=True)
         raise HTTPException(
@@ -127,7 +131,10 @@ def get_trend(trend_id: int):
                 status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Trend with ID {trend_id} not found"
             )
-        return res.data[0]
+        trend = res.data[0]
+        trend["song"] = trend.get("audio_title")
+        trend["artist"] = trend.get("audio_artist")
+        return trend
     except HTTPException:
         raise
     except Exception as e:
@@ -135,6 +142,39 @@ def get_trend(trend_id: int):
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to fetch trend: {str(e)}"
+        )
+
+
+@app.get("/api/trends/{trend_id}/reels")
+def get_trend_reels(trend_id: int):
+    """Fetch reels associated with a trend by matching audio_title and audio_artist."""
+    try:
+        # 1. Fetch the trend to get its audio_title and audio_artist
+        trend_res = supabase.table("trends").select("audio_title, audio_artist").eq("id", trend_id).execute()
+        if not trend_res.data:
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"Trend with ID {trend_id} not found"
+            )
+        trend = trend_res.data[0]
+        title = trend.get("audio_title")
+        artist = trend.get("audio_artist")
+        
+        # 2. Query reels matching this title and artist
+        reels_res = supabase.table("reels") \
+            .select("*") \
+            .eq("audio_title", title) \
+            .eq("audio_artist", artist) \
+            .order("velocity_score", desc=True) \
+            .execute()
+        return reels_res.data or []
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching reels for trend {trend_id}: {e}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Failed to fetch reels: {str(e)}"
         )
 
 

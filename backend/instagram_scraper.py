@@ -107,9 +107,13 @@ class InstagramScraper:
         # Deduplicate hashtags while preserving order
         unique_hashtags = list(dict.fromkeys(all_hashtags))
         
-        logging.info(f"Starting scrape for {len(unique_hashtags)} hashtags...")
+        # Optimize: Sample 6 hashtags per run to stay well within monthly limits
+        import random
+        selected_hashtags = random.sample(unique_hashtags, min(6, len(unique_hashtags)))
         
-        for hashtag in unique_hashtags:
+        logging.info(f"Starting scrape for {len(selected_hashtags)} sampled hashtags out of {len(unique_hashtags)} total...")
+        
+        for hashtag in selected_hashtags:
             try:
                 items = self._call_apify_with_retry(hashtag)
                 total_scraped += len(items)
@@ -146,7 +150,7 @@ class InstagramScraper:
                         # hours_live = max((datetime.now() - posted_at).seconds / 3600, 0.5)
                         posted_at_naive = posted_at.astimezone().replace(tzinfo=None)
                         time_diff = datetime.now() - posted_at_naive
-                        hours_live = max(time_diff.seconds / 3600, 0.5)
+                        hours_live = max(time_diff.total_seconds() / 3600, 0.5)
                         
                         engagement = view_count + (like_count * 2) + (comment_count * 5)
                         velocity_score = engagement / hours_live / 1000
