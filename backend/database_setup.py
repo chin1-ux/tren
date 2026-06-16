@@ -62,6 +62,13 @@ TABLES_SQL = {
             window_hours_remaining int,
             confidence float,
             status text DEFAULT 'rising',
+            peak_velocity float,
+            saturation_score float,
+            optimal_post_hour_ist int,
+            best_platform_first text,
+            why_this_works text,
+            audio_cue_second int,
+            content_type text,
             first_detected_at timestamp DEFAULT now()
         );
     """,
