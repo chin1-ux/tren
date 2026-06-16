@@ -3,16 +3,18 @@ import uuid
 import json
 import logging
 import requests
-from typing import List
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status
+from typing import List, Optional
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 
-# Import the local modules
-# To allow importing when running api.py directly or as a package
 import sys
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -22,8 +24,9 @@ from reel_generator import ReelGenerator
 from beat_detector import BeatDetector
 from instagram_scraper import InstagramScraper
 from youtube_scraper import YouTubeScraper
+from caption_engine import CaptionEngine
+from trend_refresher import TrendRefresher
 
-# Configure logging
 logging.basicConfig(
     filename="api.log",
     level=logging.INFO,
@@ -31,9 +34,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-# Load credentials from .env
 load_dotenv()
-# Fallback to backend/.env if not loaded (e.g. when run from workspace root)
 if not os.getenv("SUPABASE_URL"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
     backend_env = os.path.join(script_dir, ".env")
@@ -42,26 +43,27 @@ if not os.getenv("SUPABASE_URL"):
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
-
 if not SUPABASE_URL or not SUPABASE_KEY:
-    logger.error("Supabase credentials missing from environment.")
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
 
-# Initialize Supabase client
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
-# Create uploads/ and outputs/ directories immediately (required before mounting StaticFiles)
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
 
-# Initialize FastAPI application
+# Rate limiter
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(
     title="Trendrop Backend API",
-    description="FastAPI service for Trendrop social media trend detection and automated reel generation",
-    version="1.0"
+    description="AI-powered trend intelligence for Indian short-form creators",
+    version="2.0"
 )
 
-# Enable CORS for all origins
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+# CORS — allow all origins for dev; tighten to Vercel domain in production
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -70,39 +72,98 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Create uploads/ and outputs/ directories on startup
 @app.on_event("startup")
 def startup_event():
     os.makedirs("uploads", exist_ok=True)
     os.makedirs("outputs", exist_ok=True)
-    logger.info("Created uploads/ and outputs/ directories on startup.")
+    logger.info("Trendrop API v2.0 started.")
 
-# Serve static files for generated reels
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
 
-# Define Schemas for input validation
+# ── Pydantic Models ────────────────────────────────────────────────────────────
+
 class SubscribeRequest(BaseModel):
     email: EmailStr
     niche: str
     language: str
 
+class FeedbackRequest(BaseModel):
+    trend_id: int
+    feedback_type: str  # "too_late" | "too_early" | "perfect" | "stale"
+    comment: Optional[str] = None
+    user_email: Optional[str] = None
 
-# --- ENDPOINTS ---
+
+# ── Health ─────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health_check():
-    """Returns the API health status and version."""
-    return {"status": "ok", "version": "1.0"}
+    return {"status": "ok", "version": "2.0", "product": "Trendrop India"}
 
+
+# ── Trends Feed ────────────────────────────────────────────────────────────────
 
 @app.get("/api/trends")
-def get_trends():
-    """Fetch all trends from Supabase 'trends' table where status = rising, ordered by velocity_avg descending."""
+@limiter.limit("100/minute")
+def get_trends(request: Request, language: Optional[str] = None, sort: Optional[str] = "velocity"):
+    """
+    Fetch RISING trends from Supabase.
+    Optional filters: ?language=hi&sort=velocity|time_left|newest
+    """
+    try:
+        q = supabase.table("trends").select("*").eq("status", "rising")
+        if language and language != "all":
+            q = q.eq("language", language)
+
+        if sort == "time_left":
+            q = q.order("window_hours_remaining", desc=False)
+        elif sort == "newest":
+            q = q.order("created_at", desc=True)
+        else:
+            q = q.order("velocity_avg", desc=True)
+
+        res = q.execute()
+        trends = res.data or []
+        for t in trends:
+            t["song"] = t.get("audio_title")
+            t["artist"] = t.get("audio_artist")
+        return trends
+    except Exception as e:
+        logger.error(f"Error fetching trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/emerging")
+@limiter.limit("100/minute")
+def get_emerging_trends(request: Request, language: Optional[str] = None):
+    """
+    Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
+    """
+    try:
+        q = supabase.table("trends").select("*").eq("status", "emerging")
+        if language and language != "all":
+            q = q.eq("language", language)
+        q = q.order("velocity_avg", desc=True)
+        res = q.execute()
+        trends = res.data or []
+        for t in trends:
+            t["song"] = t.get("audio_title")
+            t["artist"] = t.get("audio_artist")
+        return trends
+    except Exception as e:
+        logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/all-active")
+@limiter.limit("60/minute")
+def get_all_active_trends(request: Request):
+    """Returns both emerging + rising trends merged."""
     try:
         res = supabase.table("trends") \
             .select("*") \
-            .eq("status", "rising") \
+            .in_("status", ["emerging", "rising"]) \
             .order("velocity_avg", desc=True) \
             .execute()
         trends = res.data or []
@@ -111,26 +172,37 @@ def get_trends():
             t["artist"] = t.get("audio_artist")
         return trends
     except Exception as e:
-        logger.error(f"Error fetching trends: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch trends: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/trends/{trend_id}")
-def get_trend(trend_id: int):
-    """Fetch single trend by ID from Supabase."""
+@app.get("/api/trends/by-language/{lang}")
+@limiter.limit("100/minute")
+def get_trends_by_language(request: Request, lang: str):
+    """Returns trends filtered by specific language code (hi, kn, ta, te, en, ...)."""
     try:
         res = supabase.table("trends") \
             .select("*") \
-            .eq("id", trend_id) \
+            .in_("status", ["emerging", "rising"]) \
+            .eq("language", lang) \
+            .order("velocity_avg", desc=True) \
             .execute()
+        trends = res.data or []
+        for t in trends:
+            t["song"] = t.get("audio_title")
+            t["artist"] = t.get("audio_artist")
+        return trends
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/{trend_id}")
+@limiter.limit("100/minute")
+def get_trend(request: Request, trend_id: int):
+    """Fetch single trend by ID."""
+    try:
+        res = supabase.table("trends").select("*").eq("id", trend_id).execute()
         if not res.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Trend with ID {trend_id} not found"
-            )
+            raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found")
         trend = res.data[0]
         trend["song"] = trend.get("audio_title")
         trend["artist"] = trend.get("audio_artist")
@@ -138,200 +210,236 @@ def get_trend(trend_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching trend {trend_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch trend: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/trends/{trend_id}/reels")
-def get_trend_reels(trend_id: int):
-    """Fetch reels associated with a trend by matching audio_title and audio_artist."""
+@limiter.limit("60/minute")
+def get_trend_reels(request: Request, trend_id: int):
+    """Fetch reels linked to a trend (by matching audio_title + audio_artist)."""
     try:
-        # 1. Fetch the trend to get its audio_title and audio_artist
-        trend_res = supabase.table("trends").select("audio_title, audio_artist").eq("id", trend_id).execute()
+        trend_res = supabase.table("trends") \
+            .select("audio_title, audio_artist") \
+            .eq("id", trend_id) \
+            .execute()
         if not trend_res.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Trend with ID {trend_id} not found"
-            )
-        trend = trend_res.data[0]
-        title = trend.get("audio_title")
-        artist = trend.get("audio_artist")
-        
-        # 2. Query reels matching this title and artist
+            raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found")
+        t = trend_res.data[0]
+        title, artist = t.get("audio_title"), t.get("audio_artist")
         reels_res = supabase.table("reels") \
             .select("*") \
             .eq("audio_title", title) \
             .eq("audio_artist", artist) \
             .order("velocity_score", desc=True) \
+            .limit(20) \
             .execute()
         return reels_res.data or []
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching reels for trend {trend_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch reels: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.get("/api/trends/{trend_id}/caption")
+@limiter.limit("30/minute")
+def get_trend_caption(request: Request, trend_id: int):
+    """
+    Returns AI-generated caption kit for a trend.
+    Includes: 3 caption variants, 15 hashtags, audio cue, posting strategy.
+    Results are cached in trend_captions table.
+    """
+    try:
+        engine = CaptionEngine()
+        kit = engine.get_caption_kit(trend_id)
+        return kit
+    except ValueError as e:
+        raise HTTPException(status_code=404, detail=str(e))
+    except Exception as e:
+        logger.error(f"Caption generation failed for trend {trend_id}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/{trend_id}/similar")
+@limiter.limit("60/minute")
+def get_similar_trends(request: Request, trend_id: int):
+    """Returns past trends with the same content_type and language (peaked or expired, showing history)."""
+    try:
+        trend_res = supabase.table("trends") \
+            .select("content_type, language") \
+            .eq("id", trend_id) \
+            .execute()
+        if not trend_res.data:
+            raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found")
+        t = trend_res.data[0]
+        content_type = t.get("content_type")
+        language = t.get("language")
+        q = supabase.table("trends").select("*").neq("id", trend_id)
+        if content_type:
+            q = q.eq("content_type", content_type)
+        if language:
+            q = q.eq("language", language)
+        q = q.order("velocity_avg", desc=True).limit(5)
+        res = q.execute()
+        similar = res.data or []
+        for s in similar:
+            s["song"] = s.get("audio_title")
+            s["artist"] = s.get("audio_artist")
+        return similar
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── User / Subscribe ───────────────────────────────────────────────────────────
 
 @app.post("/api/subscribe")
-def subscribe(request: SubscribeRequest):
-    """Save user subscription info to Supabase users table (maps language -> language_preference)."""
+@limiter.limit("10/minute")
+def subscribe(request: Request, req: SubscribeRequest):
+    """Save user subscription to Supabase users table."""
     try:
         user_data = {
-            "email": request.email,
-            "niche": request.niche,
-            "language_preference": request.language
+            "email": req.email,
+            "niche": req.niche,
+            "language_preference": req.language
         }
-        # Using upsert to prevent conflicts on unique constraint on email
         res = supabase.table("users").upsert(user_data, on_conflict="email").execute()
         if not res.data:
-            raise Exception("No data returned from database upsert.")
-        return {"success": True, "message": "You are subscribed"}
+            raise Exception("No data returned from upsert")
+        return {"success": True, "message": "You are subscribed!"}
     except Exception as e:
-        logger.error(f"Error subscribing email {request.email}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to subscribe: {str(e)}"
-        )
+        logger.error(f"Subscribe failed for {req.email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
-# --- BACKGROUND TASKS ---
+# ── Feedback ───────────────────────────────────────────────────────────────────
+
+@app.post("/api/feedback")
+@limiter.limit("20/minute")
+def submit_feedback(request: Request, req: FeedbackRequest):
+    """
+    Creator feedback on a trend: too_late | too_early | perfect | stale.
+    Stored in trend_feedback table for future ML training signal.
+    """
+    try:
+        feedback_data = {
+            "trend_id": req.trend_id,
+            "feedback_type": req.feedback_type,
+            "comment": req.comment,
+            "user_email": req.user_email,
+        }
+        supabase.table("trend_feedback").insert(feedback_data).execute()
+        return {"success": True, "message": "Feedback received. Thank you!"}
+    except Exception as e:
+        logger.error(f"Feedback save failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# ── Reel Generation ────────────────────────────────────────────────────────────
 
 def run_reel_generation(job_id: str, file_paths: List[str], trend_id: str):
-    """Background task to run reel generation."""
-    logger.info(f"Background task run_reel_generation started for job {job_id}")
+    logger.info(f"Background reel generation started: job={job_id}")
     try:
-        # 1. Update job status to processing
         supabase.table("jobs").update({"status": "processing", "progress": 0}).eq("id", int(job_id)).execute()
-        
-        # 2. Fetch trend data from Supabase
         trend_res = supabase.table("trends").select("*").eq("id", int(trend_id)).execute()
         if not trend_res.data:
-            raise ValueError(f"Trend with ID {trend_id} not found in database.")
+            raise ValueError(f"Trend {trend_id} not found")
         trend_data = trend_res.data[0]
-        
-        # 3. If trend has audio_url: download the audio file
+
         audio_path = None
         audio_url = trend_data.get("audio_url")
         if audio_url:
             try:
-                logger.info(f"Downloading audio from {audio_url} for job {job_id}...")
-                audio_path = os.path.join(f"uploads/{job_id}", "audio.mp3")
-                response = requests.get(audio_url, timeout=30)
-                response.raise_for_status()
-                with open(audio_path, "wb") as audio_file:
-                    audio_file.write(response.content)
-                logger.info(f"Downloaded audio to {audio_path}")
-            except Exception as download_err:
-                logger.warning(f"Failed to download audio from {audio_url}: {download_err}. Proceeding without audio.")
+                upload_dir = f"uploads/{job_id}"
+                os.makedirs(upload_dir, exist_ok=True)
+                audio_path = os.path.join(upload_dir, "audio.mp3")
+                resp = requests.get(audio_url, timeout=30)
+                resp.raise_for_status()
+                with open(audio_path, "wb") as f:
+                    f.write(resp.content)
+            except Exception as e:
+                logger.warning(f"Audio download failed: {e}. Continuing without audio.")
                 audio_path = None
-                
-        # 4. Create ReelGenerator instance
+
         generator = ReelGenerator()
-        
-        # 5. Define progress callback to update progress field in Supabase jobs table
-        def progress_callback(progress_val: int):
-            supabase.table("jobs").update({"progress": progress_val}).eq("id", int(job_id)).execute()
-            
-        # 6. Call generate_reel()
+
+        def progress_cb(pct: int):
+            supabase.table("jobs").update({"progress": pct}).eq("id", int(job_id)).execute()
+
         output_path = os.path.join("outputs", f"{job_id}.mp4")
         generator.generate_reel(
             image_paths=file_paths,
             audio_path=audio_path,
             output_path=output_path,
-            progress_callback=progress_callback
+            progress_callback=progress_cb
         )
-        
-        # 7. Update job: status=complete, output_url=/outputs/{job_id}.mp4
+
         output_url = f"/outputs/{job_id}.mp4"
         supabase.table("jobs").update({
             "status": "complete",
             "progress": 100,
             "output_url": output_url
         }).eq("id", int(job_id)).execute()
-        logger.info(f"Job {job_id} completed successfully.")
-        
+        logger.info(f"Job {job_id} complete.")
+
     except Exception as err:
-        logger.error(f"Error generating reel for job {job_id}: {err}", exc_info=True)
-        # 8. Update job: status=failed, error_message=str(error)
+        logger.error(f"Reel generation error (job={job_id}): {err}", exc_info=True)
         try:
             supabase.table("jobs").update({
                 "status": "failed",
                 "error_message": str(err)
             }).eq("id", int(job_id)).execute()
-        except Exception as update_err:
-            logger.error(f"Failed to set job {job_id} to failed state in Supabase: {update_err}")
+        except Exception:
+            pass
 
 
 def run_scrapers_background():
-    """Background task to run scrapers, trend detection, and notification engines in sequence."""
-    logger.info("Background scraper runner started.")
+    logger.info("Background scraper started.")
     try:
-        # 1. Instagram Scraper
         try:
-            logger.info("Running Instagram Scraper...")
             insta = InstagramScraper()
             insta.scrape_trending_reels()
         except Exception as e:
-            logger.error(f"Instagram Scraper background run failed: {e}", exc_info=True)
-            
-        # 2. YouTube Scraper
+            logger.error(f"Instagram scraper background error: {e}", exc_info=True)
         try:
-            logger.info("Running YouTube Scraper...")
             yt = YouTubeScraper()
             yt.scrape_trending_shorts()
         except Exception as e:
-            logger.error(f"YouTube Scraper background run failed: {e}", exc_info=True)
-            
-        # 3. Trend Engine
-        new_trend_ids = []
+            logger.error(f"YouTube scraper background error: {e}", exc_info=True)
+        new_ids = []
         try:
-            logger.info("Running Trend Detection Engine...")
             te = TrendEngine()
-            new_trend_ids = te.detect_trends()
+            new_ids = te.detect_trends()
         except Exception as e:
-            logger.error(f"Trend Engine background run failed: {e}", exc_info=True)
-            
-        # 4. Alert System
-        if new_trend_ids:
+            logger.error(f"TrendEngine background error: {e}", exc_info=True)
+        try:
+            refresher = TrendRefresher()
+            refresher.refresh_all()
+        except Exception as e:
+            logger.error(f"TrendRefresher background error: {e}", exc_info=True)
+        if new_ids:
             try:
-                logger.info(f"New trends detected: {new_trend_ids}. Running Alert System...")
                 alert = AlertSystem()
-                alert.send_trend_alerts(new_trend_ids)
+                alert.send_trend_alerts(new_ids)
             except Exception as e:
-                logger.error(f"Alert System background run failed: {e}", exc_info=True)
-        else:
-            logger.info("No new trends detected. Skipping Alert System.")
-            
-        logger.info("Background scraper runner completed successfully.")
+                logger.error(f"AlertSystem background error: {e}", exc_info=True)
+        logger.info("Background scraper complete.")
     except Exception as e:
-        logger.error(f"Critical failure in background scraper runner: {e}", exc_info=True)
+        logger.error(f"Critical background scraper error: {e}", exc_info=True)
 
-
-# --- API ENDPOINTS (CONT.) ---
 
 @app.post("/api/generate-reel")
+@limiter.limit("10/minute")
 async def generate_reel_endpoint(
+    request: Request,
     background_tasks: BackgroundTasks,
     files: List[UploadFile] = File(...),
     trend_id: str = Form(...),
     user_email: str = Form(...)
 ):
-    """
-    Accepts multipart form data to queue a reel generation job.
-    Saves files locally, initializes a pending job in Supabase,
-    and runs generation in the background.
-    """
     if not files:
-        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="No files uploaded.")
-        
+        raise HTTPException(status_code=400, detail="No files uploaded")
     try:
-        # 1. Create job record in Supabase jobs table with status=pending
         job_data = {
             "job_type": "reel_generation",
             "status": "pending",
@@ -341,51 +449,34 @@ async def generate_reel_endpoint(
         }
         res = supabase.table("jobs").insert(job_data).execute()
         if not res.data:
-            raise ValueError("Failed to create job entry in database.")
-            
-        job_record = res.data[0]
-        job_id = str(job_record["id"])
-        
-        # 2. Save uploaded files to uploads/{job_id}/ folder
-        job_upload_dir = f"uploads/{job_id}"
-        os.makedirs(job_upload_dir, exist_ok=True)
-        
+            raise ValueError("Failed to create job record")
+        job_id = str(res.data[0]["id"])
+
+        job_dir = f"uploads/{job_id}"
+        os.makedirs(job_dir, exist_ok=True)
         file_paths = []
         for file in files:
-            # Prevent path traversal security issue by taking basename
             filename = os.path.basename(file.filename)
-            file_path = os.path.join(job_upload_dir, filename)
-            
-            with open(file_path, "wb") as f:
+            fpath = os.path.join(job_dir, filename)
+            with open(fpath, "wb") as f:
                 content = await file.read()
                 f.write(content)
-            file_paths.append(file_path)
-            
-        # 3. Start background task: run_reel_generation(job_id, files, trend_id)
+            file_paths.append(fpath)
+
         background_tasks.add_task(run_reel_generation, job_id, file_paths, trend_id)
-        
-        # 4. Return immediately: {job_id: string}
         return {"job_id": job_id}
-        
     except Exception as e:
-        logger.error(f"Error handling generate-reel request: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to initiate reel generation: {str(e)}"
-        )
+        logger.error(f"generate-reel error: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get("/api/reel-status/{job_id}")
-def get_reel_status(job_id: int):
-    """Fetch job from Supabase by job_id."""
+@limiter.limit("60/minute")
+def get_reel_status(request: Request, job_id: int):
     try:
         res = supabase.table("jobs").select("*").eq("id", job_id).execute()
         if not res.data:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail=f"Job with ID {job_id} not found."
-            )
-            
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
         job = res.data[0]
         return {
             "status": job.get("status"),
@@ -396,22 +487,15 @@ def get_reel_status(job_id: int):
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error fetching status for job {job_id}: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to fetch job status: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post("/api/run-scraper")
-def trigger_scraper(background_tasks: BackgroundTasks):
-    """Trigger Instagram + YouTube scraper manually. Run as background task."""
+@limiter.limit("2/minute")
+def trigger_scraper(request: Request, background_tasks: BackgroundTasks):
+    """Manually trigger the full scraper + trend detection pipeline."""
     try:
         background_tasks.add_task(run_scrapers_background)
-        return {"message": "Scraper started"}
+        return {"message": "Pipeline started in background"}
     except Exception as e:
-        logger.error(f"Failed to start scraper background task: {e}", exc_info=True)
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail=f"Failed to trigger scraper: {str(e)}"
-        )
+        raise HTTPException(status_code=500, detail=str(e))

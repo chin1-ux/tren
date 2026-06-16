@@ -40,22 +40,38 @@ class YouTubeScraper:
 
     def scrape_trending_shorts(self):
         """
-        Scrapes trending YouTube Shorts in India, calculates velocity scores,
-        and stores new Shorts into the Supabase database.
+        Scrapes trending YouTube Shorts in India.
+        Uses India-specific search queries in multiple regional languages + english.
+        Calculates follower-normalized velocity and saves to Supabase.
         """
         logging.info("Starting scrape_trending_shorts process...")
-        
-        # 1. Search for trending Shorts in India across different relevance languages
-        languages = ["en", "hi", "kn", "ta"]
-        collected_video_ids = {}  # maps video_id -> language (keeps the first occurrence language)
-        
+
+        # India-specific search query groups per language
+        # Mixing English terms + regional language terms for better discovery
+        QUERY_GROUPS = [
+            ("en",  "shorts trending india viral reels"),
+            ("hi",  "ट्रेंडिंग गाना नया shorts"),      # "trending song new shorts" in Hindi
+            ("hi",  "viral hindi song 2025 shorts"),
+            ("kn",  "kannada trending song shorts"),
+            ("kn",  "ಕನ್ನಡ ಟ್ರೆಂಡಿಂಗ್ ಹಾಡು"),          # Kannada trending song
+            ("ta",  "tamil trending song shorts viral"),
+            ("ta",  "kollywood trending viral"),
+            ("te",  "telugu trending song shorts viral"),
+            ("te",  "tollywood trending viral shorts"),
+            ("bn",  "bengali trending song shorts viral"),
+            ("mr",  "marathi trending song shorts viral"),
+            ("pa",  "punjabi trending song shorts viral"),
+        ]
+
+        collected_video_ids = {}  # maps video_id -> language
+
         # Calculate publishedAfter (48 hours ago in RFC3339 format)
         published_after = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat().replace("+00:00", "Z")
         logging.info(f"Searching for videos published after: {published_after}")
-        
-        for lang in languages:
+
+        for (lang, query) in QUERY_GROUPS:
             try:
-                logging.info(f"Searching YouTube Shorts for relevanceLanguage '{lang}'...")
+                logging.info(f"Searching YouTube Shorts: lang={lang} query='{query}'")
                 search_url = "https://www.googleapis.com/youtube/v3/search"
                 params = {
                     "part": "snippet",
@@ -66,31 +82,31 @@ class YouTubeScraper:
                     "publishedAfter": published_after,
                     "maxResults": 50,
                     "relevanceLanguage": lang,
-                    "q": "shorts",
+                    "q": query,
                     "key": self.api_key
                 }
-                
-                response = requests.get(search_url, params=params)
+
+                response = requests.get(search_url, params=params, timeout=15)
                 response.raise_for_status()
                 data = response.json()
-                
+
                 items = data.get("items", [])
-                logging.info(f"Found {len(items)} search items for language '{lang}'")
-                
+                logging.info(f"Found {len(items)} items for lang={lang} query='{query}'")
+
                 for item in items:
                     video_id = item.get("id", {}).get("videoId")
                     if video_id and video_id not in collected_video_ids:
                         collected_video_ids[video_id] = lang
             except Exception as e:
-                logging.error(f"Error searching for language '{lang}': {e}", exc_info=True)
-                
+                logging.error(f"Error searching for lang={lang} query='{query}': {e}", exc_info=True)
+
         total_found = len(collected_video_ids)
         logging.info(f"Total unique video IDs collected: {total_found}")
-        
+
         if not collected_video_ids:
             print("No videos found to scrape.")
             return
-            
+
         # 2. Get video statistics and snippets in batches of 50
         video_details = {}
         video_ids_list = list(collected_video_ids.keys())

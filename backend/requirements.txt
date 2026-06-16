@@ -15,3 +15,7 @@ requests
 pydantic
 typing-extensions
 schedule
+slowapi
+moviepy
+Pillow
+imageioimageio-ffmpeg
