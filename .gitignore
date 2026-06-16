@@ -1,0 +1,20 @@
+# Environments
+.env
+backend/.env
+
+# Python
+**/__pycache__/
+**/*.pyc
+venv/
+backend/venv/
+
+# Logs
+*.log
+backend/*.log
+**/*.log
+
+# Media / Uploads / Outputs
+uploads/
+outputs/
+backend/uploads/
+backend/outputs/

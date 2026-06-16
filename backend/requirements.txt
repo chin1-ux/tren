@@ -1,0 +1,16 @@
+librosa
+numpy
+scipy
+soundfile
+python-dotenv
+supabase
+fastapi
+uvicorn
+resend
+google-generativeai
+instaloader
+apify-client
+requests
+pydantic
+typing-extensions
+schedule
