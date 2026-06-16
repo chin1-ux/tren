@@ -27,7 +27,7 @@ TABLES_SQL = {
             share_count int,
             posted_at timestamp,
             owner_username text,
-            owner_followers int,
+            owner_follower_count int,
             audio_title text,
             audio_artist text,
             hashtags text[],
