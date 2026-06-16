@@ -1,0 +1,11 @@
+[phases.setup]
+nixPkgs = ["...", "python3"]
+
+[phases.install]
+cmds = [
+  "python3 -m venv /opt/venv",
+  "/opt/venv/bin/pip install -r backend/requirements.txt"
+]
+
+[variables]
+PATH = "/opt/venv/bin:$PATH"
