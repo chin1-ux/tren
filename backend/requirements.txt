@@ -18,4 +18,6 @@ schedule
 slowapi
 moviepy
 Pillow
-imageioimageio-ffmpeg
+imageio
+imageio-ffmpeg
+
