@@ -3,10 +3,10 @@ nixPkgs = ["...", "python3"]
 
 [phases.install]
 cmds = [
-  "python3 -m venv /app/.venv",
-  "/app/.venv/bin/pip install -r backend/requirements.txt"
+  "python3 -m venv .venv",
+  ".venv/bin/pip install -r backend/requirements.txt"
 ]
 
 [start]
-cmd = "/app/.venv/bin/python backend/cron_job.py"
+cmd = ".venv/bin/python backend/cron_job.py"
 
