@@ -37,6 +37,7 @@ TABLES_SQL = {
             is_dance boolean,
             language text,
             video_url text,
+            thumbnail_url text,
             created_at timestamp DEFAULT now()
         );
     """,
