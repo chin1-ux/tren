@@ -169,8 +169,24 @@ class InstagramScraper:
                         caption = (item.get("caption") or "")[:500]
                         hashtags_list = re.findall(r"#(\w+)", caption)
                         video_url = item.get("videoUrl")
-                        music_title = item.get("musicTitle")
-                        music_artist = item.get("musicArtist")
+                        
+                        # Parse nested musicInfo
+                        music_title = None
+                        music_artist = None
+                        music_info_dict = item.get("musicInfo")
+                        if music_info_dict:
+                            minfo = music_info_dict.get("music_info")
+                            if minfo:
+                                asset = minfo.get("music_asset_info") or {}
+                                music_title = asset.get("title")
+                                music_artist = asset.get("display_artist")
+                            if not music_title or not music_title.strip():
+                                orig = music_info_dict.get("original_sound_info")
+                                if orig:
+                                    music_title = orig.get("original_audio_title")
+                                    ig_artist = orig.get("ig_artist") or {}
+                                    music_artist = ig_artist.get("username") or ig_artist.get("full_name")
+                                    
                         thumbnail_url = item.get("thumbnailUrl") or item.get("displayUrl")
 
                         reel_data = {
