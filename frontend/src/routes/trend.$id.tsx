@@ -4,7 +4,7 @@ import {
   Zap, Volume2, Calendar, ChevronRight,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels } from "@/lib/api";
+import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -47,6 +47,12 @@ function TrendDetailPage() {
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", id],
     queryFn: () => fetchTrendReels(id),
+    enabled: !!trend,
+  });
+
+  const { data: decision } = useQuery({
+    queryKey: ["trend-decision", id],
+    queryFn: () => fetchTrendDecision(id),
     enabled: !!trend,
   });
 
@@ -201,6 +207,27 @@ function TrendDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Decision Layer */}
+      {decision && (
+        <div className="glass-card p-5 space-y-3">
+          <h2 className="font-display text-lg font-bold">🧠 Decision Layer</h2>
+          <div className="grid grid-cols-3 gap-2">
+            <DecisionPill label="Decision" value={decision.decision.toUpperCase()} />
+            <DecisionPill label="Fit" value={`${Math.round((decision.trend.creator_fit_score || 0) * 100)}%`} />
+            <DecisionPill label="Hook" value={`${Math.round((decision.trend.hook_retention_score || 0) * 100)}%`} />
+          </div>
+          <p className="text-sm text-muted-foreground">{decision.rationale}</p>
+          <div className="rounded-xl bg-muted/40 p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Trial hook</p>
+            <p className="text-sm">{decision.test_hook}</p>
+          </div>
+          <div className="rounded-xl bg-muted/40 p-3 space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Public hook</p>
+            <p className="text-sm">{decision.public_hook}</p>
+          </div>
+        </div>
+      )}
 
       {/* Audio Cue */}
       {(trend.audioCueSecond !== undefined || captionKit?.audio_cue) && (
@@ -363,6 +390,15 @@ function StatPill({ label, value, color = "text-foreground" }: { label: string; 
     <div className="rounded-xl bg-muted/50 p-3 text-center">
       <p className="text-[10px] text-muted-foreground uppercase tracking-wide mb-1">{label}</p>
       <p className={`text-sm font-bold ${color}`}>{value}</p>
+    </div>
+  );
+}
+
+function DecisionPill({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="rounded-xl bg-muted/50 p-3 text-center">
+      <p className="text-xs text-muted-foreground mb-1">{label}</p>
+      <p className="font-display font-bold text-sm">{value}</p>
     </div>
   );
 }

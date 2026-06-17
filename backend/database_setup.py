@@ -177,6 +177,41 @@ TABLES_SQL = {
             score int,
             created_at timestamp DEFAULT now()
         );
+    """,
+    "trend_feedback": """
+        CREATE TABLE IF NOT EXISTS trend_feedback (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            trend_id bigint,
+            feedback_type text,
+            comment text,
+            user_email text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "creator_trend_memory": """
+        CREATE TABLE IF NOT EXISTS creator_trend_memory (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text,
+            trend_id bigint,
+            format_name text,
+            hook_variant text,
+            planned_mode text,
+            outcome_score float,
+            notes text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "trial_reel_plans": """
+        CREATE TABLE IF NOT EXISTS trial_reel_plans (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text,
+            trend_id bigint,
+            decision text,
+            rationale text,
+            test_hook text,
+            public_hook text,
+            created_at timestamp DEFAULT now()
+        );
     """
 }
 
@@ -230,6 +265,10 @@ def main():
         print("Performing table alterations...")
         cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_transferable boolean DEFAULT false;")
         cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS transfer_instructions text;")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS creator_fit_score float;")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS saturation_penalty float;")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
         print("Table alterations completed successfully.")
     except Exception as e:
         print(f"Error performing alterations: {e}")

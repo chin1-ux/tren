@@ -1,7 +1,7 @@
 
 
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "https://trendrop-backend-production.up.railway.app";
 
 
 // ── API types ──────────────────────────────────────────────────────────────────
@@ -51,6 +51,21 @@ export interface ApiCaptionKit {
     reasoning: string;
   };
   saturation_alert: string;
+}
+
+export interface ApiTrendDecision {
+  decision: "post" | "trial" | "skip" | string;
+  score: number;
+  rationale: string;
+  test_hook: string;
+  public_hook: string;
+  trend: {
+    creator_fit_score: number;
+    hook_retention_score: number;
+    saturation_penalty: number;
+    composite_score: number;
+    confidence: number;
+  };
 }
 
 // ── Category metadata ──────────────────────────────────────────────────────────
@@ -196,6 +211,18 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const token = typeof window !== "undefined" ? localStorage.getItem("trendrop_token") : null;
+  const headers = new Headers(init?.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  return fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+  });
+}
+
 // ── Trend fetch functions ──────────────────────────────────────────────────────
 
 export async function fetchTrends(language?: string, sort?: string): Promise<UiTrend[]> {
@@ -235,6 +262,14 @@ export async function fetchCaptionKit(trendId: string): Promise<ApiCaptionKit> {
 
 export async function fetchTrendReels(trendId: string): Promise<ApiReel[]> {
   return http<ApiReel[]>(`/api/trends/${encodeURIComponent(trendId)}/reels`);
+}
+
+export async function fetchTrendDecision(trendId: string, creatorNiche?: string, creatorLanguage?: string): Promise<ApiTrendDecision> {
+  const params = new URLSearchParams();
+  if (creatorNiche) params.set("creator_niche", creatorNiche);
+  if (creatorLanguage) params.set("creator_language", creatorLanguage);
+  const qs = params.toString() ? `?${params.toString()}` : "";
+  return http<ApiTrendDecision>(`/api/trends/${encodeURIComponent(trendId)}/decision${qs}`);
 }
 
 // ── Reel generation ────────────────────────────────────────────────────────────

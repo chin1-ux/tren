@@ -144,6 +144,20 @@ class BrandDealRequest(BaseModel):
     details: str
 
 
+class MemoryRequest(BaseModel):
+    trend_id: int
+    format_name: str
+    hook_variant: str
+    planned_mode: str
+    outcome_score: Optional[float] = None
+    notes: Optional[str] = None
+
+
+class TrialPlanRequest(BaseModel):
+    creator_niche: Optional[str] = None
+    creator_language: Optional[str] = None
+
+
 
 # ── Health ─────────────────────────────────────────────────────────────────────
 
@@ -340,6 +354,86 @@ def get_similar_trends(request: Request, trend_id: int):
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/{trend_id}/decision")
+@limiter.limit("60/minute")
+def get_trend_decision(request: Request, trend_id: int, creator_niche: Optional[str] = None, creator_language: Optional[str] = None):
+    """
+    Returns a simple creator decision layer for the trend:
+    post it, trial it, or skip it.
+    """
+    try:
+        res = supabase.table("trends").select("*").eq("id", trend_id).execute()
+        if not res.data:
+            raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found")
+        t = res.data[0]
+
+        fit = float(t.get("creator_fit_score") or 0)
+        hook = float(t.get("hook_retention_score") or 0)
+        crowd = 1.0 - float(t.get("saturation_penalty") or 0)
+        composite = float(t.get("composite_score") or 0)
+        confidence = float(t.get("confidence") or 0)
+
+        score = (fit * 0.35) + (hook * 0.25) + (crowd * 0.2) + (min(1.0, confidence) * 0.2)
+        if creator_niche and creator_niche.lower() in (t.get("content_type") or "").lower():
+            score += 0.05
+        if creator_language and creator_language.lower() == (t.get("language") or "").lower():
+            score += 0.05
+
+        if score >= 0.72 and composite >= 3.0:
+            decision = "post"
+        elif score >= 0.55:
+            decision = "trial"
+        else:
+            decision = "skip"
+
+        test_hook = t.get("text_overlay_template") or f"POV: you just found {t.get('audio_title')}"
+        public_hook = f"Would you use this sound for {t.get('content_type') or 'your niche'}?"
+
+        rationale = (
+            f"Fit {int(fit * 100)}%, hook {int(hook * 100)}%, crowd {int(crowd * 100)}%, "
+            f"confidence {int(confidence * 100)}%."
+        )
+
+        return {
+            "decision": decision,
+            "score": round(score, 3),
+            "rationale": rationale,
+            "test_hook": test_hook,
+            "public_hook": public_hook,
+            "trend": {
+                "creator_fit_score": fit,
+                "hook_retention_score": hook,
+                "saturation_penalty": float(t.get("saturation_penalty") or 0),
+                "composite_score": composite,
+                "confidence": confidence,
+            },
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/trends/{trend_id}/memory")
+@limiter.limit("30/minute")
+def save_trend_memory(request: Request, trend_id: int, req: MemoryRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        memory = {
+            "user_email": current_user_email,
+            "trend_id": trend_id,
+            "format_name": req.format_name,
+            "hook_variant": req.hook_variant,
+            "planned_mode": req.planned_mode,
+            "outcome_score": req.outcome_score,
+            "notes": req.notes,
+        }
+        supabase.table("creator_trend_memory").insert(memory).execute()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error saving trend memory: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # ── User / Subscribe ───────────────────────────────────────────────────────────
@@ -725,4 +819,3 @@ def get_brand_deals(request: Request, current_user_email: str = Depends(get_curr
     except Exception as e:
         logger.error(f"Error getting brand list: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
-

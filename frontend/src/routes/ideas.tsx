@@ -3,6 +3,7 @@ import { useState, useEffect } from "react";
 import { Lightbulb, Calendar, Sparkles, Clock, Music, CheckCircle2, ChevronRight, RefreshCw, Send } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
@@ -64,7 +65,7 @@ function IdeasPage() {
   const fetchIdeas = async (email: string) => {
     setLoadingIdeas(true);
     try {
-      const res = await fetch("/api/daily-ideas", { headers: authHeaders() });
+      const res = await apiFetch("/api/daily-ideas", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         setIdeas(data);
@@ -105,7 +106,7 @@ function IdeasPage() {
     setLoadingCalendar(true);
     const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
-      const res = await fetch("/api/calendar", {
+      const res = await apiFetch("/api/calendar", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -140,7 +141,7 @@ function IdeasPage() {
 
   const loadSavedCalendar = async () => {
     try {
-      const res = await fetch("/api/calendar", { headers: authHeaders() });
+      const res = await apiFetch("/api/calendar", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data && data.calendar && data.calendar.length > 0) {
