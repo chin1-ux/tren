@@ -6,6 +6,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/marketplace")({
   head: () => ({
@@ -86,7 +87,7 @@ function MarketplacePage() {
       const url = filterNiche !== "all" 
         ? `/api/marketplace/profiles?niche=${encodeURIComponent(filterNiche)}`
         : "/api/marketplace/profiles";
-      const res = await fetch(url);
+      const res = await apiFetch(url);
       if (res.ok) {
         const data = await res.json();
         setProfiles(data);
@@ -146,7 +147,7 @@ function MarketplacePage() {
   const fetchDeals = async () => {
     setLoadingDeals(true);
     try {
-      const res = await fetch("/api/marketplace/deals", { headers: authHeaders() });
+      const res = await apiFetch("/api/marketplace/deals", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         setDeals(data);
@@ -179,7 +180,7 @@ function MarketplacePage() {
 
   const loadOwnProfile = async () => {
     try {
-      const res = await fetch("/api/marketplace/profiles", { headers: authHeaders() });
+      const res = await apiFetch("/api/marketplace/profiles", { headers: authHeaders() });
       if (res.ok) {
         const data: CreatorProfile[] = await res.json();
         const mine = data.find(p => p.user_email === email);
@@ -218,7 +219,7 @@ function MarketplacePage() {
     const token = localStorage.getItem("trendrop_token");
     const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
-      const res = await fetch("/api/marketplace/profile", {
+      const res = await apiFetch("/api/marketplace/profile", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -277,7 +278,7 @@ function MarketplacePage() {
     setAddingDeal(true);
     const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
-      const res = await fetch("/api/marketplace/deals", {
+      const res = await apiFetch("/api/marketplace/deals", {
         method: "POST",
         headers,
         body: JSON.stringify({

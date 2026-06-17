@@ -1,7 +1,8 @@
 
 
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
+  (import.meta.env.DEV ? "http://localhost:8000" : "");
 
 
 // ── API types ──────────────────────────────────────────────────────────────────
