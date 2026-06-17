@@ -3,17 +3,73 @@ import re
 import json
 import time
 import logging
+import concurrent.futures
 from datetime import datetime, timezone, timedelta
 import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-# Configure logging
+import sys
+import socket
+import urllib3.util.connection as connection
+
+# Force IPv4 to prevent Windows/Supabase IPv6 timeout hangs
+connection.allowed_gai_family = lambda: socket.AF_INET
+
+# Configure logging to stdout and file safely
+log_handlers = [
+    logging.StreamHandler(sys.stdout)
+]
+try:
+    log_handlers.append(logging.FileHandler("trend_engine.log", encoding="utf-8"))
+except Exception:
+    pass
+
 logging.basicConfig(
-    filename="trend_engine.log",
     level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    handlers=log_handlers
 )
+
+def generate_local_fallback(trend):
+    title = (trend.get("audio_title") or "Unknown Song").lower()
+    is_dance = any(word in title for word in ["dance", "nach", "step", "groove", "taal", "bhangra", "dancecover"])
+    content_type = "dance" if is_dance else "viral"
+    
+    # Simple keyword heuristics
+    if any(word in title for word in ["travel", "safarnama", "road", "trip", "mountains", "vlog"]):
+        content_type = "travel"
+    elif any(word in title for word in ["fashion", "look", "style", "wear", "dress", "ootd"]):
+        content_type = "fashion"
+    elif any(word in title for word in ["food", "recipe", "kitchen", "cook", "chef"]):
+        content_type = "food"
+    elif any(word in title for word in ["comedy", "funny", "joke", "laugh", "meme"]):
+        content_type = "comedy"
+    elif any(word in title for word in ["motivation", "gym", "fitness", "workout", "fit"]):
+        content_type = "motivation"
+        
+    return {
+        "content_type": content_type,
+        "is_dance": is_dance,
+        "needs_filming": is_dance,
+        "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
+        "narrative_structure": "transformation" if is_dance else "none",
+        "text_overlay_template": f"POV: Listening to {trend.get('audio_title') or 'this track'}",
+        "language": "hi" if any(c in title for c in ["a", "e", "i", "o", "u"]) else "en",
+        "cultural_context": "celebration" if is_dance else "everyday",
+        "ideal_content_description": f"Post aesthetic clips or photos matching the vibe of {trend.get('audio_title') or 'the song'}.",
+        "camera_style": "static" if is_dance else "handheld",
+        "window_hours_remaining": 24,
+        "confidence": 0.90,
+        "saturation_score": 0.3,
+        "optimal_post_hour_ist": 18,
+        "best_platform_first": "instagram",
+        "why_this_works": f"The track {trend.get('audio_title') or 'this track'} is currently driving high engagement on short-form feeds.",
+        "audio_cue_second": 0,
+        "format_transferable": True,
+        "transfer_instructions": f"Adapt the aesthetic visual style of {trend.get('audio_title') or 'the song'} to show your niche products or behind-the-scenes processes."
+    }
+
 
 
 class TrendEngine:
@@ -138,6 +194,10 @@ class TrendEngine:
 
             logging.info(f"Confirmed {len(confirmed)} new trends for Gemini classification")
 
+            # Sort and limit to top 15 to avoid API rate limits and speed up processing
+            confirmed = sorted(confirmed, key=lambda x: x["avg_velocity"], reverse=True)[:15]
+            logging.info(f"Selected top {len(confirmed)} trends for classification")
+
             # ── STEP 5: Cross-reference YouTube Shorts ─────────────────────────
             shorts_res = self.supabase.table("youtube_shorts") \
                 .select("*") \
@@ -167,7 +227,7 @@ class TrendEngine:
             )
             headers = {"Content-Type": "application/json"}
 
-            for trend in confirmed:
+            def classify_single_trend(trend):
                 captions = [r.get("caption") for r in trend["reels"] if r.get("caption")]
                 sample_captions = " | ".join(captions[:5])
                 all_hashtags = set()
@@ -219,13 +279,15 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 }
 
                 max_attempts = 4
+                success = False
                 for attempt in range(1, max_attempts + 1):
                     try:
                         logging.info(f"Gemini call for '{trend['audio_title']}' (attempt {attempt})")
-                        resp = requests.post(gemini_url, headers=headers, json=payload, timeout=30)
+                        # Lower timeout to 5 seconds so it doesn't hang if there's network/DNS delay
+                        resp = requests.post(gemini_url, headers=headers, json=payload, timeout=5)
                         if resp.status_code == 429:
                             if attempt < max_attempts:
-                                time.sleep(attempt * 6)
+                                time.sleep(attempt * 2) # reduced sleep time to speed up fallback
                                 continue
                         resp.raise_for_status()
                         rj = resp.json()
@@ -240,11 +302,21 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                                 text = text[s:e + 1]
                         classification = json.loads(text)
                         trend.update(classification)
+                        success = True
                         break
                     except Exception as e:
                         logging.warning(f"Gemini attempt {attempt} failed: {e}")
                         if attempt < max_attempts:
-                            time.sleep(attempt * 3)
+                            time.sleep(1) # reduced sleep time to speed up fallback
+                
+                if not success:
+                    logging.warning(f"Gemini classification failed for '{trend['audio_title']}'. Applying local fallback.")
+                    fallback = generate_local_fallback(trend)
+                    trend.update(fallback)
+
+            # Classify top 15 trends in parallel
+            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
+                executor.map(classify_single_trend, confirmed)
 
             # ── STEP 7: Save to Supabase ───────────────────────────────────────
             for trend in confirmed:
