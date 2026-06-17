@@ -16,26 +16,40 @@ function DashboardPage() {
   const [reelsCount, setReelsCount] = useState(0);
   const [niche, setNiche] = useState("Dance");
   const [platform, setPlatform] = useState("Instagram");
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    const count = parseInt(localStorage.getItem("trendrop_generated_count") || "0");
-    setReelsCount(count);
+    const sync = () => {
+      const count = parseInt(localStorage.getItem("trendrop_generated_count") || "0", 10);
+      setReelsCount(Number.isFinite(count) ? count : 0);
 
-    const savedNiche = localStorage.getItem("trendrop_niche");
-    if (savedNiche) {
-      setNiche(savedNiche.charAt(0).toUpperCase() + savedNiche.slice(1));
-    }
+      const savedNiche = localStorage.getItem("trendrop_niche");
+      if (savedNiche) {
+        setNiche(savedNiche.charAt(0).toUpperCase() + savedNiche.slice(1));
+      }
 
-    const savedPlatform = localStorage.getItem("trendrop_platform");
-    if (savedPlatform) {
-      setPlatform(savedPlatform === "youtube_shorts" ? "YT Shorts" : "Instagram");
-    }
+      const savedPlatform = localStorage.getItem("trendrop_platform");
+      if (savedPlatform) {
+        setPlatform(savedPlatform === "youtube_shorts" ? "YT Shorts" : "Instagram");
+      }
+
+      setLastGeneratedAt(localStorage.getItem("trendrop_last_generated_at"));
+    };
+
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
+    };
   }, []);
 
   // Mock creator metrics based on number of generated reels
   const viewsEst = reelsCount * 12500;
-  const engagementEst = reelsCount > 0 ? "8.4%" : "0.0%";
+  const engagementEst = reelsCount > 0 ? `${Math.min(12, 4.2 + reelsCount * 0.35).toFixed(1)}%` : "0.0%";
   const followersEst = reelsCount * 145;
+  const momentumLabel = reelsCount === 0 ? "No activity yet" : reelsCount < 3 ? "Getting started" : reelsCount < 8 ? "Building momentum" : "High-output mode";
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-24 pt-6">
@@ -105,6 +119,10 @@ function DashboardPage() {
             <span className="font-bold text-foreground mt-0.5 block">{platform}</span>
           </div>
         </div>
+        <div className="rounded-xl bg-muted/40 p-3">
+          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Momentum</span>
+          <span className="font-bold text-foreground mt-0.5 block">{momentumLabel}</span>
+        </div>
       </div>
 
       {/* Goal Target */}
@@ -118,6 +136,11 @@ function DashboardPage() {
             ? `Awesome! You have published ${reelsCount} reels. Keep posting at the recommended times in your profile to accelerate your viral velocity.`
             : "Generate your first reel using our 3D editor to begin tracking viral analytics and performance insights here."}
         </p>
+        {lastGeneratedAt && (
+          <p className="text-[10px] text-muted-foreground">
+            Last reel generated: {new Date(lastGeneratedAt).toLocaleString()}
+          </p>
+        )}
       </div>
     </div>
   );

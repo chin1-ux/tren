@@ -47,16 +47,31 @@ function ProfilePage() {
   const [platform, setPlatform] = useState("instagram");
   const [alertEnabled, setAlertEnabled] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [generatedCount, setGeneratedCount] = useState(0);
+  const [lastGeneratedAt, setLastGeneratedAt] = useState<string | null>(null);
 
   useEffect(() => {
-    const e = localStorage.getItem("trendrop_email");
-    const n = localStorage.getItem("trendrop_niche");
-    const l = localStorage.getItem("trendrop_language");
-    const p = localStorage.getItem("trendrop_platform");
-    if (e) setEmail(e);
-    if (n) setNiche(n);
-    if (l) setLanguage(l);
-    if (p) setPlatform(p);
+    const sync = () => {
+      const e = localStorage.getItem("trendrop_email");
+      const n = localStorage.getItem("trendrop_niche");
+      const l = localStorage.getItem("trendrop_language");
+      const p = localStorage.getItem("trendrop_platform");
+      if (e) setEmail(e);
+      if (n) setNiche(n);
+      if (l) setLanguage(l);
+      if (p) setPlatform(p);
+      const count = parseInt(localStorage.getItem("trendrop_generated_count") || "0", 10);
+      setGeneratedCount(Number.isFinite(count) ? count : 0);
+      setLastGeneratedAt(localStorage.getItem("trendrop_last_generated_at"));
+    };
+
+    sync();
+    window.addEventListener("storage", sync);
+    window.addEventListener("focus", sync);
+    return () => {
+      window.removeEventListener("storage", sync);
+      window.removeEventListener("focus", sync);
+    };
   }, []);
 
   const save = async () => {
@@ -87,7 +102,6 @@ function ProfilePage() {
     }
   };
 
-  const generatedCount = parseInt(localStorage.getItem("trendrop_generated_count") || "0");
   const selectedNiche = NICHES.find(n => n.id === niche);
   const selectedLang = LANGUAGES.find(l => l.code === language);
 
@@ -134,6 +148,22 @@ function ProfilePage() {
           >
             <div className={`absolute top-1 h-4 w-4 rounded-full bg-white shadow transition-all ${alertEnabled ? "left-6" : "left-1"}`} />
           </button>
+        </div>
+      </div>
+
+      <div className="glass-card p-5 space-y-3">
+        <h2 className="font-display text-base font-bold flex items-center gap-2">
+          <Check className="h-4 w-4 text-success" /> Activity
+        </h2>
+        <div className="rounded-xl bg-muted/40 p-3">
+          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Reel generations</span>
+          <span className="font-bold text-foreground mt-0.5 block">{generatedCount > 0 ? `${generatedCount} completed` : "No reels yet"}</span>
+        </div>
+        <div className="rounded-xl bg-muted/40 p-3">
+          <span className="text-[10px] text-muted-foreground block uppercase font-bold">Last activity</span>
+          <span className="font-bold text-foreground mt-0.5 block">
+            {lastGeneratedAt ? new Date(lastGeneratedAt).toLocaleString() : "Nothing yet"}
+          </span>
         </div>
       </div>
 

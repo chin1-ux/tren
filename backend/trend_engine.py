@@ -55,7 +55,7 @@ def generate_local_fallback(trend):
         "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
         "narrative_structure": "transformation" if is_dance else "none",
         "text_overlay_template": f"POV: Listening to {trend.get('audio_title') or 'this track'}",
-        "language": "hi" if any(c in title for c in ["a", "e", "i", "o", "u"]) else "en",
+        "language": trend.get("language") or "en",
         "cultural_context": "celebration" if is_dance else "everyday",
         "ideal_content_description": f"Post aesthetic clips or photos matching the vibe of {trend.get('audio_title') or 'the song'}.",
         "camera_style": "static" if is_dance else "handheld",
@@ -67,7 +67,10 @@ def generate_local_fallback(trend):
         "why_this_works": f"The track {trend.get('audio_title') or 'this track'} is currently driving high engagement on short-form feeds.",
         "audio_cue_second": 0,
         "format_transferable": True,
-        "transfer_instructions": f"Adapt the aesthetic visual style of {trend.get('audio_title') or 'the song'} to show your niche products or behind-the-scenes processes."
+        "transfer_instructions": f"Adapt the aesthetic visual style of {trend.get('audio_title') or 'the song'} to show your niche products or behind-the-scenes processes.",
+        "creator_fit_score": 0.62,
+        "saturation_penalty": 0.35,
+        "hook_retention_score": 0.58,
     }
 
 
@@ -91,6 +94,47 @@ class TrendEngine:
             raise ValueError("GEMINI_API_KEY missing from .env")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+
+    def _calculate_creator_fit_score(self, title: str, artist: str, creator_count: int, avg_velocity: float, recent_6h_avg: float, recent_24h_avg: float, oldest_age_hours: float) -> float:
+        text = f"{title} {artist}".lower()
+        is_dance = any(word in text for word in ["dance", "step", "groove", "bhangra", "hookstep", "taal"])
+        is_visual = any(word in text for word in ["aesthetic", "cinematic", "vlog", "travel", "look", "style", "fashion"])
+        is_instructional = any(word in text for word in ["tutorial", "how", "learn", "tips", "guide", "hack"])
+        is_emotional = any(word in text for word in ["love", "heart", "sad", "miss", "story", "pain", "broken"])
+        base = 0.45
+        if is_dance:
+            base += 0.18
+        if is_visual:
+            base += 0.14
+        if is_instructional:
+            base += 0.12
+        if is_emotional:
+            base += 0.08
+        momentum = min(0.25, (avg_velocity + recent_6h_avg + recent_24h_avg) / 30)
+        breadth = min(0.15, creator_count * 0.03)
+        freshness = max(0.0, 0.12 - (oldest_age_hours / 400))
+        return max(0.0, min(1.0, base + momentum + breadth + freshness))
+
+    def _calculate_saturation_penalty(self, creator_count: int, avg_velocity: float, max_velocity: float, oldest_age_hours: float) -> float:
+        crowding = min(1.0, creator_count / 12)
+        momentum_density = min(1.0, (avg_velocity * 0.5 + max_velocity * 0.3) / 8)
+        age_pressure = min(1.0, oldest_age_hours / 72)
+        return max(0.0, min(1.0, (crowding * 0.45) + (momentum_density * 0.35) + (age_pressure * 0.20)))
+
+    def _estimate_hook_retention_score(self, title: str, recent_6h_avg: float, avg_velocity: float, max_velocity: float) -> float:
+        text = title.lower()
+        hooky_words = [
+            "dance", "step", "reveal", "before", "after", "pov", "wait",
+            "story", "confession", "transition", "glow up", "drop", "beat"
+        ]
+        visual_words = ["cinematic", "aesthetic", "travel", "fashion", "food", "fit", "motivation"]
+        word_score = 0.35
+        if any(word in text for word in hooky_words):
+            word_score += 0.25
+        if any(word in text for word in visual_words):
+            word_score += 0.12
+        momentum_signal = min(0.25, (recent_6h_avg * 0.15) + (avg_velocity * 0.08) + (max_velocity * 0.05))
+        return max(0.0, min(1.0, word_score + momentum_signal))
 
     def detect_trends(self) -> list:
         """
@@ -148,18 +192,81 @@ class TrendEngine:
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
+                creator_count = len(usernames)
                 velocities = [r.get("velocity_score", 0.0) for r in group_reels]
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
-                # Determine initial status
-                # EMERGING: even 1 reel with very high velocity in last 6h
-                recent_reels_6h = [r for r in group_reels if r.get("created_at", "") >= time_threshold_6h]
-                very_viral = any(r.get("velocity_score", 0) > 3.0 for r in recent_reels_6h)
+                recent_6h_velocities = []
+                recent_24h_velocities = []
+                recent_reels_6h = []
+                oldest_age_hours = 0.0
+                for r in group_reels:
+                    created_str = r.get("created_at")
+                    if not created_str:
+                        continue
+                    try:
+                        if created_str.endswith("Z"):
+                            created_str = created_str[:-1] + "+00:00"
+                        created_dt = datetime.fromisoformat(created_str)
+                        if created_dt.tzinfo is None:
+                            created_dt = created_dt.replace(tzinfo=timezone.utc)
+                        age_hours = (datetime.now(timezone.utc) - created_dt).total_seconds() / 3600
+                        oldest_age_hours = max(oldest_age_hours, age_hours)
+                        if age_hours <= 6:
+                            recent_6h_velocities.append(r.get("velocity_score", 0.0))
+                            recent_reels_6h.append(r)
+                        if age_hours <= 24:
+                            recent_24h_velocities.append(r.get("velocity_score", 0.0))
+                    except Exception:
+                        pass
 
-                if len(usernames) >= 5:
+                recent_6h_avg = sum(recent_6h_velocities) / len(recent_6h_velocities) if recent_6h_velocities else 0.0
+                recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
+                recency_bonus = max(0.5, 1.5 - (oldest_age_hours / 48)) if oldest_age_hours else 1.0
+                creator_bonus = 1.0 + min(0.6, creator_count * 0.08)
+                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus
+
+                # Creator fit looks at what the trend is actually good for, not just raw momentum.
+                creator_fit_score = self._calculate_creator_fit_score(
+                    title=title,
+                    artist=artist,
+                    creator_count=creator_count,
+                    avg_velocity=avg_velocity,
+                    recent_6h_avg=recent_6h_avg,
+                    recent_24h_avg=recent_24h_avg,
+                    oldest_age_hours=oldest_age_hours,
+                )
+
+                # Saturation penalty measures whether the trend is getting crowded.
+                saturation_penalty = self._calculate_saturation_penalty(
+                    creator_count=creator_count,
+                    avg_velocity=avg_velocity,
+                    max_velocity=max_velocity,
+                    oldest_age_hours=oldest_age_hours,
+                )
+
+                # Hook retention is estimated from the content format and momentum profile.
+                hook_retention_score = self._estimate_hook_retention_score(
+                    title=title,
+                    recent_6h_avg=recent_6h_avg,
+                    avg_velocity=avg_velocity,
+                    max_velocity=max_velocity,
+                )
+
+                composite_score = (
+                    (trend_score * 0.40)
+                    + (creator_fit_score * 3.0)
+                    + (hook_retention_score * 2.0)
+                    - (saturation_penalty * 1.8)
+                )
+
+                # Determine initial status
+                very_viral = any((r.get("velocity_score", 0) or 0) > 3.0 for r in recent_reels_6h)
+
+                if creator_count >= 5 and composite_score >= 3.2:
                     initial_status = "rising"
-                elif len(usernames) >= 1 and (avg_velocity > 1.5 or very_viral):
+                elif creator_count >= 2 and (avg_velocity > 1.4 or very_viral or composite_score >= 2.8):
                     initial_status = "emerging"
                 elif very_viral:
                     initial_status = "emerging"
@@ -187,6 +294,11 @@ class TrendEngine:
                     "reels": group_reels,
                     "avg_velocity": avg_velocity,
                     "max_velocity": max_velocity,
+                    "trend_score": trend_score,
+                    "composite_score": composite_score,
+                    "creator_fit_score": creator_fit_score,
+                    "saturation_penalty": saturation_penalty,
+                    "hook_retention_score": hook_retention_score,
                     "count": len(group_reels),
                     "usernames": list(usernames),
                     "initial_status": initial_status,
@@ -195,7 +307,7 @@ class TrendEngine:
             logging.info(f"Confirmed {len(confirmed)} new trends for Gemini classification")
 
             # Sort and limit to top 15 to avoid API rate limits and speed up processing
-            confirmed = sorted(confirmed, key=lambda x: x["avg_velocity"], reverse=True)[:15]
+            confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)[:15]
             logging.info(f"Selected top {len(confirmed)} trends for classification")
 
             # ── STEP 5: Cross-reference YouTube Shorts ─────────────────────────
@@ -327,6 +439,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     except Exception:
                         confidence = 0.0
 
+                # Blend model confidence with observed trend strength so we don't over-trust the LLM.
+                confidence = min(0.98, max(0.0, confidence) + min(0.12, (trend.get("trend_score", 0.0) or 0.0) / 50))
+
                 if confidence <= 0.55:
                     logging.info(f"Skipping '{trend['audio_title']}' — low confidence ({confidence:.2f})")
                     continue
@@ -359,6 +474,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "content_type": trend.get("content_type"),
                     "format_transferable": trend.get("format_transferable", False),
                     "transfer_instructions": trend.get("transfer_instructions"),
+                    "creator_fit_score": trend.get("creator_fit_score"),
+                    "saturation_penalty": trend.get("saturation_penalty"),
+                    "hook_retention_score": trend.get("hook_retention_score"),
+                    "composite_score": trend.get("composite_score"),
                 }
 
                 try:

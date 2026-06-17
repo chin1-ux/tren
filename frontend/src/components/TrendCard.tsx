@@ -41,6 +41,10 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   const satMeta = getSaturationMeta(trend.saturationScore ?? 0);
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
   const viralPct = Math.min(100, (trend.viralMultiplier / 30) * 100);
+  const creatorFit = trend.creatorFitScore ?? 0;
+  const hookRetention = trend.hookRetentionScore ?? 0;
+  const saturationPenalty = trend.saturationPenalty ?? 0;
+  const compositeScore = trend.compositeScore ?? 0;
 
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
@@ -165,6 +169,22 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         )}
       </div>
 
+      <div className="grid grid-cols-3 gap-2 text-[10px]">
+        <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
+        <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+        <ScorePill label="Crowd" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
+      </div>
+
+      <div className="rounded-xl border border-border bg-white/[0.03] px-3 py-2">
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-semibold uppercase tracking-wide text-muted-foreground">Creator score</span>
+          <span className="font-bold text-primary">{Math.round(compositeScore * 100)} / 100</span>
+        </div>
+        <p className="mt-1 text-[11px] text-muted-foreground">
+          This blends fit, hook strength, momentum, and saturation so creators know what is actually worth posting.
+        </p>
+      </div>
+
       {/* Chips */}
       <div className="flex flex-wrap gap-2">
         <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
@@ -275,5 +295,17 @@ function Chip({ children, className = "" }: { children: React.ReactNode; classNa
     <span className={`inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-foreground ${className}`}>
       {children}
     </span>
+  );
+}
+
+function ScorePill({ label, value, tone }: { label: string; value: number; tone: "good" | "mid" | "bad" }) {
+  const clz = tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : tone === "mid" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20";
+  return (
+    <div className={`rounded-lg border px-2 py-1 ${clz}`}>
+      <div className="flex items-center justify-between gap-2">
+        <span className="font-semibold uppercase tracking-wide">{label}</span>
+        <span className="font-bold">{Math.round(value * 100)}</span>
+      </div>
+    </div>
   );
 }

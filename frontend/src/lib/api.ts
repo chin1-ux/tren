@@ -23,6 +23,10 @@ export interface ApiTrend {
   hashtags?: string[];
   status?: string;         // "emerging" | "rising" | "peaked" | "expired"
   saturation_score?: number;
+  saturation_penalty?: number;
+  creator_fit_score?: number;
+  hook_retention_score?: number;
+  composite_score?: number;
   optimal_post_hour_ist?: number;
   best_platform_first?: string;
   why_this_works?: string;
@@ -119,6 +123,10 @@ export interface UiTrend {
   expiresAt: number;
   status?: string;
   saturationScore?: number;
+  saturationPenalty?: number;
+  creatorFitScore?: number;
+  hookRetentionScore?: number;
+  compositeScore?: number;
   optimalPostHourIst?: number;
   bestPlatformFirst?: string;
   whyThisWorks?: string;
@@ -157,6 +165,10 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     // New v2 fields
     status: t.status ?? "rising",
     saturationScore: t.saturation_score ?? 0,
+    saturationPenalty: t.saturation_penalty ?? 0,
+    creatorFitScore: t.creator_fit_score ?? 0,
+    hookRetentionScore: t.hook_retention_score ?? 0,
+    compositeScore: t.composite_score ?? 0,
     optimalPostHourIst: t.optimal_post_hour_ist,
     bestPlatformFirst: t.best_platform_first ?? "instagram",
     whyThisWorks: t.why_this_works,

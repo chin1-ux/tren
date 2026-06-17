@@ -40,6 +40,14 @@ function GeneratePage() {
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
+  const incrementGeneratedCount = () => {
+    const current = parseInt(localStorage.getItem("trendrop_generated_count") || "0", 10);
+    const next = Number.isFinite(current) ? current + 1 : 1;
+    localStorage.setItem("trendrop_generated_count", String(next));
+    localStorage.setItem("trendrop_last_generated_at", new Date().toISOString());
+    localStorage.setItem("trendrop_last_generated_trend", trend?.song ?? "");
+  };
+
   const onFiles = (files: FileList | null) => {
     if (!files) return;
     const arr = Array.from(files).slice(0, 15 - photos.length);
@@ -90,6 +98,7 @@ function GeneratePage() {
           if (s.status === "complete" && (s.progress ?? 0) >= 100) {
             stop = true;
             if (s.output_url) setOutputUrl(resolveOutputUrl(s.output_url));
+            incrementGeneratedCount();
             setStage("result");
             return;
           }

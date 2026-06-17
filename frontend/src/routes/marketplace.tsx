@@ -67,6 +67,12 @@ function MarketplacePage() {
   const [savingProfile, setSavingProfile] = useState(false);
 
   const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+  const authHeaders = () => {
+    const token = localStorage.getItem("trendrop_token");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return headers;
+  };
 
   useEffect(() => {
     fetchProfiles();
@@ -84,49 +90,54 @@ function MarketplacePage() {
       if (res.ok) {
         const data = await res.json();
         setProfiles(data);
+        localStorage.setItem("trendrop_marketplace_profiles", JSON.stringify(data));
       } else {
         throw new Error();
       }
     } catch {
-      // Mock profiles
-      setProfiles([
-        {
-          id: 1,
-          user_email: "priya@trendrop.app",
-          instagram_username: "priya.dances",
-          niche: "dance",
-          followers: 125000,
-          engagement_rate: 6.8,
-          trend_score: 94,
-          portfolio_links: ["https://instagram.com/priya.dances"],
-          price_per_post: 25000,
-          is_active: true
-        },
-        {
-          id: 2,
-          user_email: "kabir@trendrop.app",
-          instagram_username: "kabir.fits",
-          niche: "fitness",
-          followers: 84000,
-          engagement_rate: 5.2,
-          trend_score: 88,
-          portfolio_links: ["https://instagram.com/kabir.fits"],
-          price_per_post: 18000,
-          is_active: true
-        },
-        {
-          id: 3,
-          user_email: "aanya@trendrop.app",
-          instagram_username: "aanya.style",
-          niche: "fashion",
-          followers: 210000,
-          engagement_rate: 7.4,
-          trend_score: 96,
-          portfolio_links: ["https://instagram.com/aanya.style"],
-          price_per_post: 45000,
-          is_active: true
-        }
-      ]);
+      const cached = localStorage.getItem("trendrop_marketplace_profiles");
+      if (cached) {
+        setProfiles(JSON.parse(cached));
+      } else {
+        setProfiles([
+          {
+            id: 1,
+            user_email: "priya@trendrop.app",
+            instagram_username: "priya.dances",
+            niche: "dance",
+            followers: 125000,
+            engagement_rate: 6.8,
+            trend_score: 94,
+            portfolio_links: ["https://instagram.com/priya.dances"],
+            price_per_post: 25000,
+            is_active: true
+          },
+          {
+            id: 2,
+            user_email: "kabir@trendrop.app",
+            instagram_username: "kabir.fits",
+            niche: "fitness",
+            followers: 84000,
+            engagement_rate: 5.2,
+            trend_score: 88,
+            portfolio_links: ["https://instagram.com/kabir.fits"],
+            price_per_post: 18000,
+            is_active: true
+          },
+          {
+            id: 3,
+            user_email: "aanya@trendrop.app",
+            instagram_username: "aanya.style",
+            niche: "fashion",
+            followers: 210000,
+            engagement_rate: 7.4,
+            trend_score: 96,
+            portfolio_links: ["https://instagram.com/aanya.style"],
+            price_per_post: 45000,
+            is_active: true
+          }
+        ]);
+      }
     } finally {
       setLoadingProfiles(false);
     }
@@ -134,32 +145,33 @@ function MarketplacePage() {
 
   const fetchDeals = async () => {
     setLoadingDeals(true);
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
     try {
-      const res = await fetch("/api/marketplace/deals", { headers });
+      const res = await fetch("/api/marketplace/deals", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         setDeals(data);
+        localStorage.setItem("trendrop_marketplace_deals", JSON.stringify(data));
       } else {
         throw new Error();
       }
     } catch {
-      setDeals([
-        {
-          id: 1,
-          creator_email: email,
-          brand_name: "Myntra",
-          deal_amount: 30000,
-          commission_amount: 4500,
-          status: "pending",
-          details: "1x Reel featuring the summer collection with trending dance style audio",
-          created_at: new Date().toISOString()
-        }
-      ]);
+      const cached = localStorage.getItem("trendrop_marketplace_deals");
+      if (cached) {
+        setDeals(JSON.parse(cached));
+      } else {
+        setDeals([
+          {
+            id: 1,
+            creator_email: email,
+            brand_name: "Myntra",
+            deal_amount: 30000,
+            commission_amount: 4500,
+            status: "pending",
+            details: "1x Reel featuring the summer collection with trending dance style audio",
+            created_at: new Date().toISOString()
+          }
+        ]);
+      }
     } finally {
       setLoadingDeals(false);
     }
@@ -167,7 +179,7 @@ function MarketplacePage() {
 
   const loadOwnProfile = async () => {
     try {
-      const res = await fetch("/api/marketplace/profiles");
+      const res = await fetch("/api/marketplace/profiles", { headers: authHeaders() });
       if (res.ok) {
         const data: CreatorProfile[] = await res.json();
         const mine = data.find(p => p.user_email === email);
@@ -182,6 +194,15 @@ function MarketplacePage() {
           // prefill from local storage if possible
           const savedNiche = localStorage.getItem("trendrop_niche") || "dance";
           setProfileNiche(savedNiche);
+          const cachedMine = localStorage.getItem("trendrop_marketplace_mine");
+          if (cachedMine) {
+            const mineProfile = JSON.parse(cachedMine) as Partial<CreatorProfile>;
+            setUsername(mineProfile.instagram_username || "");
+            setFollowers(String(mineProfile.followers || ""));
+            setEngagement(String(mineProfile.engagement_rate || ""));
+            setPrice(String(mineProfile.price_per_post || ""));
+            setPortfolio((mineProfile.portfolio_links || []).join(", "));
+          }
         }
       }
     } catch {}
@@ -195,10 +216,7 @@ function MarketplacePage() {
     }
     setSavingProfile(true);
     const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
       const res = await fetch("/api/marketplace/profile", {
         method: "POST",
@@ -216,11 +234,35 @@ function MarketplacePage() {
       if (res.ok) {
         toast.success("Marketplace profile updated!");
         fetchProfiles();
+        localStorage.setItem(
+          "trendrop_marketplace_mine",
+          JSON.stringify({
+            instagram_username: username,
+            niche: profileNiche,
+            followers: parseInt(followers),
+            engagement_rate: parseFloat(engagement) || 4.5,
+            trend_score: Math.floor(Math.random() * 15) + 82,
+            portfolio_links: portfolio.split(",").map(p => p.trim()).filter(Boolean),
+            price_per_post: parseInt(price),
+          })
+        );
       } else {
         throw new Error();
       }
     } catch {
       toast.success("Saved successfully (simulation)!");
+      localStorage.setItem(
+        "trendrop_marketplace_mine",
+        JSON.stringify({
+          instagram_username: username,
+          niche: profileNiche,
+          followers: parseInt(followers),
+          engagement_rate: parseFloat(engagement) || 4.5,
+          trend_score: Math.floor(Math.random() * 15) + 82,
+          portfolio_links: portfolio.split(",").map(p => p.trim()).filter(Boolean),
+          price_per_post: parseInt(price),
+        })
+      );
     } finally {
       setSavingProfile(false);
     }
@@ -233,11 +275,7 @@ function MarketplacePage() {
       return;
     }
     setAddingDeal(true);
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
       const res = await fetch("/api/marketplace/deals", {
         method: "POST",
@@ -271,6 +309,7 @@ function MarketplacePage() {
         created_at: new Date().toISOString()
       };
       setDeals(prev => [newDeal, ...prev]);
+      localStorage.setItem("trendrop_marketplace_deals", JSON.stringify([newDeal, ...deals]));
       toast.success("Brand deal added successfully!");
       setBrandName("");
       setDealAmount("");

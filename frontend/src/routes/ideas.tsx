@@ -54,10 +54,17 @@ function IdeasPage() {
     fetchIdeas(email);
   }, []);
 
+  const authHeaders = () => {
+    const token = localStorage.getItem("trendrop_token");
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+    return headers;
+  };
+
   const fetchIdeas = async (email: string) => {
     setLoadingIdeas(true);
     try {
-      const res = await fetch("/api/daily-ideas");
+      const res = await fetch("/api/daily-ideas", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         setIdeas(data);
@@ -96,11 +103,7 @@ function IdeasPage() {
 
   const generateCalendar = async () => {
     setLoadingCalendar(true);
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = { "Content-Type": "application/json" };
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
+    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
     try {
       const res = await fetch("/api/calendar", {
         method: "POST",
@@ -136,13 +139,8 @@ function IdeasPage() {
   };
 
   const loadSavedCalendar = async () => {
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = {};
-    if (token) {
-      headers["Authorization"] = `Bearer ${token}`;
-    }
     try {
-      const res = await fetch("/api/calendar", { headers });
+      const res = await fetch("/api/calendar", { headers: authHeaders() });
       if (res.ok) {
         const data = await res.json();
         if (data && data.calendar && data.calendar.length > 0) {
