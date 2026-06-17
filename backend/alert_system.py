@@ -244,9 +244,14 @@ class AlertSystem:
             h12 = optimal_post_hour % 12 or 12
             posting_tip = f"<p style='font-size:13px;color:#555;'>🕐 Best time to post: <strong>{h12} {period} IST</strong> on {platform_label}</p>"
 
+        why_it_works_html = ""
+        if why_this_works:
+            why_it_works_html = f'<p style="font-size:13px;color:rgba(255,255,255,0.5);font-style:italic;margin-bottom:20px;">💡 Why it\'s viral: {why_this_works}</p>'
+
         # WhatsApp share
         wa_text = f"🔥 Trending now: '{audio_title}' by {audio_artist}\nPost on {platform_label} NOW — {window_hours}h left!\nCheck Trendrop → https://trendrop.vercel.app"
-        wa_link = f"https://wa.me/?text={wa_text.replace(' ', '%20').replace('\n', '%0A')}"
+        encoded_wa_text = wa_text.replace(' ', '%20').replace('\n', '%0A')
+        wa_link = f"https://wa.me/?text={encoded_wa_text}"
 
         return f"""
         <!DOCTYPE html>
@@ -301,7 +306,7 @@ class AlertSystem:
                             {sat_text}
                         </div>
 
-                        {f'<p style="font-size:13px;color:rgba(255,255,255,0.5);font-style:italic;margin-bottom:20px;">💡 Why it\'s viral: {why_this_works}</p>' if why_this_works else ''}
+                        {why_it_works_html}
 
                         <!-- Content Guide -->
                         {content_guide}
