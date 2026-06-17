@@ -1,6 +1,10 @@
 import os
 from fastapi import Header, HTTPException, status, Depends
 from supabase import create_client, Client
+from dotenv import load_dotenv
+
+# Load environment variables early to ensure they are available for authentication
+load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
