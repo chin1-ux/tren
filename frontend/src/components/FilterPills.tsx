@@ -1,4 +1,4 @@
-import { trendCategories } from "@/lib/mock-trends";
+import { trendCategories } from "@/lib/trend-categories";
 import { cn } from "@/lib/utils";
 
 interface Props {

@@ -1,10 +1,10 @@
 import { useState } from "react";
 import { Copy, X, Check } from "lucide-react";
-import type { Trend } from "@/lib/mock-trends";
+import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
 interface Props {
-  trend: Trend | null;
+  trend: UiTrend | null;
   onClose: () => void;
 }
 

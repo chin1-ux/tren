@@ -1,0 +1,17 @@
+export const trendCategories: ("All" | string)[] = [
+  "All",
+  "Dance",
+  "Scenic",
+  "Fashion",
+  "Travel",
+  "Food",
+  "Comedy",
+  "Devotional",
+  "Festival",
+  "Motivation",
+  "Fitness",
+  "Study",
+  "Narrative",
+  "Text Overlay",
+  "Viral",
+];

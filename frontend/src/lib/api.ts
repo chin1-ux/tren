@@ -1,7 +1,7 @@
-import type { Trend, TrendCategory } from "./mock-trends";
+
 
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "http://localhost:8000";
 
 
 // ── API types ──────────────────────────────────────────────────────────────────
@@ -51,6 +51,22 @@ export interface ApiCaptionKit {
 
 // ── Category metadata ──────────────────────────────────────────────────────────
 
+type TrendCategory =
+  | "Dance"
+  | "Scenic"
+  | "Fashion"
+  | "Travel"
+  | "Food"
+  | "Comedy"
+  | "Devotional"
+  | "Festival"
+  | "Motivation"
+  | "Fitness"
+  | "Study"
+  | "Narrative"
+  | "Text Overlay"
+  | "Viral";
+
 const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }> = {
   dance:          { emoji: "💃", category: "Dance" },
   scenic:         { emoji: "🎬", category: "Scenic" },
@@ -81,7 +97,25 @@ const LANGUAGE_INFO: Record<string, { emoji: string; label: string }> = {
 
 // ── UiTrend adapter ────────────────────────────────────────────────────────────
 
-export interface UiTrend extends Trend {
+export interface UiTrend {
+  id: string;
+  song: string;
+  artist: string;
+  hoursLeft: number;
+  viralMultiplier: number;
+  contentType: string;
+  contentTypeEmoji: string;
+  category: string;
+  language?: string;
+  languageEmoji?: string;
+  isDance: boolean;
+  isNarrativeEdit: boolean;
+  idealContentDescription: string;
+  cameraStyle: string;
+  hashtags: string[];
+
+  // additional optional UI fields
+
   expiresAt: number;
   status?: string;
   saturationScore?: number;
