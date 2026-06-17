@@ -1,7 +1,7 @@
 
 
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "https://trendrop-backend-production.up.railway.app";
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
 
 
 // ── API types ──────────────────────────────────────────────────────────────────
@@ -301,7 +301,7 @@ export async function reelStatus(jobId: string): Promise<StatusResponse> {
 
 export function resolveOutputUrl(outputUrl: string): string {
   if (/^https?:\/\//i.test(outputUrl)) return outputUrl;
-  return `${API_URL}/${outputUrl.replace(/^\//, "")}`;
+  return `${API_URL || ""}/${outputUrl.replace(/^\//, "")}`;
 }
 
 // ── User ───────────────────────────────────────────────────────────────────────
