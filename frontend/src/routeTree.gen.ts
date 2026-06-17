@@ -9,12 +9,20 @@
 // Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
 
 import { Route as rootRouteImport } from './routes/__root'
+import { Route as StudioRouteImport } from './routes/studio'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as ProfileRouteImport } from './routes/profile'
+import { Route as MarketplaceRouteImport } from './routes/marketplace'
+import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as GenerateRouteImport } from './routes/generate'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TrendIdRouteImport } from './routes/trend.$id'
 
+const StudioRoute = StudioRouteImport.update({
+  id: '/studio',
+  path: '/studio',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const StatsRoute = StatsRouteImport.update({
   id: '/stats',
   path: '/stats',
@@ -23,6 +31,16 @@ const StatsRoute = StatsRouteImport.update({
 const ProfileRoute = ProfileRouteImport.update({
   id: '/profile',
   path: '/profile',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const MarketplaceRoute = MarketplaceRouteImport.update({
+  id: '/marketplace',
+  path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IdeasRoute = IdeasRouteImport.update({
+  id: '/ideas',
+  path: '/ideas',
   getParentRoute: () => rootRouteImport,
 } as any)
 const GenerateRoute = GenerateRouteImport.update({
@@ -44,43 +62,87 @@ const TrendIdRoute = TrendIdRouteImport.update({
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/generate': typeof GenerateRoute
+  '/ideas': typeof IdeasRoute
+  '/marketplace': typeof MarketplaceRoute
   '/profile': typeof ProfileRoute
   '/stats': typeof StatsRoute
+  '/studio': typeof StudioRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/generate': typeof GenerateRoute
+  '/ideas': typeof IdeasRoute
+  '/marketplace': typeof MarketplaceRoute
   '/profile': typeof ProfileRoute
   '/stats': typeof StatsRoute
+  '/studio': typeof StudioRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/generate': typeof GenerateRoute
+  '/ideas': typeof IdeasRoute
+  '/marketplace': typeof MarketplaceRoute
   '/profile': typeof ProfileRoute
   '/stats': typeof StatsRoute
+  '/studio': typeof StudioRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
-  fullPaths: '/' | '/generate' | '/profile' | '/stats' | '/trend/$id'
+  fullPaths:
+    | '/'
+    | '/generate'
+    | '/ideas'
+    | '/marketplace'
+    | '/profile'
+    | '/stats'
+    | '/studio'
+    | '/trend/$id'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/generate' | '/profile' | '/stats' | '/trend/$id'
-  id: '__root__' | '/' | '/generate' | '/profile' | '/stats' | '/trend/$id'
+  to:
+    | '/'
+    | '/generate'
+    | '/ideas'
+    | '/marketplace'
+    | '/profile'
+    | '/stats'
+    | '/studio'
+    | '/trend/$id'
+  id:
+    | '__root__'
+    | '/'
+    | '/generate'
+    | '/ideas'
+    | '/marketplace'
+    | '/profile'
+    | '/stats'
+    | '/studio'
+    | '/trend/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   GenerateRoute: typeof GenerateRoute
+  IdeasRoute: typeof IdeasRoute
+  MarketplaceRoute: typeof MarketplaceRoute
   ProfileRoute: typeof ProfileRoute
   StatsRoute: typeof StatsRoute
+  StudioRoute: typeof StudioRoute
   TrendIdRoute: typeof TrendIdRoute
 }
 
 declare module '@tanstack/react-router' {
   interface FileRoutesByPath {
+    '/studio': {
+      id: '/studio'
+      path: '/studio'
+      fullPath: '/studio'
+      preLoaderRoute: typeof StudioRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/stats': {
       id: '/stats'
       path: '/stats'
@@ -93,6 +155,20 @@ declare module '@tanstack/react-router' {
       path: '/profile'
       fullPath: '/profile'
       preLoaderRoute: typeof ProfileRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/marketplace': {
+      id: '/marketplace'
+      path: '/marketplace'
+      fullPath: '/marketplace'
+      preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/ideas': {
+      id: '/ideas'
+      path: '/ideas'
+      fullPath: '/ideas'
+      preLoaderRoute: typeof IdeasRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/generate': {
@@ -122,8 +198,11 @@ declare module '@tanstack/react-router' {
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   GenerateRoute: GenerateRoute,
+  IdeasRoute: IdeasRoute,
+  MarketplaceRoute: MarketplaceRoute,
   ProfileRoute: ProfileRoute,
   StatsRoute: StatsRoute,
+  StudioRoute: StudioRoute,
   TrendIdRoute: TrendIdRoute,
 }
 export const routeTree = rootRouteImport

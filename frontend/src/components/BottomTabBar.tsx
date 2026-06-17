@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Flame, Sparkles, BarChart3, User, Zap } from "lucide-react";
+import { Flame, PenTool, Lightbulb, Building2, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
 
@@ -16,15 +16,16 @@ export function BottomTabBar() {
   const emergingCount = emergingTrends?.length ?? 0;
 
   const tabs = [
-    { to: "/", label: "Trends", Icon: Flame, badge: 0 },
-    { to: "/generate", label: "Generate", Icon: Sparkles, badge: 0 },
-    { to: "/stats", label: "Dashboard", Icon: BarChart3, badge: 0 },
-    { to: "/profile", label: "Profile", Icon: User, badge: 0 },
+    { to: "/", label: "Trends", Icon: Flame },
+    { to: "/studio", label: "Studio", Icon: PenTool },
+    { to: "/ideas", label: "Ideas", Icon: Lightbulb },
+    { to: "/marketplace", label: "Marketplace", Icon: Building2 },
+    { to: "/profile", label: "Profile", Icon: User },
   ] as const;
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-background/95 backdrop-blur-md">
-      <ul className="grid grid-cols-4">
+      <ul className="grid grid-cols-5">
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
             ? currentPath === "/"
@@ -60,3 +61,4 @@ export function BottomTabBar() {
     </nav>
   );
 }
+

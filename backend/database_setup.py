@@ -69,6 +69,8 @@ TABLES_SQL = {
             why_this_works text,
             audio_cue_second int,
             content_type text,
+            format_transferable boolean DEFAULT false,
+            transfer_instructions text,
             first_detected_at timestamp DEFAULT now()
         );
     """,
@@ -80,6 +82,7 @@ TABLES_SQL = {
             language_preference text,
             plan text DEFAULT 'free',
             push_token text,
+            auth_token text,
             created_at timestamp DEFAULT now()
         );
     """,
@@ -111,6 +114,67 @@ TABLES_SQL = {
             velocity_score float,
             region_code text,
             language text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "daily_ideas": """
+        CREATE TABLE IF NOT EXISTS daily_ideas (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text,
+            niche text,
+            title text,
+            description text,
+            hook text,
+            audio_suggestion text,
+            posting_time text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "calendar_plans": """
+        CREATE TABLE IF NOT EXISTS calendar_plans (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text UNIQUE,
+            niche text,
+            language text,
+            frequency text,
+            schedule_data jsonb,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "creator_profiles": """
+        CREATE TABLE IF NOT EXISTS creator_profiles (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text UNIQUE,
+            instagram_username text,
+            niche text,
+            followers int,
+            engagement_rate float,
+            trend_score float,
+            portfolio_links text[],
+            price_per_post int,
+            is_active boolean DEFAULT true,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "brand_deals": """
+        CREATE TABLE IF NOT EXISTS brand_deals (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            creator_email text,
+            brand_name text,
+            deal_amount int,
+            commission_amount float,
+            status text DEFAULT 'pending',
+            details text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "pre_post_analyses": """
+        CREATE TABLE IF NOT EXISTS pre_post_analyses (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text,
+            video_url text,
+            analysis_details jsonb,
+            score int,
             created_at timestamp DEFAULT now()
         );
     """
@@ -161,6 +225,16 @@ def main():
             print(f"Error creating table '{table_name}': {e}")
             all_success = False
 
+    # 4. Perform alterations/indexes
+    try:
+        print("Performing table alterations...")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_transferable boolean DEFAULT false;")
+        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS transfer_instructions text;")
+        print("Table alterations completed successfully.")
+    except Exception as e:
+        print(f"Error performing alterations: {e}")
+        all_success = False
+
     # Clean up connections
     if cursor:
         cursor.close()
@@ -168,9 +242,9 @@ def main():
         conn.close()
 
     if all_success:
-        print("All tables created successfully")
+        print("All tables and modifications executed successfully")
     else:
-        print("Some tables failed to create. Please check the logs above.")
+        print("Some database setup tasks failed. Please check the logs above.")
         sys.exit(1)
 
 if __name__ == "__main__":

@@ -183,6 +183,15 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         💡 {trend.idealContentDescription || "Great for reels and short-form content"}
       </p>
 
+      {/* Cross-Niche Transfer */}
+      {trend.formatTransferable && trend.transferInstructions && (
+        <div className="rounded-xl bg-violet-500/10 border border-violet-500/30 px-3 py-2.5 border border-border">
+          <p className="text-xs font-bold text-violet-400 uppercase tracking-wide">🔄 Cross-Niche Adaptation</p>
+          <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">{trend.transferInstructions}</p>
+        </div>
+      )}
+
+
       {/* Why this works tooltip */}
       {trend.whyThisWorks && (
         <button

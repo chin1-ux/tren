@@ -205,7 +205,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
   "optimal_post_hour_ist": "best hour 0-23 IST to post for maximum reach",
   "best_platform_first": "instagram or youtube_shorts",
   "why_this_works": "one sentence explaining the viral psychology behind this trend",
-  "audio_cue_second": "integer — which second in the song to start filming (e.g. 7 for a beat drop at 0:07)"
+  "audio_cue_second": "integer — which second in the song to start filming (e.g. 7 for a beat drop at 0:07)",
+  "format_transferable": true or false,
+  "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
 }}
 """
                 payload = {
@@ -283,6 +285,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "why_this_works": trend.get("why_this_works"),
                     "audio_cue_second": trend.get("audio_cue_second"),
                     "content_type": trend.get("content_type"),
+                    "format_transferable": trend.get("format_transferable", False),
+                    "transfer_instructions": trend.get("transfer_instructions"),
                 }
 
                 try:

@@ -1,5 +1,5 @@
 import { r as reactExports, j as jsxRuntimeExports } from "../_libs/react.mjs";
-import { T as TrendingUp, a as Users, V as Video, A as Award, b as Star, C as ChartColumn } from "../_libs/lucide-react.mjs";
+import { b as TrendingUp, c as Users, V as Video, A as Award, S as Star, C as ChartColumn } from "../_libs/lucide-react.mjs";
 function DashboardPage() {
   const [reelsCount, setReelsCount] = reactExports.useState(0);
   const [niche, setNiche] = reactExports.useState("Dance");

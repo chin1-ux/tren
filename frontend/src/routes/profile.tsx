@@ -66,7 +66,10 @@ function ProfilePage() {
     }
     setSaving(true);
     try {
-      await subscribe({ email, niche, language });
+      const res = await subscribe({ email, niche, language });
+      if (res && res.auth_token) {
+        localStorage.setItem("trendrop_token", res.auth_token);
+      }
       localStorage.setItem("trendrop_email", email);
       localStorage.setItem("trendrop_niche", niche);
       localStorage.setItem("trendrop_language", language);

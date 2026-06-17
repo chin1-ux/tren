@@ -20,4 +20,4 @@ moviepy
 Pillow
 imageio
 imageio-ffmpeg
-
+psycopg2-binary

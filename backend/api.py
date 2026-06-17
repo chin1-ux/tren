@@ -3,8 +3,9 @@ import uuid
 import json
 import logging
 import requests
+import secrets
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -26,6 +27,8 @@ from instagram_scraper import InstagramScraper
 from youtube_scraper import YouTubeScraper
 from caption_engine import CaptionEngine
 from trend_refresher import TrendRefresher
+from creator_tools import CreatorTools
+from auth import get_current_user, get_admin_user
 
 logging.basicConfig(
     filename="api.log",
@@ -47,6 +50,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+creator_tools = CreatorTools()
 
 os.makedirs("uploads", exist_ok=True)
 os.makedirs("outputs", exist_ok=True)
@@ -63,10 +67,10 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
-# CORS — allow all origins for dev; tighten to Vercel domain in production
+# Secure CORS config whitelisting Vercel, Railway, and Localhost
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origin_regex=r"https://.*\.railway\.app|https://.*\.vercel\.app|http://localhost:\d+",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -95,11 +99,58 @@ class FeedbackRequest(BaseModel):
     user_email: Optional[str] = None
 
 
+class PrePostRequest(BaseModel):
+    niche: str
+    hook: str
+    audio_title: str
+    caption: str
+    hashtags: List[str]
+    post_time: str
+    user_email: Optional[str] = None
+
+
+class HookRequest(BaseModel):
+    niche: str
+    topic: str
+
+
+class SeoCaptionRequest(BaseModel):
+    description: str
+    platform: Optional[str] = "instagram"
+
+
+class CalendarRequest(BaseModel):
+    user_email: Optional[str] = None
+    niche: str
+    language: str
+    frequency: str
+
+
+class CreatorProfileRequest(BaseModel):
+    user_email: Optional[str] = None
+    instagram_username: str
+    niche: str
+    followers: int
+    engagement_rate: float
+    trend_score: float
+    portfolio_links: List[str]
+    price_per_post: int
+
+
+class BrandDealRequest(BaseModel):
+    creator_email: Optional[str] = None
+    brand_name: str
+    deal_amount: int
+    details: str
+
+
+
 # ── Health ─────────────────────────────────────────────────────────────────────
 
 @app.get("/health")
 def health_check():
     return {"status": "ok", "version": "2.0", "product": "Trendrop India"}
+
 
 
 # ── Trends Feed ────────────────────────────────────────────────────────────────
@@ -296,27 +347,35 @@ def get_similar_trends(request: Request, trend_id: int):
 @app.post("/api/subscribe")
 @limiter.limit("10/minute")
 def subscribe(request: Request, req: SubscribeRequest):
-    """Save user subscription to Supabase users table."""
+    """Save user subscription to Supabase users table and return auth_token."""
     try:
+        # Check if user already exists
+        res = supabase.table("users").select("auth_token").eq("email", req.email).execute()
+        token = None
+        if res.data and len(res.data) > 0:
+            token = res.data[0].get("auth_token")
+        
+        if not token:
+            token = secrets.token_hex(16)
+
         user_data = {
             "email": req.email,
             "niche": req.niche,
-            "language_preference": req.language
+            "language_preference": req.language,
+            "auth_token": token
         }
-        res = supabase.table("users").upsert(user_data, on_conflict="email").execute()
-        if not res.data:
-            raise Exception("No data returned from upsert")
-        return {"success": True, "message": "You are subscribed!"}
+        supabase.table("users").upsert(user_data, on_conflict="email").execute()
+        return {"success": True, "message": "You are subscribed!", "auth_token": token, "email": req.email}
     except Exception as e:
-        logger.error(f"Subscribe failed for {req.email}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Subscribe failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # ── Feedback ───────────────────────────────────────────────────────────────────
 
 @app.post("/api/feedback")
 @limiter.limit("20/minute")
-def submit_feedback(request: Request, req: FeedbackRequest):
+def submit_feedback(request: Request, req: FeedbackRequest, current_user_email: str = Depends(get_current_user)):
     """
     Creator feedback on a trend: too_late | too_early | perfect | stale.
     Stored in trend_feedback table for future ML training signal.
@@ -326,13 +385,13 @@ def submit_feedback(request: Request, req: FeedbackRequest):
             "trend_id": req.trend_id,
             "feedback_type": req.feedback_type,
             "comment": req.comment,
-            "user_email": req.user_email,
+            "user_email": current_user_email,
         }
         supabase.table("trend_feedback").insert(feedback_data).execute()
         return {"success": True, "message": "Feedback received. Thank you!"}
     except Exception as e:
         logger.error(f"Feedback save failed: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # ── Reel Generation ────────────────────────────────────────────────────────────
@@ -492,10 +551,178 @@ def get_reel_status(request: Request, job_id: int):
 
 @app.post("/api/run-scraper")
 @limiter.limit("2/minute")
-def trigger_scraper(request: Request, background_tasks: BackgroundTasks):
-    """Manually trigger the full scraper + trend detection pipeline."""
+def trigger_scraper(request: Request, background_tasks: BackgroundTasks, is_admin: bool = Depends(get_admin_user)):
+    """Manually trigger the full scraper + trend detection pipeline. Protected by Admin API Key."""
     try:
         background_tasks.add_task(run_scrapers_background)
         return {"message": "Pipeline started in background"}
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.error(f"Scraper trigger failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ── Creator Tools & Features ──────────────────────────────────────────────────
+
+@app.post("/api/prepost-score")
+@limiter.limit("5/minute")
+def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        res = creator_tools.get_pre_post_score(
+            niche=req.niche,
+            hook=req.hook,
+            audio_title=req.audio_title,
+            caption=req.caption,
+            hashtags=req.hashtags,
+            post_time=req.post_time
+        )
+        # Save to DB
+        analysis_data = {
+            "user_email": current_user_email,
+            "video_url": "",
+            "analysis_details": res,
+            "score": res.get("overall_score", 0)
+        }
+        supabase.table("pre_post_analyses").insert(analysis_data).execute()
+        return res
+    except Exception as e:
+        logger.error(f"Error in /api/prepost-score: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/generate-hooks")
+@limiter.limit("10/minute")
+def generate_hooks(request: Request, req: HookRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        return creator_tools.generate_hooks(niche=req.niche, topic=req.topic)
+    except Exception as e:
+        logger.error(f"Error in /api/generate-hooks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/seo-caption")
+@limiter.limit("10/minute")
+def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        return creator_tools.generate_seo_caption(description=req.description, platform=req.platform)
+    except Exception as e:
+        logger.error(f"Error in /api/seo-caption: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/daily-ideas")
+@limiter.limit("10/minute")
+def get_daily_ideas(request: Request, current_user_email: str = Depends(get_current_user)):
+    try:
+        return creator_tools.get_daily_ideas(user_email=current_user_email)
+    except Exception as e:
+        logger.error(f"Error in /api/daily-ideas: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/calendar")
+@limiter.limit("5/minute")
+def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        res = creator_tools.generate_calendar(
+            user_email=current_user_email,
+            niche=req.niche,
+            language=req.language,
+            frequency=req.frequency
+        )
+        # Upsert in DB
+        calendar_data = {
+            "user_email": current_user_email,
+            "niche": req.niche,
+            "language": req.language,
+            "frequency": req.frequency,
+            "schedule_data": res
+        }
+        supabase.table("calendar_plans").upsert(calendar_data, on_conflict="user_email").execute()
+        return res
+    except Exception as e:
+        logger.error(f"Error in /api/calendar: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/calendar")
+@limiter.limit("10/minute")
+def get_calendar(request: Request, current_user_email: str = Depends(get_current_user)):
+    try:
+        res = supabase.table("calendar_plans").select("*").eq("user_email", current_user_email).execute()
+        if res.data:
+            return res.data[0]["schedule_data"]
+        return {"calendar": []}
+    except Exception as e:
+        logger.error(f"Error getting calendar: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ── Brand Deal Marketplace ────────────────────────────────────────────────────
+
+@app.get("/api/marketplace/profiles")
+@limiter.limit("30/minute")
+def get_creator_profiles(request: Request, niche: Optional[str] = None):
+    try:
+        q = supabase.table("creator_profiles").select("*").eq("is_active", True)
+        if niche and niche != "all":
+            q = q.eq("niche", niche)
+        res = q.order("followers", desc=True).execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"Error getting creator profiles: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/marketplace/profile")
+@limiter.limit("10/minute")
+def create_or_update_profile(request: Request, req: CreatorProfileRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        profile_data = {
+            "user_email": current_user_email,
+            "instagram_username": req.instagram_username,
+            "niche": req.niche,
+            "followers": req.followers,
+            "engagement_rate": req.engagement_rate,
+            "trend_score": req.trend_score,
+            "portfolio_links": req.portfolio_links,
+            "price_per_post": req.price_per_post,
+            "is_active": True
+        }
+        res = supabase.table("creator_profiles").upsert(profile_data, on_conflict="user_email").execute()
+        return res.data[0] if res.data else {}
+    except Exception as e:
+        logger.error(f"Error saving/updating creator profile: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/marketplace/deals")
+@limiter.limit("10/minute")
+def create_brand_deal(request: Request, req: BrandDealRequest, current_user_email: str = Depends(get_current_user)):
+    try:
+        # Calculate 15% commission
+        commission = req.deal_amount * 0.15
+        deal_data = {
+            "creator_email": current_user_email,
+            "brand_name": req.brand_name,
+            "deal_amount": req.deal_amount,
+            "commission_amount": commission,
+            "status": "pending",
+            "details": req.details
+        }
+        res = supabase.table("brand_deals").insert(deal_data).execute()
+        return res.data[0] if res.data else {}
+    except Exception as e:
+        logger.error(f"Error creating brand deal: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/marketplace/deals")
+@limiter.limit("20/minute")
+def get_brand_deals(request: Request, current_user_email: str = Depends(get_current_user)):
+    try:
+        res = supabase.table("brand_deals").select("*").eq("creator_email", current_user_email).order("created_at", desc=True).execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"Error getting brand list: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+

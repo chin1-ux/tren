@@ -1,0 +1,275 @@
+import os
+import json
+import random
+import logging
+import requests
+from dotenv import load_dotenv
+from supabase import create_client, Client
+
+logging.basicConfig(
+    filename="creator_tools.log",
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+)
+logger = logging.getLogger(__name__)
+
+class CreatorTools:
+    def __init__(self):
+        load_dotenv()
+        if not os.getenv("SUPABASE_URL"):
+            script_dir = os.path.dirname(os.path.abspath(__file__))
+            load_dotenv(os.path.join(script_dir, ".env"))
+
+        self.supabase_url = os.getenv("SUPABASE_URL")
+        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.gemini_key = os.getenv("GEMINI_API_KEY")
+
+        if not self.supabase_url or not self.supabase_key:
+            raise ValueError("Supabase credentials missing from .env")
+        if not self.gemini_key:
+            raise ValueError("GEMINI_API_KEY missing from .env")
+
+        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self.gemini_url = (
+            f"https://generativelanguage.googleapis.com/v1beta/models/"
+            f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
+        )
+
+    def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
+        """Helper to invoke Gemini API and return a JSON dictionary."""
+        payload = {
+            "contents": [{"parts": [{"text": user_prompt}]}],
+            "systemInstruction": {
+                "parts": [{"text": system_prompt}]
+            },
+            "generationConfig": {"responseMimeType": "application/json"}
+        }
+        headers = {"Content-Type": "application/json"}
+        
+        try:
+            resp = requests.post(self.gemini_url, headers=headers, json=payload, timeout=30)
+            resp.raise_for_status()
+            data = resp.json()
+            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
+            
+            # Clean markdown code block wraps if returned
+            if text.startswith("```"):
+                start = text.find("{")
+                end = text.rfind("}")
+                if start != -1 and end != -1:
+                    text = text[start:end + 1]
+            return json.loads(text)
+        except Exception as e:
+            logger.error(f"Gemini prompt invocation failed: {e}", exc_info=True)
+            return {}
+
+    def get_pre_post_score(self, niche: str, hook: str, audio_title: str, caption: str, hashtags: list, post_time: str) -> dict:
+        """
+        Evaluate a draft social media post and provide a 0-100 score + actionable fixes.
+        """
+        system_prompt = "You are a professional social media audit agent. Score the post out of 100 and provide constructive criticism to optimize engagement."
+        user_prompt = f"""
+Analyze this draft post for an Instagram Reel / YouTube Short:
+Niche: {niche}
+Hook text: {hook}
+Audio being used: {audio_title}
+Caption: {caption}
+Hashtags: {", ".join(hashtags)}
+Scheduled Time: {post_time}
+
+Evaluate the following categories:
+1. Hook Strength (Is it thumb-stopping? first 3 seconds)
+2. Audio Match (Is the audio trending or fit for this niche?)
+3. Caption & SEO Optimization
+4. Hashtag Quality (Mix of broad, niche, regional)
+5. Timing (Based on Indian audience peaks)
+
+Return ONLY a JSON response in the following format:
+{{
+  "overall_score": 85,
+  "breakdown": {{
+    "hook_strength": 80,
+    "audio_match": 90,
+    "seo_and_caption": 85,
+    "hashtags": 75,
+    "timing": 95
+  }},
+  "fixes": [
+    "Make the hook more active. Instead of 'X tips for...', use 'Stop doing X if you want...'",
+    "Add these 3 trending hashtags for your niche: ...",
+    "Move your main keywords to the first line of the caption for Instagram SEO."
+  ],
+  "estimated_reach_multiplier": "1.5x"
+}}
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        if not result:
+            # Fallback
+            result = {
+                "overall_score": 75,
+                "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
+                "fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
+                "estimated_reach_multiplier": "1.2x"
+            }
+        return result
+
+    def generate_hooks(self, niche: str, topic: str) -> dict:
+        """
+        Generate high-performing, viral hooks based on the niche and target topic.
+        """
+        system_prompt = "You are an expert copywriter specializing in viral hooks for Instagram Reels, YouTube Shorts, and TikTok."
+        user_prompt = f"""
+Generate 5 high-converting, scroll-stopping hooks for:
+Niche: {niche}
+Topic: {topic}
+
+Provide different styles: Curiosity, Conflict, Authority, Relatability, and Fear of Missing Out (FOMO).
+Also explain why each works.
+
+Return ONLY a JSON response in the following format:
+{{
+  "hooks": [
+    {{
+      "style": "Curiosity",
+      "text": "The hidden feature in X you didn't know existed...",
+      "why_it_works": "Creates an information gap that forces the user to keep watching."
+    }}
+  ]
+}}
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        if not result:
+            result = {
+                "hooks": [
+                    {"style": "Curiosity", "text": f"Why nobody is talking about {topic}", "why_it_works": "Intrigue"},
+                    {"style": "Authority", "text": f"The only {niche} guide you need for {topic}", "why_it_works": "Establishes immediate value"},
+                    {"style": "Relatable", "text": "I was today years old when I learned this about " + topic, "why_it_works": "Humor & connection"}
+                ]
+            }
+        return result
+
+    def generate_seo_caption(self, description: str, platform: str = "instagram") -> dict:
+        """
+        Generate SEO-optimized captions.
+        """
+        system_prompt = "You are an SEO specialist and social media copywriter. Write captions optimized for search engines (Google & in-app search)."
+        user_prompt = f"""
+Create an SEO-optimized caption for a {platform} post about: {description}.
+Include:
+1. A hook-focused opening line.
+2. A keyword-rich middle section to optimize for Search/Google Indexing.
+3. Natural, highly targeted hashtags.
+4. Suggested Alt Text for the video/image.
+
+Return ONLY a JSON response in the following format:
+{{
+  "caption": "The full generated caption text goes here...",
+  "keywords_targeted": ["keyword1", "keyword2"],
+  "alt_text": "Detailed descriptive alt text for accessibility and search indexing",
+  "hashtag_strategy": "Explain the hashtag selection strategy."
+}}
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        if not result:
+            result = {
+                "caption": f"💡 Here is a quick guide on {description}. Learn how to make the most of it today! #tips #guide",
+                "keywords_targeted": [description],
+                "alt_text": f"A clean, professional presentation on {description}",
+                "hashtag_strategy": "Broad and specific niche tags combined."
+            }
+        return result
+
+    def get_daily_ideas(self, user_email: str) -> list:
+        """
+        Generates 3 personalized, trend-backed ideas for a user based on their registered niche.
+        """
+        # Fetch user details
+        user_res = self.supabase.table("users").select("niche, language_preference").eq("email", user_email).execute()
+        if not user_res.data:
+            niche = "lifestyle"
+            lang = "en"
+        else:
+            niche = user_res.data[0].get("niche", "lifestyle")
+            lang = user_res.data[0].get("language_preference", "en")
+
+        # Fetch recent trends in this language/niche to contextualize
+        trends_res = self.supabase.table("trends").select("*").eq("language", lang).order("velocity_avg", desc=True).limit(3).execute()
+        trends_context = ""
+        if trends_res.data:
+            trends_context = "Current active trends: " + ", ".join([f"'{t['audio_title']}' ({t['content_type']})" for t in trends_res.data])
+
+        system_prompt = "You are a creative director for a top creator agency. Pitch highly viral, actionable video ideas."
+        user_prompt = f"""
+Generate 3 highly personalized, specific video ideas for a creator in the '{niche}' niche speaking in '{lang}'.
+{trends_context}
+
+For each idea, provide:
+1. Title/Concept
+2. The specific hook to use (visual & verbal)
+3. Step-by-step description of what to record/do
+4. Best audio suggestion (incorporate some of the active trends if applicable)
+5. Best time to post
+
+Return ONLY a JSON array of 3 objects in the following format:
+[
+  {{
+    "title": "Concept Title",
+    "description": "What to do in this video",
+    "hook": "Wait till the end to see...",
+    "audio_suggestion": "Audio name or type",
+    "posting_time": "7:00 PM"
+  }}
+]
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        if not isinstance(result, list):
+            result = [
+                {"title": f"The Ultimate {niche} Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM"},
+                {"title": "Day in the Life of a Creator", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM"},
+                {"title": "My Biggest Mistake in " + niche, "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM"}
+            ]
+        return result
+
+    def generate_calendar(self, user_email: str, niche: str, language: str, frequency: str) -> dict:
+        """
+        Generate a full 30-day posting calendar packed with trend-aligned post concepts.
+        """
+        system_prompt = "You are a master content manager. Build a comprehensive, highly detailed 30-day social media calendar."
+        user_prompt = f"""
+Create a 30-day content calendar for a creator with the following:
+Niche: {niche}
+Language: {language}
+Frequency: {frequency} (e.g., '1 post per day', '3 posts per week')
+
+For each active day, provide:
+- Day Number (1-30)
+- Topic / Concept
+- Hook text
+- Audio/Music Style
+- Hashtags
+- Recommended posting time
+
+Return ONLY a JSON object with a single key "calendar" containing an array of day objects:
+{{
+  "calendar": [
+    {{
+      "day": 1,
+      "topic": "Introduction / hook",
+      "hook": "Here is why you need to...",
+      "audio_style": "Upbeat synth",
+      "hashtags": ["#intro", "#niche"],
+      "posting_time": "6:00 PM"
+    }}
+  ]
+}}
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        if not result or "calendar" not in result:
+            # Fallback
+            result = {
+                "calendar": [
+                    {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": [f"#{niche}"], "posting_time": "6:00 PM"}
+                    for i in range(1, 31)
+                ]
+            }
+        return result

@@ -1,7 +1,8 @@
 import type { Trend, TrendCategory } from "./mock-trends";
 
 export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") || "";
+
 
 // ── API types ──────────────────────────────────────────────────────────────────
 
@@ -31,6 +32,8 @@ export interface ApiTrend {
   reel_count?: number;
   peak_velocity?: number;
   created_at?: string;
+  format_transferable?: boolean;
+  transfer_instructions?: string | null;
 }
 
 export interface ApiCaptionKit {
@@ -89,6 +92,8 @@ export interface UiTrend extends Trend {
   reelCount?: number;
   languageLabel?: string;
   isEmerging?: boolean;
+  formatTransferable?: boolean;
+  transferInstructions?: string | null;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -124,13 +129,23 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     audioCueSecond: t.audio_cue_second,
     reelCount: t.reel_count,
     isEmerging: t.status === "emerging",
+    formatTransferable: t.format_transferable,
+    transferInstructions: t.transfer_instructions,
   };
 }
 
 // ── HTTP helper ────────────────────────────────────────────────────────────────
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(`${API_URL}${path}`, init);
+  const token = typeof window !== "undefined" ? localStorage.getItem("trendrop_token") : null;
+  const headers = new Headers(init?.headers);
+  if (token) {
+    headers.set("Authorization", `Bearer ${token}`);
+  }
+  const res = await fetch(`${API_URL}${path}`, {
+    ...init,
+    headers,
+  });
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<T>;
 }
@@ -214,8 +229,8 @@ export async function subscribe(body: {
   email: string;
   niche: string;
   language: string;
-}): Promise<void> {
-  await http<unknown>("/api/subscribe", {
+}): Promise<{ success: boolean; auth_token: string; email: string }> {
+  return http<{ success: boolean; auth_token: string; email: string }>("/api/subscribe", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
