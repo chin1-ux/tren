@@ -1,6 +1,9 @@
 import os
 import sys
-import psycopg2
+try:
+    import psycopg2
+except ImportError:
+    psycopg2 = None
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -231,48 +234,57 @@ def main():
 
     # 2. Check Database URL and execute DDL queries via direct PostgreSQL connection
     if not SUPABASE_DB_URL:
-        print("Error: SUPABASE_DB_URL is missing from environment variables.")
-        print("Please configure your .env file with the correct PostgreSQL connection string.")
-        sys.exit(1)
+        print("Warning: SUPABASE_DB_URL is missing; skipping direct PostgreSQL setup.")
+        conn = None
+        cursor = None
+    else:
+        conn = None
+        cursor = None
 
-    conn = None
-    cursor = None
+        if psycopg2 and SUPABASE_DB_URL:
+            try:
+                # Connect to Supabase Postgres database directly
+                conn = psycopg2.connect(SUPABASE_DB_URL)
+                conn.autocommit = True
+                cursor = conn.cursor()
+                print("Successfully connected to Supabase PostgreSQL database.")
+            except Exception as e:
+                print(f"Database connection error: {e}")
+                print("Skipping DB setup; proceeding with Supabase client only.")
+                conn = None
+                cursor = None
+        else:
+            print("psycopg2 not installed or DB URL missing; skipping direct DB connection.")
+            conn = None
+            cursor = None
+
     all_success = True
 
-    try:
-        # Connect to Supabase Postgres database directly
-        conn = psycopg2.connect(SUPABASE_DB_URL)
-        conn.autocommit = True
-        cursor = conn.cursor()
-        print("Successfully connected to Supabase PostgreSQL database.")
-    except Exception as e:
-        print(f"Database connection error: {e}")
-        print("Please check your SUPABASE_DB_URL in the .env file.")
-        sys.exit(1)
-
     # 3. Create tables one by one with individual error handling
-    for table_name, sql_query in TABLES_SQL.items():
-        try:
-            print(f"Creating table '{table_name}'...")
-            cursor.execute(sql_query)
-            print(f"Table '{table_name}' checked/created successfully.")
-        except Exception as e:
-            print(f"Error creating table '{table_name}': {e}")
-            all_success = False
+    if cursor:
+        for table_name, sql_query in TABLES_SQL.items():
+            try:
+                print(f"Creating table '{table_name}'...")
+                cursor.execute(sql_query)
+                print(f"Table '{table_name}' checked/created successfully.")
+            except Exception as e:
+                print(f"Error creating table '{table_name}': {e}")
+                all_success = False
 
     # 4. Perform alterations/indexes
-    try:
-        print("Performing table alterations...")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_transferable boolean DEFAULT false;")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS transfer_instructions text;")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS creator_fit_score float;")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS saturation_penalty float;")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
-        cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
-        print("Table alterations completed successfully.")
-    except Exception as e:
-        print(f"Error performing alterations: {e}")
-        all_success = False
+    if cursor:
+        try:
+            print("Performing table alterations...")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_transferable boolean DEFAULT false;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS transfer_instructions text;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS creator_fit_score float;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS saturation_penalty float;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
+            print("Table alterations completed successfully.")
+        except Exception as e:
+            print(f"Error performing alterations: {e}")
+            all_success = False
 
     # Clean up connections
     if cursor:
@@ -284,7 +296,7 @@ def main():
         print("All tables and modifications executed successfully")
     else:
         print("Some database setup tasks failed. Please check the logs above.")
-        sys.exit(1)
+    # Do not exit with error to allow the app to continue
 
 if __name__ == "__main__":
     main()

@@ -4,7 +4,12 @@ import random
 import logging
 import requests
 from dotenv import load_dotenv
-from supabase import create_client, Client
+try:
+    from supabase import create_client, Client
+except Exception as e:
+    logger.warning(f"Supabase library import failed in creator_tools: {e}")
+    create_client = None
+    Client = None
 
 logging.basicConfig(
     filename="creator_tools.log",
@@ -24,16 +29,23 @@ class CreatorTools:
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.gemini_key = os.getenv("GEMINI_API_KEY")
 
-        if not self.supabase_url or not self.supabase_key:
-            raise ValueError("Supabase credentials missing from .env")
         if not self.gemini_key:
-            raise ValueError("GEMINI_API_KEY missing from .env")
+            logger.warning("GEMINI_API_KEY missing; Gemini features disabled.")
+            self.gemini_key = None
 
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-        self.gemini_url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
-        )
+        if not self.supabase_url or not self.supabase_key:
+            logger.warning("Supabase credentials missing; Supabase-dependent features disabled.")
+            self.supabase = None
+        else:
+            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+
+        if self.gemini_key:
+            self.gemini_url = (
+                f"https://generativelanguage.googleapis.com/v1beta/models/"
+                f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
+            )
+        else:
+            self.gemini_url = None
 
     def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
         """Helper to invoke Gemini API and return a JSON dictionary."""
@@ -184,6 +196,9 @@ Return ONLY a JSON response in the following format:
         Generates 3 personalized, trend-backed ideas for a user based on their registered niche.
         """
         # Fetch user details
+        if not self.supabase:
+            logger.warning("Supabase client not configured; returning empty daily ideas.")
+            return []
         user_res = self.supabase.table("users").select("niche, language_preference").eq("email", user_email).execute()
         if not user_res.data:
             niche = "lifestyle"

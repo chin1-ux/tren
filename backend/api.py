@@ -11,31 +11,93 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
-from supabase import create_client, Client
-from slowapi import Limiter, _rate_limit_exceeded_handler
-from slowapi.util import get_remote_address
-from slowapi.errors import RateLimitExceeded
-
-import sys
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-
-from trend_engine import TrendEngine
-from alert_system import AlertSystem
-from reel_generator import ReelGenerator
-from beat_detector import BeatDetector
-from instagram_scraper import InstagramScraper
-from youtube_scraper import YouTubeScraper
-from caption_engine import CaptionEngine
-from trend_refresher import TrendRefresher
-from creator_tools import CreatorTools
-from auth import get_current_user, get_admin_user
-
+import logging
 logging.basicConfig(
     filename="api.log",
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+try:
+    from supabase import create_client, Client
+except Exception as e:
+    logger.warning(f"Supabase library import failed: {e}")
+    create_client = None
+    Client = None
+
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
+
+import sys
+load_dotenv()
+sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Duplicate logger initialization removed
+
+try:
+    from trend_engine import TrendEngine
+except Exception as e:
+    logger.warning(f"TrendEngine import failed: {e}")
+    TrendEngine = None
+
+try:
+    from alert_system import AlertSystem
+except Exception as e:
+    logger.warning(f"AlertSystem import failed: {e}")
+    AlertSystem = None
+
+try:
+    from reel_generator import ReelGenerator
+except Exception as e:
+    logger.warning(f"ReelGenerator import failed: {e}")
+    ReelGenerator = None
+
+try:
+    from beat_detector import BeatDetector
+except Exception as e:
+    logger.warning(f"BeatDetector import failed: {e}")
+    BeatDetector = None
+
+try:
+    from instagram_scraper import InstagramScraper
+except Exception as e:
+    logger.warning(f"InstagramScraper import failed: {e}")
+    InstagramScraper = None
+
+try:
+    from youtube_scraper import YouTubeScraper
+except Exception as e:
+    logger.warning(f"YouTubeScraper import failed: {e}")
+    YouTubeScraper = None
+
+try:
+    from caption_engine import CaptionEngine
+except Exception as e:
+    logger.warning(f"CaptionEngine import failed: {e}")
+    CaptionEngine = None
+
+try:
+    from trend_refresher import TrendRefresher
+except Exception as e:
+    logger.warning(f"TrendRefresher import failed: {e}")
+    TrendRefresher = None
+
+try:
+    from creator_tools import CreatorTools
+except Exception as e:
+    logger.warning(f"CreatorTools import failed: {e}")
+    CreatorTools = None
+
+try:
+    from auth import get_current_user, get_admin_user
+except Exception as e:
+    logger.warning(f"Auth functions import failed: {e}")
+    def get_current_user():
+        raise HTTPException(status_code=401, detail="Authentication not configured")
+    def get_admin_user():
+        raise HTTPException(status_code=401, detail="Admin authentication not configured")
 
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
@@ -47,9 +109,14 @@ if not os.getenv("SUPABASE_URL"):
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in .env")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.warning("SUPABASE_URL or SUPABASE_KEY missing; Supabase client will be unavailable.")
+    supabase = None
+else:
+    try:
+        supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    except Exception as e:
+        logger.error(f"Failed to create Supabase client: {e}")
+        supabase = None
 creator_tools = CreatorTools()
 
 os.makedirs("uploads", exist_ok=True)
@@ -176,6 +243,8 @@ def get_trends(request: Request, language: Optional[str] = None, sort: Optional[
     Fetch RISING trends from Supabase.
     Optional filters: ?language=hi&sort=velocity|time_left|newest
     """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         q = supabase.table("trends").select("*").eq("status", "rising")
         if language and language != "all":
@@ -205,6 +274,8 @@ def get_emerging_trends(request: Request, language: Optional[str] = None):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
     """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         q = supabase.table("trends").select("*").eq("status", "emerging")
         if language and language != "all":
@@ -225,12 +296,10 @@ def get_emerging_trends(request: Request, language: Optional[str] = None):
 @limiter.limit("60/minute")
 def get_all_active_trends(request: Request):
     """Returns both emerging + rising trends merged."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends") \
-            .select("*") \
-            .in_("status", ["emerging", "rising"]) \
-            .order("velocity_avg", desc=True) \
-            .execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).order("velocity_avg", desc=True).execute()
         trends = res.data or []
         for t in trends:
             t["song"] = t.get("audio_title")
@@ -244,6 +313,8 @@ def get_all_active_trends(request: Request):
 @limiter.limit("100/minute")
 def get_trends_by_language(request: Request, lang: str):
     """Returns trends filtered by specific language code (hi, kn, ta, te, en, ...)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         res = supabase.table("trends") \
             .select("*") \
@@ -264,6 +335,8 @@ def get_trends_by_language(request: Request, lang: str):
 @limiter.limit("100/minute")
 def get_trend(request: Request, trend_id: int):
     """Fetch single trend by ID."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         res = supabase.table("trends").select("*").eq("id", trend_id).execute()
         if not res.data:
@@ -282,6 +355,8 @@ def get_trend(request: Request, trend_id: int):
 @limiter.limit("60/minute")
 def get_trend_reels(request: Request, trend_id: int):
     """Fetch reels linked to a trend (by matching audio_title + audio_artist)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         trend_res = supabase.table("trends") \
             .select("audio_title, audio_artist") \
