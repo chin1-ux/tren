@@ -264,14 +264,12 @@ class TrendEngine:
                 # Determine initial status
                 very_viral = any((r.get("velocity_score", 0) or 0) > 3.0 for r in recent_reels_6h)
 
-                if creator_count >= 5 and composite_score >= 3.2:
+                if creator_count >= 15 and composite_score >= 3.2:
                     initial_status = "rising"
-                elif creator_count >= 2 and (avg_velocity > 1.4 or very_viral or composite_score >= 2.8):
-                    initial_status = "emerging"
-                elif very_viral:
+                elif creator_count >= 10 and (avg_velocity > 1.4 or very_viral or composite_score >= 2.8):
                     initial_status = "emerging"
                 else:
-                    continue  # Not significant enough yet
+                    continue  # Skip if fewer than 10 unique creators have used this audio/workflow to verify success
 
                 # Validate time window: all reels within 48h of each other
                 posted_times = []
