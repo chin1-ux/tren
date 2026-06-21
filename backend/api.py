@@ -4,6 +4,7 @@ import json
 import logging
 import requests
 import secrets
+import threading
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request, Depends
 from fastapi.middleware.cors import CORSMiddleware
@@ -143,11 +144,33 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def start_cron_thread():
+    try:
+        import schedule
+        import time
+        from cron_job import run_full_pipeline
+        
+        logger.info("Starting background scraper cron thread...")
+        # Wait 60 seconds after startup to let Render complete the health check deployment
+        time.sleep(60)
+        
+        logger.info("Running initial background scraper pipeline...")
+        run_full_pipeline()
+        
+        # Schedule to run every 3 hours
+        schedule.every(3).hours.do(run_full_pipeline)
+        while True:
+            schedule.run_pending()
+            time.sleep(60)
+    except Exception as e:
+        logger.error(f"Error in background scraper cron thread: {e}", exc_info=True)
+
 @app.on_event("startup")
 def startup_event():
     os.makedirs("uploads", exist_ok=True)
     os.makedirs("outputs", exist_ok=True)
     logger.info("Trendrop API v2.0 started.")
+    threading.Thread(target=start_cron_thread, daemon=True).start()
 
 app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
 
