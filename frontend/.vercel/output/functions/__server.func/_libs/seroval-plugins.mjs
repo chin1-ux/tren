@@ -1,21 +1,19 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { a as ai, r as re } from "./seroval.mjs";
-var n = {}, P = /* @__PURE__ */ __name((e) => new ReadableStream({ start: /* @__PURE__ */ __name((r) => {
-  e.on({ next: /* @__PURE__ */ __name((a) => {
+var n = {}, P = (e) => new ReadableStream({ start: (r) => {
+  e.on({ next: (a) => {
     try {
       r.enqueue(a);
     } catch (t) {
     }
-  }, "next"), throw: /* @__PURE__ */ __name((a) => {
+  }, throw: (a) => {
     r.error(a);
-  }, "throw"), return: /* @__PURE__ */ __name(() => {
+  }, return: () => {
     try {
       r.close();
     } catch (a) {
     }
-  }, "return") });
-}, "start") }), "P"), x = ai({ tag: "seroval-plugins/web/ReadableStreamFactory", test(e) {
+  } });
+} }), x = ai({ tag: "seroval-plugins/web/ReadableStreamFactory", test(e) {
   return e === n;
 }, parse: { sync() {
   return n;
@@ -38,11 +36,9 @@ function w(e) {
       r.throw(s);
     }
   }
-  __name(t, "t");
   return t().catch(() => {
   }), r;
 }
-__name(w, "w");
 var ee = ai({ tag: "seroval/plugins/web/ReadableStream", extends: [x], test(e) {
   return typeof ReadableStream == "undefined" ? false : e instanceof ReadableStream;
 }, parse: { sync(e, r) {

@@ -1,18 +1,16 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { r as reactExports, j as jsxRuntimeExports } from "./react.mjs";
 import { s as shouldThrowError, n as notifyManager, a as noop, e as environmentManager, Q as QueryObserver } from "./tanstack__query-core.mjs";
 var QueryClientContext = reactExports.createContext(
   void 0
 );
-var useQueryClient = /* @__PURE__ */ __name((queryClient) => {
+var useQueryClient = (queryClient) => {
   const client = reactExports.useContext(QueryClientContext);
   if (!client) {
     throw new Error("No QueryClient set, use QueryClientProvider to set one");
   }
   return client;
-}, "useQueryClient");
-var QueryClientProvider = /* @__PURE__ */ __name(({
+};
+var QueryClientProvider = ({
   client,
   children
 }) => {
@@ -23,41 +21,40 @@ var QueryClientProvider = /* @__PURE__ */ __name(({
     };
   }, [client]);
   return /* @__PURE__ */ jsxRuntimeExports.jsx(QueryClientContext.Provider, { value: client, children });
-}, "QueryClientProvider");
+};
 var IsRestoringContext = reactExports.createContext(false);
-var useIsRestoring = /* @__PURE__ */ __name(() => reactExports.useContext(IsRestoringContext), "useIsRestoring");
+var useIsRestoring = () => reactExports.useContext(IsRestoringContext);
 IsRestoringContext.Provider;
 function createValue() {
   let isReset = false;
   return {
-    clearReset: /* @__PURE__ */ __name(() => {
+    clearReset: () => {
       isReset = false;
-    }, "clearReset"),
-    reset: /* @__PURE__ */ __name(() => {
+    },
+    reset: () => {
       isReset = true;
-    }, "reset"),
-    isReset: /* @__PURE__ */ __name(() => {
+    },
+    isReset: () => {
       return isReset;
-    }, "isReset")
+    }
   };
 }
-__name(createValue, "createValue");
 var QueryErrorResetBoundaryContext = reactExports.createContext(createValue());
-var useQueryErrorResetBoundary = /* @__PURE__ */ __name(() => reactExports.useContext(QueryErrorResetBoundaryContext), "useQueryErrorResetBoundary");
-var ensurePreventErrorBoundaryRetry = /* @__PURE__ */ __name((options, errorResetBoundary, query) => {
+var useQueryErrorResetBoundary = () => reactExports.useContext(QueryErrorResetBoundaryContext);
+var ensurePreventErrorBoundaryRetry = (options, errorResetBoundary, query) => {
   const throwOnError = query?.state.error && typeof options.throwOnError === "function" ? shouldThrowError(options.throwOnError, [query.state.error, query]) : options.throwOnError;
   if (options.suspense || options.experimental_prefetchInRender || throwOnError) {
     if (!errorResetBoundary.isReset()) {
       options.retryOnMount = false;
     }
   }
-}, "ensurePreventErrorBoundaryRetry");
-var useClearResetErrorBoundary = /* @__PURE__ */ __name((errorResetBoundary) => {
+};
+var useClearResetErrorBoundary = (errorResetBoundary) => {
   reactExports.useEffect(() => {
     errorResetBoundary.clearReset();
   }, [errorResetBoundary]);
-}, "useClearResetErrorBoundary");
-var getHasError = /* @__PURE__ */ __name(({
+};
+var getHasError = ({
   result,
   errorResetBoundary,
   throwOnError,
@@ -65,11 +62,11 @@ var getHasError = /* @__PURE__ */ __name(({
   suspense
 }) => {
   return result.isError && !errorResetBoundary.isReset() && !result.isFetching && query && (suspense && result.data === void 0 || shouldThrowError(throwOnError, [result.error, query]));
-}, "getHasError");
-var ensureSuspenseTimers = /* @__PURE__ */ __name((defaultedOptions) => {
+};
+var ensureSuspenseTimers = (defaultedOptions) => {
   if (defaultedOptions.suspense) {
     const MIN_SUSPENSE_TIME_MS = 1e3;
-    const clamp = /* @__PURE__ */ __name((value) => value === "static" ? value : Math.max(value ?? MIN_SUSPENSE_TIME_MS, MIN_SUSPENSE_TIME_MS), "clamp");
+    const clamp = (value) => value === "static" ? value : Math.max(value ?? MIN_SUSPENSE_TIME_MS, MIN_SUSPENSE_TIME_MS);
     const originalStaleTime = defaultedOptions.staleTime;
     defaultedOptions.staleTime = typeof originalStaleTime === "function" ? (...args) => clamp(originalStaleTime(...args)) : clamp(originalStaleTime);
     if (typeof defaultedOptions.gcTime === "number") {
@@ -79,12 +76,12 @@ var ensureSuspenseTimers = /* @__PURE__ */ __name((defaultedOptions) => {
       );
     }
   }
-}, "ensureSuspenseTimers");
-var willFetch = /* @__PURE__ */ __name((result, isRestoring) => result.isLoading && result.isFetching && !isRestoring, "willFetch");
-var shouldSuspend = /* @__PURE__ */ __name((defaultedOptions, result) => defaultedOptions?.suspense && result.isPending, "shouldSuspend");
-var fetchOptimistic = /* @__PURE__ */ __name((defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
+};
+var willFetch = (result, isRestoring) => result.isLoading && result.isFetching && !isRestoring;
+var shouldSuspend = (defaultedOptions, result) => defaultedOptions?.suspense && result.isPending;
+var fetchOptimistic = (defaultedOptions, observer, errorResetBoundary) => observer.fetchOptimistic(defaultedOptions).catch(() => {
   errorResetBoundary.clearReset();
-}), "fetchOptimistic");
+});
 function useBaseQuery(options, Observer, queryClient) {
   const isRestoring = useIsRestoring();
   const errorResetBoundary = useQueryErrorResetBoundary();
@@ -153,11 +150,9 @@ function useBaseQuery(options, Observer, queryClient) {
   }
   return !defaultedOptions.notifyOnChangeProps ? observer.trackResult(result) : result;
 }
-__name(useBaseQuery, "useBaseQuery");
 function useQuery(options, queryClient) {
   return useBaseQuery(options, QueryObserver);
 }
-__name(useQuery, "useQuery");
 export {
   QueryClientProvider as Q,
   useQuery as u

@@ -1,5 +1,3 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 function _mergeNamespaces(n, m) {
   for (var i = 0; i < m.length; i++) {
     const e = m[i];
@@ -10,9 +8,9 @@ function _mergeNamespaces(n, m) {
           if (d) {
             Object.defineProperty(n, k, d.get ? d : {
               enumerable: true,
-              get: /* @__PURE__ */ __name(function() {
+              get: function() {
                 return e[k];
-              }, "get")
+              }
             });
           }
         }
@@ -21,11 +19,9 @@ function _mergeNamespaces(n, m) {
   }
   return Object.freeze(n);
 }
-__name(_mergeNamespaces, "_mergeNamespaces");
 function getDefaultExportFromCjs(x) {
   return x && x.__esModule && Object.prototype.hasOwnProperty.call(x, "default") ? x["default"] : x;
 }
-__name(getDefaultExportFromCjs, "getDefaultExportFromCjs");
 var react = { exports: {} };
 var react_production = {};
 var hasRequiredReact_production;
@@ -38,17 +34,16 @@ function requireReact_production() {
     maybeIterable = MAYBE_ITERATOR_SYMBOL && maybeIterable[MAYBE_ITERATOR_SYMBOL] || maybeIterable["@@iterator"];
     return "function" === typeof maybeIterable ? maybeIterable : null;
   }
-  __name(getIteratorFn, "getIteratorFn");
   var ReactNoopUpdateQueue = {
-    isMounted: /* @__PURE__ */ __name(function() {
+    isMounted: function() {
       return false;
-    }, "isMounted"),
-    enqueueForceUpdate: /* @__PURE__ */ __name(function() {
-    }, "enqueueForceUpdate"),
-    enqueueReplaceState: /* @__PURE__ */ __name(function() {
-    }, "enqueueReplaceState"),
-    enqueueSetState: /* @__PURE__ */ __name(function() {
-    }, "enqueueSetState")
+    },
+    enqueueForceUpdate: function() {
+    },
+    enqueueReplaceState: function() {
+    },
+    enqueueSetState: function() {
+    }
   }, assign = Object.assign, emptyObject = {};
   function Component(props, context, updater) {
     this.props = props;
@@ -56,7 +51,6 @@ function requireReact_production() {
     this.refs = emptyObject;
     this.updater = updater || ReactNoopUpdateQueue;
   }
-  __name(Component, "Component");
   Component.prototype.isReactComponent = {};
   Component.prototype.setState = function(partialState, callback) {
     if ("object" !== typeof partialState && "function" !== typeof partialState && null != partialState)
@@ -70,7 +64,6 @@ function requireReact_production() {
   };
   function ComponentDummy() {
   }
-  __name(ComponentDummy, "ComponentDummy");
   ComponentDummy.prototype = Component.prototype;
   function PureComponent(props, context, updater) {
     this.props = props;
@@ -78,7 +71,6 @@ function requireReact_production() {
     this.refs = emptyObject;
     this.updater = updater || ReactNoopUpdateQueue;
   }
-  __name(PureComponent, "PureComponent");
   var pureComponentPrototype = PureComponent.prototype = new ComponentDummy();
   pureComponentPrototype.constructor = PureComponent;
   assign(pureComponentPrototype, Component.prototype);
@@ -86,7 +78,6 @@ function requireReact_production() {
   var isArrayImpl = Array.isArray;
   function noop() {
   }
-  __name(noop, "noop");
   var ReactSharedInternals = { H: null, A: null, T: null, S: null }, hasOwnProperty = Object.prototype.hasOwnProperty;
   function ReactElement(type, key, props) {
     var refProp = props.ref;
@@ -98,27 +89,22 @@ function requireReact_production() {
       props
     };
   }
-  __name(ReactElement, "ReactElement");
   function cloneAndReplaceKey(oldElement, newKey) {
     return ReactElement(oldElement.type, newKey, oldElement.props);
   }
-  __name(cloneAndReplaceKey, "cloneAndReplaceKey");
   function isValidElement(object) {
     return "object" === typeof object && null !== object && object.$$typeof === REACT_ELEMENT_TYPE;
   }
-  __name(isValidElement, "isValidElement");
   function escape(key) {
     var escaperLookup = { "=": "=0", ":": "=2" };
     return "$" + key.replace(/[=:]/g, function(match) {
       return escaperLookup[match];
     });
   }
-  __name(escape, "escape");
   var userProvidedKeyEscapeRegex = /\/+/g;
   function getElementKey(element, index) {
     return "object" === typeof element && null !== element && null != element.key ? escape("" + element.key) : index.toString(36);
   }
-  __name(getElementKey, "getElementKey");
   function resolveThenable(thenable) {
     switch (thenable.status) {
       case "fulfilled":
@@ -142,7 +128,6 @@ function requireReact_production() {
     }
     throw thenable;
   }
-  __name(resolveThenable, "resolveThenable");
   function mapIntoArray(children, array, escapedPrefix, nameSoFar, callback) {
     var type = typeof children;
     if ("undefined" === type || "boolean" === type) children = null;
@@ -217,7 +202,6 @@ function requireReact_production() {
     }
     return invokeCallback;
   }
-  __name(mapIntoArray, "mapIntoArray");
   function mapChildren(children, func, context) {
     if (null == children) return children;
     var result = [], count = 0;
@@ -226,7 +210,6 @@ function requireReact_production() {
     });
     return result;
   }
-  __name(mapChildren, "mapChildren");
   function lazyInitializer(payload) {
     if (-1 === payload._status) {
       var ctor = payload._result;
@@ -246,7 +229,6 @@ function requireReact_production() {
     if (1 === payload._status) return payload._result.default;
     throw payload._result;
   }
-  __name(lazyInitializer, "lazyInitializer");
   var reportGlobalError = "function" === typeof reportError ? reportError : function(error) {
     if ("object" === typeof window && "function" === typeof window.ErrorEvent) {
       var event = new window.ErrorEvent("error", {
@@ -263,7 +245,7 @@ function requireReact_production() {
     console.error(error);
   }, Children = {
     map: mapChildren,
-    forEach: /* @__PURE__ */ __name(function(children, forEachFunc, forEachContext) {
+    forEach: function(children, forEachFunc, forEachContext) {
       mapChildren(
         children,
         function() {
@@ -271,26 +253,26 @@ function requireReact_production() {
         },
         forEachContext
       );
-    }, "forEach"),
-    count: /* @__PURE__ */ __name(function(children) {
+    },
+    count: function(children) {
       var n = 0;
       mapChildren(children, function() {
         n++;
       });
       return n;
-    }, "count"),
-    toArray: /* @__PURE__ */ __name(function(children) {
+    },
+    toArray: function(children) {
       return mapChildren(children, function(child) {
         return child;
       }) || [];
-    }, "toArray"),
-    only: /* @__PURE__ */ __name(function(children) {
+    },
+    only: function(children) {
       if (!isValidElement(children))
         throw Error(
           "React.Children.only expected to receive a single React element child."
         );
       return children;
-    }, "only")
+    }
   };
   react_production.Activity = REACT_ACTIVITY_TYPE;
   react_production.Children = Children;
@@ -303,9 +285,9 @@ function requireReact_production() {
   react_production.__CLIENT_INTERNALS_DO_NOT_USE_OR_WARN_USERS_THEY_CANNOT_UPGRADE = ReactSharedInternals;
   react_production.__COMPILER_RUNTIME = {
     __proto__: null,
-    c: /* @__PURE__ */ __name(function(size) {
+    c: function(size) {
       return ReactSharedInternals.H.useMemoCache(size);
-    }, "c")
+    }
   };
   react_production.cache = function(fn) {
     return function() {
@@ -466,7 +448,6 @@ function requireReact_production() {
   react_production.version = "19.2.7";
   return react_production;
 }
-__name(requireReact_production, "requireReact_production");
 var hasRequiredReact;
 function requireReact() {
   if (hasRequiredReact) return react.exports;
@@ -476,7 +457,6 @@ function requireReact() {
   }
   return react.exports;
 }
-__name(requireReact, "requireReact");
 var reactExports = requireReact();
 const React = /* @__PURE__ */ getDefaultExportFromCjs(reactExports);
 const React$1 = /* @__PURE__ */ _mergeNamespaces({
@@ -508,13 +488,11 @@ function requireReactJsxRuntime_production() {
       props: maybeKey
     };
   }
-  __name(jsxProd, "jsxProd");
   reactJsxRuntime_production.Fragment = REACT_FRAGMENT_TYPE;
   reactJsxRuntime_production.jsx = jsxProd;
   reactJsxRuntime_production.jsxs = jsxProd;
   return reactJsxRuntime_production;
 }
-__name(requireReactJsxRuntime_production, "requireReactJsxRuntime_production");
 var hasRequiredJsxRuntime;
 function requireJsxRuntime() {
   if (hasRequiredJsxRuntime) return jsxRuntime.exports;
@@ -524,7 +502,6 @@ function requireJsxRuntime() {
   }
   return jsxRuntime.exports;
 }
-__name(requireJsxRuntime, "requireJsxRuntime");
 var jsxRuntimeExports = requireJsxRuntime();
 export {
   React as R,

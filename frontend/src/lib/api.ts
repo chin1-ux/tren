@@ -472,3 +472,57 @@ export interface ApiReel {
   video_url?: string;
   thumbnail_url?: string;
 }
+
+// ── Marketplace APIs ──────────────────────────────────────────────────────────
+
+export interface BrandDealStats {
+  total_earnings: number;
+  active_partnerships: number;
+  pending_applications: number;
+}
+
+export interface BrandDeal {
+  id: number;
+  brand_name: string;
+  deal_amount: number;
+  commission_amount: number;
+  status: string;
+  details: string;
+  requirements: string;
+  applied: boolean;
+}
+
+export interface CollabMatch {
+  instagram_username: string;
+  user_email: string;
+  niche: string;
+  followers: number;
+  engagement_rate: number;
+  trend_score: number;
+  compatibility_score: number;
+  request_sent: boolean;
+}
+
+export async function fetchBrandDeals(userEmail: string): Promise<{ deals: BrandDeal[]; stats: BrandDealStats }> {
+  return http<{ deals: BrandDeal[]; stats: BrandDealStats }>(`/api/brand-deals/${encodeURIComponent(userEmail)}`);
+}
+
+export async function applyToBrandDeal(dealId: number, userEmail: string, pitch: string): Promise<{ success: boolean; message: string }> {
+  return http<{ success: boolean; message: string }>("/api/apply-deal", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deal_id: dealId, user_email: userEmail, pitch }),
+  });
+}
+
+export async function fetchCollabMatches(userEmail: string): Promise<CollabMatch[]> {
+  return http<CollabMatch[]>(`/api/collab-matches/${encodeURIComponent(userEmail)}`);
+}
+
+export async function sendCollabRequest(fromEmail: string, toEmail: string, message: string): Promise<{ success: boolean; message: string }> {
+  return http<{ success: boolean; message: string }>("/api/send-collab-request", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ from_email: fromEmail, to_email: toEmail, message }),
+  });
+}

@@ -168,6 +168,25 @@ TABLES_SQL = {
             commission_amount float,
             status text DEFAULT 'pending',
             details text,
+            requirements text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "brand_deal_applications": """
+        CREATE TABLE IF NOT EXISTS brand_deal_applications (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            deal_id bigint,
+            user_email text,
+            pitch text,
+            created_at timestamp DEFAULT now()
+        );
+    """,
+    "collab_requests": """
+        CREATE TABLE IF NOT EXISTS collab_requests (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            from_email text,
+            to_email text,
+            message text,
             created_at timestamp DEFAULT now()
         );
     """,
@@ -281,6 +300,7 @@ def main():
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS saturation_penalty float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
+            cursor.execute("ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS requirements text;")
             print("Table alterations completed successfully.")
         except Exception as e:
             print(f"Error performing alterations: {e}")

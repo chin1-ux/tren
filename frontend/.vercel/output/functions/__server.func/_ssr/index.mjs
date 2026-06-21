@@ -1,14 +1,8 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-var __defProp2 = Object.defineProperty;
-var __name2 = /* @__PURE__ */ __name((target, value) => __defProp2(target, "name", { value, configurable: true }), "__name");
 let lastCapturedError;
 const TTL_MS = 5e3;
 function record(error) {
   lastCapturedError = { error, at: Date.now() };
 }
-__name(record, "record");
-__name2(record, "record");
 if (typeof globalThis.addEventListener === "function") {
   globalThis.addEventListener("error", (event) => record(event.error ?? event));
   globalThis.addEventListener(
@@ -26,8 +20,6 @@ function consumeLastCapturedError() {
   lastCapturedError = void 0;
   return error;
 }
-__name(consumeLastCapturedError, "consumeLastCapturedError");
-__name2(consumeLastCapturedError, "consumeLastCapturedError");
 function renderErrorPage() {
   return `<!doctype html>
 <html lang="en">
@@ -58,19 +50,15 @@ function renderErrorPage() {
   </body>
 </html>`;
 }
-__name(renderErrorPage, "renderErrorPage");
-__name2(renderErrorPage, "renderErrorPage");
 let serverEntryPromise;
 async function getServerEntry() {
   if (!serverEntryPromise) {
-    serverEntryPromise = import("./server-BBjU4sj2.mjs").then((n) => n.s).then(
+    serverEntryPromise = import("./server-BEmn0Jm9.mjs").then((n) => n.s).then(
       (m) => m.default ?? m
     );
   }
   return serverEntryPromise;
 }
-__name(getServerEntry, "getServerEntry");
-__name2(getServerEntry, "getServerEntry");
 async function normalizeCatastrophicSsrResponse(response) {
   if (response.status < 500) return response;
   const contentType = response.headers.get("content-type") ?? "";
@@ -85,8 +73,6 @@ async function normalizeCatastrophicSsrResponse(response) {
     headers: { "content-type": "text/html; charset=utf-8" }
   });
 }
-__name(normalizeCatastrophicSsrResponse, "normalizeCatastrophicSsrResponse");
-__name2(normalizeCatastrophicSsrResponse, "normalizeCatastrophicSsrResponse");
 const server = {
   async fetch(request, env, ctx) {
     try {

@@ -1,6 +1,3 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-var _a, _b, _c, _d, _e, _f, _g;
 import { p as parseHref } from "./tanstack__history.mjs";
 import { s as splitSetCookieString } from "./cookie-es.mjs";
 import { a as ai, r as re, S as Sn, d as dn } from "./seroval.mjs";
@@ -11,28 +8,23 @@ const isServer = true;
 function last(arr) {
   return arr[arr.length - 1];
 }
-__name(last, "last");
 function isFunction(d) {
   return typeof d === "function";
 }
-__name(isFunction, "isFunction");
 function functionalUpdate(updater, previous) {
   if (isFunction(updater)) return updater(previous);
   return updater;
 }
-__name(functionalUpdate, "functionalUpdate");
 const hasOwn = Object.prototype.hasOwnProperty;
 function hasKeys(obj) {
   for (const key in obj) if (hasOwn.call(obj, key)) return true;
   return false;
 }
-__name(hasKeys, "hasKeys");
-const createNull = /* @__PURE__ */ __name(() => /* @__PURE__ */ Object.create(null), "createNull");
-const nullReplaceEqualDeep = /* @__PURE__ */ __name((prev, next) => replaceEqualDeep(prev, next, createNull), "nullReplaceEqualDeep");
+const createNull = () => /* @__PURE__ */ Object.create(null);
+const nullReplaceEqualDeep = (prev, next) => replaceEqualDeep(prev, next, createNull);
 function replaceEqualDeep(prev, _next, _makeObj = () => ({}), _depth = 0) {
   return _next;
 }
-__name(replaceEqualDeep, "replaceEqualDeep");
 function isPlainObject(o) {
   if (!hasObjectPrototype(o)) return false;
   const ctor = o.constructor;
@@ -42,11 +34,9 @@ function isPlainObject(o) {
   if (!prot.hasOwnProperty("isPrototypeOf")) return false;
   return true;
 }
-__name(isPlainObject, "isPlainObject");
 function hasObjectPrototype(o) {
   return Object.prototype.toString.call(o) === "[object Object]";
 }
-__name(hasObjectPrototype, "hasObjectPrototype");
 function deepEqual(a, b, opts) {
   if (a === b) return true;
   if (typeof a !== typeof b) return false;
@@ -75,7 +65,6 @@ function deepEqual(a, b, opts) {
   }
   return false;
 }
-__name(deepEqual, "deepEqual");
 function createControlledPromise(onResolve) {
   let resolveLoadPromise;
   let rejectLoadPromise;
@@ -96,20 +85,16 @@ function createControlledPromise(onResolve) {
   };
   return controlledPromise;
 }
-__name(createControlledPromise, "createControlledPromise");
 function isModuleNotFoundError(error) {
   if (typeof error?.message !== "string") return false;
   return error.message.startsWith("Failed to fetch dynamically imported module") || error.message.startsWith("error loading dynamically imported module") || error.message.startsWith("Importing a module script failed");
 }
-__name(isModuleNotFoundError, "isModuleNotFoundError");
 function isPromise(value) {
   return Boolean(value && typeof value === "object" && typeof value.then === "function");
 }
-__name(isPromise, "isPromise");
 function sanitizePathSegment(segment) {
   return segment.replace(/[\x00-\x1f\x7f]/g, "");
 }
-__name(sanitizePathSegment, "sanitizePathSegment");
 function decodeSegment(segment) {
   let decoded;
   try {
@@ -125,7 +110,6 @@ function decodeSegment(segment) {
   }
   return sanitizePathSegment(decoded);
 }
-__name(decodeSegment, "decodeSegment");
 const DEFAULT_PROTOCOL_ALLOWLIST = [
   "http:",
   "https:",
@@ -141,7 +125,6 @@ function isDangerousProtocol(url, allowlist) {
     return false;
   }
 }
-__name(isDangerousProtocol, "isDangerousProtocol");
 const HTML_ESCAPE_LOOKUP = {
   "&": "\\u0026",
   ">": "\\u003e",
@@ -153,7 +136,6 @@ const HTML_ESCAPE_REGEX = /[&><\u2028\u2029]/g;
 function escapeHtml(str) {
   return str.replace(HTML_ESCAPE_REGEX, (match) => HTML_ESCAPE_LOOKUP[match]);
 }
-__name(escapeHtml, "escapeHtml");
 function decodePath(path) {
   if (!path) return {
     path,
@@ -182,28 +164,24 @@ function decodePath(path) {
     handledProtocolRelativeURL
   };
 }
-__name(decodePath, "decodePath");
 function encodePathLikeUrl(path) {
   if (!/\s|[^\u0000-\u007F]/.test(path)) return path;
   return path.replace(/\s|[^\u0000-\u007F]/gu, encodeURIComponent);
 }
-__name(encodePathLikeUrl, "encodePathLikeUrl");
 function arraysEqual(a, b) {
   if (a === b) return true;
   if (a.length !== b.length) return false;
   for (let i = 0; i < a.length; i++) if (a[i] !== b[i]) return false;
   return true;
 }
-__name(arraysEqual, "arraysEqual");
 function invariant() {
   throw new Error("Invariant failed");
 }
-__name(invariant, "invariant");
 function createLRUCache(max) {
   const cache = /* @__PURE__ */ new Map();
   let oldest;
   let newest;
-  const touch = /* @__PURE__ */ __name((entry) => {
+  const touch = (entry) => {
     if (!entry.next) return;
     if (!entry.prev) {
       entry.next.prev = void 0;
@@ -223,7 +201,7 @@ function createLRUCache(max) {
       }
     }
     newest = entry;
-  }, "touch");
+  };
   return {
     get(key) {
       const entry = cache.get(key);
@@ -264,7 +242,6 @@ function createLRUCache(max) {
     }
   };
 }
-__name(createLRUCache, "createLRUCache");
 const SEGMENT_TYPE_INDEX = 4;
 const SEGMENT_TYPE_PATHLESS = 5;
 function getOpenAndCloseBraces(part) {
@@ -275,7 +252,6 @@ function getOpenAndCloseBraces(part) {
   if (openBrace + 1 >= part.length) return null;
   return [openBrace, closeBrace];
 }
-__name(getOpenAndCloseBraces, "getOpenAndCloseBraces");
 function parseSegment(path, start, output = new Uint16Array(6)) {
   const next = path.indexOf("/", start);
   const end = next === -1 ? path.length : next;
@@ -355,7 +331,6 @@ function parseSegment(path, start, output = new Uint16Array(6)) {
   output[5] = end;
   return output;
 }
-__name(parseSegment, "parseSegment");
 function parseSegments(defaultCaseSensitive, data, route, start, node, depth, onRoute) {
   onRoute?.(route);
   let cursor = start;
@@ -481,7 +456,6 @@ function parseSegments(defaultCaseSensitive, data, route, start, node, depth, on
   }
   if (route.children) for (const child of route.children) parseSegments(defaultCaseSensitive, data, child, cursor, node, depth, onRoute);
 }
-__name(parseSegments, "parseSegments");
 function sortDynamic(a, b) {
   if (a.parse && !b.parse) return -1;
   if (!a.parse && b.parse) return 1;
@@ -502,7 +476,6 @@ function sortDynamic(a, b) {
   if (!a.caseSensitive && b.caseSensitive) return 1;
   return 0;
 }
-__name(sortDynamic, "sortDynamic");
 function sortTreeNodes(node) {
   if (node.pathless) for (const child of node.pathless) sortTreeNodes(child);
   if (node.static) for (const child of node.static.values()) sortTreeNodes(child);
@@ -520,7 +493,6 @@ function sortTreeNodes(node) {
     for (const child of node.wildcard) sortTreeNodes(child);
   }
 }
-__name(sortTreeNodes, "sortTreeNodes");
 function createStaticNode(fullPath) {
   return {
     kind: 0,
@@ -539,7 +511,6 @@ function createStaticNode(fullPath) {
     priority: 0
   };
 }
-__name(createStaticNode, "createStaticNode");
 function createDynamicNode(kind, fullPath, caseSensitive, prefix, suffix) {
   return {
     kind,
@@ -561,7 +532,6 @@ function createDynamicNode(kind, fullPath, caseSensitive, prefix, suffix) {
     suffix
   };
 }
-__name(createDynamicNode, "createDynamicNode");
 function processRouteMasks(routeList, processedTree) {
   const segmentTree = createStaticNode("/");
   const data = new Uint16Array(6);
@@ -570,7 +540,6 @@ function processRouteMasks(routeList, processedTree) {
   processedTree.masksTree = segmentTree;
   processedTree.flatCache = createLRUCache(1e3);
 }
-__name(processRouteMasks, "processRouteMasks");
 function findFlatMatch(path, processedTree) {
   path ||= "/";
   const cached = processedTree.flatCache.get(path);
@@ -579,7 +548,6 @@ function findFlatMatch(path, processedTree) {
   processedTree.flatCache.set(path, result);
   return result;
 }
-__name(findFlatMatch, "findFlatMatch");
 function findSingleMatch(from, caseSensitive, fuzzy, path, processedTree) {
   from ||= "/";
   path ||= "/";
@@ -592,7 +560,6 @@ function findSingleMatch(from, caseSensitive, fuzzy, path, processedTree) {
   }
   return findMatch(path, tree, fuzzy);
 }
-__name(findSingleMatch, "findSingleMatch");
 function findRouteMatch(path, processedTree, fuzzy = false) {
   const key = fuzzy ? path : `nofuzz\0${path}`;
   const cached = processedTree.matchCache.get(key);
@@ -609,11 +576,9 @@ function findRouteMatch(path, processedTree, fuzzy = false) {
   processedTree.matchCache.set(key, result);
   return result;
 }
-__name(findRouteMatch, "findRouteMatch");
 function trimPathRight$1(path) {
   return path === "/" ? path : path.replace(/\/{1,}$/, "");
 }
-__name(trimPathRight$1, "trimPathRight$1");
 function processRouteTree(routeTree, caseSensitive = false, initRoute) {
   const segmentTree = createStaticNode(routeTree.fullPath);
   const data = new Uint16Array(6);
@@ -645,7 +610,6 @@ function processRouteTree(routeTree, caseSensitive = false, initRoute) {
     routesByPath
   };
 }
-__name(processRouteTree, "processRouteTree");
 function findMatch(path, segmentTree, fuzzy = false) {
   const parts = path.split("/");
   const leaf = getNodeMatch(path, parts, segmentTree, fuzzy);
@@ -656,7 +620,6 @@ function findMatch(path, segmentTree, fuzzy = false) {
     rawParams
   };
 }
-__name(findMatch, "findMatch");
 function extractParams(path, parts, leaf) {
   const list = buildBranch(leaf.node);
   let nodeParts = null;
@@ -720,7 +683,6 @@ function extractParams(path, parts, leaf) {
     segment: segmentCount
   }];
 }
-__name(extractParams, "extractParams");
 function buildRouteBranch(route) {
   const list = [route];
   while (route.parentRoute) {
@@ -730,7 +692,6 @@ function buildRouteBranch(route) {
   list.reverse();
   return list;
 }
-__name(buildRouteBranch, "buildRouteBranch");
 function buildBranch(node) {
   const list = Array(node.depth + 1);
   do {
@@ -739,7 +700,6 @@ function buildBranch(node) {
   } while (node);
   return list;
 }
-__name(buildBranch, "buildBranch");
 function getNodeMatch(path, parts, segmentTree, fuzzy) {
   if (path === "/" && segmentTree.index) return {
     node: segmentTree.index,
@@ -937,15 +897,12 @@ function getNodeMatch(path, parts, segmentTree, fuzzy) {
   }
   return null;
 }
-__name(getNodeMatch, "getNodeMatch");
 function segmentScore(partsLength, index) {
   return 2 ** (partsLength - index - 1);
 }
-__name(segmentScore, "segmentScore");
 function isPerfectStaticMatch(statics, partsLength) {
   return statics === 2 ** (partsLength - 1) - 1;
 }
-__name(isPerfectStaticMatch, "isPerfectStaticMatch");
 function validateParseParams(path, parts, frame) {
   let rawParams;
   let state;
@@ -963,44 +920,35 @@ function validateParseParams(path, parts, frame) {
   }
   return true;
 }
-__name(validateParseParams, "validateParseParams");
 function isFrameMoreSpecific(prev, next) {
   if (!prev) return true;
   return next.statics > prev.statics || next.statics === prev.statics && (next.dynamics > prev.dynamics || next.dynamics === prev.dynamics && (next.optionals > prev.optionals || next.optionals === prev.optionals && ((next.node.kind === SEGMENT_TYPE_INDEX) > (prev.node.kind === SEGMENT_TYPE_INDEX) || next.node.kind === SEGMENT_TYPE_INDEX === (prev.node.kind === SEGMENT_TYPE_INDEX) && next.depth > prev.depth)));
 }
-__name(isFrameMoreSpecific, "isFrameMoreSpecific");
 function joinPaths(paths) {
   return cleanPath(paths.filter((val) => {
     return val !== void 0;
   }).join("/"));
 }
-__name(joinPaths, "joinPaths");
 function cleanPath(path) {
   return path.replace(/\/{2,}/g, "/");
 }
-__name(cleanPath, "cleanPath");
 function trimPathLeft(path) {
   return path === "/" ? path : path.replace(/^\/{1,}/, "");
 }
-__name(trimPathLeft, "trimPathLeft");
 function trimPathRight(path) {
   const len = path.length;
   return len > 1 && path[len - 1] === "/" ? path.replace(/\/{1,}$/, "") : path;
 }
-__name(trimPathRight, "trimPathRight");
 function trimPath(path) {
   return trimPathRight(trimPathLeft(path));
 }
-__name(trimPath, "trimPath");
 function removeTrailingSlash(value, basepath) {
   if (value?.endsWith("/") && value !== "/" && value !== `${basepath}/`) return value.slice(0, -1);
   return value;
 }
-__name(removeTrailingSlash, "removeTrailingSlash");
 function exactPathTest(pathName1, pathName2, basepath) {
   return removeTrailingSlash(pathName1, basepath) === removeTrailingSlash(pathName2, basepath);
 }
-__name(exactPathTest, "exactPathTest");
 function resolvePath({ base, to, trailingSlash = "never", cache }) {
   const isAbsolute = to.startsWith("/");
   const isBase = !isAbsolute && to === ".";
@@ -1036,14 +984,12 @@ function resolvePath({ base, to, trailingSlash = "never", cache }) {
   if (key && cache) cache.set(key, result);
   return result;
 }
-__name(resolvePath, "resolvePath");
 function compileDecodeCharMap(pathParamsAllowedCharacters) {
   const charMap = new Map(pathParamsAllowedCharacters.map((char) => [encodeURIComponent(char), char]));
   const pattern = Array.from(charMap.keys()).map((key) => key.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|");
   const regex = new RegExp(pattern, "g");
   return (encoded) => encoded.replace(regex, (match) => charMap.get(match) ?? match);
 }
-__name(compileDecodeCharMap, "compileDecodeCharMap");
 function encodeParam(key, params, decoder) {
   const value = params[key];
   if (typeof value !== "string") return value;
@@ -1052,7 +998,6 @@ function encodeParam(key, params, decoder) {
     return value.split("/").map((segment) => encodePathParam(segment, decoder)).join("/");
   } else return encodePathParam(value, decoder);
 }
-__name(encodeParam, "encodeParam");
 function interpolatePath({ path, params, decoder, ...rest }) {
   let isMissingParams = false;
   const usedParams = /* @__PURE__ */ Object.create(null);
@@ -1166,16 +1111,13 @@ function interpolatePath({ path, params, decoder, ...rest }) {
     isMissingParams
   };
 }
-__name(interpolatePath, "interpolatePath");
 function encodePathParam(value, decoder) {
   const encoded = encodeURIComponent(value);
   return decoder?.(encoded) ?? encoded;
 }
-__name(encodePathParam, "encodePathParam");
 function isNotFound(obj) {
   return obj?.isNotFound === true;
 }
-__name(isNotFound, "isNotFound");
 function encode(obj, stringify = String) {
   const result = new URLSearchParams();
   for (const key in obj) {
@@ -1184,14 +1126,12 @@ function encode(obj, stringify = String) {
   }
   return result.toString();
 }
-__name(encode, "encode");
 function toValue(str) {
   if (!str) return "";
   if (str === "false") return false;
   if (str === "true") return true;
   return +str * 0 === 0 && +str + "" === str ? +str : str;
 }
-__name(toValue, "toValue");
 function decode(str) {
   const searchParams = new URLSearchParams(str);
   const result = /* @__PURE__ */ Object.create(null);
@@ -1203,7 +1143,6 @@ function decode(str) {
   }
   return result;
 }
-__name(decode, "decode");
 const defaultParseSearch = parseSearchWith(JSON.parse);
 const defaultStringifySearch = stringifySearchWith(JSON.stringify, JSON.parse);
 function parseSearchWith(parser) {
@@ -1220,7 +1159,6 @@ function parseSearchWith(parser) {
     return query;
   };
 }
-__name(parseSearchWith, "parseSearchWith");
 function stringifySearchWith(stringify, parser) {
   const hasParser = typeof parser === "function";
   function stringifyValue(val) {
@@ -1235,13 +1173,11 @@ function stringifySearchWith(stringify, parser) {
     }
     return val;
   }
-  __name(stringifyValue, "stringifyValue");
   return (search) => {
     const searchStr = encode(search, stringifyValue);
     return searchStr ? `?${searchStr}` : "";
   };
 }
-__name(stringifySearchWith, "stringifySearchWith");
 const rootRouteId = "__root__";
 function redirect(opts) {
   opts.statusCode = opts.statusCode || opts.code || 307;
@@ -1260,25 +1196,22 @@ function redirect(opts) {
   if (opts.throw) throw response;
   return response;
 }
-__name(redirect, "redirect");
 function isRedirect(obj) {
   return obj instanceof Response && !!obj.options;
 }
-__name(isRedirect, "isRedirect");
 function isResolvedRedirect(obj) {
   return isRedirect(obj) && !!obj.options.href;
 }
-__name(isResolvedRedirect, "isResolvedRedirect");
-const triggerOnReady = /* @__PURE__ */ __name((inner) => {
+const triggerOnReady = (inner) => {
   if (!inner.rendered) {
     inner.rendered = true;
     return inner.onReady?.();
   }
-}, "triggerOnReady");
-const resolvePreload = /* @__PURE__ */ __name((inner, matchId) => {
+};
+const resolvePreload = (inner, matchId) => {
   return !!(inner.preload && !inner.router.stores.matchStores.has(matchId));
-}, "resolvePreload");
-const buildMatchContext = /* @__PURE__ */ __name((inner, index, includeCurrentMatch = true) => {
+};
+const buildMatchContext = (inner, index, includeCurrentMatch = true) => {
   const context = { ...inner.router.options.context ?? {} };
   const end = includeCurrentMatch ? index : index - 1;
   for (let i = 0; i <= end; i++) {
@@ -1289,8 +1222,8 @@ const buildMatchContext = /* @__PURE__ */ __name((inner, index, includeCurrentMa
     Object.assign(context, m.__routeContext, m.__beforeLoadContext);
   }
   return context;
-}, "buildMatchContext");
-const getNotFoundBoundaryIndex = /* @__PURE__ */ __name((inner, err) => {
+};
+const getNotFoundBoundaryIndex = (inner, err) => {
   if (!inner.matches.length) return;
   const requestedRouteId = err.routeId;
   const matchedRootIndex = inner.matches.findIndex((m) => m.routeId === inner.router.routeTree.id);
@@ -1302,8 +1235,8 @@ const getNotFoundBoundaryIndex = /* @__PURE__ */ __name((inner, err) => {
     if (inner.router.looseRoutesById[match.routeId].options.notFoundComponent) return i;
   }
   return requestedRouteId ? startIndex : rootIndex;
-}, "getNotFoundBoundaryIndex");
-const handleRedirectAndNotFound = /* @__PURE__ */ __name((inner, match, err) => {
+};
+const handleRedirectAndNotFound = (inner, match, err) => {
   if (!isRedirect(err) && !isNotFound(err)) return;
   if (isRedirect(err) && err.redirectHandled && !err.options.reloadDocument) throw err;
   if (match) {
@@ -1329,14 +1262,14 @@ const handleRedirectAndNotFound = /* @__PURE__ */ __name((inner, match, err) => 
     err = inner.router.resolveRedirect(err);
   }
   throw err;
-}, "handleRedirectAndNotFound");
-const shouldSkipLoader = /* @__PURE__ */ __name((inner, matchId) => {
+};
+const shouldSkipLoader = (inner, matchId) => {
   const match = inner.router.getMatch(matchId);
   if (!match) return true;
   if (match.ssr === false) return true;
   return false;
-}, "shouldSkipLoader");
-const syncMatchContext = /* @__PURE__ */ __name((inner, matchId, index) => {
+};
+const syncMatchContext = (inner, matchId, index) => {
   const nextContext = buildMatchContext(inner, index);
   inner.updateMatch(matchId, (prev) => {
     return {
@@ -1344,8 +1277,8 @@ const syncMatchContext = /* @__PURE__ */ __name((inner, matchId, index) => {
       context: nextContext
     };
   });
-}, "syncMatchContext");
-const handleSerialError = /* @__PURE__ */ __name((inner, index, err) => {
+};
+const handleSerialError = (inner, index, err) => {
   const { id: matchId, routeId } = inner.matches[index];
   const route = inner.router.looseRoutesById[routeId];
   if (err instanceof Promise) throw err;
@@ -1371,8 +1304,8 @@ const handleSerialError = /* @__PURE__ */ __name((inner, index, err) => {
     };
   });
   if (!inner.preload && !isRedirect(err) && !isNotFound(err)) inner.serialError ??= err;
-}, "handleSerialError");
-const isBeforeLoadSsr = /* @__PURE__ */ __name((inner, matchId, index, route) => {
+};
+const isBeforeLoadSsr = (inner, matchId, index, route) => {
   const existingMatch = inner.router.getMatch(matchId);
   const parentMatchId = inner.matches[index - 1]?.id;
   const parentMatch = parentMatchId ? inner.router.getMatch(parentMatchId) : void 0;
@@ -1384,10 +1317,10 @@ const isBeforeLoadSsr = /* @__PURE__ */ __name((inner, matchId, index, route) =>
     existingMatch.ssr = false;
     return;
   }
-  const parentOverride = /* @__PURE__ */ __name((tempSsr2) => {
+  const parentOverride = (tempSsr2) => {
     if (tempSsr2 === true && parentMatch?.ssr === "data-only") return "data-only";
     return tempSsr2;
-  }, "parentOverride");
+  };
   const defaultSsr = inner.router.options.defaultSsr ?? true;
   if (route.options.ssr === void 0) {
     existingMatch.ssr = parentOverride(defaultSsr);
@@ -1419,8 +1352,8 @@ const isBeforeLoadSsr = /* @__PURE__ */ __name((inner, matchId, index, route) =>
     existingMatch.ssr = parentOverride(ssr ?? defaultSsr);
   });
   existingMatch.ssr = parentOverride(tempSsr ?? defaultSsr);
-}, "isBeforeLoadSsr");
-const setupPendingTimeout = /* @__PURE__ */ __name((inner, matchId, route, match) => {
+};
+const setupPendingTimeout = (inner, matchId, route, match) => {
   if (match._nonReactive.pendingTimeout !== void 0) return;
   const pendingMs = route.options.pendingMs ?? inner.router.options.defaultPendingMs;
   if (!!(inner.onReady && false)) {
@@ -1429,18 +1362,18 @@ const setupPendingTimeout = /* @__PURE__ */ __name((inner, matchId, route, match
     }, pendingMs);
     match._nonReactive.pendingTimeout = pendingTimeout;
   }
-}, "setupPendingTimeout");
-const preBeforeLoadSetup = /* @__PURE__ */ __name((inner, matchId, route) => {
+};
+const preBeforeLoadSetup = (inner, matchId, route) => {
   const existingMatch = inner.router.getMatch(matchId);
   if (!existingMatch._nonReactive.beforeLoadPromise && !existingMatch._nonReactive.loaderPromise) return;
   setupPendingTimeout(inner, matchId, route, existingMatch);
-  const then = /* @__PURE__ */ __name(() => {
+  const then = () => {
     const match = inner.router.getMatch(matchId);
     if (match.preload && (match.status === "redirected" || match.status === "notFound")) handleRedirectAndNotFound(inner, match, match.error);
-  }, "then");
+  };
   return existingMatch._nonReactive.beforeLoadPromise ? existingMatch._nonReactive.beforeLoadPromise.then(then) : then();
-}, "preBeforeLoadSetup");
-const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) => {
+};
+const executeBeforeLoad = (inner, matchId, index, route) => {
   const match = inner.router.getMatch(matchId);
   let prevLoadPromise = match._nonReactive.loadPromise;
   match._nonReactive.loadPromise = createControlledPromise(() => {
@@ -1453,7 +1386,7 @@ const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) 
   setupPendingTimeout(inner, matchId, route, match);
   const abortController = new AbortController();
   let isPending = false;
-  const pending = /* @__PURE__ */ __name(() => {
+  const pending = () => {
     if (isPending) return;
     isPending = true;
     inner.updateMatch(matchId, (prev) => ({
@@ -1462,15 +1395,15 @@ const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) 
       fetchCount: prev.fetchCount + 1,
       abortController
     }));
-  }, "pending");
-  const resolve = /* @__PURE__ */ __name(() => {
+  };
+  const resolve = () => {
     match._nonReactive.beforeLoadPromise?.resolve();
     match._nonReactive.beforeLoadPromise = void 0;
     inner.updateMatch(matchId, (prev) => ({
       ...prev,
       isFetching: false
     }));
-  }, "resolve");
+  };
   if (!route.options.beforeLoad) {
     inner.router.batch(() => {
       pending();
@@ -1492,17 +1425,17 @@ const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) 
     preload,
     context,
     location: inner.location,
-    navigate: /* @__PURE__ */ __name((opts) => inner.router.navigate({
+    navigate: (opts) => inner.router.navigate({
       ...opts,
       _fromLocation: inner.location
-    }), "navigate"),
+    }),
     buildLocation: inner.router.buildLocation,
     cause: preload ? "preload" : cause,
     matches: inner.matches,
     routeId: route.id,
     ...inner.router.options.additionalContext
   };
-  const updateContext = /* @__PURE__ */ __name((beforeLoadContext2) => {
+  const updateContext = (beforeLoadContext2) => {
     if (beforeLoadContext2 === void 0) {
       inner.router.batch(() => {
         pending();
@@ -1522,7 +1455,7 @@ const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) 
       }));
       resolve();
     });
-  }, "updateContext");
+  };
   let beforeLoadContext;
   try {
     beforeLoadContext = route.options.beforeLoad(beforeLoadFnContext);
@@ -1537,26 +1470,26 @@ const executeBeforeLoad = /* @__PURE__ */ __name((inner, matchId, index, route) 
     handleSerialError(inner, index, err);
   }
   updateContext(beforeLoadContext);
-}, "executeBeforeLoad");
-const handleBeforeLoad = /* @__PURE__ */ __name((inner, index) => {
+};
+const handleBeforeLoad = (inner, index) => {
   const { id: matchId, routeId } = inner.matches[index];
   const route = inner.router.looseRoutesById[routeId];
-  const serverSsr = /* @__PURE__ */ __name(() => {
+  const serverSsr = () => {
     {
       const maybePromise = isBeforeLoadSsr(inner, matchId, index, route);
       if (isPromise(maybePromise)) return maybePromise.then(queueExecution);
     }
     return queueExecution();
-  }, "serverSsr");
-  const execute = /* @__PURE__ */ __name(() => executeBeforeLoad(inner, matchId, index, route), "execute");
-  const queueExecution = /* @__PURE__ */ __name(() => {
+  };
+  const execute = () => executeBeforeLoad(inner, matchId, index, route);
+  const queueExecution = () => {
     if (shouldSkipLoader(inner, matchId)) return;
     const result = preBeforeLoadSetup(inner, matchId, route);
     return isPromise(result) ? result.then(execute) : execute();
-  }, "queueExecution");
+  };
   return serverSsr();
-}, "handleBeforeLoad");
-const executeHead = /* @__PURE__ */ __name((inner, matchId, route) => {
+};
+const executeHead = (inner, matchId, route) => {
   const match = inner.router.getMatch(matchId);
   if (!match) return;
   if (!route.options.head && !route.options.scripts && !route.options.headers) return;
@@ -1581,8 +1514,8 @@ const executeHead = /* @__PURE__ */ __name((inner, matchId, route) => {
       styles: headFnContent?.styles
     };
   });
-}, "executeHead");
-const getLoaderContext = /* @__PURE__ */ __name((inner, matchPromises, matchId, index, route) => {
+};
+const getLoaderContext = (inner, matchPromises, matchId, index, route) => {
   const parentMatchPromise = matchPromises[index - 1];
   const { params, loaderDeps, abortController, cause } = inner.router.getMatch(matchId);
   const context = buildMatchContext(inner, index);
@@ -1595,16 +1528,16 @@ const getLoaderContext = /* @__PURE__ */ __name((inner, matchPromises, matchId, 
     abortController,
     context,
     location: inner.location,
-    navigate: /* @__PURE__ */ __name((opts) => inner.router.navigate({
+    navigate: (opts) => inner.router.navigate({
       ...opts,
       _fromLocation: inner.location
-    }), "navigate"),
+    }),
     cause: preload ? "preload" : cause,
     route,
     ...inner.router.options.additionalContext
   };
-}, "getLoaderContext");
-const runLoader = /* @__PURE__ */ __name(async (inner, matchPromises, matchId, index, route) => {
+};
+const runLoader = async (inner, matchPromises, matchId, index, route) => {
   try {
     const match = inner.router.getMatch(matchId);
     try {
@@ -1677,8 +1610,8 @@ const runLoader = /* @__PURE__ */ __name(async (inner, matchPromises, matchId, i
     if (match) match._nonReactive.loaderPromise = void 0;
     handleRedirectAndNotFound(inner, match, err);
   }
-}, "runLoader");
-const loadRouteMatch = /* @__PURE__ */ __name(async (inner, matchPromises, index) => {
+};
+const loadRouteMatch = async (inner, matchPromises, index) => {
   async function handleLoader(preload, prevMatch, previousRouteMatchId, match2, route2) {
     const age = Date.now() - prevMatch.updatedAt;
     const staleAge = preload ? route2.options.preloadStaleTime ?? inner.router.options.defaultPreloadStaleTime ?? 3e4 : route2.options.staleTime ?? inner.router.options.defaultStaleTime ?? 0;
@@ -1705,7 +1638,6 @@ const loadRouteMatch = /* @__PURE__ */ __name(async (inner, matchPromises, index
     } else if (status !== "success" || loaderShouldRunAsync) await runLoader(inner, matchPromises, matchId, index, route2);
     else syncMatchContext(inner, matchId, index);
   }
-  __name(handleLoader, "handleLoader");
   const { id: matchId, routeId } = inner.matches[index];
   let loaderShouldRunAsync = false;
   let loaderIsRunningAsync = false;
@@ -1758,7 +1690,7 @@ const loadRouteMatch = /* @__PURE__ */ __name(async (inner, matchPromises, index
     }));
     return inner.router.getMatch(matchId);
   } else return match;
-}, "loadRouteMatch");
+};
 async function loadMatches(arg) {
   const inner = arg;
   const matchPromises = [];
@@ -1858,13 +1790,11 @@ async function loadMatches(arg) {
   if (inner.serialError && !inner.preload && !inner.onReady) throw inner.serialError;
   return inner.matches;
 }
-__name(loadMatches, "loadMatches");
 function preloadRouteComponents(route, componentTypesToLoad) {
   const preloads = componentTypesToLoad.map((type) => route.options[type]?.preload?.()).filter(Boolean);
   if (preloads.length === 0) return void 0;
   return Promise.all(preloads);
 }
-__name(preloadRouteComponents, "preloadRouteComponents");
 function loadRouteChunk(route, componentTypesToLoad = componentTypes) {
   if (!route._lazyLoaded && route._lazyPromise === void 0) if (route.lazyFn) route._lazyPromise = route.lazyFn().then((lazyRoute) => {
     const { id: _id, ...options } = lazyRoute.options;
@@ -1873,7 +1803,7 @@ function loadRouteChunk(route, componentTypesToLoad = componentTypes) {
     route._lazyPromise = void 0;
   });
   else route._lazyLoaded = true;
-  const runAfterLazy = /* @__PURE__ */ __name(() => route._componentsLoaded ? void 0 : componentTypesToLoad === componentTypes ? (() => {
+  const runAfterLazy = () => route._componentsLoaded ? void 0 : componentTypesToLoad === componentTypes ? (() => {
     if (route._componentsPromise === void 0) {
       const componentsPromise = preloadRouteComponents(route, componentTypes);
       if (componentsPromise) route._componentsPromise = componentsPromise.then(() => {
@@ -1883,10 +1813,9 @@ function loadRouteChunk(route, componentTypesToLoad = componentTypes) {
       else route._componentsLoaded = true;
     }
     return route._componentsPromise;
-  })() : preloadRouteComponents(route, componentTypesToLoad), "runAfterLazy");
+  })() : preloadRouteComponents(route, componentTypesToLoad);
   return route._lazyPromise ? route._lazyPromise.then(runAfterLazy) : runAfterLazy();
 }
-__name(loadRouteChunk, "loadRouteChunk");
 function makeMaybe(value, error) {
   if (error) return {
     status: "error",
@@ -1897,12 +1826,10 @@ function makeMaybe(value, error) {
     value
   };
 }
-__name(makeMaybe, "makeMaybe");
 function routeNeedsPreload(route) {
   for (const componentType of componentTypes) if (route.options[componentType]?.preload) return true;
   return false;
 }
-__name(routeNeedsPreload, "routeNeedsPreload");
 const componentTypes = [
   "component",
   "errorComponent",
@@ -1911,40 +1838,38 @@ const componentTypes = [
 ];
 function composeRewrites(rewrites) {
   return {
-    input: /* @__PURE__ */ __name(({ url }) => {
+    input: ({ url }) => {
       for (const rewrite of rewrites) url = executeRewriteInput(rewrite, url);
       return url;
-    }, "input"),
-    output: /* @__PURE__ */ __name(({ url }) => {
+    },
+    output: ({ url }) => {
       for (let i = rewrites.length - 1; i >= 0; i--) url = executeRewriteOutput(rewrites[i], url);
       return url;
-    }, "output")
+    }
   };
 }
-__name(composeRewrites, "composeRewrites");
 function rewriteBasepath(opts) {
   const trimmedBasepath = trimPath(opts.basepath);
   const normalizedBasepath = `/${trimmedBasepath}`;
   const checkBasepath = opts.caseSensitive ? normalizedBasepath : normalizedBasepath.toLowerCase();
   const checkBasepathWithSlash = `${checkBasepath}/`;
   return {
-    input: /* @__PURE__ */ __name(({ url }) => {
+    input: ({ url }) => {
       const pathname = opts.caseSensitive ? url.pathname : url.pathname.toLowerCase();
       if (pathname === checkBasepath) url.pathname = "/";
       else if (pathname.startsWith(checkBasepathWithSlash)) url.pathname = url.pathname.slice(normalizedBasepath.length);
       return url;
-    }, "input"),
-    output: /* @__PURE__ */ __name(({ url }) => {
+    },
+    output: ({ url }) => {
       url.pathname = joinPaths([
         "/",
         trimmedBasepath,
         url.pathname
       ]);
       return url;
-    }, "output")
+    }
   };
 }
-__name(rewriteBasepath, "rewriteBasepath");
 function executeRewriteInput(rewrite, url) {
   const res = rewrite?.input?.({ url });
   if (res) {
@@ -1953,7 +1878,6 @@ function executeRewriteInput(rewrite, url) {
   }
   return url;
 }
-__name(executeRewriteInput, "executeRewriteInput");
 function executeRewriteOutput(rewrite, url) {
   const res = rewrite?.output?.({ url });
   if (res) {
@@ -1962,7 +1886,6 @@ function executeRewriteOutput(rewrite, url) {
   }
   return url;
 }
-__name(executeRewriteOutput, "executeRewriteOutput");
 function createNonReactiveMutableStore(initialValue) {
   let value = initialValue;
   return {
@@ -1974,13 +1897,11 @@ function createNonReactiveMutableStore(initialValue) {
     }
   };
 }
-__name(createNonReactiveMutableStore, "createNonReactiveMutableStore");
 function createNonReactiveReadonlyStore(read) {
   return { get() {
     return read();
   } };
 }
-__name(createNonReactiveReadonlyStore, "createNonReactiveReadonlyStore");
 function createRouterStores(initialState, config) {
   const { createMutableStore, createReadonlyStore, batch, init } = config;
   const matchStores = /* @__PURE__ */ new Map();
@@ -2035,7 +1956,6 @@ function createRouterStores(initialState, config) {
     }
     return cached;
   }
-  __name(getRouteMatchStore, "getRouteMatchStore");
   const store = {
     status,
     loadedAt,
@@ -2068,18 +1988,14 @@ function createRouterStores(initialState, config) {
   function setMatches(nextMatches) {
     reconcileMatchPool(nextMatches, matchStores, matchesId, createMutableStore, batch);
   }
-  __name(setMatches, "setMatches");
   function setPending(nextMatches) {
     reconcileMatchPool(nextMatches, pendingMatchStores, pendingIds, createMutableStore, batch);
   }
-  __name(setPending, "setPending");
   function setCached(nextMatches) {
     reconcileMatchPool(nextMatches, cachedMatchStores, cachedIds, createMutableStore, batch);
   }
-  __name(setCached, "setCached");
   return store;
 }
-__name(createRouterStores, "createRouterStores");
 function readPoolMatches(pool, ids) {
   const matches = [];
   for (const id of ids) {
@@ -2088,7 +2004,6 @@ function readPoolMatches(pool, ids) {
   }
   return matches;
 }
-__name(readPoolMatches, "readPoolMatches");
 function reconcileMatchPool(nextMatches, pool, idStore, createMutableStore, batch) {
   const nextIds = nextMatches.map((d) => d.id);
   const nextIdSet = new Set(nextIds);
@@ -2108,7 +2023,6 @@ function reconcileMatchPool(nextMatches, pool, idStore, createMutableStore, batc
     if (!arraysEqual(idStore.get(), nextIds)) idStore.set(nextIds);
   });
 }
-__name(reconcileMatchPool, "reconcileMatchPool");
 function getLocationChangeInfo(location, resolvedLocation) {
   const fromLocation = resolvedLocation;
   const toLocation = location;
@@ -2120,9 +2034,8 @@ function getLocationChangeInfo(location, resolvedLocation) {
     hashChanged: fromLocation?.hash !== toLocation.hash
   };
 }
-__name(getLocationChangeInfo, "getLocationChangeInfo");
 const locationHistoryActions = /* @__PURE__ */ new WeakMap();
-var RouterCore = (_a = class {
+var RouterCore = class {
   /**
   * @deprecated Use the `createRouter` function instead
   */
@@ -2216,7 +2129,7 @@ var RouterCore = (_a = class {
       });
     };
     this.parseLocation = (locationToParse, previousLocation) => {
-      const parse = /* @__PURE__ */ __name(({ pathname, search, hash, href, state }) => {
+      const parse = ({ pathname, search, hash, href, state }) => {
         if (!this.rewrite && !/[ \x00-\x1f\x7f\u0080-\uffff]/.test(pathname)) {
           const parsedSearch2 = this.options.parseSearch(search);
           const searchStr2 = this.options.stringifySearch(parsedSearch2);
@@ -2246,7 +2159,7 @@ var RouterCore = (_a = class {
           hash: decodePath(url.hash.slice(1)).path,
           state: replaceEqualDeep(previousLocation?.state, state)
         };
-      }, "parse");
+      };
       const location = parse(locationToParse);
       const { __tempLocation, __tempKey } = location.state;
       if (__tempLocation && (!__tempKey || __tempKey === this.tempLocationKey)) {
@@ -2302,7 +2215,7 @@ var RouterCore = (_a = class {
       });
     };
     this.buildLocation = (opts) => {
-      const build = /* @__PURE__ */ __name((dest = {}) => {
+      const build = (dest = {}) => {
         const currentLocation = dest._fromLocation || this.pendingBuiltLocation || this.latestLocation;
         const lightweightResult = this.matchRoutesLightweight(currentLocation);
         if (dest.from && false) ;
@@ -2388,8 +2301,8 @@ var RouterCore = (_a = class {
           external,
           unmaskOnReload: dest.unmaskOnReload
         };
-      }, "build");
-      const buildWithMatches = /* @__PURE__ */ __name((dest = {}, maskedDest) => {
+      };
+      const buildWithMatches = (dest = {}, maskedDest) => {
         const next = build(dest);
         let maskedNext = maskedDest ? build(maskedDest) : void 0;
         if (!maskedNext) {
@@ -2411,7 +2324,7 @@ var RouterCore = (_a = class {
         }
         if (maskedNext) next.maskedLocation = maskedNext;
         return next;
-      }, "buildWithMatches");
+      };
       if (opts.mask) return buildWithMatches(opts, {
         from: opts.from,
         ...opts.mask
@@ -2420,7 +2333,7 @@ var RouterCore = (_a = class {
     };
     this.commitLocation = async ({ viewTransition, ignoreBlocker, ...next }) => {
       let historyAction;
-      const isSameState = /* @__PURE__ */ __name(() => {
+      const isSameState = () => {
         const ignoredProps = [
           "key",
           "__TSR_key",
@@ -2435,7 +2348,7 @@ var RouterCore = (_a = class {
           delete next.state[prop];
         });
         return isEqual;
-      }, "isSameState");
+      };
       const isSameUrl = trimPathRight(this.latestLocation.href) === trimPathRight(next.href);
       let previousCommitPromise = this.commitLocationPromise;
       this.commitLocationPromise = createControlledPromise(() => {
@@ -2605,7 +2518,7 @@ var RouterCore = (_a = class {
               matches: this.stores.pendingMatches.get(),
               location: next,
               updateMatch: this.updateMatch,
-              onReady: /* @__PURE__ */ __name(async () => {
+              onReady: async () => {
                 this.startTransition(() => {
                   this.startViewTransition(async () => {
                     let exitingMatches = null;
@@ -2643,7 +2556,7 @@ var RouterCore = (_a = class {
                     }
                   });
                 });
-              }, "onReady")
+              }
             });
           } catch (err) {
             if (isRedirect(err)) {
@@ -2717,7 +2630,7 @@ var RouterCore = (_a = class {
       return this.stores.cachedMatchStores.get(matchId)?.get() ?? this.stores.pendingMatchStores.get(matchId)?.get() ?? this.stores.matchStores.get(matchId)?.get();
     };
     this.invalidate = (opts) => {
-      const invalidate = /* @__PURE__ */ __name((d) => {
+      const invalidate = (d) => {
         if (opts?.filter?.(d) ?? true) return {
           ...d,
           invalid: true,
@@ -2727,7 +2640,7 @@ var RouterCore = (_a = class {
           } : void 0
         };
         return d;
-      }, "invalidate");
+      };
       this.batch(() => {
         this.stores.setMatches(this.stores.matches.get().map(invalidate));
         this.stores.setCached(this.stores.cachedMatches.get().map(invalidate));
@@ -2766,13 +2679,13 @@ var RouterCore = (_a = class {
     };
     this.clearExpiredCache = () => {
       const now = Date.now();
-      const filter = /* @__PURE__ */ __name((d) => {
+      const filter = (d) => {
         const route = this.looseRoutesById[d.routeId];
         if (!route.options.loader) return true;
         const gcTime = (d.preload ? route.options.preloadGcTime ?? this.options.defaultPreloadGcTime : route.options.gcTime ?? this.options.defaultGcTime) ?? 300 * 1e3;
         if (d.status === "error") return true;
         return now - d.updatedAt >= gcTime;
-      }, "filter");
+      };
       this.clearCache({ filter });
     };
     this.loadRouteChunk = loadRouteChunk;
@@ -2796,10 +2709,10 @@ var RouterCore = (_a = class {
           matches,
           location: next,
           preload: true,
-          updateMatch: /* @__PURE__ */ __name((id, updater) => {
+          updateMatch: (id, updater) => {
             if (activeMatchIds.has(id)) matches = matches.map((d) => d.id === id ? updater(d) : d);
             else this.updateMatch(id, updater);
-          }, "updateMatch")
+          }
         });
         return matches;
       } catch (err) {
@@ -3015,10 +2928,10 @@ var RouterCore = (_a = class {
             params: match.params,
             context: parentContext ?? {},
             location: next,
-            navigate: /* @__PURE__ */ __name((opts2) => this.navigate({
+            navigate: (opts2) => this.navigate({
               ...opts2,
               _fromLocation: next
-            }), "navigate"),
+            }),
             buildLocation: this.buildLocation,
             cause: match.cause,
             abortController: match.abortController,
@@ -3070,11 +2983,11 @@ var RouterCore = (_a = class {
       params
     };
   }
-}, __name(_a, "RouterCore"), _a);
-var SearchParamError = (_b = class extends Error {
-}, __name(_b, "SearchParamError"), _b);
-var PathParamError = (_c = class extends Error {
-}, __name(_c, "PathParamError"), _c);
+};
+var SearchParamError = class extends Error {
+};
+var PathParamError = class extends Error {
+};
 function getInitialRouterState(location) {
   return {
     loadedAt: 0,
@@ -3087,7 +3000,6 @@ function getInitialRouterState(location) {
     statusCode: 200
   };
 }
-__name(getInitialRouterState, "getInitialRouterState");
 function validateSearch(validateSearch2, input) {
   if (validateSearch2 == null) return {};
   if ("~standard" in validateSearch2) {
@@ -3100,7 +3012,6 @@ function validateSearch(validateSearch2, input) {
   if (typeof validateSearch2 === "function") return validateSearch2(input);
   return {};
 }
-__name(validateSearch, "validateSearch");
 function getMatchedRoutes({ pathname, routesById, processedTree }) {
   const routeParams = /* @__PURE__ */ Object.create(null);
   const trimmedPath = trimPathRight(pathname);
@@ -3116,11 +3027,9 @@ function getMatchedRoutes({ pathname, routesById, processedTree }) {
     foundRoute
   };
 }
-__name(getMatchedRoutes, "getMatchedRoutes");
 function applySearchMiddleware({ search, dest, destRoutes, _includeValidateSearch }) {
   return buildMiddlewareChain(destRoutes)(search, dest, _includeValidateSearch ?? false);
 }
-__name(applySearchMiddleware, "applySearchMiddleware");
 function buildMiddlewareChain(destRoutes) {
   let dest;
   let includeValidateSearch;
@@ -3130,15 +3039,15 @@ function buildMiddlewareChain(destRoutes) {
     if ("search" in routeOptions) {
       if (routeOptions.search?.middlewares) middlewares.push(...routeOptions.search.middlewares);
     } else if (routeOptions.preSearchFilters || routeOptions.postSearchFilters) {
-      const legacyMiddleware = /* @__PURE__ */ __name(({ search, next }) => {
+      const legacyMiddleware = ({ search, next }) => {
         const result = next(routeOptions.preSearchFilters ? routeOptions.preSearchFilters.reduce((prev, next2) => next2(prev), search) : search);
         return routeOptions.postSearchFilters ? routeOptions.postSearchFilters.reduce((prev, next2) => next2(prev), result) : result;
-      }, "legacyMiddleware");
+      };
       middlewares.push(legacyMiddleware);
     }
     const routeValidateSearch = routeOptions.validateSearch;
     if (routeValidateSearch) {
-      const validate = /* @__PURE__ */ __name(({ search, next, meta }) => {
+      const validate = ({ search, next, meta }) => {
         const result = next(search);
         if (includeValidateSearch) try {
           const validated = validateSearch(routeValidateSearch, result);
@@ -3152,11 +3061,11 @@ function buildMiddlewareChain(destRoutes) {
         } catch {
         }
         return result;
-      }, "validate");
+      };
       middlewares.push(validate);
     }
   }
-  const applyNext = /* @__PURE__ */ __name((index, currentSearch, meta) => {
+  const applyNext = (index, currentSearch, meta) => {
     if (index >= middlewares.length) {
       if (!dest.search) return {};
       if (dest.search === true) return currentSearch;
@@ -3164,7 +3073,7 @@ function buildMiddlewareChain(destRoutes) {
       if (meta) meta.explicit = result;
       return result;
     }
-    const next = /* @__PURE__ */ __name((newSearch, collectMeta) => {
+    const next = (newSearch, collectMeta) => {
       if (collectMeta) {
         const nextMeta = meta || {};
         return {
@@ -3173,20 +3082,19 @@ function buildMiddlewareChain(destRoutes) {
         };
       }
       return applyNext(index + 1, newSearch, meta);
-    }, "next");
+    };
     return middlewares[index]({
       search: currentSearch,
       next,
       meta
     });
-  }, "applyNext");
-  return /* @__PURE__ */ __name(function middleware(search, nextDest, _includeValidateSearch) {
+  };
+  return function middleware(search, nextDest, _includeValidateSearch) {
     dest = nextDest;
     includeValidateSearch = _includeValidateSearch;
     return applyNext(0, search);
-  }, "middleware");
+  };
 }
-__name(buildMiddlewareChain, "buildMiddlewareChain");
 function findGlobalNotFoundRouteId(notFoundMode, routes) {
   if (notFoundMode !== "root") for (let i = routes.length - 1; i >= 0; i--) {
     const route = routes[i];
@@ -3194,7 +3102,6 @@ function findGlobalNotFoundRouteId(notFoundMode, routes) {
   }
   return rootRouteId;
 }
-__name(findGlobalNotFoundRouteId, "findGlobalNotFoundRouteId");
 function extractStrictParams(route, accumulatedParams) {
   const parseParams = route.options.params?.parse ?? route.options.parseParams;
   if (parseParams) {
@@ -3203,7 +3110,6 @@ function extractStrictParams(route, accumulatedParams) {
     Object.assign(accumulatedParams, result);
   }
 }
-__name(extractStrictParams, "extractStrictParams");
 function getSafeSessionStorage() {
   try {
     return sessionStorage;
@@ -3211,22 +3117,19 @@ function getSafeSessionStorage() {
     return;
   }
 }
-__name(getSafeSessionStorage, "getSafeSessionStorage");
 const storageKey = "tsr-scroll-restoration-v1_3";
 getSafeSessionStorage();
-const defaultGetScrollRestorationKey = /* @__PURE__ */ __name((location) => {
+const defaultGetScrollRestorationKey = (location) => {
   return location.state.__TSR_key || location.href;
-}, "defaultGetScrollRestorationKey");
+};
 function getAssetCrossOrigin(assetCrossOrigin, kind) {
   if (!assetCrossOrigin) return;
   if (typeof assetCrossOrigin === "string") return assetCrossOrigin;
   return assetCrossOrigin[kind];
 }
-__name(getAssetCrossOrigin, "getAssetCrossOrigin");
 function getManifestScriptFormat(manifest) {
   return manifest?.scriptFormat ?? "module";
 }
-__name(getManifestScriptFormat, "getManifestScriptFormat");
 function getScriptPreloadAttrs(manifest, link, assetCrossOrigin) {
   const preloadLink = resolveManifestAssetLink(link);
   const crossOrigin = getAssetCrossOrigin(assetCrossOrigin, "script") ?? preloadLink.crossOrigin;
@@ -3239,7 +3142,6 @@ function getScriptPreloadAttrs(manifest, link, assetCrossOrigin) {
     ...crossOrigin ? { crossOrigin } : {}
   };
 }
-__name(getScriptPreloadAttrs, "getScriptPreloadAttrs");
 function resolveManifestAssetLink(link) {
   if (typeof link === "string") return {
     href: link,
@@ -3247,7 +3149,6 @@ function resolveManifestAssetLink(link) {
   };
   return link;
 }
-__name(resolveManifestAssetLink, "resolveManifestAssetLink");
 function appendUniqueUserTags(target, tags) {
   if (tags.length === 0) return;
   if (tags.length === 1) {
@@ -3262,11 +3163,9 @@ function appendUniqueUserTags(target, tags) {
     target.push(tag);
   }
 }
-__name(appendUniqueUserTags, "appendUniqueUserTags");
 function getStylesheetHref(asset) {
   return resolveManifestCssLink(asset).href;
 }
-__name(getStylesheetHref, "getStylesheetHref");
 function resolveManifestCssLink(link) {
   if (typeof link === "string") return {
     href: link,
@@ -3274,19 +3173,16 @@ function resolveManifestCssLink(link) {
   };
   return link;
 }
-__name(resolveManifestCssLink, "resolveManifestCssLink");
 function createInlineCssStyleAsset(css) {
   return {
     attrs: { suppressHydrationWarning: true },
     children: css
   };
 }
-__name(createInlineCssStyleAsset, "createInlineCssStyleAsset");
 function createInlineCssPlaceholderAsset() {
   return { attrs: { suppressHydrationWarning: true } };
 }
-__name(createInlineCssPlaceholderAsset, "createInlineCssPlaceholderAsset");
-var BaseRoute = (_d = class {
+var BaseRoute = class {
   get to() {
     return this._to;
   }
@@ -3352,18 +3248,17 @@ var BaseRoute = (_d = class {
     this.isRoot = !options?.getParentRoute;
     if (options?.id && options?.path) throw new Error(`Route cannot have both an 'id' and a 'path' option.`);
   }
-}, __name(_d, "BaseRoute"), _d);
-var BaseRootRoute = (_e = class extends BaseRoute {
+};
+var BaseRootRoute = class extends BaseRoute {
   constructor(options) {
     super(options);
   }
-}, __name(_e, "BaseRootRoute"), _e);
+};
 const GLOBAL_TSR = "$_TSR";
 const TSR_SCRIPT_BARRIER_ID = "$tsr-stream-barrier";
 function createSerializationAdapter(opts) {
   return opts;
 }
-__name(createSerializationAdapter, "createSerializationAdapter");
 // @__NO_SIDE_EFFECTS__
 function makeSsrSerovalPlugin(serializationAdapter, options) {
   return /* @__PURE__ */ ai({
@@ -3379,7 +3274,6 @@ function makeSsrSerovalPlugin(serializationAdapter, options) {
     deserialize: void 0
   });
 }
-__name(makeSsrSerovalPlugin, "makeSsrSerovalPlugin");
 // @__NO_SIDE_EFFECTS__
 function makeSerovalPlugin(serializationAdapter) {
   return /* @__PURE__ */ ai({
@@ -3402,13 +3296,12 @@ function makeSerovalPlugin(serializationAdapter) {
     }
   });
 }
-__name(makeSerovalPlugin, "makeSerovalPlugin");
-var RawStream = (_f = class {
+var RawStream = class {
   constructor(stream, options) {
     this.stream = stream;
     this.hint = options?.hint ?? "binary";
   }
-}, __name(_f, "RawStream"), _f);
+};
 const BufferCtor = globalThis.Buffer;
 const hasNodeBuffer = !!BufferCtor && typeof BufferCtor.from === "function";
 function uint8ArrayToBase64(bytes) {
@@ -3422,7 +3315,6 @@ function uint8ArrayToBase64(bytes) {
   }
   return btoa(chunks.join(""));
 }
-__name(uint8ArrayToBase64, "uint8ArrayToBase64");
 function base64ToUint8Array(base64) {
   if (base64.length === 0) return new Uint8Array(0);
   if (hasNodeBuffer) {
@@ -3434,10 +3326,9 @@ function base64ToUint8Array(base64) {
   for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
   return bytes;
 }
-__name(base64ToUint8Array, "base64ToUint8Array");
 const RAW_STREAM_FACTORY_BINARY = /* @__PURE__ */ Object.create(null);
 const RAW_STREAM_FACTORY_TEXT = /* @__PURE__ */ Object.create(null);
-const RAW_STREAM_FACTORY_CONSTRUCTOR_BINARY = /* @__PURE__ */ __name((stream) => new ReadableStream({ start(controller) {
+const RAW_STREAM_FACTORY_CONSTRUCTOR_BINARY = (stream) => new ReadableStream({ start(controller) {
   stream.on({
     next(base64) {
       try {
@@ -3455,9 +3346,9 @@ const RAW_STREAM_FACTORY_CONSTRUCTOR_BINARY = /* @__PURE__ */ __name((stream) =>
       }
     }
   });
-} }), "RAW_STREAM_FACTORY_CONSTRUCTOR_BINARY");
+} });
 const textEncoderForFactory = new TextEncoder();
-const RAW_STREAM_FACTORY_CONSTRUCTOR_TEXT = /* @__PURE__ */ __name((stream) => {
+const RAW_STREAM_FACTORY_CONSTRUCTOR_TEXT = (stream) => {
   return new ReadableStream({ start(controller) {
     stream.on({
       next(value) {
@@ -3478,7 +3369,7 @@ const RAW_STREAM_FACTORY_CONSTRUCTOR_TEXT = /* @__PURE__ */ __name((stream) => {
       }
     });
   } });
-}, "RAW_STREAM_FACTORY_CONSTRUCTOR_TEXT");
+};
 const FACTORY_BINARY = `(s=>new ReadableStream({start(c){s.on({next(b){try{const d=atob(b),a=new Uint8Array(d.length);for(let i=0;i<d.length;i++)a[i]=d.charCodeAt(i);c.enqueue(a)}catch(_){}},throw(e){c.error(e)},return(){try{c.close()}catch(_){}}})}}))`;
 const FACTORY_TEXT = `(s=>{const e=new TextEncoder();return new ReadableStream({start(c){s.on({next(v){try{if(typeof v==='string'){c.enqueue(e.encode(v))}else{const d=atob(v.$b64),a=new Uint8Array(d.length);for(let i=0;i<d.length;i++)a[i]=d.charCodeAt(i);c.enqueue(a)}}catch(_){}},throw(x){c.error(x)},return(){try{c.close()}catch(_){}}})}})})`;
 function toBinaryStream(readable) {
@@ -3502,7 +3393,6 @@ function toBinaryStream(readable) {
   })();
   return stream;
 }
-__name(toBinaryStream, "toBinaryStream");
 function toTextStream(readable) {
   const stream = re();
   const reader = readable.getReader();
@@ -3535,7 +3425,6 @@ function toTextStream(readable) {
   })();
   return stream;
 }
-__name(toTextStream, "toTextStream");
 const RawStreamSSRPlugin = /* @__PURE__ */ ai({
   tag: "tss/RawStream",
   extends: [/* @__PURE__ */ ai({
@@ -3650,7 +3539,6 @@ function createRawStreamRPCPlugin(onRawStream) {
     }
   });
 }
-__name(createRawStreamRPCPlugin, "createRawStreamRPCPlugin");
 const ShallowErrorPlugin = /* @__PURE__ */ ai({
   tag: "$TSR/Error",
   test(value) {
@@ -3685,7 +3573,6 @@ function toHeadersInstance(init) {
   else if (typeof init === "object") return new Headers(init);
   else return null;
 }
-__name(toHeadersInstance, "toHeadersInstance");
 function mergeHeaders(...headers) {
   return headers.reduce((acc, header) => {
     const headersInstance = toHeadersInstance(header);
@@ -3695,11 +3582,9 @@ function mergeHeaders(...headers) {
     return acc;
   }, new Headers());
 }
-__name(mergeHeaders, "mergeHeaders");
 function dehydrateSsrMatchId(id) {
   return id.replaceAll("/", "\0");
 }
-__name(dehydrateSsrMatchId, "dehydrateSsrMatchId");
 var tsrScript_default = "self.$_TSR={h(){this.hydrated=!0,this.c()},e(){this.streamEnded=!0,this.c()},c(){this.hydrated&&this.streamEnded&&(delete self.$_TSR,delete self.$R.tsr)},p(e){this.initialized?e():this.buffer.push(e)},buffer:[]}";
 const SCOPE_ID = "tsr";
 const TSR_PREFIX = GLOBAL_TSR + ".router=";
@@ -3720,9 +3605,8 @@ function dehydrateMatch(match) {
   if (match.globalNotFound) dehydratedMatch.g = true;
   return dehydratedMatch;
 }
-__name(dehydrateMatch, "dehydrateMatch");
 const INITIAL_SCRIPTS = [dn(SCOPE_ID), tsrScript_default];
-var ScriptBuffer = (_g = class {
+var ScriptBuffer = class {
   constructor(injectScript) {
     this._scriptBarrierLifted = false;
     this._cleanedUp = false;
@@ -3794,7 +3678,7 @@ var ScriptBuffer = (_g = class {
     this._queue = [];
     this.injectScript = void 0;
   }
-}, __name(_g, "ScriptBuffer"), _g);
+};
 const MANIFEST_CACHE_SIZE = 100;
 const manifestCaches = /* @__PURE__ */ new WeakMap();
 function getManifestCache(manifest) {
@@ -3804,7 +3688,6 @@ function getManifestCache(manifest) {
   manifestCaches.set(manifest, newCache);
   return newCache;
 }
-__name(getManifestCache, "getManifestCache");
 function getInlineCssForPreparedRoutes(manifest, preparedRoutes) {
   if (preparedRoutes.inlineCss !== void 0) return preparedRoutes.inlineCss;
   const styles = manifest.inlineCss?.styles;
@@ -3815,18 +3698,15 @@ function getInlineCssForPreparedRoutes(manifest, preparedRoutes) {
   preparedRoutes.inlineCss = css;
   return css;
 }
-__name(getInlineCssForPreparedRoutes, "getInlineCssForPreparedRoutes");
 function getInlineCssAssetForPreparedRoutes(manifest, preparedRoutes) {
   const css = getInlineCssForPreparedRoutes(manifest, preparedRoutes);
   return css === void 0 ? void 0 : createInlineCssStyleAsset(css);
 }
-__name(getInlineCssAssetForPreparedRoutes, "getInlineCssAssetForPreparedRoutes");
 function getMatchedRoutesCacheKey(matches) {
   let cacheKey = "";
   for (let i = 0; i < matches.length; i++) cacheKey += (i === 0 ? "" : "\0") + matches[i].routeId;
   return cacheKey;
 }
-__name(getMatchedRoutesCacheKey, "getMatchedRoutesCacheKey");
 function getPreparedMatchedManifestRoutes(manifest, matches, cacheKey) {
   {
     const cached = getManifestCache(manifest).get(cacheKey);
@@ -3836,7 +3716,6 @@ function getPreparedMatchedManifestRoutes(manifest, matches, cacheKey) {
   getManifestCache(manifest).set(cacheKey, preparedRoutes);
   return preparedRoutes;
 }
-__name(getPreparedMatchedManifestRoutes, "getPreparedMatchedManifestRoutes");
 function prepareMatchedManifestRoutes(manifest, matches) {
   const inlineStyles = manifest.inlineCss?.styles;
   const routes = {};
@@ -3867,7 +3746,6 @@ function prepareMatchedManifestRoutes(manifest, matches) {
     ...inlineCssHrefs.length ? { inlineCssHrefs } : {}
   };
 }
-__name(prepareMatchedManifestRoutes, "prepareMatchedManifestRoutes");
 function stripInlinedStylesheetAssetsFromRoute(inlineStyles, route, inlineCssHrefs, seenInlineCssHrefs) {
   const css = route.css;
   if (!css) return route;
@@ -3899,15 +3777,12 @@ function stripInlinedStylesheetAssetsFromRoute(inlineStyles, route, inlineCssHre
   delete nextRoute.css;
   return nextRoute;
 }
-__name(stripInlinedStylesheetAssetsFromRoute, "stripInlinedStylesheetAssetsFromRoute");
 function hasRouteAssets(route) {
   return !!route.scripts?.length || !!route.css?.length;
 }
-__name(hasRouteAssets, "hasRouteAssets");
 function hasRequestAssets(assets) {
   return !!assets && (!!assets.preloads?.length || hasRouteAssets(assets));
 }
-__name(hasRequestAssets, "hasRequestAssets");
 function mergeRequestAssetsIntoRootRoute(rootRoute, requestAssets) {
   const preloads = requestAssets?.preloads?.length ? [...requestAssets.preloads, ...rootRoute?.preloads ?? []] : rootRoute?.preloads;
   const scripts = requestAssets?.scripts?.length ? [...requestAssets.scripts, ...rootRoute?.scripts ?? []] : rootRoute?.scripts;
@@ -3919,7 +3794,6 @@ function mergeRequestAssetsIntoRootRoute(rootRoute, requestAssets) {
     ...cssLinks?.length ? { css: cssLinks } : {}
   };
 }
-__name(mergeRequestAssetsIntoRootRoute, "mergeRequestAssetsIntoRootRoute");
 function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
   router.ssr = { get manifest() {
     if (!manifest) return manifest;
@@ -3961,33 +3835,33 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
   const cleanupListeners = [];
   let cleanupStarted = false;
   let injectedHtmlBuffer = "";
-  const callListeners = /* @__PURE__ */ __name((listeners, errorPrefix) => {
+  const callListeners = (listeners, errorPrefix) => {
     const snapshot = listeners.slice();
     for (const l of snapshot) try {
       l();
     } catch (err) {
       console.error(`${errorPrefix}:`, err);
     }
-  }, "callListeners");
-  const removeListener = /* @__PURE__ */ __name((listeners, listener) => {
+  };
+  const removeListener = (listeners, listener) => {
     const index = listeners.indexOf(listener);
     if (index >= 0) listeners.splice(index, 1);
-  }, "removeListener");
+  };
   const scriptBuffer = new ScriptBuffer((script) => {
     serverSsr.injectScript(script);
   });
   const serverSsr = {
-    injectHtml: /* @__PURE__ */ __name((html) => {
+    injectHtml: (html) => {
       if (!html || cleanupStarted) return;
       injectedHtmlBuffer += html;
       callListeners(injectedHtmlListeners, "SSR injected HTML listener error");
-    }, "injectHtml"),
-    injectScript: /* @__PURE__ */ __name((script) => {
+    },
+    injectScript: (script) => {
       if (!script || cleanupStarted) return;
       const html = `<script${router.options.ssr?.nonce ? ` nonce='${router.options.ssr.nonce}'` : ""}>${script}<\/script>`;
       serverSsr.injectHtml(html);
-    }, "injectScript"),
-    dehydrate: /* @__PURE__ */ __name(async (opts) => {
+    },
+    dehydrate: async (opts) => {
       if (_dehydrated) {
         invariant();
       }
@@ -4025,7 +3899,7 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
       const serializationAdapters = router.options.serializationAdapters;
       const plugins = serializationAdapters ? serializationAdapters.map((t) => /* @__PURE__ */ makeSsrSerovalPlugin(t, trackPlugins)).concat(defaultSerovalPlugins) : defaultSerovalPlugins;
       let serializationCompleteSignaled = false;
-      const signalSerializationComplete = /* @__PURE__ */ __name(() => {
+      const signalSerializationComplete = () => {
         if (serializationCompleteSignaled || cleanupStarted) return;
         serializationCompleteSignaled = true;
         _serializationFinished = true;
@@ -4036,32 +3910,32 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
         } catch (err) {
           console.error("Serialization listener error:", err);
         }
-      }, "signalSerializationComplete");
-      const finishScriptSerialization = /* @__PURE__ */ __name(() => {
+      };
+      const finishScriptSerialization = () => {
         if (serializationCompleteSignaled || cleanupStarted) return;
         scriptBuffer.enqueue(GLOBAL_TSR + ".e()");
         scriptBuffer.flush();
         signalSerializationComplete();
-      }, "finishScriptSerialization");
+      };
       Sn(dehydratedRouter, {
         refs: /* @__PURE__ */ new Map(),
         plugins,
-        onSerialize: /* @__PURE__ */ __name((data, initial) => {
+        onSerialize: (data, initial) => {
           let serialized = initial ? TSR_PREFIX + data : data;
           if (trackPlugins.didRun) serialized = P_PREFIX + serialized + P_SUFFIX;
           scriptBuffer.enqueue(serialized);
-        }, "onSerialize"),
-        onError: /* @__PURE__ */ __name((err) => {
+        },
+        onError: (err) => {
           console.error("Serialization error:", err);
           if (err && err.stack) console.error(err.stack);
           finishScriptSerialization();
-        }, "onError"),
+        },
         scopeId: SCOPE_ID,
-        onDone: /* @__PURE__ */ __name(() => {
+        onDone: () => {
           finishScriptSerialization();
-        }, "onDone")
+        }
       });
-    }, "dehydrate"),
+    },
     isDehydrated() {
       return _dehydrated;
     },
@@ -4075,17 +3949,17 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
       }
       return false;
     },
-    onInjectedHtml: /* @__PURE__ */ __name((listener) => {
+    onInjectedHtml: (listener) => {
       if (cleanupStarted) return () => {
       };
       injectedHtmlListeners.push(listener);
       return () => removeListener(injectedHtmlListeners, listener);
-    }, "onInjectedHtml"),
-    onRenderFinished: /* @__PURE__ */ __name((listener) => {
+    },
+    onRenderFinished: (listener) => {
       if (cleanupStarted || streamFastPathReserved) return;
       renderFinishedListeners.push(listener);
-    }, "onRenderFinished"),
-    onSerializationFinished: /* @__PURE__ */ __name((listener) => {
+    },
+    onSerializationFinished: (listener) => {
       if (cleanupStarted) return () => {
       };
       if (_serializationFinished && !cleanupStarted) {
@@ -4099,12 +3973,12 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
       }
       serializationFinishedListeners.push(listener);
       return () => removeListener(serializationFinishedListeners, listener);
-    }, "onSerializationFinished"),
-    onCleanup: /* @__PURE__ */ __name((listener) => {
+    },
+    onCleanup: (listener) => {
       if (cleanupStarted) return;
       cleanupListeners.push(listener);
-    }, "onCleanup"),
-    setRenderFinished: /* @__PURE__ */ __name(() => {
+    },
+    setRenderFinished: () => {
       if (cleanupStarted) return;
       scriptBuffer.liftBarrier();
       const listeners = renderFinishedListeners.slice();
@@ -4115,7 +3989,7 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
         console.error("Error in render finished listener:", err);
       }
       if (_serializationFinished) scriptBuffer.flush();
-    }, "setRenderFinished"),
+    },
     takeBufferedScripts() {
       const scripts = scriptBuffer.takeAll();
       if (!scripts) return void 0;
@@ -4163,7 +4037,6 @@ function attachRouterServerSsrUtils({ router, manifest, getRequestAssets }) {
     console.error("SSR attach listener error:", err);
   }
 }
-__name(attachRouterServerSsrUtils, "attachRouterServerSsrUtils");
 function getOrigin(request) {
   try {
     return new URL(request.url).origin;
@@ -4171,7 +4044,6 @@ function getOrigin(request) {
   }
   return "http://localhost";
 }
-__name(getOrigin, "getOrigin");
 function getNormalizedURL(url, base) {
   if (typeof url === "string") url = url.replace("\\", "%5C");
   const rawUrl = new URL(url, base);
@@ -4183,18 +4055,15 @@ function getNormalizedURL(url, base) {
     handledProtocolRelativeURL
   };
 }
-__name(getNormalizedURL, "getNormalizedURL");
 function isSsrResponse(value) {
   return typeof value === "object" && value !== null && "response" in value && "serverSsrCleanup" in value;
 }
-__name(isSsrResponse, "isSsrResponse");
 function normalizeSsrResponse(result) {
   return isSsrResponse(result) ? result : {
     response: result,
     serverSsrCleanup: "none"
   };
 }
-__name(normalizeSsrResponse, "normalizeSsrResponse");
 function createSsrStreamResponse(router, response) {
   if (!response.body) throw new Error("Invariant failed: SSR stream response requires a body");
   let disposed = false;
@@ -4212,7 +4081,6 @@ function createSsrStreamResponse(router, response) {
     }
   };
 }
-__name(createSsrStreamResponse, "createSsrStreamResponse");
 async function replaceSsrResponse(result, response, reason) {
   const ssrResponse = normalizeSsrResponse(result);
   if (ssrResponse.serverSsrCleanup === "stream") await ssrResponse.dispose(reason);
@@ -4221,7 +4089,6 @@ async function replaceSsrResponse(result, response, reason) {
     serverSsrCleanup: "none"
   };
 }
-__name(replaceSsrResponse, "replaceSsrResponse");
 async function stripSsrResponseBody(result, reason) {
   const ssrResponse = normalizeSsrResponse(result);
   if (ssrResponse.serverSsrCleanup === "stream") await ssrResponse.dispose(reason);
@@ -4230,19 +4097,15 @@ async function stripSsrResponseBody(result, reason) {
     serverSsrCleanup: "none"
   };
 }
-__name(stripSsrResponseBody, "stripSsrResponseBody");
 function defineHandlerCallback(handler) {
   return handler;
 }
-__name(defineHandlerCallback, "defineHandlerCallback");
 function transformReadableStreamWithRouter(router, routerStream, opts) {
   return transformStreamWithRouter(router, routerStream, opts);
 }
-__name(transformReadableStreamWithRouter, "transformReadableStreamWithRouter");
 function transformPipeableStreamWithRouter(router, routerStream, opts) {
   return Readable.fromWeb(transformStreamWithRouter(router, Readable.toWeb(routerStream), opts));
 }
-__name(transformPipeableStreamWithRouter, "transformPipeableStreamWithRouter");
 const MIN_CLOSING_TAG_LENGTH = 4;
 const DEFAULT_SERIALIZATION_TIMEOUT_MS = 6e4;
 const DEFAULT_LIFETIME_TIMEOUT_MS = DEFAULT_SERIALIZATION_TIMEOUT_MS * 2;
@@ -4258,8 +4121,8 @@ const MergeState = {
   Done: 4
 };
 const textEncoder = new TextEncoder();
-const noop = /* @__PURE__ */ __name(() => {
-}, "noop");
+const noop = () => {
+};
 const resolvedPromise = Promise.resolve();
 function findHtmlBoundary(str) {
   let lastClosingTagEnd = -1;
@@ -4285,7 +4148,6 @@ function findHtmlBoundary(str) {
   }
   return lastClosingTagEnd;
 }
-__name(findHtmlBoundary, "findHtmlBoundary");
 function safeReleaseReader(reader) {
   try {
     reader.releaseLock();
@@ -4294,7 +4156,6 @@ function safeReleaseReader(reader) {
     return false;
   }
 }
-__name(safeReleaseReader, "safeReleaseReader");
 function safeCancelReader(reader, reason) {
   let cancelPromise;
   try {
@@ -4306,25 +4167,23 @@ function safeCancelReader(reader, reason) {
   });
   return cancelPromise ? cancelPromise.then(noop, noop) : resolvedPromise;
 }
-__name(safeCancelReader, "safeCancelReader");
 function createReaderState(appStream) {
   const reader = appStream.getReader();
   let released = false;
   return {
     reader,
-    cancel: /* @__PURE__ */ __name((reason) => {
+    cancel: (reason) => {
       if (released) return resolvedPromise;
       released = true;
       return safeCancelReader(reader, reason);
-    }, "cancel"),
-    release: /* @__PURE__ */ __name(() => {
+    },
+    release: () => {
       if (released) return;
       released = true;
       safeReleaseReader(reader);
-    }, "release")
+    }
   };
 }
-__name(createReaderState, "createReaderState");
 function createAbortNotifier(opts) {
   let abortNotified = false;
   return (reason) => {
@@ -4336,14 +4195,12 @@ function createAbortNotifier(opts) {
     }
   };
 }
-__name(createAbortNotifier, "createAbortNotifier");
 function transformStreamWithRouter(router, appStream, opts) {
   const serverSsr = router.serverSsr;
   if (!serverSsr) throw new Error("Invariant failed: router.serverSsr is required");
   if (serverSsr.reserveStreamFastPath()) return makeFastPathStream(appStream, opts, serverSsr);
   return makeMainStream(serverSsr, appStream, opts);
 }
-__name(transformStreamWithRouter, "transformStreamWithRouter");
 function makeFastPathStream(appStream, opts, serverSsr) {
   let cleanedUp = false;
   let controller;
@@ -4352,9 +4209,9 @@ function makeFastPathStream(appStream, opts, serverSsr) {
   let stopListeningToInjectedHtml;
   const readerState = createReaderState(appStream);
   const notifyAbort = createAbortNotifier(opts);
-  const isDone = /* @__PURE__ */ __name(() => state === MergeState.Done, "isDone");
+  const isDone = () => state === MergeState.Done;
   let renderFinished = false;
-  const finishSsrRendering = /* @__PURE__ */ __name(() => {
+  const finishSsrRendering = () => {
     if (!serverSsr || renderFinished) return true;
     renderFinished = true;
     try {
@@ -4365,8 +4222,8 @@ function makeFastPathStream(appStream, opts, serverSsr) {
       cleanup(error);
       return false;
     }
-  }, "finishSsrRendering");
-  const cleanup = /* @__PURE__ */ __name((reason, cancelReader = true) => {
+  };
+  const cleanup = (reason, cancelReader = true) => {
     if (cleanedUp) return resolvedPromise;
     cleanedUp = true;
     if (lifetimeTimeoutHandle !== void 0) {
@@ -4386,23 +4243,23 @@ function makeFastPathStream(appStream, opts, serverSsr) {
       console.error("Error in SSR cleanup:", error);
     }
     return readerDone;
-  }, "cleanup");
-  const safeClose = /* @__PURE__ */ __name(() => {
+  };
+  const safeClose = () => {
     if (isDone()) return;
     state = MergeState.Done;
     try {
       controller?.close();
     } catch {
     }
-  }, "safeClose");
-  const safeError = /* @__PURE__ */ __name((error) => {
+  };
+  const safeError = (error) => {
     if (isDone()) return;
     state = MergeState.Done;
     try {
       controller?.error(error);
     } catch {
     }
-  }, "safeError");
+  };
   if (serverSsr) stopListeningToInjectedHtml = serverSsr.onInjectedHtml(() => {
     const err = /* @__PURE__ */ new Error("SSR router HTML injected during fast path");
     safeError(err);
@@ -4452,7 +4309,6 @@ function makeFastPathStream(appStream, opts, serverSsr) {
     }
   });
 }
-__name(makeFastPathStream, "makeFastPathStream");
 function makeMainStream(serverSsr, appStream, opts) {
   let stopListeningToInjectedHtml;
   let stopListeningToSerializationFinished;
@@ -4472,19 +4328,18 @@ function makeMainStream(serverSsr, appStream, opts) {
     pendingWriteHead = 0;
     pendingWriteChars = 0;
   }
-  __name(clearPending, "clearPending");
   let drainResolve = null;
-  const waitForDrain = /* @__PURE__ */ __name(() => new Promise((r) => {
+  const waitForDrain = () => new Promise((r) => {
     drainResolve = r;
-  }), "waitForDrain");
-  const signalDrain = /* @__PURE__ */ __name(() => {
+  });
+  const signalDrain = () => {
     if (drainResolve) {
       const r = drainResolve;
       drainResolve = null;
       r();
     }
-  }, "signalDrain");
-  const isDone = /* @__PURE__ */ __name(() => state === MergeState.Done, "isDone");
+  };
+  const isDone = () => state === MergeState.Done;
   function drainPending() {
     if (!controller || isDone()) return;
     while (pendingWriteHead < pendingWrites.length) {
@@ -4512,7 +4367,6 @@ function makeMainStream(serverSsr, appStream, opts) {
       cleanup(void 0, false);
     }
   }
-  __name(drainPending, "drainPending");
   function writeChunk(chunk) {
     if (cleanedUp || isDone()) return;
     if (!chunk.length) return;
@@ -4526,7 +4380,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     pendingWriteChars += chunk.length;
     drainPending();
   }
-  __name(writeChunk, "writeChunk");
   function safeClose() {
     if (isDone()) return;
     state = MergeState.Done;
@@ -4535,7 +4388,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     } catch {
     }
   }
-  __name(safeClose, "safeClose");
   function safeError(error) {
     if (isDone()) return;
     state = MergeState.Done;
@@ -4544,7 +4396,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     } catch {
     }
   }
-  __name(safeError, "safeError");
   function cleanup(reason, cancelReader = true) {
     if (cleanedUp) return resolvedPromise;
     cleanedUp = true;
@@ -4577,7 +4428,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     }
     return readerDone;
   }
-  __name(cleanup, "cleanup");
   const textDecoder = new TextDecoder();
   const pendingRouterHtml = [];
   let pendingRouterHtmlChars = 0;
@@ -4590,14 +4440,12 @@ function makeMainStream(serverSsr, appStream, opts) {
     if (streamBarrierMarkerSeen) return;
     if (chunk.includes("$tsr-stream-barrier")) streamBarrierMarkerSeen = true;
   }
-  __name(noteBarrierMarker, "noteBarrierMarker");
   function liftBarrierAfterBoundary() {
     if (streamBarrierLifted) return;
     if (!streamBarrierMarkerSeen) return;
     streamBarrierLifted = true;
     serverSsr.liftScriptBarrier();
   }
-  __name(liftBarrierAfterBoundary, "liftBarrierAfterBoundary");
   const stream = new ReadableStream$1({
     start(c) {
       controller = c;
@@ -4643,27 +4491,22 @@ function makeMainStream(serverSsr, appStream, opts) {
       pendingRouterHtmlChars += html.length;
     }
   }
-  __name(drainRouterHtml, "drainRouterHtml");
   function flushPendingRouterHtml() {
     if (!pendingRouterHtml.length) return;
     for (const html of pendingRouterHtml) writeChunk(html);
     clearPendingRouterHtml();
   }
-  __name(flushPendingRouterHtml, "flushPendingRouterHtml");
   function clearPendingRouterHtml() {
     pendingRouterHtml.length = 0;
     pendingRouterHtmlChars = 0;
   }
-  __name(clearPendingRouterHtml, "clearPendingRouterHtml");
   function appendTail(chunk) {
     pendingTail += chunk;
     if (pendingTail.length > MAX_TAIL_CHARS) throw new Error("SSR stream tail exceeded maximum buffer");
   }
-  __name(appendTail, "appendTail");
   function waitForBackpressure() {
     return !!(controller && controller.desiredSize !== null && controller.desiredSize <= 0);
   }
-  __name(waitForBackpressure, "waitForBackpressure");
   function startSerializationTimeout() {
     if (cleanedUp || isDone()) return;
     if (serializationTimeoutHandle !== void 0) return;
@@ -4677,7 +4520,6 @@ function makeMainStream(serverSsr, appStream, opts) {
       }
     }, timeoutMs2);
   }
-  __name(startSerializationTimeout, "startSerializationTimeout");
   function tryFinish() {
     if (state !== MergeState.AppDone || !serializationFinished) return;
     if (cleanedUp || isDone()) return;
@@ -4702,7 +4544,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     closeWhenDrained = true;
     drainPending();
   }
-  __name(tryFinish, "tryFinish");
   function finishAppRendering() {
     if (state >= MergeState.AppDone) return;
     state = MergeState.AppDone;
@@ -4719,7 +4560,6 @@ function makeMainStream(serverSsr, appStream, opts) {
     if (serializationFinished) tryFinish();
     else startSerializationTimeout();
   }
-  __name(finishAppRendering, "finishAppRendering");
   const timeoutMs = opts?.timeoutMs ?? DEFAULT_SERIALIZATION_TIMEOUT_MS;
   const lifetimeMs = opts?.lifetimeMs ?? timeoutMs * 2;
   lifetimeTimeoutHandle = setTimeout(() => {
@@ -4824,14 +4664,12 @@ function makeMainStream(serverSsr, appStream, opts) {
   });
   return stream;
 }
-__name(makeMainStream, "makeMainStream");
 var scroll_restoration_inline_default = 'function(a,f){let l;try{l=JSON.parse(sessionStorage.getItem(a)||"{}")}catch{return}const n=l?.[f||history.state?.__TSR_key];let c=!1;for(const t in n){const e=n[t],o=e?.scrollX,s=e?.scrollY;if(Number.isFinite(o)&&Number.isFinite(s)){if(t==="window")scrollTo(o,s),c=!0;else if(t)try{const r=document.querySelector(t);r&&(r.scrollLeft=o,r.scrollTop=s)}catch{}}}if(c)return;const i=location.hash.slice(1);if(i){const t=history.state?.__hashScrollIntoViewOptions??!0;if(t){const e=document.getElementById(i);e&&e.scrollIntoView(t)}return}scrollTo(0,0)}';
 const defaultInlineScrollRestorationScript = `(${scroll_restoration_inline_default})(${escapeHtml(JSON.stringify(storageKey))})`;
 function getScrollRestorationScript(key) {
   if (key === void 0) return defaultInlineScrollRestorationScript;
   return `(${scroll_restoration_inline_default})(${escapeHtml(JSON.stringify(storageKey))},${escapeHtml(JSON.stringify(key))})`;
 }
-__name(getScrollRestorationScript, "getScrollRestorationScript");
 function getScrollRestorationScriptForRouter(router) {
   if (typeof router.options.scrollRestoration === "function" && !router.options.scrollRestoration({ location: router.latestLocation })) return null;
   const getKey = router.options.getScrollRestorationKey;
@@ -4841,24 +4679,23 @@ function getScrollRestorationScriptForRouter(router) {
   if (userKey === defaultGetScrollRestorationKey(location)) return defaultInlineScrollRestorationScript;
   return getScrollRestorationScript(userKey);
 }
-__name(getScrollRestorationScriptForRouter, "getScrollRestorationScriptForRouter");
 export {
-  defaultSerovalPlugins as A,
+  getNormalizedURL as A,
   BaseRootRoute as B,
-  makeSerovalPlugin as C,
-  getStylesheetHref as D,
-  mergeHeaders as E,
-  isSsrResponse as F,
-  getNormalizedURL as G,
-  getOrigin as H,
-  normalizeSsrResponse as I,
-  attachRouterServerSsrUtils as J,
-  isResolvedRedirect as K,
-  replaceSsrResponse as L,
-  executeRewriteInput as M,
-  stripSsrResponseBody as N,
-  createSerializationAdapter as O,
-  createRawStreamRPCPlugin as P,
+  getOrigin as C,
+  normalizeSsrResponse as D,
+  attachRouterServerSsrUtils as E,
+  createSerializationAdapter as F,
+  createRawStreamRPCPlugin as G,
+  isResolvedRedirect as H,
+  replaceSsrResponse as I,
+  mergeHeaders as J,
+  executeRewriteInput as K,
+  stripSsrResponseBody as L,
+  defaultSerovalPlugins as M,
+  makeSerovalPlugin as N,
+  getStylesheetHref as O,
+  isSsrResponse as P,
   RouterCore as R,
   isDangerousProtocol as a,
   BaseRoute as b,

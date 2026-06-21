@@ -1,5 +1,3 @@
-var __defProp = Object.defineProperty;
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 function r(e) {
   var t, f, n = "";
   if ("string" == typeof e || "number" == typeof e) n += e;
@@ -9,12 +7,10 @@ function r(e) {
   } else for (f in e) e[f] && (n && (n += " "), n += f);
   return n;
 }
-__name(r, "r");
 function clsx() {
   for (var e, t, f = 0, n = "", o = arguments.length; f < o; f++) (e = arguments[f]) && (t = r(e)) && (n && (n += " "), n += t);
   return n;
 }
-__name(clsx, "clsx");
 export {
   clsx as c
 };

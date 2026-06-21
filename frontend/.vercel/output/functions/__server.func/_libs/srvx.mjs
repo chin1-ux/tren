@@ -1,13 +1,3 @@
-var __defProp = Object.defineProperty;
-var __typeError = (msg) => {
-  throw TypeError(msg);
-};
-var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
-var __accessCheck = (obj, member, msg) => member.has(obj) || __typeError("Cannot " + msg);
-var __privateGet = (obj, member, getter) => (__accessCheck(obj, member, "read from private field"), getter ? getter.call(obj) : member.get(obj));
-var __privateAdd = (obj, member, value) => member.has(obj) ? __typeError("Cannot add the same private member more than once") : member instanceof WeakSet ? member.add(obj) : member.set(obj, value);
-var __privateSet = (obj, member, value, setter) => (__accessCheck(obj, member, "write to private field"), setter ? setter.call(obj, value) : member.set(obj, value), value);
-var __privateMethod = (obj, member, method) => (__accessCheck(obj, member, "access private method"), method);
 import { Readable, PassThrough } from "node:stream";
 function lazyInherit(target, source, sourceKey) {
   for (const key of [...Object.getOwnPropertyNames(source), ...Object.getOwnPropertySymbols(source)]) {
@@ -36,85 +26,96 @@ function lazyInherit(target, source, sourceKey) {
     if (modified) Object.defineProperty(target, key, desc);
   }
 }
-__name(lazyInherit, "lazyInherit");
 const _needsNormRE = /(?:(?:^|\/)(?:\.|\.\.|%2e|%2e\.|\.%2e|%2e%2e)(?:\/|$))|[\\^\x80-\uffff]/i;
 const FastURL = /* @__PURE__ */ (() => {
-  var _url, _href, _protocol, _host, _pathname, _search, _searchParams, _pos, _URL_instances, getPos_fn, _a;
   const NativeURL = globalThis.URL;
-  const FastURL2 = (_a = class {
+  const FastURL2 = class URL {
+    #url;
+    #href;
+    #protocol;
+    #host;
+    #pathname;
+    #search;
+    #searchParams;
+    #pos;
     constructor(url) {
-      __privateAdd(this, _URL_instances);
-      __privateAdd(this, _url);
-      __privateAdd(this, _href);
-      __privateAdd(this, _protocol);
-      __privateAdd(this, _host);
-      __privateAdd(this, _pathname);
-      __privateAdd(this, _search);
-      __privateAdd(this, _searchParams);
-      __privateAdd(this, _pos);
-      if (typeof url === "string") if (url[0] === "/") __privateSet(this, _href, url);
-      else __privateSet(this, _url, new NativeURL(url));
-      else if (_needsNormRE.test(url.pathname)) __privateSet(this, _url, new NativeURL(`${url.protocol || "http:"}//${url.host || "localhost"}${url.pathname}${url.search || ""}`));
+      if (typeof url === "string") if (url[0] === "/") this.#href = url;
+      else this.#url = new NativeURL(url);
+      else if (_needsNormRE.test(url.pathname)) this.#url = new NativeURL(`${url.protocol || "http:"}//${url.host || "localhost"}${url.pathname}${url.search || ""}`);
       else {
-        __privateSet(this, _protocol, url.protocol);
-        __privateSet(this, _host, url.host);
-        __privateSet(this, _pathname, url.pathname);
-        __privateSet(this, _search, url.search);
+        this.#protocol = url.protocol;
+        this.#host = url.host;
+        this.#pathname = url.pathname;
+        this.#search = url.search;
       }
     }
     static [Symbol.hasInstance](val) {
       return val instanceof NativeURL;
     }
     get _url() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url);
-      __privateSet(this, _url, new NativeURL(this.href));
-      __privateSet(this, _href, void 0);
-      __privateSet(this, _protocol, void 0);
-      __privateSet(this, _host, void 0);
-      __privateSet(this, _pathname, void 0);
-      __privateSet(this, _search, void 0);
-      __privateSet(this, _searchParams, void 0);
-      __privateSet(this, _pos, void 0);
-      return __privateGet(this, _url);
+      if (this.#url) return this.#url;
+      this.#url = new NativeURL(this.href);
+      this.#href = void 0;
+      this.#protocol = void 0;
+      this.#host = void 0;
+      this.#pathname = void 0;
+      this.#search = void 0;
+      this.#searchParams = void 0;
+      this.#pos = void 0;
+      return this.#url;
     }
     get href() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url).href;
-      if (!__privateGet(this, _href)) __privateSet(this, _href, `${__privateGet(this, _protocol) || "http:"}//${__privateGet(this, _host) || "localhost"}${__privateGet(this, _pathname) || "/"}${__privateGet(this, _search) || ""}`);
-      return __privateGet(this, _href);
+      if (this.#url) return this.#url.href;
+      if (!this.#href) this.#href = `${this.#protocol || "http:"}//${this.#host || "localhost"}${this.#pathname || "/"}${this.#search || ""}`;
+      return this.#href;
+    }
+    #getPos() {
+      if (!this.#pos) {
+        const url = this.href;
+        const protoIndex = url.indexOf("://");
+        const pathnameIndex = protoIndex === -1 ? -1 : url.indexOf("/", protoIndex + 4);
+        const qIndex = pathnameIndex === -1 ? -1 : url.indexOf("?", pathnameIndex);
+        this.#pos = [
+          protoIndex,
+          pathnameIndex,
+          qIndex
+        ];
+      }
+      return this.#pos;
     }
     get pathname() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url).pathname;
-      if (__privateGet(this, _pathname) === void 0) {
-        const [, pathnameIndex, queryIndex] = __privateMethod(this, _URL_instances, getPos_fn).call(this);
+      if (this.#url) return this.#url.pathname;
+      if (this.#pathname === void 0) {
+        const [, pathnameIndex, queryIndex] = this.#getPos();
         if (pathnameIndex === -1) return this._url.pathname;
-        __privateSet(this, _pathname, this.href.slice(pathnameIndex, queryIndex === -1 ? void 0 : queryIndex));
+        this.#pathname = this.href.slice(pathnameIndex, queryIndex === -1 ? void 0 : queryIndex);
       }
-      return __privateGet(this, _pathname);
+      return this.#pathname;
     }
     get search() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url).search;
-      if (__privateGet(this, _search) === void 0) {
-        const [, pathnameIndex, queryIndex] = __privateMethod(this, _URL_instances, getPos_fn).call(this);
+      if (this.#url) return this.#url.search;
+      if (this.#search === void 0) {
+        const [, pathnameIndex, queryIndex] = this.#getPos();
         if (pathnameIndex === -1) return this._url.search;
         const url = this.href;
-        __privateSet(this, _search, queryIndex === -1 || queryIndex === url.length - 1 ? "" : url.slice(queryIndex));
+        this.#search = queryIndex === -1 || queryIndex === url.length - 1 ? "" : url.slice(queryIndex);
       }
-      return __privateGet(this, _search);
+      return this.#search;
     }
     get searchParams() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url).searchParams;
-      if (!__privateGet(this, _searchParams)) __privateSet(this, _searchParams, new URLSearchParams(this.search));
-      return __privateGet(this, _searchParams);
+      if (this.#url) return this.#url.searchParams;
+      if (!this.#searchParams) this.#searchParams = new URLSearchParams(this.search);
+      return this.#searchParams;
     }
     get protocol() {
-      if (__privateGet(this, _url)) return __privateGet(this, _url).protocol;
-      if (__privateGet(this, _protocol) === void 0) {
-        const [protocolIndex] = __privateMethod(this, _URL_instances, getPos_fn).call(this);
+      if (this.#url) return this.#url.protocol;
+      if (this.#protocol === void 0) {
+        const [protocolIndex] = this.#getPos();
         if (protocolIndex === -1) return this._url.protocol;
         const url = this.href;
-        __privateSet(this, _protocol, url.slice(0, protocolIndex + 1));
+        this.#protocol = url.slice(0, protocolIndex + 1);
       }
-      return __privateGet(this, _protocol);
+      return this.#protocol;
     }
     toString() {
       return this.href;
@@ -122,61 +123,47 @@ const FastURL = /* @__PURE__ */ (() => {
     toJSON() {
       return this.href;
     }
-  }, _url = new WeakMap(), _href = new WeakMap(), _protocol = new WeakMap(), _host = new WeakMap(), _pathname = new WeakMap(), _search = new WeakMap(), _searchParams = new WeakMap(), _pos = new WeakMap(), _URL_instances = new WeakSet(), getPos_fn = /* @__PURE__ */ __name(function() {
-    if (!__privateGet(this, _pos)) {
-      const url = this.href;
-      const protoIndex = url.indexOf("://");
-      const pathnameIndex = protoIndex === -1 ? -1 : url.indexOf("/", protoIndex + 4);
-      const qIndex = pathnameIndex === -1 ? -1 : url.indexOf("?", pathnameIndex);
-      __privateSet(this, _pos, [
-        protoIndex,
-        pathnameIndex,
-        qIndex
-      ]);
-    }
-    return __privateGet(this, _pos);
-  }, "#getPos"), __name(_a, "URL"), _a);
+  };
   lazyInherit(FastURL2.prototype, NativeURL.prototype, "_url");
   Object.setPrototypeOf(FastURL2.prototype, NativeURL.prototype);
   Object.setPrototypeOf(FastURL2, NativeURL);
   return FastURL2;
 })();
 const NodeResponse = /* @__PURE__ */ (() => {
-  var _body, _init, _headers, _response;
   const NativeResponse = globalThis.Response;
   const STATUS_CODES = globalThis.process?.getBuiltinModule?.("node:http")?.STATUS_CODES || {};
-  const _NodeResponse = class _NodeResponse {
+  class NodeResponse2 {
+    #body;
+    #init;
+    #headers;
+    #response;
     constructor(body, init) {
-      __privateAdd(this, _body);
-      __privateAdd(this, _init);
-      __privateAdd(this, _headers);
-      __privateAdd(this, _response);
-      __privateSet(this, _body, body);
-      __privateSet(this, _init, init);
+      this.#body = body;
+      this.#init = init;
     }
     static [Symbol.hasInstance](val) {
       return val instanceof NativeResponse;
     }
     get status() {
-      return __privateGet(this, _response)?.status || __privateGet(this, _init)?.status || 200;
+      return this.#response?.status || this.#init?.status || 200;
     }
     get statusText() {
-      return __privateGet(this, _response)?.statusText || __privateGet(this, _init)?.statusText || STATUS_CODES[this.status] || "";
+      return this.#response?.statusText || this.#init?.statusText || STATUS_CODES[this.status] || "";
     }
     get headers() {
-      if (__privateGet(this, _response)) return __privateGet(this, _response).headers;
-      if (__privateGet(this, _headers)) return __privateGet(this, _headers);
-      const initHeaders = __privateGet(this, _init)?.headers;
-      return __privateSet(this, _headers, initHeaders instanceof Headers ? initHeaders : new Headers(initHeaders));
+      if (this.#response) return this.#response.headers;
+      if (this.#headers) return this.#headers;
+      const initHeaders = this.#init?.headers;
+      return this.#headers = initHeaders instanceof Headers ? initHeaders : new Headers(initHeaders);
     }
     get ok() {
-      if (__privateGet(this, _response)) return __privateGet(this, _response).ok;
+      if (this.#response) return this.#response.ok;
       const status = this.status;
       return status >= 200 && status < 300;
     }
     get _response() {
-      if (__privateGet(this, _response)) return __privateGet(this, _response);
-      let body = __privateGet(this, _body);
+      if (this.#response) return this.#response;
+      let body = this.#body;
       if (body && typeof body.pipe === "function" && !(body instanceof Readable)) {
         const stream = new PassThrough();
         body.pipe(stream);
@@ -184,14 +171,14 @@ const NodeResponse = /* @__PURE__ */ (() => {
         if (abort) stream.once("close", () => abort());
         body = stream;
       }
-      __privateSet(this, _response, new NativeResponse(body, __privateGet(this, _headers) ? {
-        ...__privateGet(this, _init),
-        headers: __privateGet(this, _headers)
-      } : __privateGet(this, _init)));
-      __privateSet(this, _init, void 0);
-      __privateSet(this, _headers, void 0);
-      __privateSet(this, _body, void 0);
-      return __privateGet(this, _response);
+      this.#response = new NativeResponse(body, this.#headers ? {
+        ...this.#init,
+        headers: this.#headers
+      } : this.#init);
+      this.#init = void 0;
+      this.#headers = void 0;
+      this.#body = void 0;
+      return this.#response;
     }
     _toNodeResponse() {
       const status = this.status;
@@ -199,30 +186,30 @@ const NodeResponse = /* @__PURE__ */ (() => {
       let body;
       let contentType;
       let contentLength;
-      if (__privateGet(this, _response)) body = __privateGet(this, _response).body;
-      else if (__privateGet(this, _body)) if (__privateGet(this, _body) instanceof ReadableStream) body = __privateGet(this, _body);
-      else if (typeof __privateGet(this, _body) === "string") {
-        body = __privateGet(this, _body);
+      if (this.#response) body = this.#response.body;
+      else if (this.#body) if (this.#body instanceof ReadableStream) body = this.#body;
+      else if (typeof this.#body === "string") {
+        body = this.#body;
         contentType = "text/plain; charset=UTF-8";
-        contentLength = Buffer.byteLength(__privateGet(this, _body));
-      } else if (__privateGet(this, _body) instanceof ArrayBuffer) {
-        body = Buffer.from(__privateGet(this, _body));
-        contentLength = __privateGet(this, _body).byteLength;
-      } else if (__privateGet(this, _body) instanceof Uint8Array) {
-        body = __privateGet(this, _body);
-        contentLength = __privateGet(this, _body).byteLength;
-      } else if (__privateGet(this, _body) instanceof DataView) {
-        body = Buffer.from(__privateGet(this, _body).buffer);
-        contentLength = __privateGet(this, _body).byteLength;
-      } else if (__privateGet(this, _body) instanceof Blob) {
-        body = __privateGet(this, _body).stream();
-        contentType = __privateGet(this, _body).type;
-        contentLength = __privateGet(this, _body).size;
-      } else if (typeof __privateGet(this, _body).pipe === "function") body = __privateGet(this, _body);
+        contentLength = Buffer.byteLength(this.#body);
+      } else if (this.#body instanceof ArrayBuffer) {
+        body = Buffer.from(this.#body);
+        contentLength = this.#body.byteLength;
+      } else if (this.#body instanceof Uint8Array) {
+        body = this.#body;
+        contentLength = this.#body.byteLength;
+      } else if (this.#body instanceof DataView) {
+        body = Buffer.from(this.#body.buffer);
+        contentLength = this.#body.byteLength;
+      } else if (this.#body instanceof Blob) {
+        body = this.#body.stream();
+        contentType = this.#body.type;
+        contentLength = this.#body.size;
+      } else if (typeof this.#body.pipe === "function") body = this.#body;
       else body = this._response.body;
       const headers = [];
-      const initHeaders = __privateGet(this, _init)?.headers;
-      const headerEntries = __privateGet(this, _response)?.headers || __privateGet(this, _headers) || (initHeaders ? Array.isArray(initHeaders) ? initHeaders : initHeaders?.entries ? initHeaders.entries() : Object.entries(initHeaders).map(([k, v]) => [k.toLowerCase(), v]) : void 0);
+      const initHeaders = this.#init?.headers;
+      const headerEntries = this.#response?.headers || this.#headers || (initHeaders ? Array.isArray(initHeaders) ? initHeaders : initHeaders?.entries ? initHeaders.entries() : Object.entries(initHeaders).map(([k, v]) => [k.toLowerCase(), v]) : void 0);
       let hasContentTypeHeader;
       let hasContentLength;
       if (headerEntries) for (const [key, value] of headerEntries) {
@@ -233,10 +220,10 @@ const NodeResponse = /* @__PURE__ */ (() => {
       }
       if (contentType && !hasContentTypeHeader) headers.push(["content-type", contentType]);
       if (contentLength && !hasContentLength) headers.push(["content-length", String(contentLength)]);
-      __privateSet(this, _init, void 0);
-      __privateSet(this, _headers, void 0);
-      __privateSet(this, _response, void 0);
-      __privateSet(this, _body, void 0);
+      this.#init = void 0;
+      this.#headers = void 0;
+      this.#response = void 0;
+      this.#body = void 0;
       return {
         status,
         statusText,
@@ -244,13 +231,7 @@ const NodeResponse = /* @__PURE__ */ (() => {
         body
       };
     }
-  };
-  _body = new WeakMap();
-  _init = new WeakMap();
-  _headers = new WeakMap();
-  _response = new WeakMap();
-  __name(_NodeResponse, "NodeResponse");
-  let NodeResponse2 = _NodeResponse;
+  }
   lazyInherit(NodeResponse2.prototype, NativeResponse.prototype, "_response");
   Object.setPrototypeOf(NodeResponse2, NativeResponse);
   Object.setPrototypeOf(NodeResponse2.prototype, NativeResponse.prototype);

@@ -1,564 +1,355 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { 
-  Building2, Users, Receipt, Landmark, Plus, Calculator, 
-  UserCheck, ExternalLink, RefreshCw, Sparkles, Trophy, Globe, Percent
+  Building2, Users, DollarSign, CheckCircle, Briefcase, MessageSquare, 
+  Sparkles, Compass, AlertCircle, Send, ShieldAlert, Award, Loader2, ArrowRight
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
+import { 
+  apiFetch, 
+  fetchBrandDeals, 
+  applyToBrandDeal, 
+  fetchCollabMatches, 
+  sendCollabRequest,
+  BrandDeal,
+  BrandDealStats,
+  CollabMatch
+} from "@/lib/api";
 
 export const Route = createFileRoute("/marketplace")({
   head: () => ({
     meta: [
-      { title: "Brand Deal Marketplace — Trendrop" },
-      { name: "description", content: "List profiles, calculate commission, and manage creator brand deals." },
+      { title: "Creator Marketplace — Trendrop" },
+      { name: "description", content: "Apply for exclusive brand deals, find creators in your niche, and manage collaborations." },
     ],
   }),
   component: MarketplacePage,
 });
 
 interface CreatorProfile {
-  id: number;
-  user_email: string;
   instagram_username: string;
   niche: string;
   followers: number;
   engagement_rate: number;
-  trend_score: number;
-  portfolio_links: string[];
   price_per_post: number;
-  is_active: boolean;
-}
-
-interface BrandDeal {
-  id: number;
-  creator_email: string;
-  brand_name: string;
-  deal_amount: number;
-  commission_amount: number;
-  status: string;
-  details: string;
-  created_at: string;
 }
 
 function MarketplacePage() {
-  const [activeTab, setActiveTab] = useState<"browse" | "deals" | "profile">("browse");
-  
-  // States
-  const [profiles, setProfiles] = useState<CreatorProfile[]>([]);
-  const [loadingProfiles, setLoadingProfiles] = useState(false);
-  const [filterNiche, setFilterNiche] = useState("all");
-
-  // Brand Deal states
-  const [deals, setDeals] = useState<BrandDeal[]>([]);
-  const [loadingDeals, setLoadingDeals] = useState(false);
-  const [brandName, setBrandName] = useState("");
-  const [dealAmount, setDealAmount] = useState("");
-  const [dealDetails, setDealDetails] = useState("");
-  const [addingDeal, setAddingDeal] = useState(false);
-
-  // Profile Edit states
-  const [username, setUsername] = useState("");
-  const [profileNiche, setProfileNiche] = useState("dance");
-  const [followers, setFollowers] = useState("");
-  const [engagement, setEngagement] = useState("");
-  const [price, setPrice] = useState("");
-  const [portfolio, setPortfolio] = useState("");
-  const [savingProfile, setSavingProfile] = useState(false);
-
+  const [activeTab, setActiveTab] = useState<"deals" | "collabs">("deals");
   const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
-  const authHeaders = () => {
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return headers;
-  };
+
+  // Brand Deals states
+  const [deals, setDeals] = useState<BrandDeal[]>([]);
+  const [stats, setStats] = useState<BrandDealStats>({
+    total_earnings: 42500,
+    active_partnerships: 1,
+    pending_applications: 0
+  });
+  const [loadingDeals, setLoadingDeals] = useState(false);
+  const [selectedDeal, setSelectedDeal] = useState<BrandDeal | null>(null);
+  const [pitchText, setPitchText] = useState("");
+  const [submittingApplication, setSubmittingApplication] = useState(false);
+
+  // Collab Matches states
+  const [matches, setMatches] = useState<CollabMatch[]>([]);
+  const [loadingMatches, setLoadingMatches] = useState(false);
+  const [hasSearchedMatches, setHasSearchedMatches] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<CollabMatch | null>(null);
+  const [requestMessage, setRequestMessage] = useState("");
+  const [sendingRequest, setSendingRequest] = useState(false);
+
+  // Auto-filled Creator Profile state
+  const [profile, setProfile] = useState<CreatorProfile>({
+    instagram_username: "trendrop.creator",
+    niche: "lifestyle",
+    followers: 18500,
+    engagement_rate: 5.2,
+    price_per_post: 15000
+  });
 
   useEffect(() => {
-    fetchProfiles();
-    fetchDeals();
-    loadOwnProfile();
+    loadBrandDeals();
+    loadCreatorProfile();
   }, []);
 
-  const fetchProfiles = async () => {
-    setLoadingProfiles(true);
-    try {
-      const url = filterNiche !== "all" 
-        ? `/api/marketplace/profiles?niche=${encodeURIComponent(filterNiche)}`
-        : "/api/marketplace/profiles";
-      const res = await apiFetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        setProfiles(data);
-        localStorage.setItem("trendrop_marketplace_profiles", JSON.stringify(data));
-      } else {
-        throw new Error();
-      }
-    } catch {
-      const cached = localStorage.getItem("trendrop_marketplace_profiles");
-      if (cached) {
-        setProfiles(JSON.parse(cached));
-      } else {
-        setProfiles([
-          {
-            id: 1,
-            user_email: "priya@trendrop.app",
-            instagram_username: "priya.dances",
-            niche: "dance",
-            followers: 125000,
-            engagement_rate: 6.8,
-            trend_score: 94,
-            portfolio_links: ["https://instagram.com/priya.dances"],
-            price_per_post: 25000,
-            is_active: true
-          },
-          {
-            id: 2,
-            user_email: "kabir@trendrop.app",
-            instagram_username: "kabir.fits",
-            niche: "fitness",
-            followers: 84000,
-            engagement_rate: 5.2,
-            trend_score: 88,
-            portfolio_links: ["https://instagram.com/kabir.fits"],
-            price_per_post: 18000,
-            is_active: true
-          },
-          {
-            id: 3,
-            user_email: "aanya@trendrop.app",
-            instagram_username: "aanya.style",
-            niche: "fashion",
-            followers: 210000,
-            engagement_rate: 7.4,
-            trend_score: 96,
-            portfolio_links: ["https://instagram.com/aanya.style"],
-            price_per_post: 45000,
-            is_active: true
-          }
-        ]);
-      }
-    } finally {
-      setLoadingProfiles(false);
-    }
-  };
-
-  const fetchDeals = async () => {
+  const loadBrandDeals = async () => {
     setLoadingDeals(true);
     try {
-      const res = await apiFetch("/api/marketplace/deals", { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setDeals(data);
-        localStorage.setItem("trendrop_marketplace_deals", JSON.stringify(data));
-      } else {
-        throw new Error();
-      }
-    } catch {
-      const cached = localStorage.getItem("trendrop_marketplace_deals");
-      if (cached) {
-        setDeals(JSON.parse(cached));
-      } else {
-        setDeals([
-          {
-            id: 1,
-            creator_email: email,
-            brand_name: "Myntra",
-            deal_amount: 30000,
-            commission_amount: 4500,
-            status: "pending",
-            details: "1x Reel featuring the summer collection with trending dance style audio",
-            created_at: new Date().toISOString()
-          }
-        ]);
-      }
+      const data = await fetchBrandDeals(email);
+      setDeals(data.deals);
+      setStats(data.stats);
+    } catch (err) {
+      console.error("Failed to load brand deals", err);
+      toast.error("Failed to load brand deals from server. Using offline data.");
     } finally {
       setLoadingDeals(false);
     }
   };
 
-  const loadOwnProfile = async () => {
+  const loadCreatorProfile = async () => {
     try {
-      const res = await apiFetch("/api/marketplace/profiles", { headers: authHeaders() });
+      const res = await apiFetch("/api/marketplace/profiles");
       if (res.ok) {
-        const data: CreatorProfile[] = await res.json();
-        const mine = data.find(p => p.user_email === email);
+        const data = await res.json();
+        const mine = data.find((p: any) => p.user_email === email);
         if (mine) {
-          setUsername(mine.instagram_username);
-          setProfileNiche(mine.niche);
-          setFollowers(String(mine.followers));
-          setEngagement(String(mine.engagement_rate));
-          setPrice(String(mine.price_per_post));
-          setPortfolio(mine.portfolio_links.join(", "));
+          setProfile({
+            instagram_username: mine.instagram_username,
+            niche: mine.niche,
+            followers: mine.followers,
+            engagement_rate: mine.engagement_rate,
+            price_per_post: mine.price_per_post
+          });
         } else {
-          // prefill from local storage if possible
-          const savedNiche = localStorage.getItem("trendrop_niche") || "dance";
-          setProfileNiche(savedNiche);
+          // Fallback to local storage if profile was edited there
           const cachedMine = localStorage.getItem("trendrop_marketplace_mine");
           if (cachedMine) {
-            const mineProfile = JSON.parse(cachedMine) as Partial<CreatorProfile>;
-            setUsername(mineProfile.instagram_username || "");
-            setFollowers(String(mineProfile.followers || ""));
-            setEngagement(String(mineProfile.engagement_rate || ""));
-            setPrice(String(mineProfile.price_per_post || ""));
-            setPortfolio((mineProfile.portfolio_links || []).join(", "));
+            const parsed = JSON.parse(cachedMine);
+            setProfile({
+              instagram_username: parsed.instagram_username || "trendrop.creator",
+              niche: parsed.niche || "lifestyle",
+              followers: parsed.followers || 18500,
+              engagement_rate: parsed.engagement_rate || 5.2,
+              price_per_post: parsed.price_per_post || 15000
+            });
           }
         }
       }
-    } catch {}
+    } catch (err) {
+      console.error("Failed to load profile", err);
+    }
   };
 
-  const saveProfile = async (e: React.FormEvent) => {
+  const handleApplyClick = (deal: BrandDeal) => {
+    setSelectedDeal(deal);
+    setPitchText(
+      `Hey ${deal.brand_name}! I love your brand and would be thrilled to collaborate. I plan to create a highly engaging transition Reel highlight-reel with a custom hook optimized for my ${profile.niche} audience of ${profile.followers.toLocaleString()} followers.`
+    );
+  };
+
+  const handleSubmitApplication = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!username || !followers || !price) {
-      toast.error("Please fill in Username, Followers, and Price!");
+    if (!selectedDeal) return;
+    if (!pitchText.trim()) {
+      toast.error("Please write a pitch to submit your application.");
       return;
     }
-    setSavingProfile(true);
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
+
+    setSubmittingApplication(true);
     try {
-      const res = await apiFetch("/api/marketplace/profile", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          instagram_username: username,
-          niche: profileNiche,
-          followers: parseInt(followers),
-          engagement_rate: parseFloat(engagement) || 4.5,
-          trend_score: Math.floor(Math.random() * 15) + 82, // generated trend score
-          portfolio_links: portfolio.split(",").map(p => p.trim()).filter(Boolean),
-          price_per_post: parseInt(price)
-        })
-      });
-      if (res.ok) {
-        toast.success("Marketplace profile updated!");
-        fetchProfiles();
-        localStorage.setItem(
-          "trendrop_marketplace_mine",
-          JSON.stringify({
-            instagram_username: username,
-            niche: profileNiche,
-            followers: parseInt(followers),
-            engagement_rate: parseFloat(engagement) || 4.5,
-            trend_score: Math.floor(Math.random() * 15) + 82,
-            portfolio_links: portfolio.split(",").map(p => p.trim()).filter(Boolean),
-            price_per_post: parseInt(price),
-          })
-        );
+      const res = await applyToBrandDeal(selectedDeal.id, email, pitchText);
+      if (res.success) {
+        toast.success(`Application submitted to ${selectedDeal.brand_name}!`);
+        setSelectedDeal(null);
+        setPitchText("");
+        // Reload deals to update stats & applied state
+        loadBrandDeals();
       } else {
-        throw new Error();
+        throw new Error(res.message);
       }
-    } catch {
-      toast.success("Saved successfully (simulation)!");
-      localStorage.setItem(
-        "trendrop_marketplace_mine",
-        JSON.stringify({
-          instagram_username: username,
-          niche: profileNiche,
-          followers: parseInt(followers),
-          engagement_rate: parseFloat(engagement) || 4.5,
-          trend_score: Math.floor(Math.random() * 15) + 82,
-          portfolio_links: portfolio.split(",").map(p => p.trim()).filter(Boolean),
-          price_per_post: parseInt(price),
-        })
-      );
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to submit application. Please try again.");
     } finally {
-      setSavingProfile(false);
+      setSubmittingApplication(false);
     }
   };
 
-  const addDeal = async (e: React.FormEvent) => {
+  const handleFindMatches = async () => {
+    setLoadingMatches(true);
+    setHasSearchedMatches(true);
+    try {
+      const data = await fetchCollabMatches(email);
+      setMatches(data);
+    } catch (err) {
+      console.error("Failed to find matches", err);
+      toast.error("Error finding collab matches. Please check your connection.");
+    } finally {
+      setLoadingMatches(false);
+    }
+  };
+
+  const handleSendRequestClick = (match: CollabMatch) => {
+    setSelectedMatch(match);
+    setRequestMessage(
+      `Hey @${match.instagram_username}, I saw we have a ${match.compatibility_score}% compatibility score on Trendrop! I love your content in ${match.niche}. Let's collaborate on a short transition/hook Reel. What do you think?`
+    );
+  };
+
+  const handleSubmitCollabRequest = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!brandName || !dealAmount) {
-      toast.error("Please fill in Brand Name and Deal Amount!");
+    if (!selectedMatch) return;
+    if (!requestMessage.trim()) {
+      toast.error("Please enter a message to send.");
       return;
     }
-    setAddingDeal(true);
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
+
+    setSendingRequest(true);
     try {
-      const res = await apiFetch("/api/marketplace/deals", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          brand_name: brandName,
-          deal_amount: parseInt(dealAmount),
-          details: dealDetails
-        })
-      });
-      if (res.ok) {
-        toast.success("Brand deal registered successfully!");
-        setBrandName("");
-        setDealAmount("");
-        setDealDetails("");
-        fetchDeals();
+      const res = await sendCollabRequest(email, selectedMatch.user_email, requestMessage);
+      if (res.success) {
+        toast.success(`Collab request sent to @${selectedMatch.instagram_username}!`);
+        setSelectedMatch(null);
+        setRequestMessage("");
+        // Reload matches to update request_sent state
+        if (hasSearchedMatches) {
+          const updated = matches.map(m => 
+            m.user_email === selectedMatch.user_email ? { ...m, request_sent: true } : m
+          );
+          setMatches(updated);
+        }
       } else {
-        throw new Error();
+        throw new Error(res.message);
       }
-    } catch {
-      // Mock add
-      const amt = parseInt(dealAmount);
-      const newDeal: BrandDeal = {
-        id: Date.now(),
-        creator_email: email,
-        brand_name: brandName,
-        deal_amount: amt,
-        commission_amount: amt * 0.15,
-        status: "pending",
-        details: dealDetails,
-        created_at: new Date().toISOString()
-      };
-      setDeals(prev => [newDeal, ...prev]);
-      localStorage.setItem("trendrop_marketplace_deals", JSON.stringify([newDeal, ...deals]));
-      toast.success("Brand deal added successfully!");
-      setBrandName("");
-      setDealAmount("");
-      setDealDetails("");
+    } catch (err: any) {
+      console.error(err);
+      toast.error(err.message || "Failed to send collaboration request.");
     } finally {
-      setAddingDeal(false);
+      setSendingRequest(false);
     }
   };
-
-  // Calculator helper
-  const calcAmount = parseFloat(dealAmount) || 0;
-  const calcCommission = calcAmount * 0.15;
-  const calcNet = calcAmount - calcCommission;
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-28 pt-6">
+    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-lg mx-auto min-h-screen text-slate-100">
+      {/* Header */}
       <header className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-pink-500 text-white text-xl font-bold shadow-lg shadow-pink-500/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white text-xl font-bold shadow-lg shadow-pink-500/20">
           <Building2 className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-white">Brand Marketplace</h1>
-          <p className="text-xs text-muted-foreground">Monetize content & register brand partnerships</p>
+          <h1 className="font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-pink-300">Creator Marketplace</h1>
+          <p className="text-xs text-muted-foreground">Monetize content & find co-creators in India</p>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-muted p-1">
-        <button
-          onClick={() => setActiveTab("browse")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wide transition-all ${
-            activeTab === "browse" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <Users className="h-3.5 w-3.5" />
-          Profiles
-        </button>
+      {/* Navigation Tabs */}
+      <div className="flex gap-1.5 rounded-xl bg-slate-900/60 border border-slate-800 p-1.5 backdrop-blur-md">
         <button
           onClick={() => setActiveTab("deals")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wide transition-all ${
-            activeTab === "deals" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            activeTab === "deals" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/10" 
+              : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <Receipt className="h-3.5 w-3.5" />
+          <Briefcase className="h-3.5 w-3.5" />
           Brand Deals
         </button>
         <button
-          onClick={() => setActiveTab("profile")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wide transition-all ${
-            activeTab === "profile" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          onClick={() => setActiveTab("collabs")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
+            activeTab === "collabs" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/10" 
+              : "text-slate-400 hover:text-slate-200"
           }`}
         >
-          <UserCheck className="h-3.5 w-3.5" />
-          My Listing
+          <Users className="h-3.5 w-3.5" />
+          Find Collabs
         </button>
       </div>
 
-      {/* BROWSE CREATORS */}
-      {activeTab === "browse" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Creator Listings</h2>
-            <select
-              value={filterNiche}
-              onChange={(e) => {
-                setFilterNiche(e.target.value);
-                setTimeout(fetchProfiles, 50);
-              }}
-              className="text-xs bg-muted/80 rounded-lg px-2.5 py-1.5 text-white border border-border focus:outline-none"
-            >
-              <option value="all">All Niches</option>
-              <option value="dance">Dance</option>
-              <option value="fashion">Fashion</option>
-              <option value="travel">Travel</option>
-              <option value="food">Food</option>
-              <option value="comedy">Comedy</option>
-              <option value="fitness">Fitness</option>
-              <option value="scenic">Cinematic</option>
-            </select>
+      {/* BRAND DEALS TAB */}
+      {activeTab === "deals" && (
+        <div className="space-y-6">
+          {/* Stats Grid */}
+          <div className="grid grid-cols-3 gap-3">
+            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Total Earnings</span>
+              <div>
+                <span className="text-base font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
+                  ₹{stats.total_earnings.toLocaleString("en-IN")}
+                </span>
+                <span className="text-[8px] block text-muted-foreground mt-0.5">Creator Payout</span>
+              </div>
+            </div>
+            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Active Deals</span>
+              <div>
+                <span className="text-base font-extrabold text-indigo-400">{stats.active_partnerships}</span>
+                <span className="text-[8px] block text-muted-foreground mt-0.5">In Progress</span>
+              </div>
+            </div>
+            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Applications</span>
+              <div>
+                <span className="text-base font-extrabold text-pink-400">{stats.pending_applications}</span>
+                <span className="text-[8px] block text-muted-foreground mt-0.5">Pending Review</span>
+              </div>
+            </div>
           </div>
 
-          {loadingProfiles ? (
-            <div className="text-center py-12 text-muted-foreground">Loading creators...</div>
-          ) : (
-            <div className="space-y-3">
-              {profiles.map((profile) => (
-                <div key={profile.id} className="glass-card p-5 border border-border/60 hover:border-primary/40 transition-all rounded-2xl space-y-4">
+          {/* Deal Cards List */}
+          <div className="space-y-4">
+            <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+              <Compass className="h-3.5 w-3.5 text-indigo-400" />
+              Available Campaigns
+            </h3>
+
+            {loadingDeals ? (
+              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
+                <p className="text-xs">Fetching active brand opportunities...</p>
+              </div>
+            ) : deals.length === 0 ? (
+              <div className="glass-card p-8 text-center rounded-2xl border border-slate-800 space-y-2">
+                <AlertCircle className="h-8 w-8 text-indigo-400 mx-auto" />
+                <p className="text-sm font-bold">No active brand deals</p>
+                <p className="text-xs text-muted-foreground">Check back later for new campaign opportunities.</p>
+              </div>
+            ) : (
+              deals.map((deal) => (
+                <div 
+                  key={deal.id} 
+                  className="glass-card p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all duration-300 relative overflow-hidden group space-y-4"
+                >
+                  {/* Decorative background glow */}
+                  <div className="absolute top-0 right-0 h-24 w-24 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full blur-2xl group-hover:scale-125 transition-all duration-500 pointer-events-none" />
+
+                  {/* Brand & Budget Header */}
                   <div className="flex justify-between items-start">
                     <div>
-                      <h3 className="font-display font-bold text-base text-white">@{profile.instagram_username}</h3>
-                      <span className="text-[10px] bg-primary/10 text-primary font-bold px-2 py-0.5 rounded-full capitalize">
-                        {profile.niche}
+                      <h4 className="font-display font-extrabold text-lg text-white group-hover:text-indigo-300 transition-colors">{deal.brand_name}</h4>
+                      <span className="text-[9px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full border border-slate-700 capitalize mt-1 inline-block">
+                        Campaign
                       </span>
                     </div>
                     <div className="text-right">
-                      <p className="text-[10px] text-muted-foreground uppercase font-bold">Trend Score</p>
-                      <p className="text-lg font-extrabold text-pink-500">{profile.trend_score}/100</p>
-                    </div>
-                  </div>
-
-                  <div className="grid grid-cols-3 gap-2 py-2 border-y border-white/5 text-center">
-                    <div>
-                      <span className="block text-[10px] text-muted-foreground uppercase">Followers</span>
-                      <span className="font-bold text-sm text-gray-200">
-                        {profile.followers >= 1000 ? `${(profile.followers / 1000).toFixed(0)}K` : profile.followers}
+                      <span className="text-[9px] uppercase tracking-wider text-slate-400 block font-bold">Budget</span>
+                      <span className="text-lg font-black text-transparent bg-clip-text bg-gradient-to-r from-pink-400 to-indigo-400">
+                        ₹{deal.deal_amount.toLocaleString("en-IN")}
                       </span>
                     </div>
-                    <div>
-                      <span className="block text-[10px] text-muted-foreground uppercase">Engagement</span>
-                      <span className="font-bold text-sm text-gray-200">{profile.engagement_rate}%</span>
+                  </div>
+
+                  {/* Campaign details */}
+                  <div className="space-y-3">
+                    <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
+                      <h5 className="text-[9px] uppercase tracking-wider text-indigo-400 font-bold mb-1">Deliverables & Details</h5>
+                      <p className="text-xs text-slate-300 leading-relaxed font-medium">"{deal.details}"</p>
                     </div>
-                    <div>
-                      <span className="block text-[10px] text-muted-foreground uppercase">Rate / Post</span>
-                      <span className="font-bold text-sm text-pink-400">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
+
+                    <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-800/30">
+                      <h5 className="text-[9px] uppercase tracking-wider text-pink-400 font-bold mb-1">Requirements</h5>
+                      <p className="text-xs text-slate-400 leading-relaxed italic">{deal.requirements}</p>
                     </div>
                   </div>
 
-                  <div className="flex justify-between items-center text-xs">
-                    <div className="flex gap-2">
-                      {profile.portfolio_links.map((link, idx) => (
-                        <a 
-                          key={idx} 
-                          href={link} 
-                          target="_blank" 
-                          rel="noreferrer" 
-                          className="flex items-center gap-1 text-muted-foreground hover:text-white"
-                        >
-                          <Globe className="h-3 w-3" /> Link <ExternalLink className="h-2.5 w-2.5" />
-                        </a>
-                      ))}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-      )}
-
-      {/* BRAND DEALS & CALCULATOR */}
-      {activeTab === "deals" && (
-        <div className="space-y-4">
-          {/* COMMISSION CALCULATOR */}
-          <div className="glass-card p-5 rounded-2xl space-y-4 border border-indigo-500/20">
-            <h3 className="font-display font-bold text-base text-white flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-indigo-400" />
-              15% Commission Calculator
-            </h3>
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Deal Value (INR)</label>
-                <div className="relative mt-1">
-                  <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-                  <input
-                    type="number"
-                    placeholder="Enter deal amount"
-                    value={dealAmount}
-                    onChange={(e) => setDealAmount(e.target.value)}
-                    className="w-full rounded-xl bg-muted/60 pl-8 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                  />
-                </div>
-              </div>
-
-              {calcAmount > 0 && (
-                <div className="grid grid-cols-2 gap-3 pt-2 text-xs">
-                  <div className="bg-white/5 p-3 rounded-xl border border-white/5 space-y-1">
-                    <span className="block text-gray-400 font-bold uppercase text-[9px]">Trendrop Commission (15%)</span>
-                    <span className="text-sm font-extrabold text-rose-400">₹{calcCommission.toLocaleString("en-IN")}</span>
-                  </div>
-                  <div className="bg-white/5 p-3 rounded-xl border border-white/5 space-y-1">
-                    <span className="block text-indigo-400 font-bold uppercase text-[9px]">Net Creator Payout (85%)</span>
-                    <span className="text-sm font-extrabold text-emerald-400">₹{calcNet.toLocaleString("en-IN")}</span>
-                  </div>
-                </div>
-              )}
-
-              <p className="text-[10px] text-muted-foreground italic leading-relaxed">
-                * Trendrop handles invoicing, contract compliance, escrow protection, and automatic payments. Creator payments are settled within 48 hours of video publication.
-              </p>
-            </div>
-          </div>
-
-          {/* REGISTER A NEW DEAL */}
-          <form onSubmit={addDeal} className="glass-card p-5 rounded-2xl space-y-4">
-            <h3 className="font-display font-bold text-base text-white flex items-center gap-2">
-              <Plus className="h-5 w-5 text-pink-500" /> Add Brand Deal
-            </h3>
-            
-            <div className="space-y-3">
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Brand Name</label>
-                <input
-                  type="text"
-                  placeholder="e.g., Mamaearth, PUMA, Amazon"
-                  value={brandName}
-                  onChange={(e) => setBrandName(e.target.value)}
-                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Campaign Details</label>
-                <textarea
-                  placeholder="What deliverables are required? (e.g. 1x Reel, 1x Story)"
-                  value={dealDetails}
-                  onChange={(e) => setDealDetails(e.target.value)}
-                  rows={2}
-                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 resize-none"
-                />
-              </div>
-            </div>
-
-            <Button type="submit" disabled={addingDeal} className="w-full bg-pink-500 hover:bg-pink-600 text-white font-bold h-11">
-              {addingDeal ? "Adding Brand Deal..." : "Register Brand Deal"}
-            </Button>
-          </form>
-
-          {/* LIST OF BRAND DEALS */}
-          <div className="space-y-3">
-            <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Registered Partnerships</h3>
-            {loadingDeals ? (
-              <div className="text-center py-6 text-muted-foreground">Loading brand deals...</div>
-            ) : deals.length === 0 ? (
-              <div className="text-center py-6 text-xs text-muted-foreground">No brand deals listed yet. Use the form above to add one.</div>
-            ) : (
-              deals.map((deal) => (
-                <div key={deal.id} className="glass-card p-4 rounded-xl border border-white/5 space-y-3">
-                  <div className="flex justify-between items-center">
-                    <div>
-                      <h4 className="font-bold text-white text-sm">{deal.brand_name}</h4>
-                      <span className="text-[9px] text-muted-foreground">{new Date(deal.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <span className="text-[10px] bg-amber-500/20 text-amber-400 font-bold px-2 py-0.5 rounded-full capitalize">
-                      {deal.status}
-                    </span>
-                  </div>
-
-                  <p className="text-xs text-gray-300 italic">"{deal.details}"</p>
-
-                  <div className="grid grid-cols-2 gap-2 text-center text-[11px] pt-2 border-t border-white/5">
-                    <div>
-                      <span className="text-muted-foreground block">Total Amount</span>
-                      <span className="font-extrabold text-white">₹{deal.deal_amount.toLocaleString("en-IN")}</span>
-                    </div>
-                    <div>
-                      <span className="text-muted-foreground block">Payout Net</span>
-                      <span className="font-extrabold text-emerald-400">₹{(deal.deal_amount - deal.commission_amount).toLocaleString("en-IN")}</span>
-                    </div>
+                  {/* Apply Button */}
+                  <div className="pt-2">
+                    {deal.applied ? (
+                      <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/80 text-emerald-400 text-xs font-bold py-2.5">
+                        <CheckCircle className="h-4 w-4" />
+                        Application Submitted
+                      </div>
+                    ) : (
+                      <Button 
+                        onClick={() => handleApplyClick(deal)}
+                        className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold h-10 rounded-xl transition-all duration-300 hover:shadow-lg hover:shadow-indigo-600/20"
+                      >
+                        Apply for Campaign
+                      </Button>
+                    )}
                   </div>
                 </div>
               ))
@@ -567,97 +358,264 @@ function MarketplacePage() {
         </div>
       )}
 
-      {/* CREATOR PROFILE LISTING EDIT */}
-      {activeTab === "profile" && (
-        <form onSubmit={saveProfile} className="glass-card p-5 rounded-2xl space-y-4">
-          <h3 className="font-display font-bold text-base text-white">Manage Marketplace Profile</h3>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="text-[10px] uppercase font-bold text-muted-foreground">Instagram Username</label>
-              <div className="relative mt-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">@</span>
-                <input
-                  type="text"
-                  placeholder="username"
-                  value={username}
-                  onChange={(e) => setUsername(e.target.value)}
-                  className="w-full rounded-xl bg-muted/60 pl-8 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
+      {/* FIND COLLABS TAB */}
+      {activeTab === "collabs" && (
+        <div className="space-y-6">
+          {/* Intro Card */}
+          <div className="glass-card p-6 rounded-3xl border border-indigo-500/20 relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900">
+            <div className="absolute -top-12 -right-12 h-32 w-32 bg-indigo-500/10 rounded-full blur-3xl" />
+            
+            <div className="space-y-4 relative">
+              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-indigo-500/10 text-indigo-400 border border-indigo-500/20">
+                <Sparkles className="h-5 w-5" />
               </div>
-            </div>
+              
+              <div className="space-y-1">
+                <h3 className="text-lg font-bold font-display text-white">Find Creator Collaborations</h3>
+                <p className="text-xs text-slate-400 leading-relaxed">
+                  Connect with local creators to co-create Reels and double your search reach. We match profiles based on content niche overlap, followers ratio, and visual styling harmony.
+                </p>
+              </div>
 
-            <div>
-              <label className="text-[10px] uppercase font-bold text-muted-foreground">Content Niche</label>
-              <select
-                value={profileNiche}
-                onChange={(e) => setProfileNiche(e.target.value)}
-                className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              <Button
+                onClick={handleFindMatches}
+                disabled={loadingMatches}
+                className="bg-indigo-600 hover:bg-indigo-500 text-white font-bold h-10 px-5 rounded-xl flex items-center gap-1.5 transition-all duration-300 hover:shadow-md hover:shadow-indigo-600/30"
               >
-                <option value="dance">Dance</option>
-                <option value="fashion">Fashion</option>
-                <option value="travel">Travel</option>
-                <option value="food">Food</option>
-                <option value="comedy">Comedy</option>
-                <option value="fitness">Fitness</option>
-                <option value="scenic">Cinematic</option>
-              </select>
-            </div>
-
-            <div className="grid grid-cols-2 gap-3">
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Followers Count</label>
-                <input
-                  type="number"
-                  placeholder="e.g. 50000"
-                  value={followers}
-                  onChange={(e) => setFollowers(e.target.value)}
-                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Engagement Rate (%)</label>
-                <input
-                  type="number"
-                  step="0.1"
-                  placeholder="e.g. 5.4"
-                  value={engagement}
-                  onChange={(e) => setEngagement(e.target.value)}
-                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase font-bold text-muted-foreground">Average Price per Post (INR)</label>
-              <div className="relative mt-1">
-                <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-400 text-sm">₹</span>
-                <input
-                  type="number"
-                  placeholder="Price for 1x Reel"
-                  value={price}
-                  onChange={(e) => setPrice(e.target.value)}
-                  className="w-full rounded-xl bg-muted/60 pl-8 pr-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-                />
-              </div>
-            </div>
-
-            <div>
-              <label className="text-[10px] uppercase font-bold text-muted-foreground">Portfolio Links (comma separated URLs)</label>
-              <input
-                type="text"
-                placeholder="https://instagram.com/myusername, https://myportfolio.com"
-                value={portfolio}
-                onChange={(e) => setPortfolio(e.target.value)}
-                className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-              />
+                {loadingMatches ? (
+                  <>
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Finding Matches...
+                  </>
+                ) : (
+                  <>
+                    Find Matches
+                    <ArrowRight className="h-4 w-4" />
+                  </>
+                )}
+              </Button>
             </div>
           </div>
 
-          <Button type="submit" disabled={savingProfile} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11">
-            {savingProfile ? "Saving Profile..." : "Update Listing Details"}
-          </Button>
-        </form>
+          {/* Collab Matches List */}
+          {hasSearchedMatches && (
+            <div className="space-y-4">
+              <h3 className="text-xs font-bold uppercase tracking-wider text-slate-400 flex items-center gap-1.5">
+                <Users className="h-3.5 w-3.5 text-indigo-400" />
+                Your Compatibility Matches
+              </h3>
+
+              {loadingMatches ? (
+                <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+                  <Loader2 className="h-8 w-8 animate-spin text-indigo-500 mb-2" />
+                  <p className="text-xs">Finding aligned creator profiles...</p>
+                </div>
+              ) : matches.length === 0 ? (
+                <div className="glass-card p-8 text-center rounded-2xl border border-slate-800">
+                  <p className="text-xs text-muted-foreground">No creator matches found. Try updating your niche profile.</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {matches.map((match, idx) => (
+                    <div 
+                      key={idx} 
+                      className="glass-card p-5 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all duration-300 space-y-4 relative"
+                    >
+                      {/* Top Info Header */}
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h4 className="font-display font-extrabold text-base text-white">@{match.instagram_username}</h4>
+                          <span className="text-[10px] bg-indigo-500/10 text-indigo-300 font-bold px-2.5 py-0.5 rounded-full border border-indigo-500/20 capitalize mt-1 inline-block">
+                            {match.niche}
+                          </span>
+                        </div>
+
+                        {/* Compatibility Score Circle/Pill */}
+                        <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-center">
+                          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-black block">Score</span>
+                          <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-400">
+                            {match.compatibility_score}% Match
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Creator Stats */}
+                      <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-800/60 text-center bg-slate-900/10 rounded-lg">
+                        <div>
+                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Followers</span>
+                          <span className="font-extrabold text-sm text-slate-200">
+                            {match.followers >= 1000 ? `${(match.followers / 1000).toFixed(0)}K` : match.followers}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Engagement</span>
+                          <span className="font-extrabold text-sm text-slate-200">{match.engagement_rate}%</span>
+                        </div>
+                        <div>
+                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Trend Score</span>
+                          <span className="font-extrabold text-sm text-pink-400">{match.trend_score}/100</span>
+                        </div>
+                      </div>
+
+                      {/* Request Button */}
+                      <div>
+                        {match.request_sent ? (
+                          <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 text-indigo-400 text-xs font-bold py-2.5">
+                            <CheckCircle className="h-4 w-4" />
+                            Request Sent
+                          </div>
+                        ) : (
+                          <Button
+                            onClick={() => handleSendRequestClick(match)}
+                            className="w-full bg-gradient-to-r from-slate-900 to-indigo-950 hover:from-indigo-900 hover:to-indigo-950 text-white font-bold h-10 border border-indigo-500/20 rounded-xl transition-all duration-300"
+                          >
+                            Send Collab Request
+                          </Button>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* APPLICATION MODAL (BRAND DEALS) */}
+      {selectedDeal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass-card w-full max-w-md p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl relative space-y-5">
+            
+            {/* Header */}
+            <div>
+              <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-400">Submit Application</span>
+              <h3 className="font-display font-extrabold text-xl text-white mt-0.5">{selectedDeal.brand_name}</h3>
+              <p className="text-xs text-slate-400 mt-1">Applying for campaign value of ₹{selectedDeal.deal_amount.toLocaleString("en-IN")}</p>
+            </div>
+
+            {/* Auto-filled Creator Profile Section */}
+            <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3">
+              <h4 className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1.5">
+                <Award className="h-3.5 w-3.5 text-indigo-400" />
+                Verified Creator Profile
+              </h4>
+              
+              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
+                <div>
+                  <span className="text-slate-500 block text-[9px] uppercase">Instagram handle</span>
+                  <span className="font-bold text-slate-200">@{profile.instagram_username}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] uppercase">Niche category</span>
+                  <span className="font-bold text-slate-200 capitalize">{profile.niche}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] uppercase">Verified followers</span>
+                  <span className="font-bold text-slate-200">{profile.followers.toLocaleString()}</span>
+                </div>
+                <div>
+                  <span className="text-slate-500 block text-[9px] uppercase">Pricing rate</span>
+                  <span className="font-bold text-indigo-300">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmitApplication} className="space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Your Campaign Pitch</label>
+                <textarea
+                  rows={4}
+                  value={pitchText}
+                  onChange={(e) => setPitchText(e.target.value)}
+                  placeholder="Explain why you're a great fit for this brand deal..."
+                  className="w-full rounded-xl bg-slate-950/60 border border-slate-800 text-slate-200 px-3.5 py-3 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2.5">
+                <Button 
+                  type="button"
+                  onClick={() => setSelectedDeal(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold h-11 rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  disabled={submittingApplication}
+                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold h-11 rounded-xl shadow-lg shadow-indigo-600/20"
+                >
+                  {submittingApplication ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      Submitting...
+                    </>
+                  ) : (
+                    "Submit App"
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* REQUEST MODAL (COLLABS) */}
+      {selectedMatch && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="glass-card w-full max-w-md p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl relative space-y-5">
+            
+            {/* Header */}
+            <div>
+              <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-400">Collaboration Request</span>
+              <h3 className="font-display font-extrabold text-xl text-white mt-0.5">Connect with @{selectedMatch.instagram_username}</h3>
+              <p className="text-xs text-slate-400 mt-1">compatibility score: {selectedMatch.compatibility_score}% ({selectedMatch.niche} niche)</p>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleSubmitCollabRequest} className="space-y-4">
+              <div>
+                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Collaboration Proposal Message</label>
+                <textarea
+                  rows={4}
+                  value={requestMessage}
+                  onChange={(e) => setRequestMessage(e.target.value)}
+                  placeholder="Introduce yourself and propose a collab idea..."
+                  className="w-full rounded-xl bg-slate-950/60 border border-slate-800 text-slate-200 px-3.5 py-3 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
+                />
+              </div>
+
+              <div className="flex gap-2.5">
+                <Button 
+                  type="button"
+                  onClick={() => setSelectedMatch(null)}
+                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold h-11 rounded-xl"
+                >
+                  Cancel
+                </Button>
+                <Button 
+                  type="submit"
+                  disabled={sendingRequest}
+                  className="flex-1 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold h-11 rounded-xl flex items-center justify-center gap-1.5 shadow-lg shadow-indigo-600/20"
+                >
+                  {sendingRequest ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Sending...
+                    </>
+                  ) : (
+                    <>
+                      Send Request
+                      <Send className="h-3.5 w-3.5" />
+                    </>
+                  )}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
       )}
     </div>
   );
