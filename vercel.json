@@ -4,11 +4,11 @@
   "rewrites": [
     {
       "source": "/api/(.*)",
-      "destination": "https://trendrop-backend-production.up.railway.app/api/$1"
+      "destination": "https://trendrop-backend.onrender.com/api/$1"
     },
     {
       "source": "/outputs/(.*)",
-      "destination": "https://trendrop-backend-production.up.railway.app/outputs/$1"
+      "destination": "https://trendrop-backend.onrender.com/outputs/$1"
     }
   ]
 }
