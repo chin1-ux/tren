@@ -2,6 +2,7 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Clock, Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Info, Zap, TrendingUp,
+  Bookmark, BookmarkCheck, Sparkles, Film, HelpCircle
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -9,6 +10,7 @@ import { useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTrendReels } from "@/lib/api";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 interface Props {
   trend: UiTrend;
@@ -30,13 +32,49 @@ function getPlatformMeta(platform: string): { label: string; icon: string } {
 
 export function TrendCard({ trend, onDanceTap }: Props) {
   const navigate = useNavigate();
+  const [isExpanded, setIsExpanded] = useState(false);
   const [showReels, setShowReels] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showWhy, setShowWhy] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
 
+  // Local storage "Save Trend" tracking
+  const [isSaved, setIsSaved] = useState(() => {
+    if (typeof window === "undefined") return false;
+    const saved = localStorage.getItem("saved_trends");
+    if (!saved) return false;
+    try {
+      const arr = JSON.parse(saved);
+      return Array.isArray(arr) && arr.includes(String(trend.id));
+    } catch {
+      return false;
+    }
+  });
+
+  const toggleSave = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const saved = localStorage.getItem("saved_trends");
+    let arr: string[] = [];
+    if (saved) {
+      try {
+        arr = JSON.parse(saved);
+        if (!Array.isArray(arr)) arr = [];
+      } catch {}
+    }
+    if (isSaved) {
+      arr = arr.filter((id) => id !== String(trend.id));
+      toast.success("Trend removed from saved collection");
+    } else {
+      arr.push(String(trend.id));
+      toast.success("Trend saved successfully!");
+    }
+    localStorage.setItem("saved_trends", JSON.stringify(arr));
+    setIsSaved(!isSaved);
+  };
+
   const isEmerging = trend.isEmerging || trend.status === "emerging";
   const isUrgent = trend.hoursLeft <= 6;
+  const isMegaTrend = (trend.viralMultiplier ?? 0) >= 12 || (trend.reelCount ?? 0) > 10000;
 
   const satMeta = getSaturationMeta(trend.saturationScore ?? 0);
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
@@ -61,8 +99,8 @@ export function TrendCard({ trend, onDanceTap }: Props) {
     const y = e.clientY - rect.top;
     const cx = rect.width / 2;
     const cy = rect.height / 2;
-    const rotX = ((y - cy) / cy) * -6;
-    const rotY = ((x - cx) / cx) * 6;
+    const rotX = ((y - cy) / cy) * -4;
+    const rotY = ((x - cx) / cx) * 4;
     cardRef.current.style.transform = `perspective(800px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(4px)`;
   }, []);
 
@@ -77,8 +115,8 @@ export function TrendCard({ trend, onDanceTap }: Props) {
     return v.toString();
   };
 
-  const copyCaption = () => {
-    // Copy a quick caption based on trend info
+  const copyCaption = (e: React.MouseEvent) => {
+    e.stopPropagation();
     const text = `${trend.idealContentDescription || trend.song} 🔥 #trending #reels #${trend.contentType?.toLowerCase().replace(/\s+/g, "")}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
@@ -87,63 +125,87 @@ export function TrendCard({ trend, onDanceTap }: Props) {
     });
   };
 
+  // Determine border color class
+  const getBorderAndBgClass = () => {
+    const isDanceCat = trend.isDance || trend.category === "Dance";
+    const isNarrativeCat = trend.isNarrativeEdit || trend.category === "Narrative";
+    const isFacelessCat = trend.category === "Faceless" || trend.contentType === "Faceless";
+
+    if (isDanceCat) {
+      return "border border-amber/40 shadow-[0_0_12px_rgba(239,159,39,0.08)] bg-gradient-to-b from-[rgba(239,159,39,0.05)] to-transparent hover:border-amber/80";
+    }
+    if (isNarrativeCat) {
+      return "border border-purple/40 shadow-[0_0_12px_rgba(127,119,221,0.08)] bg-gradient-to-b from-[rgba(127,119,221,0.05)] to-transparent hover:border-purple/80";
+    }
+    if (isFacelessCat) {
+      return "border border-teal/40 shadow-[0_0_12px_rgba(29,158,117,0.08)] bg-gradient-to-b from-[rgba(29,158,117,0.05)] to-transparent hover:border-teal/80";
+    }
+    // Regular = red border
+    return "border border-primary/40 shadow-[0_0_12px_rgba(230,57,70,0.08)] bg-gradient-to-b from-[rgba(230,57,70,0.05)] to-transparent hover:border-primary/80";
+  };
+
   return (
     <article
       ref={cardRef}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      className={`tilt-card relative space-y-4 rounded-2xl p-5 transition-all duration-200 ${
-        isEmerging
-          ? "neon-border-emerging animate-pulse-urgent bg-[rgba(255,0,110,0.04)]"
-          : isUrgent
-          ? "neon-border bg-[rgba(230,57,70,0.04)]"
-          : "glass-card"
+      onClick={() => setIsExpanded(!isExpanded)}
+      className={`tilt-card relative space-y-4 rounded-2xl p-5 transition-all duration-300 cursor-pointer overflow-hidden ${getBorderAndBgClass()} ${
+        isEmerging ? "animate-pulse-urgent" : ""
       }`}
     >
-      {/* Emerging badge */}
-      {isEmerging && (
-        <div className="absolute -top-3 left-4">
-          <span className="inline-flex items-center gap-1.5 rounded-full bg-[#ff006e] px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-white shadow-lg">
-            <Zap className="h-3 w-3" /> EMERGING FIRST
+      {/* Emerging & Mega badges */}
+      <div className="absolute -top-1 left-4 flex gap-2">
+        {isEmerging && (
+          <span className="inline-flex items-center gap-1 rounded-b-lg bg-[#ff006e] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
+            <Zap className="h-2.5 w-2.5" /> EMERGING
           </span>
-        </div>
-      )}
+        )}
+        {isMegaTrend && (
+          <span className="inline-flex items-center gap-1 rounded-b-lg bg-gradient-to-r from-purple to-pink-500 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
+            <Flame className="h-2.5 w-2.5 animate-bounce" /> MEGA TREND
+          </span>
+        )}
+      </div>
 
       {/* Top row: status + timer */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-primary">
-            <Flame className="h-3 w-3" /> {isEmerging ? "Emerging" : "Trending"}
+          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
+            <TrendingUp className="h-3 w-3" /> Trending
           </span>
-          {/* Platform badge */}
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-1 text-[10px] font-semibold text-muted-foreground">
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
             {platformMeta.icon} {platformMeta.label}
           </span>
         </div>
-        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${isUrgent ? "text-primary" : "text-muted-foreground"}`}>
+        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${isUrgent ? "text-primary animate-pulse" : "text-muted-foreground"}`}>
           <Clock className="h-3.5 w-3.5" />
           {trend.hoursLeft > 0 ? `${trend.hoursLeft}h left` : "Ending soon"}
         </span>
       </div>
 
       {/* Song info */}
-      <div 
-        onClick={() => navigate({ to: `/trend/${trend.id}` })}
-        className="space-y-0.5 cursor-pointer group/title hover:opacity-85 transition-opacity"
-      >
-        <h3 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground group-hover/title:text-primary transition-colors flex items-center gap-1.5">
-          {trend.song}
+      <div className="space-y-0.5">
+        <h3 className="font-display text-xl font-bold leading-snug tracking-tight text-foreground transition-colors flex items-center justify-between gap-1.5">
+          <span className="truncate">{trend.song}</span>
+          <button
+            onClick={toggleSave}
+            className="text-muted-foreground hover:text-primary transition-colors p-1"
+            aria-label="Save trend"
+          >
+            {isSaved ? <BookmarkCheck className="h-5 w-5 text-primary" /> : <Bookmark className="h-5 w-5" />}
+          </button>
         </h3>
-        <p className="text-sm text-muted-foreground">by {trend.artist}</p>
+        <p className="text-xs text-muted-foreground">by {trend.artist}</p>
       </div>
 
       {/* Waveform velocity meter */}
-      <div className="space-y-2">
+      <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
           <span className="font-bold text-primary">{trend.viralMultiplier}x normal</span>
         </div>
-        <div className="flex items-end gap-[3px] h-8">
+        <div className="flex items-end gap-[3px] h-7">
           {Array.from({ length: 20 }).map((_, i) => {
             const filled = i < Math.round((viralPct / 100) * 20);
             return (
@@ -152,162 +214,193 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                 className={`flex-1 rounded-sm transition-all duration-300 ${
                   filled
                     ? "bg-gradient-to-t from-primary to-secondary"
-                    : "bg-muted/40"
+                    : "bg-muted/30"
                 }`}
-                style={{ height: `${20 + Math.sin(i * 0.8) * 14}px` }}
+                style={{ height: `${15 + Math.sin(i * 0.8) * 10}px` }}
               />
             );
           })}
         </div>
       </div>
 
-      {/* Saturation indicator */}
-      <div className="flex items-center gap-2">
-        <div className={`h-2 w-2 rounded-full ${satMeta.dot}`} />
-        <span className={`text-xs font-semibold ${satMeta.color}`}>{satMeta.label}</span>
-        {trend.optimalPostHourIst !== undefined && (
-          <span className="ml-auto text-xs text-muted-foreground">
-            Best: {trend.optimalPostHourIst}:00 IST
-          </span>
-        )}
-      </div>
-
-      <div className="grid grid-cols-3 gap-2 text-[10px]">
-        <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
-        <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
-        <ScorePill label="Crowd" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
-      </div>
-
-      <div className="rounded-xl border border-border bg-white/[0.03] px-3 py-2">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-wide text-muted-foreground">Creator score</span>
-          <span className="font-bold text-primary">{Math.round(compositeScore * 100)} / 100</span>
-        </div>
-        <p className="mt-1 text-[11px] text-muted-foreground">
-          This blends fit, hook strength, momentum, and saturation so creators know what is actually worth posting.
-        </p>
-      </div>
-
       {/* Chips */}
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-1.5">
         <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
         {trend.languageEmoji && trend.language && (
           <Chip>{trend.languageEmoji} {trend.language}</Chip>
         )}
-        {trend.isDance && <Chip className="bg-secondary/15 text-secondary">FILM YOURSELF</Chip>}
-        {trend.isNarrativeEdit && <Chip className="bg-narrative/15 text-narrative">NARRATIVE EDIT</Chip>}
+        {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
+        {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
         {trend.reelCount !== undefined && (
           <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount} reels</Chip>
         )}
       </div>
 
-      {/* Ideal content description */}
-      <p className="rounded-xl bg-white/[0.03] px-3 py-2 text-sm italic text-muted-foreground border border-border">
-        💡 {trend.idealContentDescription || "Great for reels and short-form content"}
-      </p>
-
-      {/* Cross-Niche Transfer */}
-      {trend.formatTransferable && trend.transferInstructions && (
-        <div className="rounded-xl bg-violet-500/10 border border-violet-500/30 px-3 py-2.5 border border-border">
-          <p className="text-xs font-bold text-violet-400 uppercase tracking-wide">🔄 Cross-Niche Adaptation</p>
-          <p className="text-xs text-muted-foreground mt-1 font-medium leading-relaxed">{trend.transferInstructions}</p>
-        </div>
-      )}
-
-
-      {/* Why this works tooltip */}
-      {trend.whyThisWorks && (
-        <button
-          onClick={() => setShowWhy(!showWhy)}
-          className="flex w-full items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <Info className="h-3.5 w-3.5 shrink-0" />
-          <span>{showWhy ? trend.whyThisWorks : "Why is this trending? ↓"}</span>
-        </button>
-      )}
-
-      {/* Quick copy caption */}
-      <button
-        onClick={copyCaption}
-        className="flex w-full items-center justify-between rounded-xl border border-border bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
-      >
-        <span>📋 Quick copy caption + hashtags</span>
-        {copied ? <CheckCheck className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
-      </button>
-
-      {/* Source reels collapsible */}
-      <div className="border-t border-border pt-3">
-        <button
-          onClick={() => setShowReels(!showReels)}
-          className="flex w-full items-center justify-between py-1 text-xs font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
-        >
-          <span className="flex items-center gap-1.5">
-            <TrendingUp className="h-3.5 w-3.5" /> Source Reels
-          </span>
-          {showReels ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
-
-        {showReels && (
-          <div className="mt-3 space-y-3 animate-in fade-in slide-in-from-top-2 duration-200">
-            {!reels ? (
-              <div className="text-center py-4 text-xs text-muted-foreground">Loading reels...</div>
-            ) : reels.length === 0 ? (
-              <div className="text-center py-4 text-xs text-muted-foreground">No reels found yet.</div>
-            ) : (
-              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                {reels.slice(0, 4).map((reel) => (
-                  <a 
-                    key={reel.id} 
-                    href={`https://instagram.com/reel/${reel.reel_id}`}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex flex-col gap-2 rounded-xl bg-white/[0.03] p-3 border border-border/50 hover:bg-white/[0.08] transition-colors hover:border-primary/20 text-left"
-                  >
-                    <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-primary">@{reel.owner_username}</span>
-                      <span className="text-muted-foreground">{formatViews(reel.view_count)} views</span>
-                    </div>
-                    {reel.caption && (
-                      <p className="text-xs text-muted-foreground line-clamp-2 italic">"{reel.caption}"</p>
-                    )}
-                  </a>
-                ))}
-              </div>
-            )}
-          </div>
-        )}
+      {/* Tap to expand hint */}
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
+        <span>Click to {isExpanded ? "collapse" : "expand strategy & actions"}</span>
+        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </div>
 
-      {/* Action buttons */}
-      <div className="space-y-2 pt-1">
-        <Button
-          onClick={() => navigate({ to: `/trend/${trend.id}` })}
-          className="h-12 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
-        >
-          🧠 View Deep Dive & Strategy
-        </Button>
-        <Button
-          onClick={() => navigate({ to: "/generate", search: { trendId: trend.id } })}
-          className="h-12 w-full bg-success font-bold uppercase tracking-wide text-success-foreground hover:bg-success/90 transition-all hover:scale-[1.01]"
-        >
-          <Video className="h-4 w-4" /> Generate My Reel
-        </Button>
-        {trend.isDance && (
-          <Button
-            onClick={() => onDanceTap(trend)}
-            className="h-12 w-full bg-secondary font-bold uppercase tracking-wide text-secondary-foreground hover:bg-secondary/90"
+      {/* Expanded strategy details & actions */}
+      <AnimatePresence>
+        {isExpanded && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: "auto", opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            transition={{ duration: 0.25 }}
+            className="space-y-4 pt-2 overflow-hidden"
+            onClick={(e) => e.stopPropagation()} // Prevent collapse when interacting with controls
           >
-            💃 How To Film This
-          </Button>
+            {/* Hook Preview */}
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">🪝 Hook Preview</p>
+              <p className="text-xs text-foreground/90 mt-1 leading-relaxed">
+                {trend.whyThisWorks ? trend.whyThisWorks : `Introduce this concept in the first 2 seconds to retain viewers while the beat drops.`}
+              </p>
+            </div>
+
+            {/* Content Description */}
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
+              <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
+                {trend.idealContentDescription || "Sync high-impact transitions with the main beats of this song for maximum reach."}
+              </p>
+            </div>
+
+            {/* Saturation indicator */}
+            <div className="flex items-center gap-2">
+              <div className={`h-1.5 w-1.5 rounded-full ${satMeta.dot}`} />
+              <span className={`text-[11px] font-semibold ${satMeta.color}`}>{satMeta.label}</span>
+              {trend.optimalPostHourIst !== undefined && (
+                <span className="ml-auto text-[11px] text-muted-foreground">
+                  Best post time: {trend.optimalPostHourIst}:00 IST
+                </span>
+              )}
+            </div>
+
+            {/* Score indicators */}
+            <div className="grid grid-cols-3 gap-1.5 text-[9px]">
+              <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
+              <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+              <ScorePill label="Crowd" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
+            </div>
+
+            {/* Quick copy caption */}
+            <button
+              onClick={copyCaption}
+              className="flex w-full items-center justify-between rounded-xl border border-border bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
+            >
+              <span>📋 Copy caption + hashtags</span>
+              {copied ? <CheckCheck className="h-3.5 w-3.5 text-success" /> : <Copy className="h-3.5 w-3.5" />}
+            </button>
+
+            {/* Source reels collapsible */}
+            <div className="border-t border-border/40 pt-3">
+              <button
+                onClick={(e) => { e.stopPropagation(); setShowReels(!showReels); }}
+                className="flex w-full items-center justify-between py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors"
+              >
+                <span className="flex items-center gap-1.5">
+                  <TrendingUp className="h-3.5 w-3.5" /> Reference Reels
+                </span>
+                {showReels ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+              </button>
+
+              {showReels && (
+                <div className="mt-3 space-y-3">
+                  {!reels ? (
+                    <div className="text-center py-4 text-xs text-muted-foreground">Loading reels...</div>
+                  ) : reels.length === 0 ? (
+                    <div className="text-center py-4 text-xs text-muted-foreground">No reels found yet.</div>
+                  ) : (
+                    <div className="grid grid-cols-1 gap-2">
+                      {reels.slice(0, 3).map((reel) => (
+                        <a
+                          key={reel.id}
+                          href={`https://instagram.com/reel/${reel.reel_id}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex flex-col gap-1 rounded-xl bg-white/[0.02] p-2.5 border border-border/40 hover:bg-white/[0.05] transition-colors text-left"
+                        >
+                          <div className="flex items-center justify-between text-[11px]">
+                            <span className="font-bold text-primary">@{reel.owner_username}</span>
+                            <span className="text-muted-foreground">{formatViews(reel.view_count)} views</span>
+                          </div>
+                          {reel.caption && (
+                            <p className="text-[11px] text-muted-foreground line-clamp-1 italic">"{reel.caption}"</p>
+                          )}
+                        </a>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
+            {/* Action buttons */}
+            <div className="space-y-2 pt-2 border-t border-border/40">
+              <Button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  navigate({ to: "/generate", search: { trendId: trend.id } });
+                }}
+                className="h-11 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
+              >
+                <Video className="h-4 w-4" /> Generate My Reel
+              </Button>
+
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    toast.success("Faceless video creation started!", {
+                      description: `Using templates matching "${trend.song}"...`
+                    });
+                    navigate({ to: "/generate", search: { trendId: trend.id } });
+                  }}
+                  className="h-11 bg-teal font-bold uppercase tracking-wide text-white hover:bg-teal/90"
+                >
+                  <Sparkles className="h-3.5 w-3.5" /> Generate Faceless
+                </Button>
+
+                {trend.isDance || trend.category === "Dance" ? (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      onDanceTap(trend);
+                    }}
+                    className="h-11 bg-amber font-bold uppercase tracking-wide text-white hover:bg-amber/90"
+                  >
+                    <Film className="h-3.5 w-3.5" /> How To Film This
+                  </Button>
+                ) : (
+                  <Button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      toast.info("Filming guide", {
+                        description: trend.idealContentDescription || "Film transitions and align them with the beats."
+                      });
+                    }}
+                    variant="outline"
+                    className="h-11 border-border text-xs font-bold uppercase tracking-wide hover:bg-white/5"
+                  >
+                    <HelpCircle className="h-3.5 w-3.5" /> How To Film
+                  </Button>
+                )}
+              </div>
+            </div>
+          </motion.div>
         )}
-      </div>
+      </AnimatePresence>
     </article>
   );
 }
 
 function Chip({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 text-xs font-semibold text-foreground ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full bg-white/[0.04] border border-border/50 px-2.5 py-0.5 text-[10px] font-semibold text-foreground/90 ${className}`}>
       {children}
     </span>
   );
@@ -316,8 +409,8 @@ function Chip({ children, className = "" }: { children: React.ReactNode; classNa
 function ScorePill({ label, value, tone }: { label: string; value: number; tone: "good" | "mid" | "bad" }) {
   const clz = tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" : tone === "mid" ? "bg-amber-500/10 text-amber-400 border-amber-500/20" : "bg-rose-500/10 text-rose-400 border-rose-500/20";
   return (
-    <div className={`rounded-lg border px-2 py-1 ${clz}`}>
-      <div className="flex items-center justify-between gap-2">
+    <div className={`rounded-lg border px-2 py-1 text-center ${clz}`}>
+      <div className="flex items-center justify-between gap-1">
         <span className="font-semibold uppercase tracking-wide">{label}</span>
         <span className="font-bold">{Math.round(value * 100)}</span>
       </div>

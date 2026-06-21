@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal } from "lucide-react";
+import { Bell, Zap, TrendingUp, Search, X } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, type UiTrend } from "@/lib/api";
 import { FilterPills } from "@/components/FilterPills";
 import { TrendCard } from "@/components/TrendCard";
@@ -9,19 +9,19 @@ import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
+import { ParticleBackground } from "@/components/ParticleBackground";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { toast } from "sonner";
 
-export const Route = createFileRoute("/")(
-  {
-    head: () => ({
-      meta: [
-        { title: "Trendrop — India's Trend Intelligence" },
-        { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-first AI trend detection." },
-      ],
-    }),
-    component: TrendsFeed,
-  }
-);
+export const Route = createFileRoute("/")({
+  head: () => ({
+    meta: [
+      { title: "Trendrop — India's Trend Intelligence" },
+      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-first AI trend detection." },
+    ],
+  }),
+  component: TrendsFeed,
+});
 
 const LANGUAGES = [
   { code: "all", label: "🌐 All" },
@@ -127,57 +127,84 @@ function TrendsFeed() {
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
+  const avgLeadTime = useMemo(() => {
+    const list = activeData ?? [];
+    if (list.length === 0) return "14";
+    const sum = list.reduce((acc, t) => acc + (t.hoursLeft || 0), 0);
+    return (sum / list.length).toFixed(1);
+  }, [activeData]);
+
   return (
     <div className="flex flex-col gap-0 pb-24">
-      {/* ── Hero Header ───────────────────────────────────────────────────────── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.08)] to-transparent px-4 pb-5 pt-6">
-        {/* Ambient glow */}
-        <div className="pointer-events-none absolute -top-10 left-1/2 h-40 w-40 -translate-x-1/2 rounded-full bg-primary/20 blur-3xl" />
+      {/* ── Hero Section with Three.js Particle Background & Header ───────────────────────── */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-6 pt-6 rounded-b-[2rem] border-b border-border/30">
+        <ParticleBackground />
 
-        <div className="relative flex items-start justify-between">
-          <div>
-            {/* 3D Logo */}
-            <div className="flex items-center gap-3 animate-drop-fall">
-              <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/30 text-white text-xl font-bold">
-                ◈
-              </div>
-              <h1 className="font-display text-3xl font-extrabold tracking-tight gradient-text">
-                TRENDROP
-              </h1>
+        {/* Header Row */}
+        <div className="relative flex items-center justify-between mb-6">
+          {/* Logo */}
+          <div className="flex items-center gap-2.5 animate-drop-fall">
+            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/30 text-white text-lg font-bold">
+              ◈
             </div>
-            <p className="mt-1 text-xs text-muted-foreground">Know before they know 🇮🇳</p>
+            <h1 className="font-display text-2xl font-extrabold tracking-tight gradient-text">
+              TRENDROP
+            </h1>
           </div>
 
           <div className="flex items-center gap-2">
+            {/* Notification bell */}
             <button
               onClick={() => navigate({ to: "/profile" })}
-              className="relative rounded-full bg-muted p-2.5 text-foreground transition-colors hover:bg-muted/70"
+              className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10"
               aria-label="Notifications"
             >
-              <Bell className="h-5 w-5" />
+              <Bell className="h-4 w-4" />
               {emergingCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white">
                   {emergingCount}
                 </span>
               )}
             </button>
+
+            {/* User avatar */}
+            <button
+              onClick={() => navigate({ to: "/profile" })}
+              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all"
+              aria-label="Profile"
+            >
+              <Avatar className="h-full w-full">
+                <AvatarImage src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" />
+                <AvatarFallback>U</AvatarFallback>
+              </Avatar>
+            </button>
           </div>
         </div>
 
-        {/* Live ticker */}
-        {totalActive > 0 && (
-          <div className="mt-4 overflow-hidden rounded-full border border-primary/20 bg-primary/5 px-4 py-2">
-            <p className="text-center text-xs font-semibold text-primary">
-              🔥 {totalActive} active trends detected right now •{" "}
-              {emergingCount > 0 && (
-                <span className="text-[#ff006e]">{emergingCount} emerging early ⚡</span>
-              )}
-            </p>
+        {/* Hero copy and Stats */}
+        <div className="space-y-4 relative z-10 text-center">
+          <div>
+            <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary animate-pulse">⚡ Live Trend Engine</p>
+            <h2 className="text-xl font-extrabold mt-1 tracking-tight text-foreground">India's Trend Intelligence</h2>
+            <p className="text-xs text-muted-foreground mt-1 max-w-[280px] mx-auto">Early trend detection signals to capitalize before they peak.</p>
           </div>
-        )}
+
+          <div className="grid grid-cols-2 gap-3 mt-4">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-md p-3 text-center">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Trend Count</span>
+              <p className="text-xl font-extrabold text-primary mt-0.5">{totalActive} Active</p>
+              <p className="text-[9px] text-muted-foreground/60">Real-time signals</p>
+            </div>
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-md p-3 text-center">
+              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Avg Lead Time</span>
+              <p className="text-xl font-extrabold text-secondary mt-0.5">{avgLeadTime} hrs</p>
+              <p className="text-[9px] text-muted-foreground/60">Early window</p>
+            </div>
+          </div>
+        </div>
       </div>
 
-      {/* ── Feed Tabs ─────────────────────────────────────────────────────────── */}
+      {/* ── Feed Tabs & Filters ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
           <TabButton
