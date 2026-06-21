@@ -1,7 +1,8 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Flame, PenTool, Lightbulb, Building2, User } from "lucide-react";
+import { Flame, Sparkles, Lightbulb, Building2, User } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
+import { motion } from "framer-motion";
 
 export function BottomTabBar() {
   const routerState = useRouterState();
@@ -17,15 +18,15 @@ export function BottomTabBar() {
 
   const tabs = [
     { to: "/", label: "Trends", Icon: Flame },
-    { to: "/studio", label: "Studio", Icon: PenTool },
+    { to: "/generate", label: "Generate", Icon: Sparkles },
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
     { to: "/marketplace", label: "Marketplace", Icon: Building2 },
     { to: "/profile", label: "Profile", Icon: User },
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-background/95 backdrop-blur-md">
-      <ul className="grid grid-cols-5">
+    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-[#0a0a0f]/95 backdrop-blur-lg">
+      <ul className="grid grid-cols-5 relative">
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
             ? currentPath === "/"
@@ -38,20 +39,28 @@ export function BottomTabBar() {
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {/* Active indicator line at top */}
+                {/* Active indicator line at top using layoutId for smooth transition */}
                 {isActive && (
-                  <div className="absolute top-0 left-1/2 h-0.5 w-6 -translate-x-1/2 rounded-full bg-primary" />
+                  <motion.div
+                    layoutId="activeTabIndicator"
+                    className="absolute top-0 left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_rgba(230,57,70,0.5)]"
+                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                  />
                 )}
-                <div className="relative">
+                <motion.div
+                  animate={isActive ? { scale: 1.15 } : { scale: 1 }}
+                  whileHover={{ scale: 1.1 }}
+                  className="relative"
+                >
                   <Icon className="h-5 w-5" />
                   {/* Emerging count badge on Trends tab */}
                   {label === "Trends" && emergingCount > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-extrabold text-white">
+                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary-red text-[8px] font-extrabold text-white animate-pulse">
                       {emergingCount}
                     </span>
                   )}
-                </div>
-                <span className="text-[10px]">{label}</span>
+                </motion.div>
+                <span className="text-[9px] font-display mt-0.5">{label}</span>
               </Link>
             </li>
           );
@@ -61,4 +70,3 @@ export function BottomTabBar() {
     </nav>
   );
 }
-
