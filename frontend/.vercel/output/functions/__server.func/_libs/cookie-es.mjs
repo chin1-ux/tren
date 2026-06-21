@@ -1,3 +1,5 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 function splitSetCookieString(cookiesString) {
   if (Array.isArray(cookiesString)) return cookiesString.flatMap((c) => splitSetCookieString(c));
   if (typeof cookiesString !== "string") return [];
@@ -8,14 +10,14 @@ function splitSetCookieString(cookiesString) {
   let lastComma;
   let nextStart;
   let cookiesSeparatorFound;
-  const skipWhitespace = () => {
+  const skipWhitespace = /* @__PURE__ */ __name(() => {
     while (pos < cookiesString.length && /\s/.test(cookiesString.charAt(pos))) pos += 1;
     return pos < cookiesString.length;
-  };
-  const notSpecialChar = () => {
+  }, "skipWhitespace");
+  const notSpecialChar = /* @__PURE__ */ __name(() => {
     ch = cookiesString.charAt(pos);
     return ch !== "=" && ch !== ";" && ch !== ",";
-  };
+  }, "notSpecialChar");
   while (pos < cookiesString.length) {
     start = pos;
     cookiesSeparatorFound = false;
@@ -39,6 +41,7 @@ function splitSetCookieString(cookiesString) {
   }
   return cookiesStrings;
 }
+__name(splitSetCookieString, "splitSetCookieString");
 export {
   splitSetCookieString as s
 };

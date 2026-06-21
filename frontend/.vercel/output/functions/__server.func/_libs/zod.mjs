@@ -1,13 +1,17 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 var util;
 (function(util2) {
   util2.assertEqual = (_) => {
   };
   function assertIs(_arg) {
   }
+  __name(assertIs, "assertIs");
   util2.assertIs = assertIs;
   function assertNever(_x) {
     throw new Error();
   }
+  __name(assertNever, "assertNever");
   util2.assertNever = assertNever;
   util2.arrayToEnum = (items) => {
     const obj = {};
@@ -49,6 +53,7 @@ var util;
   function joinValues(array, separator = " | ") {
     return array.map((val) => typeof val === "string" ? `'${val}'` : val).join(separator);
   }
+  __name(joinValues, "joinValues");
   util2.joinValues = joinValues;
   util2.jsonStringifyReplacer = (_, value) => {
     if (typeof value === "bigint") {
@@ -89,7 +94,7 @@ const ZodParsedType = util.arrayToEnum([
   "map",
   "set"
 ]);
-const getParsedType = (data) => {
+const getParsedType = /* @__PURE__ */ __name((data) => {
   const t = typeof data;
   switch (t) {
     case "undefined":
@@ -129,7 +134,7 @@ const getParsedType = (data) => {
     default:
       return ZodParsedType.unknown;
   }
-};
+}, "getParsedType");
 const ZodIssueCode = util.arrayToEnum([
   "invalid_type",
   "invalid_literal",
@@ -148,7 +153,7 @@ const ZodIssueCode = util.arrayToEnum([
   "not_multiple_of",
   "not_finite"
 ]);
-class ZodError extends Error {
+const _ZodError = class _ZodError extends Error {
   get errors() {
     return this.issues;
   }
@@ -175,7 +180,7 @@ class ZodError extends Error {
       return issue.message;
     };
     const fieldErrors = { _errors: [] };
-    const processError = (error) => {
+    const processError = /* @__PURE__ */ __name((error) => {
       for (const issue of error.issues) {
         if (issue.code === "invalid_union") {
           issue.unionErrors.map(processError);
@@ -202,12 +207,12 @@ class ZodError extends Error {
           }
         }
       }
-    };
+    }, "processError");
     processError(this);
     return fieldErrors;
   }
   static assert(value) {
-    if (!(value instanceof ZodError)) {
+    if (!(value instanceof _ZodError)) {
       throw new Error(`Not a ZodError: ${value}`);
     }
   }
@@ -237,12 +242,14 @@ class ZodError extends Error {
   get formErrors() {
     return this.flatten();
   }
-}
+};
+__name(_ZodError, "ZodError");
+let ZodError = _ZodError;
 ZodError.create = (issues) => {
   const error = new ZodError(issues);
   return error;
 };
-const errorMap = (issue, _ctx) => {
+const errorMap = /* @__PURE__ */ __name((issue, _ctx) => {
   let message;
   switch (issue.code) {
     case ZodIssueCode.invalid_type:
@@ -341,12 +348,13 @@ const errorMap = (issue, _ctx) => {
       util.assertNever(issue);
   }
   return { message };
-};
+}, "errorMap");
 let overrideErrorMap = errorMap;
 function getErrorMap() {
   return overrideErrorMap;
 }
-const makeIssue = (params) => {
+__name(getErrorMap, "getErrorMap");
+const makeIssue = /* @__PURE__ */ __name((params) => {
   const { data, path, errorMaps, issueData } = params;
   const fullPath = [...path, ...issueData.path || []];
   const fullIssue = {
@@ -370,7 +378,7 @@ const makeIssue = (params) => {
     path: fullPath,
     message: errorMessage
   };
-};
+}, "makeIssue");
 function addIssueToContext(ctx, issueData) {
   const overrideMap = getErrorMap();
   const issue = makeIssue({
@@ -390,7 +398,8 @@ function addIssueToContext(ctx, issueData) {
   });
   ctx.common.issues.push(issue);
 }
-class ParseStatus {
+__name(addIssueToContext, "addIssueToContext");
+const _ParseStatus = class _ParseStatus {
   constructor() {
     this.value = "valid";
   }
@@ -423,7 +432,7 @@ class ParseStatus {
         value
       });
     }
-    return ParseStatus.mergeObjectSync(status, syncPairs);
+    return _ParseStatus.mergeObjectSync(status, syncPairs);
   }
   static mergeObjectSync(status, pairs) {
     const finalObject = {};
@@ -443,22 +452,24 @@ class ParseStatus {
     }
     return { status: status.value, value: finalObject };
   }
-}
+};
+__name(_ParseStatus, "ParseStatus");
+let ParseStatus = _ParseStatus;
 const INVALID = Object.freeze({
   status: "aborted"
 });
-const DIRTY = (value) => ({ status: "dirty", value });
-const OK = (value) => ({ status: "valid", value });
-const isAborted = (x) => x.status === "aborted";
-const isDirty = (x) => x.status === "dirty";
-const isValid = (x) => x.status === "valid";
-const isAsync = (x) => typeof Promise !== "undefined" && x instanceof Promise;
+const DIRTY = /* @__PURE__ */ __name((value) => ({ status: "dirty", value }), "DIRTY");
+const OK = /* @__PURE__ */ __name((value) => ({ status: "valid", value }), "OK");
+const isAborted = /* @__PURE__ */ __name((x) => x.status === "aborted", "isAborted");
+const isDirty = /* @__PURE__ */ __name((x) => x.status === "dirty", "isDirty");
+const isValid = /* @__PURE__ */ __name((x) => x.status === "valid", "isValid");
+const isAsync = /* @__PURE__ */ __name((x) => typeof Promise !== "undefined" && x instanceof Promise, "isAsync");
 var errorUtil;
 (function(errorUtil2) {
   errorUtil2.errToObj = (message) => typeof message === "string" ? { message } : message || {};
   errorUtil2.toString = (message) => typeof message === "string" ? message : message?.message;
 })(errorUtil || (errorUtil = {}));
-class ParseInputLazyPath {
+const _ParseInputLazyPath = class _ParseInputLazyPath {
   constructor(parent, value, path, key) {
     this._cachedPath = [];
     this.parent = parent;
@@ -476,8 +487,10 @@ class ParseInputLazyPath {
     }
     return this._cachedPath;
   }
-}
-const handleResult = (ctx, result) => {
+};
+__name(_ParseInputLazyPath, "ParseInputLazyPath");
+let ParseInputLazyPath = _ParseInputLazyPath;
+const handleResult = /* @__PURE__ */ __name((ctx, result) => {
   if (isValid(result)) {
     return { success: true, data: result.value };
   } else {
@@ -495,7 +508,7 @@ const handleResult = (ctx, result) => {
       }
     };
   }
-};
+}, "handleResult");
 function processCreateParams(params) {
   if (!params)
     return {};
@@ -505,7 +518,7 @@ function processCreateParams(params) {
   }
   if (errorMap2)
     return { errorMap: errorMap2, description };
-  const customMap = (iss, ctx) => {
+  const customMap = /* @__PURE__ */ __name((iss, ctx) => {
     const { message } = params;
     if (iss.code === "invalid_enum_value") {
       return { message: message ?? ctx.defaultError };
@@ -516,10 +529,11 @@ function processCreateParams(params) {
     if (iss.code !== "invalid_type")
       return { message: ctx.defaultError };
     return { message: message ?? invalid_type_error ?? ctx.defaultError };
-  };
+  }, "customMap");
   return { errorMap: customMap, description };
 }
-class ZodType {
+__name(processCreateParams, "processCreateParams");
+const _ZodType = class _ZodType {
   get description() {
     return this._def.description;
   }
@@ -642,7 +656,7 @@ class ZodType {
     return handleResult(ctx, result);
   }
   refine(check, message) {
-    const getIssueProperties = (val) => {
+    const getIssueProperties = /* @__PURE__ */ __name((val) => {
       if (typeof message === "string" || typeof message === "undefined") {
         return { message };
       } else if (typeof message === "function") {
@@ -650,13 +664,13 @@ class ZodType {
       } else {
         return message;
       }
-    };
+    }, "getIssueProperties");
     return this._refinement((val, ctx) => {
       const result = check(val);
-      const setError = () => ctx.addIssue({
+      const setError = /* @__PURE__ */ __name(() => ctx.addIssue({
         code: ZodIssueCode.custom,
         ...getIssueProperties(val)
-      });
+      }), "setError");
       if (typeof Promise !== "undefined" && result instanceof Promise) {
         return result.then((data) => {
           if (!data) {
@@ -725,7 +739,7 @@ class ZodType {
     this["~standard"] = {
       version: 1,
       vendor: "zod",
-      validate: (data) => this["~validate"](data)
+      validate: /* @__PURE__ */ __name((data) => this["~validate"](data), "validate")
     };
   }
   optional() {
@@ -801,7 +815,9 @@ class ZodType {
   isNullable() {
     return this.safeParse(null).success;
   }
-}
+};
+__name(_ZodType, "ZodType");
+let ZodType = _ZodType;
 const cuidRegex = /^c[^\s-]{8,}$/i;
 const cuid2Regex = /^[0-9a-z]+$/;
 const ulidRegex = /^[0-9A-HJKMNP-TV-Z]{26}$/i;
@@ -830,9 +846,11 @@ function timeRegexSource(args) {
   const secondsQuantifier = args.precision ? "+" : "?";
   return `([01]\\d|2[0-3]):[0-5]\\d(:${secondsRegexSource})${secondsQuantifier}`;
 }
+__name(timeRegexSource, "timeRegexSource");
 function timeRegex(args) {
   return new RegExp(`^${timeRegexSource(args)}$`);
 }
+__name(timeRegex, "timeRegex");
 function datetimeRegex(args) {
   let regex = `${dateRegexSource}T${timeRegexSource(args)}`;
   const opts = [];
@@ -842,6 +860,7 @@ function datetimeRegex(args) {
   regex = `${regex}(${opts.join("|")})`;
   return new RegExp(`^${regex}$`);
 }
+__name(datetimeRegex, "datetimeRegex");
 function isValidIP(ip, version) {
   if ((version === "v4" || !version) && ipv4Regex.test(ip)) {
     return true;
@@ -851,6 +870,7 @@ function isValidIP(ip, version) {
   }
   return false;
 }
+__name(isValidIP, "isValidIP");
 function isValidJWT(jwt, alg) {
   if (!jwtRegex.test(jwt))
     return false;
@@ -873,6 +893,7 @@ function isValidJWT(jwt, alg) {
     return false;
   }
 }
+__name(isValidJWT, "isValidJWT");
 function isValidCidr(ip, version) {
   if ((version === "v4" || !version) && ipv4CidrRegex.test(ip)) {
     return true;
@@ -882,7 +903,8 @@ function isValidCidr(ip, version) {
   }
   return false;
 }
-class ZodString extends ZodType {
+__name(isValidCidr, "isValidCidr");
+const _ZodString = class _ZodString extends ZodType {
   _parse(input) {
     if (this._def.coerce) {
       input.data = String(input.data);
@@ -1192,7 +1214,7 @@ class ZodString extends ZodType {
     });
   }
   _addCheck(check) {
-    return new ZodString({
+    return new _ZodString({
       ...this._def,
       checks: [...this._def.checks, check]
     });
@@ -1334,19 +1356,19 @@ class ZodString extends ZodType {
     return this.min(1, errorUtil.errToObj(message));
   }
   trim() {
-    return new ZodString({
+    return new _ZodString({
       ...this._def,
       checks: [...this._def.checks, { kind: "trim" }]
     });
   }
   toLowerCase() {
-    return new ZodString({
+    return new _ZodString({
       ...this._def,
       checks: [...this._def.checks, { kind: "toLowerCase" }]
     });
   }
   toUpperCase() {
-    return new ZodString({
+    return new _ZodString({
       ...this._def,
       checks: [...this._def.checks, { kind: "toUpperCase" }]
     });
@@ -1419,7 +1441,9 @@ class ZodString extends ZodType {
     }
     return max;
   }
-}
+};
+__name(_ZodString, "ZodString");
+let ZodString = _ZodString;
 ZodString.create = (params) => {
   return new ZodString({
     checks: [],
@@ -1436,7 +1460,8 @@ function floatSafeRemainder(val, step) {
   const stepInt = Number.parseInt(step.toFixed(decCount).replace(".", ""));
   return valInt % stepInt / 10 ** decCount;
 }
-class ZodNumber extends ZodType {
+__name(floatSafeRemainder, "floatSafeRemainder");
+const _ZodNumber = class _ZodNumber extends ZodType {
   constructor() {
     super(...arguments);
     this.min = this.gte;
@@ -1537,7 +1562,7 @@ class ZodNumber extends ZodType {
     return this.setLimit("max", value, false, errorUtil.toString(message));
   }
   setLimit(kind, value, inclusive, message) {
-    return new ZodNumber({
+    return new _ZodNumber({
       ...this._def,
       checks: [
         ...this._def.checks,
@@ -1551,7 +1576,7 @@ class ZodNumber extends ZodType {
     });
   }
   _addCheck(check) {
-    return new ZodNumber({
+    return new _ZodNumber({
       ...this._def,
       checks: [...this._def.checks, check]
     });
@@ -1659,7 +1684,9 @@ class ZodNumber extends ZodType {
     }
     return Number.isFinite(min) && Number.isFinite(max);
   }
-}
+};
+__name(_ZodNumber, "ZodNumber");
+let ZodNumber = _ZodNumber;
 ZodNumber.create = (params) => {
   return new ZodNumber({
     checks: [],
@@ -1668,7 +1695,7 @@ ZodNumber.create = (params) => {
     ...processCreateParams(params)
   });
 };
-class ZodBigInt extends ZodType {
+const _ZodBigInt = class _ZodBigInt extends ZodType {
   constructor() {
     super(...arguments);
     this.min = this.gte;
@@ -1753,7 +1780,7 @@ class ZodBigInt extends ZodType {
     return this.setLimit("max", value, false, errorUtil.toString(message));
   }
   setLimit(kind, value, inclusive, message) {
-    return new ZodBigInt({
+    return new _ZodBigInt({
       ...this._def,
       checks: [
         ...this._def.checks,
@@ -1767,7 +1794,7 @@ class ZodBigInt extends ZodType {
     });
   }
   _addCheck(check) {
-    return new ZodBigInt({
+    return new _ZodBigInt({
       ...this._def,
       checks: [...this._def.checks, check]
     });
@@ -1831,7 +1858,9 @@ class ZodBigInt extends ZodType {
     }
     return max;
   }
-}
+};
+__name(_ZodBigInt, "ZodBigInt");
+let ZodBigInt = _ZodBigInt;
 ZodBigInt.create = (params) => {
   return new ZodBigInt({
     checks: [],
@@ -1840,7 +1869,7 @@ ZodBigInt.create = (params) => {
     ...processCreateParams(params)
   });
 };
-class ZodBoolean extends ZodType {
+const _ZodBoolean = class _ZodBoolean extends ZodType {
   _parse(input) {
     if (this._def.coerce) {
       input.data = Boolean(input.data);
@@ -1857,7 +1886,9 @@ class ZodBoolean extends ZodType {
     }
     return OK(input.data);
   }
-}
+};
+__name(_ZodBoolean, "ZodBoolean");
+let ZodBoolean = _ZodBoolean;
 ZodBoolean.create = (params) => {
   return new ZodBoolean({
     typeName: ZodFirstPartyTypeKind.ZodBoolean,
@@ -1865,7 +1896,7 @@ ZodBoolean.create = (params) => {
     ...processCreateParams(params)
   });
 };
-class ZodDate extends ZodType {
+const _ZodDate = class _ZodDate extends ZodType {
   _parse(input) {
     if (this._def.coerce) {
       input.data = new Date(input.data);
@@ -1926,7 +1957,7 @@ class ZodDate extends ZodType {
     };
   }
   _addCheck(check) {
-    return new ZodDate({
+    return new _ZodDate({
       ...this._def,
       checks: [...this._def.checks, check]
     });
@@ -1965,7 +1996,9 @@ class ZodDate extends ZodType {
     }
     return max != null ? new Date(max) : null;
   }
-}
+};
+__name(_ZodDate, "ZodDate");
+let ZodDate = _ZodDate;
 ZodDate.create = (params) => {
   return new ZodDate({
     checks: [],
@@ -1974,7 +2007,7 @@ ZodDate.create = (params) => {
     ...processCreateParams(params)
   });
 };
-class ZodSymbol extends ZodType {
+const _ZodSymbol = class _ZodSymbol extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.symbol) {
@@ -1988,14 +2021,16 @@ class ZodSymbol extends ZodType {
     }
     return OK(input.data);
   }
-}
+};
+__name(_ZodSymbol, "ZodSymbol");
+let ZodSymbol = _ZodSymbol;
 ZodSymbol.create = (params) => {
   return new ZodSymbol({
     typeName: ZodFirstPartyTypeKind.ZodSymbol,
     ...processCreateParams(params)
   });
 };
-class ZodUndefined extends ZodType {
+const _ZodUndefined = class _ZodUndefined extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.undefined) {
@@ -2009,14 +2044,16 @@ class ZodUndefined extends ZodType {
     }
     return OK(input.data);
   }
-}
+};
+__name(_ZodUndefined, "ZodUndefined");
+let ZodUndefined = _ZodUndefined;
 ZodUndefined.create = (params) => {
   return new ZodUndefined({
     typeName: ZodFirstPartyTypeKind.ZodUndefined,
     ...processCreateParams(params)
   });
 };
-class ZodNull extends ZodType {
+const _ZodNull = class _ZodNull extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.null) {
@@ -2030,14 +2067,16 @@ class ZodNull extends ZodType {
     }
     return OK(input.data);
   }
-}
+};
+__name(_ZodNull, "ZodNull");
+let ZodNull = _ZodNull;
 ZodNull.create = (params) => {
   return new ZodNull({
     typeName: ZodFirstPartyTypeKind.ZodNull,
     ...processCreateParams(params)
   });
 };
-class ZodAny extends ZodType {
+const _ZodAny = class _ZodAny extends ZodType {
   constructor() {
     super(...arguments);
     this._any = true;
@@ -2045,14 +2084,16 @@ class ZodAny extends ZodType {
   _parse(input) {
     return OK(input.data);
   }
-}
+};
+__name(_ZodAny, "ZodAny");
+let ZodAny = _ZodAny;
 ZodAny.create = (params) => {
   return new ZodAny({
     typeName: ZodFirstPartyTypeKind.ZodAny,
     ...processCreateParams(params)
   });
 };
-class ZodUnknown extends ZodType {
+const _ZodUnknown = class _ZodUnknown extends ZodType {
   constructor() {
     super(...arguments);
     this._unknown = true;
@@ -2060,14 +2101,16 @@ class ZodUnknown extends ZodType {
   _parse(input) {
     return OK(input.data);
   }
-}
+};
+__name(_ZodUnknown, "ZodUnknown");
+let ZodUnknown = _ZodUnknown;
 ZodUnknown.create = (params) => {
   return new ZodUnknown({
     typeName: ZodFirstPartyTypeKind.ZodUnknown,
     ...processCreateParams(params)
   });
 };
-class ZodNever extends ZodType {
+const _ZodNever = class _ZodNever extends ZodType {
   _parse(input) {
     const ctx = this._getOrReturnCtx(input);
     addIssueToContext(ctx, {
@@ -2077,14 +2120,16 @@ class ZodNever extends ZodType {
     });
     return INVALID;
   }
-}
+};
+__name(_ZodNever, "ZodNever");
+let ZodNever = _ZodNever;
 ZodNever.create = (params) => {
   return new ZodNever({
     typeName: ZodFirstPartyTypeKind.ZodNever,
     ...processCreateParams(params)
   });
 };
-class ZodVoid extends ZodType {
+const _ZodVoid = class _ZodVoid extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.undefined) {
@@ -2098,14 +2143,16 @@ class ZodVoid extends ZodType {
     }
     return OK(input.data);
   }
-}
+};
+__name(_ZodVoid, "ZodVoid");
+let ZodVoid = _ZodVoid;
 ZodVoid.create = (params) => {
   return new ZodVoid({
     typeName: ZodFirstPartyTypeKind.ZodVoid,
     ...processCreateParams(params)
   });
 };
-class ZodArray extends ZodType {
+const _ZodArray = class _ZodArray extends ZodType {
   _parse(input) {
     const { ctx, status } = this._processInputParams(input);
     const def = this._def;
@@ -2175,19 +2222,19 @@ class ZodArray extends ZodType {
     return this._def.type;
   }
   min(minLength, message) {
-    return new ZodArray({
+    return new _ZodArray({
       ...this._def,
       minLength: { value: minLength, message: errorUtil.toString(message) }
     });
   }
   max(maxLength, message) {
-    return new ZodArray({
+    return new _ZodArray({
       ...this._def,
       maxLength: { value: maxLength, message: errorUtil.toString(message) }
     });
   }
   length(len, message) {
-    return new ZodArray({
+    return new _ZodArray({
       ...this._def,
       exactLength: { value: len, message: errorUtil.toString(message) }
     });
@@ -2195,7 +2242,9 @@ class ZodArray extends ZodType {
   nonempty(message) {
     return this.min(1, message);
   }
-}
+};
+__name(_ZodArray, "ZodArray");
+let ZodArray = _ZodArray;
 ZodArray.create = (schema, params) => {
   return new ZodArray({
     type: schema,
@@ -2215,7 +2264,7 @@ function deepPartialify(schema) {
     }
     return new ZodObject({
       ...schema._def,
-      shape: () => newShape
+      shape: /* @__PURE__ */ __name(() => newShape, "shape")
     });
   } else if (schema instanceof ZodArray) {
     return new ZodArray({
@@ -2232,7 +2281,8 @@ function deepPartialify(schema) {
     return schema;
   }
 }
-class ZodObject extends ZodType {
+__name(deepPartialify, "deepPartialify");
+const _ZodObject = class _ZodObject extends ZodType {
   constructor() {
     super(...arguments);
     this._cached = null;
@@ -2338,11 +2388,11 @@ class ZodObject extends ZodType {
   }
   strict(message) {
     errorUtil.errToObj;
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
       unknownKeys: "strict",
       ...message !== void 0 ? {
-        errorMap: (issue, ctx) => {
+        errorMap: /* @__PURE__ */ __name((issue, ctx) => {
           const defaultError = this._def.errorMap?.(issue, ctx).message ?? ctx.defaultError;
           if (issue.code === "unrecognized_keys")
             return {
@@ -2351,18 +2401,18 @@ class ZodObject extends ZodType {
           return {
             message: defaultError
           };
-        }
+        }, "errorMap")
       } : {}
     });
   }
   strip() {
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
       unknownKeys: "strip"
     });
   }
   passthrough() {
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
       unknownKeys: "passthrough"
     });
@@ -2385,12 +2435,12 @@ class ZodObject extends ZodType {
   //     }) as any;
   //   };
   extend(augmentation) {
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
-      shape: () => ({
+      shape: /* @__PURE__ */ __name(() => ({
         ...this._def.shape(),
         ...augmentation
-      })
+      }), "shape")
     });
   }
   /**
@@ -2399,13 +2449,13 @@ class ZodObject extends ZodType {
    * upgrade if you are experiencing issues.
    */
   merge(merging) {
-    const merged = new ZodObject({
+    const merged = new _ZodObject({
       unknownKeys: merging._def.unknownKeys,
       catchall: merging._def.catchall,
-      shape: () => ({
+      shape: /* @__PURE__ */ __name(() => ({
         ...this._def.shape(),
         ...merging._def.shape()
-      }),
+      }), "shape"),
       typeName: ZodFirstPartyTypeKind.ZodObject
     });
     return merged;
@@ -2470,7 +2520,7 @@ class ZodObject extends ZodType {
   //   return merged;
   // }
   catchall(index) {
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
       catchall: index
     });
@@ -2482,9 +2532,9 @@ class ZodObject extends ZodType {
         shape[key] = this.shape[key];
       }
     }
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
-      shape: () => shape
+      shape: /* @__PURE__ */ __name(() => shape, "shape")
     });
   }
   omit(mask) {
@@ -2494,9 +2544,9 @@ class ZodObject extends ZodType {
         shape[key] = this.shape[key];
       }
     }
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
-      shape: () => shape
+      shape: /* @__PURE__ */ __name(() => shape, "shape")
     });
   }
   /**
@@ -2515,9 +2565,9 @@ class ZodObject extends ZodType {
         newShape[key] = fieldSchema.optional();
       }
     }
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
-      shape: () => newShape
+      shape: /* @__PURE__ */ __name(() => newShape, "shape")
     });
   }
   required(mask) {
@@ -2534,18 +2584,20 @@ class ZodObject extends ZodType {
         newShape[key] = newField;
       }
     }
-    return new ZodObject({
+    return new _ZodObject({
       ...this._def,
-      shape: () => newShape
+      shape: /* @__PURE__ */ __name(() => newShape, "shape")
     });
   }
   keyof() {
     return createZodEnum(util.objectKeys(this.shape));
   }
-}
+};
+__name(_ZodObject, "ZodObject");
+let ZodObject = _ZodObject;
 ZodObject.create = (shape, params) => {
   return new ZodObject({
-    shape: () => shape,
+    shape: /* @__PURE__ */ __name(() => shape, "shape"),
     unknownKeys: "strip",
     catchall: ZodNever.create(),
     typeName: ZodFirstPartyTypeKind.ZodObject,
@@ -2554,7 +2606,7 @@ ZodObject.create = (shape, params) => {
 };
 ZodObject.strictCreate = (shape, params) => {
   return new ZodObject({
-    shape: () => shape,
+    shape: /* @__PURE__ */ __name(() => shape, "shape"),
     unknownKeys: "strict",
     catchall: ZodNever.create(),
     typeName: ZodFirstPartyTypeKind.ZodObject,
@@ -2570,7 +2622,7 @@ ZodObject.lazycreate = (shape, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodUnion extends ZodType {
+const _ZodUnion = class _ZodUnion extends ZodType {
   _parse(input) {
     const { ctx } = this._processInputParams(input);
     const options = this._def.options;
@@ -2593,6 +2645,7 @@ class ZodUnion extends ZodType {
       });
       return INVALID;
     }
+    __name(handleResults, "handleResults");
     if (ctx.common.async) {
       return Promise.all(options.map(async (option) => {
         const childCtx = {
@@ -2653,7 +2706,9 @@ class ZodUnion extends ZodType {
   get options() {
     return this._def.options;
   }
-}
+};
+__name(_ZodUnion, "ZodUnion");
+let ZodUnion = _ZodUnion;
 ZodUnion.create = (types, params) => {
   return new ZodUnion({
     options: types,
@@ -2699,10 +2754,11 @@ function mergeValues(a, b) {
     return { valid: false };
   }
 }
-class ZodIntersection extends ZodType {
+__name(mergeValues, "mergeValues");
+const _ZodIntersection = class _ZodIntersection extends ZodType {
   _parse(input) {
     const { status, ctx } = this._processInputParams(input);
-    const handleParsed = (parsedLeft, parsedRight) => {
+    const handleParsed = /* @__PURE__ */ __name((parsedLeft, parsedRight) => {
       if (isAborted(parsedLeft) || isAborted(parsedRight)) {
         return INVALID;
       }
@@ -2717,7 +2773,7 @@ class ZodIntersection extends ZodType {
         status.dirty();
       }
       return { status: status.value, value: merged.data };
-    };
+    }, "handleParsed");
     if (ctx.common.async) {
       return Promise.all([
         this._def.left._parseAsync({
@@ -2743,7 +2799,9 @@ class ZodIntersection extends ZodType {
       }));
     }
   }
-}
+};
+__name(_ZodIntersection, "ZodIntersection");
+let ZodIntersection = _ZodIntersection;
 ZodIntersection.create = (left, right, params) => {
   return new ZodIntersection({
     left,
@@ -2752,7 +2810,7 @@ ZodIntersection.create = (left, right, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodTuple extends ZodType {
+const _ZodTuple = class _ZodTuple extends ZodType {
   _parse(input) {
     const { status, ctx } = this._processInputParams(input);
     if (ctx.parsedType !== ZodParsedType.array) {
@@ -2802,12 +2860,14 @@ class ZodTuple extends ZodType {
     return this._def.items;
   }
   rest(rest) {
-    return new ZodTuple({
+    return new _ZodTuple({
       ...this._def,
       rest
     });
   }
-}
+};
+__name(_ZodTuple, "ZodTuple");
+let ZodTuple = _ZodTuple;
 ZodTuple.create = (schemas, params) => {
   if (!Array.isArray(schemas)) {
     throw new Error("You must pass an array of schemas to z.tuple([ ... ])");
@@ -2819,7 +2879,7 @@ ZodTuple.create = (schemas, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodMap extends ZodType {
+const _ZodMap = class _ZodMap extends ZodType {
   get keySchema() {
     return this._def.keyType;
   }
@@ -2876,7 +2936,9 @@ class ZodMap extends ZodType {
       return { status: status.value, value: finalMap };
     }
   }
-}
+};
+__name(_ZodMap, "ZodMap");
+let ZodMap = _ZodMap;
 ZodMap.create = (keyType, valueType, params) => {
   return new ZodMap({
     valueType,
@@ -2885,7 +2947,7 @@ ZodMap.create = (keyType, valueType, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodSet extends ZodType {
+const _ZodSet = class _ZodSet extends ZodType {
   _parse(input) {
     const { status, ctx } = this._processInputParams(input);
     if (ctx.parsedType !== ZodParsedType.set) {
@@ -2935,6 +2997,7 @@ class ZodSet extends ZodType {
       }
       return { status: status.value, value: parsedSet };
     }
+    __name(finalizeSet, "finalizeSet");
     const elements = [...ctx.data.values()].map((item, i) => valueType._parse(new ParseInputLazyPath(ctx, item, ctx.path, i)));
     if (ctx.common.async) {
       return Promise.all(elements).then((elements2) => finalizeSet(elements2));
@@ -2943,13 +3006,13 @@ class ZodSet extends ZodType {
     }
   }
   min(minSize, message) {
-    return new ZodSet({
+    return new _ZodSet({
       ...this._def,
       minSize: { value: minSize, message: errorUtil.toString(message) }
     });
   }
   max(maxSize, message) {
-    return new ZodSet({
+    return new _ZodSet({
       ...this._def,
       maxSize: { value: maxSize, message: errorUtil.toString(message) }
     });
@@ -2960,7 +3023,9 @@ class ZodSet extends ZodType {
   nonempty(message) {
     return this.min(1, message);
   }
-}
+};
+__name(_ZodSet, "ZodSet");
+let ZodSet = _ZodSet;
 ZodSet.create = (valueType, params) => {
   return new ZodSet({
     valueType,
@@ -2970,7 +3035,7 @@ ZodSet.create = (valueType, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodLazy extends ZodType {
+const _ZodLazy = class _ZodLazy extends ZodType {
   get schema() {
     return this._def.getter();
   }
@@ -2979,7 +3044,9 @@ class ZodLazy extends ZodType {
     const lazySchema = this._def.getter();
     return lazySchema._parse({ data: ctx.data, path: ctx.path, parent: ctx });
   }
-}
+};
+__name(_ZodLazy, "ZodLazy");
+let ZodLazy = _ZodLazy;
 ZodLazy.create = (getter, params) => {
   return new ZodLazy({
     getter,
@@ -2987,7 +3054,7 @@ ZodLazy.create = (getter, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodLiteral extends ZodType {
+const _ZodLiteral = class _ZodLiteral extends ZodType {
   _parse(input) {
     if (input.data !== this._def.value) {
       const ctx = this._getOrReturnCtx(input);
@@ -3003,7 +3070,9 @@ class ZodLiteral extends ZodType {
   get value() {
     return this._def.value;
   }
-}
+};
+__name(_ZodLiteral, "ZodLiteral");
+let ZodLiteral = _ZodLiteral;
 ZodLiteral.create = (value, params) => {
   return new ZodLiteral({
     value,
@@ -3018,7 +3087,8 @@ function createZodEnum(values, params) {
     ...processCreateParams(params)
   });
 }
-class ZodEnum extends ZodType {
+__name(createZodEnum, "createZodEnum");
+const _ZodEnum = class _ZodEnum extends ZodType {
   _parse(input) {
     if (typeof input.data !== "string") {
       const ctx = this._getOrReturnCtx(input);
@@ -3070,20 +3140,22 @@ class ZodEnum extends ZodType {
     return enumValues;
   }
   extract(values, newDef = this._def) {
-    return ZodEnum.create(values, {
+    return _ZodEnum.create(values, {
       ...this._def,
       ...newDef
     });
   }
   exclude(values, newDef = this._def) {
-    return ZodEnum.create(this.options.filter((opt) => !values.includes(opt)), {
+    return _ZodEnum.create(this.options.filter((opt) => !values.includes(opt)), {
       ...this._def,
       ...newDef
     });
   }
-}
+};
+__name(_ZodEnum, "ZodEnum");
+let ZodEnum = _ZodEnum;
 ZodEnum.create = createZodEnum;
-class ZodNativeEnum extends ZodType {
+const _ZodNativeEnum = class _ZodNativeEnum extends ZodType {
   _parse(input) {
     const nativeEnumValues = util.getValidEnumValues(this._def.values);
     const ctx = this._getOrReturnCtx(input);
@@ -3113,7 +3185,9 @@ class ZodNativeEnum extends ZodType {
   get enum() {
     return this._def.values;
   }
-}
+};
+__name(_ZodNativeEnum, "ZodNativeEnum");
+let ZodNativeEnum = _ZodNativeEnum;
 ZodNativeEnum.create = (values, params) => {
   return new ZodNativeEnum({
     values,
@@ -3121,7 +3195,7 @@ ZodNativeEnum.create = (values, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodPromise extends ZodType {
+const _ZodPromise = class _ZodPromise extends ZodType {
   unwrap() {
     return this._def.type;
   }
@@ -3143,7 +3217,9 @@ class ZodPromise extends ZodType {
       });
     }));
   }
-}
+};
+__name(_ZodPromise, "ZodPromise");
+let ZodPromise = _ZodPromise;
 ZodPromise.create = (schema, params) => {
   return new ZodPromise({
     type: schema,
@@ -3151,7 +3227,7 @@ ZodPromise.create = (schema, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodEffects extends ZodType {
+const _ZodEffects = class _ZodEffects extends ZodType {
   innerType() {
     return this._def.schema;
   }
@@ -3162,14 +3238,14 @@ class ZodEffects extends ZodType {
     const { status, ctx } = this._processInputParams(input);
     const effect = this._def.effect || null;
     const checkCtx = {
-      addIssue: (arg) => {
+      addIssue: /* @__PURE__ */ __name((arg) => {
         addIssueToContext(ctx, arg);
         if (arg.fatal) {
           status.abort();
         } else {
           status.dirty();
         }
-      },
+      }, "addIssue"),
       get path() {
         return ctx.path;
       }
@@ -3212,7 +3288,7 @@ class ZodEffects extends ZodType {
       }
     }
     if (effect.type === "refinement") {
-      const executeRefinement = (acc) => {
+      const executeRefinement = /* @__PURE__ */ __name((acc) => {
         const result = effect.refinement(acc, checkCtx);
         if (ctx.common.async) {
           return Promise.resolve(result);
@@ -3221,7 +3297,7 @@ class ZodEffects extends ZodType {
           throw new Error("Async refinement encountered during synchronous parse operation. Use .parseAsync instead.");
         }
         return acc;
-      };
+      }, "executeRefinement");
       if (ctx.common.async === false) {
         const inner = this._def.schema._parseSync({
           data: ctx.data,
@@ -3273,7 +3349,9 @@ class ZodEffects extends ZodType {
     }
     util.assertNever(effect);
   }
-}
+};
+__name(_ZodEffects, "ZodEffects");
+let ZodEffects = _ZodEffects;
 ZodEffects.create = (schema, effect, params) => {
   return new ZodEffects({
     schema,
@@ -3290,7 +3368,7 @@ ZodEffects.createWithPreprocess = (preprocess, schema, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodOptional extends ZodType {
+const _ZodOptional = class _ZodOptional extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType === ZodParsedType.undefined) {
@@ -3301,7 +3379,9 @@ class ZodOptional extends ZodType {
   unwrap() {
     return this._def.innerType;
   }
-}
+};
+__name(_ZodOptional, "ZodOptional");
+let ZodOptional = _ZodOptional;
 ZodOptional.create = (type, params) => {
   return new ZodOptional({
     innerType: type,
@@ -3309,7 +3389,7 @@ ZodOptional.create = (type, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodNullable extends ZodType {
+const _ZodNullable = class _ZodNullable extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType === ZodParsedType.null) {
@@ -3320,7 +3400,9 @@ class ZodNullable extends ZodType {
   unwrap() {
     return this._def.innerType;
   }
-}
+};
+__name(_ZodNullable, "ZodNullable");
+let ZodNullable = _ZodNullable;
 ZodNullable.create = (type, params) => {
   return new ZodNullable({
     innerType: type,
@@ -3328,7 +3410,7 @@ ZodNullable.create = (type, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodDefault extends ZodType {
+const _ZodDefault = class _ZodDefault extends ZodType {
   _parse(input) {
     const { ctx } = this._processInputParams(input);
     let data = ctx.data;
@@ -3344,7 +3426,9 @@ class ZodDefault extends ZodType {
   removeDefault() {
     return this._def.innerType;
   }
-}
+};
+__name(_ZodDefault, "ZodDefault");
+let ZodDefault = _ZodDefault;
 ZodDefault.create = (type, params) => {
   return new ZodDefault({
     innerType: type,
@@ -3353,7 +3437,7 @@ ZodDefault.create = (type, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodCatch extends ZodType {
+const _ZodCatch = class _ZodCatch extends ZodType {
   _parse(input) {
     const { ctx } = this._processInputParams(input);
     const newCtx = {
@@ -3397,7 +3481,9 @@ class ZodCatch extends ZodType {
   removeCatch() {
     return this._def.innerType;
   }
-}
+};
+__name(_ZodCatch, "ZodCatch");
+let ZodCatch = _ZodCatch;
 ZodCatch.create = (type, params) => {
   return new ZodCatch({
     innerType: type,
@@ -3406,7 +3492,7 @@ ZodCatch.create = (type, params) => {
     ...processCreateParams(params)
   });
 };
-class ZodNaN extends ZodType {
+const _ZodNaN = class _ZodNaN extends ZodType {
   _parse(input) {
     const parsedType = this._getType(input);
     if (parsedType !== ZodParsedType.nan) {
@@ -3420,14 +3506,16 @@ class ZodNaN extends ZodType {
     }
     return { status: "valid", value: input.data };
   }
-}
+};
+__name(_ZodNaN, "ZodNaN");
+let ZodNaN = _ZodNaN;
 ZodNaN.create = (params) => {
   return new ZodNaN({
     typeName: ZodFirstPartyTypeKind.ZodNaN,
     ...processCreateParams(params)
   });
 };
-class ZodBranded extends ZodType {
+const _ZodBranded = class _ZodBranded extends ZodType {
   _parse(input) {
     const { ctx } = this._processInputParams(input);
     const data = ctx.data;
@@ -3440,12 +3528,14 @@ class ZodBranded extends ZodType {
   unwrap() {
     return this._def.type;
   }
-}
-class ZodPipeline extends ZodType {
+};
+__name(_ZodBranded, "ZodBranded");
+let ZodBranded = _ZodBranded;
+const _ZodPipeline = class _ZodPipeline extends ZodType {
   _parse(input) {
     const { status, ctx } = this._processInputParams(input);
     if (ctx.common.async) {
-      const handleAsync = async () => {
+      const handleAsync = /* @__PURE__ */ __name(async () => {
         const inResult = await this._def.in._parseAsync({
           data: ctx.data,
           path: ctx.path,
@@ -3463,7 +3553,7 @@ class ZodPipeline extends ZodType {
             parent: ctx
           });
         }
-      };
+      }, "handleAsync");
       return handleAsync();
     } else {
       const inResult = this._def.in._parseSync({
@@ -3489,28 +3579,32 @@ class ZodPipeline extends ZodType {
     }
   }
   static create(a, b) {
-    return new ZodPipeline({
+    return new _ZodPipeline({
       in: a,
       out: b,
       typeName: ZodFirstPartyTypeKind.ZodPipeline
     });
   }
-}
-class ZodReadonly extends ZodType {
+};
+__name(_ZodPipeline, "ZodPipeline");
+let ZodPipeline = _ZodPipeline;
+const _ZodReadonly = class _ZodReadonly extends ZodType {
   _parse(input) {
     const result = this._def.innerType._parse(input);
-    const freeze = (data) => {
+    const freeze = /* @__PURE__ */ __name((data) => {
       if (isValid(data)) {
         data.value = Object.freeze(data.value);
       }
       return data;
-    };
+    }, "freeze");
     return isAsync(result) ? result.then((data) => freeze(data)) : freeze(result);
   }
   unwrap() {
     return this._def.innerType;
   }
-}
+};
+__name(_ZodReadonly, "ZodReadonly");
+let ZodReadonly = _ZodReadonly;
 ZodReadonly.create = (type, params) => {
   return new ZodReadonly({
     innerType: type,

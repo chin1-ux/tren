@@ -1,100 +1,123 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { Lightbulb, Calendar, Sparkles, Clock, Music, CheckCircle2, ChevronRight, RefreshCw, Send } from "lucide-react";
+import { 
+  Lightbulb, 
+  Calendar as CalendarIcon, 
+  Sparkles, 
+  Clock, 
+  Music, 
+  CheckCircle2, 
+  RefreshCw, 
+  Flame, 
+  Award, 
+  Gauge, 
+  Wrench, 
+  Copy, 
+  Check, 
+  ChevronRight,
+  HelpCircle,
+  Hash,
+  Compass
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
+import { 
+  fetchDailyIdeas, 
+  scoreReel, 
+  generateHooks, 
+  generateCalendar, 
+  ApiDailyIdea, 
+  ScoreReelResponse, 
+  GeneratedHook, 
+  CalendarDay 
+} from "@/lib/api";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
     meta: [
-      { title: "Daily Ideas & Autopilot Calendar — Trendrop" },
-      { name: "description", content: "Daily personalized viral ideas and 30-day autopilot calendar." },
+      { title: "Ideation & Scoring Hub — Trendrop" },
+      { name: "description", content: "Personalized daily ideas, reel scoring gauge, hook generator, and content calendar." },
     ],
   }),
   component: IdeasPage,
 });
 
-interface Idea {
-  title: string;
-  description: string;
-  hook: string;
-  audio_suggestion: string;
-  posting_time: string;
-}
-
-interface CalendarDay {
-  day: number;
-  topic: string;
-  hook: string;
-  audio_style: string;
-  hashtags: string[];
-  posting_time: string;
-}
-
 function IdeasPage() {
-  const [activeTab, setActiveTab] = useState<"daily" | "calendar">("daily");
-  const [niche, setNiche] = useState("dance");
-  const [language, setLanguage] = useState("hi");
-  const [frequency, setFrequency] = useState("daily");
+  const [activeTab, setActiveTab] = useState<"daily" | "score" | "hooks" | "calendar">("daily");
+  const [userEmail, setUserEmail] = useState("anonymous@trendrop.app");
+  const [userNiche, setUserNiche] = useState("dance");
+
+  // Section 1: Daily Idea Drop States
+  const [ideas, setIdeas] = useState<ApiDailyIdea[]>([]);
   const [loadingIdeas, setLoadingIdeas] = useState(false);
-  const [loadingCalendar, setLoadingCalendar] = useState(false);
-  const [ideas, setIdeas] = useState<Idea[]>([]);
+
+  // Section 2: Pre-Post Reel Score States
+  const [scoreAudio, setScoreAudio] = useState("");
+  const [scoreCaption, setScoreCaption] = useState("");
+  const [scorePostingTime, setScorePostingTime] = useState("18:30");
+  const [scoreNiche, setScoreNiche] = useState("dance");
+  const [scoringResult, setScoringResult] = useState<ScoreReelResponse | null>(null);
+  const [loadingScore, setLoadingScore] = useState(false);
+
+  // Section 3: Hook Generator States
+  const [hookTrend, setHookTrend] = useState("");
+  const [hookDescription, setHookDescription] = useState("");
+  const [generatedHooks, setGeneratedHooks] = useState<GeneratedHook[]>([]);
+  const [loadingHooks, setLoadingHooks] = useState(false);
+
+  // Section 4: Content Calendar States
   const [calendar, setCalendar] = useState<CalendarDay[]>([]);
+  const [loadingCalendar, setLoadingCalendar] = useState(false);
   const [selectedDay, setSelectedDay] = useState<CalendarDay | null>(null);
 
-  // Load user details
+  // Clipboard tracking
+  const [copiedText, setCopiedText] = useState<string | null>(null);
+
   useEffect(() => {
     const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
-    const n = localStorage.getItem("trendrop_niche") || "dance";
-    const l = localStorage.getItem("trendrop_language") || "hi";
-    setNiche(n);
-    setLanguage(l);
+    const niche = localStorage.getItem("trendrop_niche") || "dance";
+    setUserEmail(email);
+    setUserNiche(niche);
+    setScoreNiche(niche);
     
-    // Fetch initial ideas
-    fetchIdeas(email);
+    // Load daily ideas
+    getIdeas(email);
+    // Load saved calendar from local storage or DB
+    loadSavedCalendar(email);
   }, []);
 
-  const authHeaders = () => {
-    const token = localStorage.getItem("trendrop_token");
-    const headers: Record<string, string> = {};
-    if (token) headers["Authorization"] = `Bearer ${token}`;
-    return headers;
-  };
-
-  const fetchIdeas = async (email: string) => {
+  const getIdeas = async (email: string) => {
     setLoadingIdeas(true);
     try {
-      const res = await apiFetch("/api/daily-ideas", { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        setIdeas(data);
-      } else {
-        throw new Error("Failed to load");
-      }
-    } catch {
-      // Mock fallbacks
+      const data = await fetchDailyIdeas(email);
+      setIdeas(data);
+    } catch (err) {
+      // Fallback
       setIdeas([
         {
-          title: "The Ultimate " + niche.toUpperCase() + " Hack",
+          title: "The Ultimate " + userNiche.toUpperCase() + " Hack",
           description: "Show a 15-second hack or shortcut in your niche. Record a close-up of the process and final result.",
           hook: "Stop doing it the hard way! 🛑",
           audio_suggestion: "Trending Lofi Beats",
-          posting_time: "6:30 PM"
+          posting_time: "06:30 PM",
+          difficulty: "Easy"
         },
         {
           title: "Expectation vs Reality",
           description: "A funny, relatable comparison of starting out in the niche versus reality. Perfect for high engagement.",
           hook: "What they think I do vs What I actually do 🫠",
           audio_suggestion: "Upbeat Comedy Background",
-          posting_time: "8:00 PM"
+          posting_time: "08:00 PM",
+          difficulty: "Medium"
         },
         {
-          title: "My Biggest Mistake in " + niche.toUpperCase(),
+          title: "My Biggest Mistake in " + userNiche.toUpperCase(),
           description: "Share a vulnerability and the exact lesson you learned to build authentic trust with your audience.",
           hook: "I lost 10 hours of work doing this...",
           audio_suggestion: "Dramatic build-up, beat drop",
-          posting_time: "7:15 PM"
+          posting_time: "07:15 PM",
+          difficulty: "Hard"
         }
       ]);
     } finally {
@@ -102,209 +125,806 @@ function IdeasPage() {
     }
   };
 
-  const generateCalendar = async () => {
-    setLoadingCalendar(true);
-    const headers: Record<string, string> = { "Content-Type": "application/json", ...authHeaders() };
+  const loadSavedCalendar = async (email: string) => {
     try {
-      const res = await apiFetch("/api/calendar", {
-        method: "POST",
-        headers,
-        body: JSON.stringify({
-          niche,
-          language,
-          frequency
-        })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setCalendar(data.calendar || []);
-        toast.success("30-Day Autopilot Calendar generated!");
-      } else {
-        throw new Error("Failed to generate");
+      const saved = localStorage.getItem(`trendrop_calendar_${email}`);
+      if (saved) {
+        setCalendar(JSON.parse(saved));
       }
-    } catch {
-      // Mock calendar
-      const list: CalendarDay[] = Array.from({ length: 30 }).map((_, i) => ({
+    } catch {}
+  };
+
+  const handleCopy = (text: string, label: string) => {
+    navigator.clipboard.writeText(text);
+    setCopiedText(text);
+    toast.success(`${label} copied to clipboard!`);
+    setTimeout(() => setCopiedText(null), 2000);
+  };
+
+  // Section 1 Action
+  const handleUseIdea = (idea: ApiDailyIdea) => {
+    setScoreAudio(idea.audio_suggestion);
+    setScoreCaption(`${idea.hook}\n\nHere's how to do it...\n\n#${userNiche} #trend #viral`);
+    setScoreNiche(userNiche);
+    
+    // Smooth scroll/transition to score tab
+    setActiveTab("score");
+    toast.success("Idea pre-filled into Pre-Post Reel Scorer!");
+  };
+
+  // Section 2 Action
+  const handleScoreReel = async () => {
+    if (!scoreAudio || !scoreCaption || !scoreNiche) {
+      toast.error("Please fill in all inputs to score your reel.");
+      return;
+    }
+    setLoadingScore(true);
+    setScoringResult(null);
+    try {
+      const result = await scoreReel({
+        audio: scoreAudio,
+        caption: scoreCaption,
+        posting_time: scorePostingTime,
+        niche: scoreNiche
+      });
+      setScoringResult(result);
+      toast.success("Reel scored successfully!");
+    } catch (err) {
+      // Mock Fallback
+      const scoreVal = Math.floor(Math.random() * 25) + 70; // 70 to 94
+      let grade = "B";
+      if (scoreVal >= 90) grade = "A+";
+      else if (scoreVal >= 80) grade = "A";
+
+      setScoringResult({
+        overall_score: scoreVal,
+        grade: grade,
+        hook_score: Math.floor(Math.random() * 20) + 75,
+        audio_score: Math.floor(Math.random() * 20) + 75,
+        caption_score: Math.floor(Math.random() * 20) + 75,
+        hashtag_score: Math.floor(Math.random() * 20) + 75,
+        timing_score: Math.floor(Math.random() * 20) + 75,
+        top_fixes: [
+          "Hook: Introduce a visual pattern break in the first 1.5 seconds.",
+          "Caption: Add 2 targeted local keywords to improve Instagram SEO ranking.",
+          "Hashtag: Mix broad hashtags with 3 highly specific sub-niche hashtags."
+        ]
+      });
+      toast.success("Reel scored! (Generated mockup score)");
+    } finally {
+      setLoadingScore(false);
+    }
+  };
+
+  // Section 3 Action
+  const handleGenerateHooks = async () => {
+    if (!hookTrend || !hookDescription) {
+      toast.error("Please enter a trend/topic and content description.");
+      return;
+    }
+    setLoadingHooks(true);
+    setGeneratedHooks([]);
+    try {
+      const data = await generateHooks({
+        trend: hookTrend,
+        content_description: hookDescription
+      });
+      setGeneratedHooks(data.hooks);
+      toast.success("5 high-converting hooks generated!");
+    } catch (err) {
+      setGeneratedHooks([
+        { style: "Curiosity", text: `The hidden secret about ${hookTrend} they don't want you to know...`, why_it_works: "Forces the viewer to stay to solve the curiosity loop." },
+        { style: "Conflict", text: `Stop doing ${hookTrend} this way. It's destroying your reach!`, why_it_works: "Aggressive callout that provokes emotional responses." },
+        { style: "Authority", text: `I spent 30 hours analyzing ${hookTrend} so you don't have to. Here is the blueprint.`, why_it_works: "Positions you as an expert providing maximum value." },
+        { style: "Relatable", text: `POV: You realize everyone was lying to you about ${hookTrend}.`, why_it_works: "Establishes quick connection and shared feeling." },
+        { style: "FOMO", text: `If you aren't doing this one thing with ${hookTrend} today, you're missing out on millions of views.`, why_it_works: "Triggers fear of missing out on a major trend." }
+      ]);
+      toast.success("Generated mockup hooks!");
+    } finally {
+      setLoadingHooks(false);
+    }
+  };
+
+  // Section 4 Action
+  const handleGenerateCalendar = async () => {
+    setLoadingCalendar(true);
+    try {
+      const res = await generateCalendar(userEmail);
+      setCalendar(res.calendar);
+      localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(res.calendar));
+      toast.success("Your 30-Day Autopilot Calendar is ready!");
+    } catch (err) {
+      const mockCalendar: CalendarDay[] = Array.from({ length: 30 }).map((_, i) => ({
         day: i + 1,
-        topic: `Stellar ${niche} Concept ${i + 1}`,
-        hook: `This one secret changes everything... (${i + 1})`,
-        audio_style: "Trending audio compilation",
-        hashtags: [`#${niche}`, "#viral", "#creator"],
-        posting_time: "7:00 PM"
+        topic: `Viral ${userNiche.toUpperCase()} Strategy Concept ${i + 1}`,
+        hook: `This changes everything about ${userNiche}... (${i + 1})`,
+        audio_style: "Trending audio remix / high energy beats",
+        hashtags: [`#${userNiche}`, "#viral", "#creatorhub", `#day${i + 1}`],
+        posting_time: "07:00 PM"
       }));
-      setCalendar(list);
-      toast.success("Created locally!");
+      setCalendar(mockCalendar);
+      localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(mockCalendar));
+      toast.success("Created mock 30-Day calendar!");
     } finally {
       setLoadingCalendar(false);
     }
   };
 
-  const loadSavedCalendar = async () => {
-    try {
-      const res = await apiFetch("/api/calendar", { headers: authHeaders() });
-      if (res.ok) {
-        const data = await res.json();
-        if (data && data.calendar && data.calendar.length > 0) {
-          setCalendar(data.calendar);
-        }
-      }
-    } catch {}
+  // Difficulty styling
+  const getDifficultyBadge = (difficulty: string) => {
+    switch (difficulty?.toLowerCase()) {
+      case "easy":
+        return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
+      case "medium":
+        return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+      case "hard":
+        return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
+      default:
+        return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+    }
   };
 
-  useEffect(() => {
-    loadSavedCalendar();
-  }, []);
-
   return (
-    <div className="flex flex-col gap-6 px-4 pb-28 pt-6">
+    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
       <header className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20 animate-pulse">
           <Lightbulb className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-white">Ideation Hub</h1>
-          <p className="text-xs text-muted-foreground">AI-powered trend-specific content creation</p>
+          <h1 className="font-display text-2xl font-bold text-white bg-clip-text bg-gradient-to-r from-white via-gray-200 to-indigo-200">Ideation Hub</h1>
+          <p className="text-xs text-muted-foreground">AI-powered trend scoring, hook generators, and daily schedules</p>
         </div>
       </header>
 
-      {/* Tabs */}
-      <div className="flex gap-1 rounded-xl bg-muted p-1">
+      {/* Modern High-End Tab Swapper */}
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-black/40 border border-white/5 p-1 backdrop-blur-md">
         <button
           onClick={() => setActiveTab("daily")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
-            activeTab === "daily" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            activeTab === "daily" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
           <Sparkles className="h-3.5 w-3.5" />
-          Daily Idea Drop
+          <span className="hidden sm:inline">Idea Drop</span>
+          <span className="sm:hidden">Daily</span>
         </button>
+
         <button
-          onClick={() => setActiveTab("calendar")}
-          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
-            activeTab === "calendar" ? "bg-primary text-white shadow-sm" : "text-muted-foreground hover:text-foreground"
+          onClick={() => setActiveTab("score")}
+          className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            activeTab === "score" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Calendar className="h-3.5 w-3.5" />
-          30-Day Autopilot
+          <Gauge className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Reel Score</span>
+          <span className="sm:hidden">Score</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("hooks")}
+          className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            activeTab === "hooks" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Flame className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Hook Gen</span>
+          <span className="sm:hidden">Hooks</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("calendar")}
+          className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+            activeTab === "calendar" 
+              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <CalendarIcon className="h-3.5 w-3.5" />
+          <span className="hidden sm:inline">Calendar</span>
+          <span className="sm:hidden">Calendar</span>
         </button>
       </div>
 
-      {activeTab === "daily" && (
-        <div className="space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Today's Hot Picks</h2>
-            <button 
-              onClick={() => fetchIdeas(localStorage.getItem("trendrop_email") || "anonymous@trendrop.app")} 
-              disabled={loadingIdeas}
-              className="text-xs flex items-center gap-1 text-primary hover:underline"
+      {/* Main Tab Contents */}
+      <div className="mt-2 min-h-[450px]">
+        <AnimatePresence mode="wait">
+          {/* TAB 1: DAILY IDEA DROP */}
+          {activeTab === "daily" && (
+            <motion.div 
+              key="daily"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-5"
             >
-              <RefreshCw className={`h-3 w-3 ${loadingIdeas ? 'animate-spin' : ''}`} /> Refresh
-            </button>
-          </div>
-
-          {loadingIdeas ? (
-            <div className="text-center py-12 text-muted-foreground">Curating fresh custom ideas...</div>
-          ) : (
-            ideas.map((idea, index) => (
-              <div key={index} className="glass-card p-5 relative border border-border/60 hover:border-primary/40 transition-all rounded-2xl space-y-3">
-                <span className="absolute top-4 right-4 bg-primary/10 text-primary text-[10px] font-bold px-2 py-0.5 rounded-full">
-                  Idea #{index + 1}
-                </span>
+              <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-display font-bold text-lg text-white pr-12">{idea.title}</h3>
-                  <p className="text-sm text-gray-300 mt-2">{idea.description}</p>
+                  <h2 className="text-lg font-bold text-white">Daily Idea Drop</h2>
+                  <p className="text-xs text-muted-foreground">3 fresh trend-backed ideas customized for your niche</p>
                 </div>
+                <Button 
+                  onClick={() => getIdeas(userEmail)} 
+                  disabled={loadingIdeas}
+                  variant="outline"
+                  size="sm"
+                  className="h-8 border-white/10 hover:bg-white/5 flex items-center gap-1.5 text-xs text-gray-300"
+                >
+                  <RefreshCw className={`h-3 w-3 ${loadingIdeas ? 'animate-spin' : ''}`} /> 
+                  Refresh
+                </Button>
+              </div>
 
-                <div className="pt-2 border-t border-white/5 space-y-2 text-xs">
-                  <div className="flex items-center gap-2">
-                    <span className="text-primary font-bold">Hook:</span>
-                    <span className="text-gray-400 italic">"{idea.hook}"</span>
-                  </div>
-                  <div className="flex items-center justify-between text-muted-foreground">
-                    <span className="flex items-center gap-1"><Music className="h-3.5 w-3.5" /> {idea.audio_suggestion}</span>
-                    <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {idea.posting_time}</span>
-                  </div>
+              {loadingIdeas ? (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+                  <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+                  <span className="text-sm font-semibold animate-pulse">Curating personalized ideas...</span>
                 </div>
-              </div>
-            ))
-          )}
-        </div>
-      )}
+              ) : (
+                <div className="grid gap-4">
+                  {ideas.map((idea, index) => (
+                    <div 
+                      key={index} 
+                      className="glass-card relative p-5 border border-white/5 hover:border-indigo-500/30 transition-all duration-300 rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent shadow-xl space-y-4"
+                    >
+                      <div className="flex justify-between items-start gap-4">
+                        <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${getDifficultyBadge(idea.difficulty)}`}>
+                          {idea.difficulty || "Medium"} Difficulty
+                        </span>
+                        <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md">
+                          Idea #{index + 1}
+                        </span>
+                      </div>
 
-      {activeTab === "calendar" && (
-        <div className="space-y-4">
-          <div className="glass-card p-5 rounded-2xl space-y-4">
-            <h3 className="font-display font-bold text-base text-white">Generate Your 30-Day Plan</h3>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Generate a personalized, fully fleshed-out 30-day calendar complete with daily post concepts, trending audio recommendations, hooks, and optimal posting times aligned with target audiences.
-            </p>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Niche</label>
-                <div className="mt-1 capitalize px-3 py-2 bg-muted rounded-xl">{niche}</div>
-              </div>
-              <div>
-                <label className="text-[10px] uppercase font-bold text-muted-foreground">Language</label>
-                <div className="mt-1 capitalize px-3 py-2 bg-muted rounded-xl">{language === 'hi' ? 'Hindi' : 'English/Other'}</div>
-              </div>
-            </div>
-            <Button 
-              onClick={generateCalendar} 
-              disabled={loadingCalendar} 
-              className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11"
-            >
-              {loadingCalendar ? "Generating..." : "Generate 30-Day Calendar"}
-            </Button>
-          </div>
+                      <div className="space-y-2">
+                        <h3 className="font-display font-bold text-lg text-white leading-tight">{idea.title}</h3>
+                        <p className="text-sm text-gray-300 leading-relaxed">{idea.description}</p>
+                      </div>
 
-          {calendar.length > 0 && (
-            <div className="space-y-3">
-              <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Your 30-Day Schedule</h3>
-              <div className="grid grid-cols-5 gap-2">
-                {calendar.map((item) => (
-                  <button
-                    key={item.day}
-                    onClick={() => setSelectedDay(item)}
-                    className={`aspect-square rounded-xl border flex flex-col justify-center items-center transition-all ${
-                      selectedDay?.day === item.day 
-                        ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400' 
-                        : 'border-border bg-card text-muted-foreground hover:border-muted-foreground'
-                    }`}
-                  >
-                    <span className="text-xs font-bold">Day</span>
-                    <span className="text-lg font-extrabold">{item.day}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-          )}
+                      {/* Hook & Details */}
+                      <div className="bg-black/35 rounded-xl border border-white/5 p-4 space-y-3">
+                        <div className="flex items-start gap-2.5">
+                          <span className="text-indigo-400 text-xs font-black uppercase tracking-wider pt-0.5">Hook:</span>
+                          <p className="text-sm text-indigo-200 italic font-medium">"{idea.hook}"</p>
+                        </div>
+                        
+                        <div className="h-px bg-white/5" />
+                        
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400">
+                          <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
+                            <Music className="h-3.5 w-3.5 text-indigo-400" />
+                            <span className="truncate max-w-[150px]">{idea.audio_suggestion}</span>
+                          </div>
+                          <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
+                            <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                            <span>Post: {idea.posting_time}</span>
+                          </div>
+                        </div>
+                      </div>
 
-          {selectedDay && (
-            <div className="glass-card p-5 border border-indigo-500/40 rounded-2xl space-y-3 animate-in fade-in slide-in-from-bottom-2">
-              <div className="flex justify-between items-center">
-                <span className="text-indigo-400 font-bold text-sm">Day {selectedDay.day} Details</span>
-                <button onClick={() => setSelectedDay(null)} className="text-xs text-muted-foreground hover:text-white">Close</button>
-              </div>
-              <h4 className="font-display text-lg font-bold text-white">{selectedDay.topic}</h4>
-              <div className="space-y-2 text-xs">
-                <div className="p-3 bg-white/5 rounded-xl border border-white/5">
-                  <span className="block font-bold text-indigo-400 mb-1">RECOMMENDED HOOK</span>
-                  <span className="text-sm text-gray-200">"{selectedDay.hook}"</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span className="flex items-center gap-1"><Music className="h-3.5 w-3.5" /> {selectedDay.audio_style}</span>
-                  <span className="flex items-center gap-1"><Clock className="h-3.5 w-3.5" /> {selectedDay.posting_time}</span>
-                </div>
-                <div className="flex flex-wrap gap-1 pt-1">
-                  {selectedDay.hashtags.map((h, i) => (
-                    <span key={i} className="px-2 py-0.5 rounded bg-muted text-muted-foreground text-[10px] font-semibold">{h}</span>
+                      {/* Use Idea Button */}
+                      <div className="flex gap-2">
+                        <Button 
+                          onClick={() => handleUseIdea(idea)}
+                          className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded-xl h-10 transition-all shadow-md shadow-indigo-500/10"
+                        >
+                          Use This Idea
+                          <ChevronRight className="ml-1.5 h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="icon"
+                          onClick={() => handleCopy(`Title: ${idea.title}\nHook: ${idea.hook}\nAudio: ${idea.audio_suggestion}\nTime: ${idea.posting_time}`, "Idea details")}
+                          className="h-10 w-10 border-white/10 rounded-xl hover:bg-white/5"
+                        >
+                          {copiedText === `Title: ${idea.title}\nHook: ${idea.hook}\nAudio: ${idea.audio_suggestion}\nTime: ${idea.posting_time}` ? (
+                            <Check className="h-4 w-4 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-4 w-4 text-gray-400" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
                   ))}
                 </div>
-              </div>
-            </div>
+              )}
+            </motion.div>
           )}
-        </div>
-      )}
+
+          {/* TAB 2: PRE-POST REEL SCORE */}
+          {activeTab === "score" && (
+            <motion.div 
+              key="score"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-lg font-bold text-white">Pre-Post Reel Scorer</h2>
+                <p className="text-xs text-muted-foreground">Test your post content, audio, and schedule to forecast performance</p>
+              </div>
+
+              {/* Form Input Section */}
+              <div className="glass-card p-5 border border-white/5 rounded-2xl bg-black/20 space-y-4 shadow-xl">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                      <Music className="h-3 w-3 text-indigo-400" /> Audio Title
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. Trending Remix, Chill Beat"
+                      value={scoreAudio} 
+                      onChange={(e) => setScoreAudio(e.target.value)}
+                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                      <Compass className="h-3 w-3 text-indigo-400" /> Niche
+                    </label>
+                    <input 
+                      type="text" 
+                      placeholder="e.g. dance, finance, tech"
+                      value={scoreNiche} 
+                      onChange={(e) => setScoreNiche(e.target.value)}
+                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1">
+                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-indigo-400" /> Posting Time (IST)
+                    </label>
+                    <input 
+                      type="time" 
+                      value={scorePostingTime} 
+                      onChange={(e) => setScorePostingTime(e.target.value)}
+                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                    <Hash className="h-3 w-3 text-indigo-400" /> Caption & Hashtags
+                  </label>
+                  <textarea 
+                    placeholder="Write your reel caption here... Don't forget to include hashtags!"
+                    value={scoreCaption} 
+                    onChange={(e) => setScoreCaption(e.target.value)}
+                    rows={4}
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleScoreReel}
+                  disabled={loadingScore}
+                  className="w-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
+                >
+                  {loadingScore ? (
+                    <span className="flex items-center gap-2 justify-center">
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Scoring Reel...
+                    </span>
+                  ) : "Score My Reel"}
+                </Button>
+              </div>
+
+              {/* Scoring Results Gauge & Details */}
+              {scoringResult && (
+                <motion.div 
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="glass-card p-6 border border-white/10 rounded-2xl bg-gradient-to-b from-white/[0.03] to-transparent space-y-6 shadow-2xl relative overflow-hidden"
+                >
+                  {/* Glowing background decor */}
+                  <div className="absolute -top-16 -right-16 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+
+                  <div className="flex flex-col sm:flex-row items-center gap-6 pb-2">
+                    {/* Score Gauge Circle */}
+                    <div className="relative flex items-center justify-center w-32 h-32 shrink-0">
+                      <svg className="w-full h-full transform -rotate-90">
+                        <circle 
+                          cx="64" 
+                          cy="64" 
+                          r="54" 
+                          className="stroke-white/5 fill-transparent" 
+                          strokeWidth="10"
+                        />
+                        <motion.circle 
+                          cx="64" 
+                          cy="64" 
+                          r="54" 
+                          className="stroke-indigo-500 fill-transparent" 
+                          strokeWidth="10"
+                          strokeDasharray={2 * Math.PI * 54}
+                          initial={{ strokeDashoffset: 2 * Math.PI * 54 }}
+                          animate={{ strokeDashoffset: 2 * Math.PI * 54 * (1 - scoringResult.overall_score / 100) }}
+                          transition={{ duration: 1.2, ease: "easeOut" }}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute flex flex-col items-center justify-center">
+                        <span className="text-3xl font-extrabold text-white">{scoringResult.overall_score}</span>
+                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Score</span>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2 text-center sm:text-left flex-1">
+                      <div className="flex items-center justify-center sm:justify-start gap-2.5">
+                        <h3 className="font-display font-extrabold text-xl text-white">Reel Health Grade</h3>
+                        <span className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-base font-black px-3 py-1 rounded-lg border border-indigo-400/20 shadow-md">
+                          {scoringResult.grade}
+                        </span>
+                      </div>
+                      <p className="text-xs text-gray-300 leading-relaxed">
+                        Your Reel scores higher than <span className="text-indigo-400 font-bold">{scoringResult.overall_score}%</span> of other creators in your niche. Fix the identified areas to boost engagement.
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Score breakdown metrics */}
+                  <div className="space-y-4 pt-4 border-t border-white/5">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                      <Award className="h-4 w-4 text-indigo-400" /> Detail Score Breakdown
+                    </h4>
+                    
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      {/* Hook Score */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">Hook Score</span>
+                          <span className="text-white font-bold">{scoringResult.hook_score}/100</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${scoringResult.hook_score}%` }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Audio Score */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">Audio Score</span>
+                          <span className="text-white font-bold">{scoringResult.audio_score}/100</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${scoringResult.audio_score}%` }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Caption Score */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">Caption SEO Score</span>
+                          <span className="text-white font-bold">{scoringResult.caption_score}/100</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${scoringResult.caption_score}%` }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Hashtag Score */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">Hashtag Score</span>
+                          <span className="text-white font-bold">{scoringResult.hashtag_score}/100</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${scoringResult.hashtag_score}%` }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+
+                      {/* Timing Score */}
+                      <div className="space-y-1.5">
+                        <div className="flex justify-between text-xs">
+                          <span className="text-gray-400">Timing Score</span>
+                          <span className="text-white font-bold">{scoringResult.timing_score}/100</span>
+                        </div>
+                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                          <motion.div 
+                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            initial={{ width: 0 }}
+                            animate={{ width: `${scoringResult.timing_score}%` }}
+                            transition={{ duration: 0.8 }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Top Fixes */}
+                  <div className="space-y-3 pt-4 border-t border-white/5 bg-red-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                      <Wrench className="h-4 w-4" /> Top Fixes Recommended
+                    </h4>
+                    <ul className="space-y-2.5">
+                      {scoringResult.top_fixes.map((fix, idx) => (
+                        <li key={idx} className="flex gap-2.5 text-xs text-gray-300 leading-relaxed items-start">
+                          <span className="h-4 w-4 shrink-0 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black flex items-center justify-center">
+                            {idx + 1}
+                          </span>
+                          <span>{fix}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </motion.div>
+              )}
+            </motion.div>
+          )}
+
+          {/* TAB 3: HOOK GENERATOR */}
+          {activeTab === "hooks" && (
+            <motion.div 
+              key="hooks"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div>
+                <h2 className="text-lg font-bold text-white">Scroll-Stopping Hook Generator</h2>
+                <p className="text-xs text-muted-foreground">Generate 5 psychological high-performing hook options</p>
+              </div>
+
+              {/* Hooks Input Box */}
+              <div className="glass-card p-5 border border-white/5 rounded-2xl bg-black/20 space-y-4 shadow-xl">
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Trend or Core Topic</label>
+                  <input 
+                    type="text" 
+                    placeholder="e.g. 5 AM Morning Routine, Transition edits"
+                    value={hookTrend} 
+                    onChange={(e) => setHookTrend(e.target.value)}
+                    className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                  />
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Video Content Description</label>
+                  <textarea 
+                    placeholder="e.g. Showing step-by-step how I set up my planner and work productively without getting distracted."
+                    value={hookDescription} 
+                    onChange={(e) => setHookDescription(e.target.value)}
+                    rows={3}
+                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                  />
+                </div>
+
+                <Button 
+                  onClick={handleGenerateHooks}
+                  disabled={loadingHooks}
+                  className="w-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
+                >
+                  {loadingHooks ? (
+                    <span className="flex items-center gap-2 justify-center">
+                      <RefreshCw className="h-4 w-4 animate-spin" /> Generating Hooks...
+                    </span>
+                  ) : "Generate 5 hooks"}
+                </Button>
+              </div>
+
+              {/* Hook Cards Output */}
+              {generatedHooks.length > 0 && (
+                <div className="space-y-4">
+                  <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Your Tailored Hooks</h3>
+                  
+                  <div className="grid gap-3">
+                    {generatedHooks.map((hook, idx) => (
+                      <div 
+                        key={idx}
+                        className="glass-card p-4 border border-white/5 hover:border-indigo-500/20 transition-all rounded-xl bg-gradient-to-r from-white/[0.02] to-transparent flex gap-4 items-start"
+                      >
+                        <div className="flex-1 space-y-2">
+                          <div className="flex gap-2 items-center">
+                            <span className="text-[9px] font-black uppercase bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded">
+                              {hook.style} Style
+                            </span>
+                          </div>
+                          <p className="text-sm font-semibold text-white">"{hook.text}"</p>
+                          <p className="text-xs text-muted-foreground italic"><strong className="text-indigo-400 font-bold not-italic">Why it works:</strong> {hook.why_it_works}</p>
+                        </div>
+
+                        <Button 
+                          variant="ghost" 
+                          size="icon"
+                          onClick={() => handleCopy(hook.text, "Hook text")}
+                          className="h-8 w-8 hover:bg-white/5 rounded-lg border border-white/5"
+                        >
+                          {copiedText === hook.text ? (
+                            <Check className="h-3.5 w-3.5 text-emerald-400" />
+                          ) : (
+                            <Copy className="h-3.5 w-3.5 text-gray-400" />
+                          )}
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {/* TAB 4: CONTENT CALENDAR */}
+          {activeTab === "calendar" && (
+            <motion.div 
+              key="calendar"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+              className="space-y-6"
+            >
+              <div className="flex justify-between items-start gap-4">
+                <div>
+                  <h2 className="text-lg font-bold text-white">30-Day Autopilot Calendar</h2>
+                  <p className="text-xs text-muted-foreground">Automated posting schedule with curated hooks, audio directions, and timing</p>
+                </div>
+                <Button 
+                  onClick={handleGenerateCalendar} 
+                  disabled={loadingCalendar}
+                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 px-3 rounded-lg text-xs"
+                >
+                  {loadingCalendar ? "Generating..." : calendar.length > 0 ? "Re-generate" : "Generate Plan"}
+                </Button>
+              </div>
+
+              {calendar.length === 0 && !loadingCalendar && (
+                <div className="glass-card p-8 text-center border border-white/5 rounded-2xl space-y-4 shadow-xl">
+                  <CalendarIcon className="h-10 w-10 text-indigo-400 mx-auto" />
+                  <div>
+                    <h3 className="font-bold text-white text-base">Plan Your 30-Day Calendar</h3>
+                    <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 leading-relaxed">
+                      Generates a full schedule of posts for the next month complete with topics, trending audio configurations, and optimum target posting hours.
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleGenerateCalendar} 
+                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-6 rounded-xl text-xs"
+                  >
+                    Generate 30-Day Plan
+                  </Button>
+                </div>
+              )}
+
+              {loadingCalendar && (
+                <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
+                  <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+                  <span className="text-sm font-semibold animate-pulse animate-duration-1000">Structuring your 30-Day scheduler...</span>
+                </div>
+              )}
+
+              {/* Monthly calendar view grid */}
+              {calendar.length > 0 && !loadingCalendar && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-5 sm:grid-cols-6 gap-2">
+                    {calendar.map((item) => (
+                      <button
+                        key={item.day}
+                        onClick={() => setSelectedDay(item)}
+                        className={`aspect-square rounded-xl border flex flex-col justify-center items-center transition-all duration-300 relative overflow-hidden ${
+                          selectedDay?.day === item.day 
+                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400 shadow-lg shadow-indigo-500/10' 
+                            : 'border-white/5 bg-card/40 text-gray-400 hover:border-white/20 hover:bg-card/60'
+                        }`}
+                      >
+                        <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground opacity-60">Day</span>
+                        <span className="text-base font-extrabold text-white">{item.day}</span>
+                        {/* Status marker */}
+                        <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                      </button>
+                    ))}
+                  </div>
+
+                  {/* Day Details View Panel */}
+                  <AnimatePresence mode="wait">
+                    {selectedDay ? (
+                      <motion.div 
+                        key={selectedDay.day}
+                        initial={{ opacity: 0, y: 10 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        exit={{ opacity: 0, y: -10 }}
+                        className="glass-card p-5 border border-indigo-500/30 rounded-2xl bg-indigo-500/[0.01] space-y-4 shadow-xl"
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className="text-indigo-400 font-extrabold text-xs tracking-wider uppercase bg-indigo-500/10 px-2.5 py-1 rounded-md">
+                            Day {selectedDay.day} Agenda
+                          </span>
+                          <button 
+                            onClick={() => setSelectedDay(null)} 
+                            className="text-xs text-muted-foreground hover:text-white"
+                          >
+                            Close
+                          </button>
+                        </div>
+
+                        <div className="space-y-1">
+                          <h4 className="font-display text-base font-bold text-white">{selectedDay.topic}</h4>
+                        </div>
+
+                        <div className="space-y-3">
+                          {/* Recommended Hook */}
+                          <div className="p-3.5 bg-black/40 rounded-xl border border-white/5 relative group">
+                            <span className="block font-bold text-[9px] text-indigo-400 uppercase tracking-widest mb-1.5">RECOMMENDED HOOK</span>
+                            <span className="text-sm text-gray-200 font-medium">"{selectedDay.hook}"</span>
+                            <button
+                              onClick={() => handleCopy(selectedDay.hook, "Hook text")}
+                              className="absolute top-3 right-3 h-6 w-6 hover:bg-white/5 rounded-md flex items-center justify-center border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                            >
+                              {copiedText === selectedDay.hook ? (
+                                <Check className="h-3 w-3 text-emerald-400" />
+                              ) : (
+                                <Copy className="h-3 w-3 text-gray-400" />
+                              )}
+                            </button>
+                          </div>
+
+                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+                            <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-xl border border-white/5 text-gray-300">
+                              <Music className="h-4 w-4 text-indigo-400 shrink-0" />
+                              <span className="truncate">Audio: {selectedDay.audio_style}</span>
+                            </div>
+                            <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-xl border border-white/5 text-gray-300">
+                              <Clock className="h-4 w-4 text-indigo-400 shrink-0" />
+                              <span>Optimal Time: {selectedDay.posting_time}</span>
+                            </div>
+                          </div>
+
+                          {/* Hashtags */}
+                          <div className="flex flex-wrap gap-1.5 pt-1">
+                            {selectedDay.hashtags.map((h, i) => (
+                              <span key={i} className="px-2.5 py-1 rounded-lg bg-black/30 border border-white/5 text-indigo-300 text-[10px] font-bold">
+                                {h}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      </motion.div>
+                    ) : (
+                      <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-white/5 rounded-2xl">
+                        Select any Day above to view details and hook copy options
+                      </div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              )}
+            </motion.div>
+          )}
+        </AnimatePresence>
+      </div>
     </div>
   );
 }

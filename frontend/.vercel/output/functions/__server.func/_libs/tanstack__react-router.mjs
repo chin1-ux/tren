@@ -1,3 +1,6 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+var _a, _b, _c, _d, _e;
 import { r as reactExports, j as jsxRuntimeExports, R as React } from "./react.mjs";
 import { i as invariant, a as isDangerousProtocol, e as exactPathTest, r as removeTrailingSlash, h as hasKeys, d as deepEqual, f as functionalUpdate, B as BaseRootRoute, b as BaseRoute, c as isModuleNotFoundError, g as isNotFound, j as getScrollRestorationScriptForRouter, k as rootRouteId, l as isServer, m as isRedirect, n as createNonReactiveReadonlyStore, o as createNonReactiveMutableStore, R as RouterCore, p as escapeHtml, q as getAssetCrossOrigin, s as getScriptPreloadAttrs, t as appendUniqueUserTags, u as resolveManifestCssLink, v as transformReadableStreamWithRouter, w as createSsrStreamResponse, x as transformPipeableStreamWithRouter } from "./tanstack__router-core.mjs";
 import { R as ReactDOMServer } from "./react-dom.mjs";
@@ -9,21 +12,23 @@ function useForwardedRef(ref) {
   reactExports.useImperativeHandle(ref, () => innerRef.current, []);
   return innerRef;
 }
+__name(useForwardedRef, "useForwardedRef");
 function CatchBoundary(props) {
   const errorComponent = props.errorComponent ?? ErrorComponent;
   return /* @__PURE__ */ jsxRuntimeExports.jsx(CatchBoundaryImpl, {
     getResetKey: props.getResetKey,
     onCatch: props.onCatch,
-    children: ({ error, reset }) => {
+    children: /* @__PURE__ */ __name(({ error, reset }) => {
       if (error) return reactExports.createElement(errorComponent, {
         error,
         reset
       });
       return props.children;
-    }
+    }, "children")
   });
 }
-var CatchBoundaryImpl = class extends reactExports.Component {
+__name(CatchBoundary, "CatchBoundary");
+var CatchBoundaryImpl = (_a = class extends reactExports.Component {
   constructor(..._args) {
     super(..._args);
     this.state = { error: null };
@@ -48,12 +53,12 @@ var CatchBoundaryImpl = class extends reactExports.Component {
   render() {
     return this.props.children({
       error: this.state.error,
-      reset: () => {
+      reset: /* @__PURE__ */ __name(() => {
         this.reset();
-      }
+      }, "reset")
     });
   }
-};
+}, __name(_a, "CatchBoundaryImpl"), _a);
 function ErrorComponent({ error }) {
   const [show, setShow] = reactExports.useState(false);
   return /* @__PURE__ */ jsxRuntimeExports.jsxs("div", {
@@ -80,7 +85,7 @@ function ErrorComponent({ error }) {
             fontWeight: "bold",
             borderRadius: ".25rem"
           },
-          onClick: () => setShow((d) => !d),
+          onClick: /* @__PURE__ */ __name(() => setShow((d) => !d), "onClick"),
           children: show ? "Hide Error" : "Show Error"
         })]
       }),
@@ -99,21 +104,26 @@ function ErrorComponent({ error }) {
     ]
   });
 }
+__name(ErrorComponent, "ErrorComponent");
 function ClientOnly({ children, fallback = null }) {
   return useHydrated() ? /* @__PURE__ */ jsxRuntimeExports.jsx(React.Fragment, { children }) : /* @__PURE__ */ jsxRuntimeExports.jsx(React.Fragment, { children: fallback });
 }
+__name(ClientOnly, "ClientOnly");
 function useHydrated() {
   return React.useSyncExternalStore(subscribe, () => true, () => false);
 }
+__name(useHydrated, "useHydrated");
 function subscribe() {
   return () => {
   };
 }
+__name(subscribe, "subscribe");
 var routerContext = reactExports.createContext(null);
 function useRouter(opts) {
   const value = reactExports.useContext(routerContext);
   return value;
 }
+__name(useRouter, "useRouter");
 var matchContext = reactExports.createContext(void 0);
 var dummyMatchContext = reactExports.createContext(void 0);
 function useMatch(opts) {
@@ -130,48 +140,53 @@ function useMatch(opts) {
     return opts.select ? opts.select(match) : match;
   }
 }
+__name(useMatch, "useMatch");
 function useLoaderData(opts) {
   return useMatch({
     from: opts.from,
     strict: opts.strict,
     structuralSharing: opts.structuralSharing,
-    select: (match) => {
+    select: /* @__PURE__ */ __name((match) => {
       return opts.select ? opts.select(match.loaderData) : match.loaderData;
-    }
+    }, "select")
   });
 }
+__name(useLoaderData, "useLoaderData");
 function useLoaderDeps(opts) {
   const { select, ...rest } = opts;
   return useMatch({
     ...rest,
-    select: (match) => {
+    select: /* @__PURE__ */ __name((match) => {
       return select ? select(match.loaderDeps) : match.loaderDeps;
-    }
+    }, "select")
   });
 }
+__name(useLoaderDeps, "useLoaderDeps");
 function useParams(opts) {
   return useMatch({
     from: opts.from,
     shouldThrow: opts.shouldThrow,
     structuralSharing: opts.structuralSharing,
     strict: opts.strict,
-    select: (match) => {
+    select: /* @__PURE__ */ __name((match) => {
       const params = opts.strict === false ? match.params : match._strictParams;
       return opts.select ? opts.select(params) : params;
-    }
+    }, "select")
   });
 }
+__name(useParams, "useParams");
 function useSearch(opts) {
   return useMatch({
     from: opts.from,
     strict: opts.strict,
     shouldThrow: opts.shouldThrow,
     structuralSharing: opts.structuralSharing,
-    select: (match) => {
+    select: /* @__PURE__ */ __name((match) => {
       return opts.select ? opts.select(match.search) : match.search;
-    }
+    }, "select")
   });
 }
+__name(useSearch, "useSearch");
 function useNavigate(_defaultOpts) {
   const router = useRouter();
   return reactExports.useCallback((options) => {
@@ -181,12 +196,14 @@ function useNavigate(_defaultOpts) {
     });
   }, [_defaultOpts?.from, router]);
 }
+__name(useNavigate, "useNavigate");
 function useRouteContext(opts) {
   return useMatch({
     ...opts,
-    select: (match) => opts.select ? opts.select(match.context) : match.context
+    select: /* @__PURE__ */ __name((match) => opts.select ? opts.select(match.context) : match.context, "select")
   });
 }
+__name(useRouteContext, "useRouteContext");
 function useLinkProps(options, forwardedRef) {
   const router = useRouter();
   const innerRef = useForwardedRef(forwardedRef);
@@ -321,6 +338,7 @@ function useLinkProps(options, forwardedRef) {
     };
   }
 }
+__name(useLinkProps, "useLinkProps");
 var STATIC_EMPTY_OBJECT = {};
 var STATIC_ACTIVE_OBJECT = { className: "active" };
 var STATIC_DISABLED_PROPS = {
@@ -342,12 +360,14 @@ function getHrefOption(publicHref, external, history, disabled) {
     external: false
   };
 }
+__name(getHrefOption, "getHrefOption");
 function isSafeInternal(to) {
   if (typeof to !== "string") return false;
   const zero = to.charCodeAt(0);
   if (zero === 47) return to.charCodeAt(1) !== 47;
   return zero === 46;
 }
+__name(isSafeInternal, "isSafeInternal");
 var Link = reactExports.forwardRef((props, ref) => {
   const { _asChild, ...rest } = props;
   const { type: _type, ...linkProps } = useLinkProps(rest, ref);
@@ -358,7 +378,7 @@ var Link = reactExports.forwardRef((props, ref) => {
   }
   return reactExports.createElement(_asChild, linkProps, children);
 });
-var Route = class extends BaseRoute {
+var Route = (_b = class extends BaseRoute {
   /**
   * @deprecated Use the `createRoute` function instead.
   */
@@ -414,16 +434,18 @@ var Route = class extends BaseRoute {
       });
     });
   }
-};
+}, __name(_b, "Route"), _b);
 function createRoute(options) {
   return new Route(options);
 }
+__name(createRoute, "createRoute");
 function createRootRouteWithContext() {
   return (options) => {
     return createRootRoute(options);
   };
 }
-var RootRoute = class extends BaseRootRoute {
+__name(createRootRouteWithContext, "createRootRouteWithContext");
+var RootRoute = (_c = class extends BaseRootRoute {
   /**
   * @deprecated `RootRoute` is now an internal implementation detail. Use `createRootRoute()` instead.
   */
@@ -479,14 +501,16 @@ var RootRoute = class extends BaseRootRoute {
       });
     });
   }
-};
+}, __name(_c, "RootRoute"), _c);
 function createRootRoute(options) {
   return new RootRoute(options);
 }
+__name(createRootRoute, "createRootRoute");
 function createFileRoute(path) {
   return new FileRoute(path, { silent: true }).createRoute;
 }
-var FileRoute = class {
+__name(createFileRoute, "createFileRoute");
+var FileRoute = (_d = class {
   constructor(path, _opts) {
     this.path = path;
     this.createRoute = (options) => {
@@ -496,13 +520,13 @@ var FileRoute = class {
     };
     this.silent = _opts?.silent;
   }
-};
+}, __name(_d, "FileRoute"), _d);
 function lazyRouteComponent(importer, exportName) {
   let loadPromise;
   let comp;
   let error;
   let reload;
-  const load = () => {
+  const load = /* @__PURE__ */ __name(() => {
     if (!loadPromise) loadPromise = importer().then((res) => {
       loadPromise = void 0;
       comp = res[exportName];
@@ -519,8 +543,8 @@ function lazyRouteComponent(importer, exportName) {
       }
     });
     return loadPromise;
-  };
-  const lazyComp = function Lazy(props) {
+  }, "load");
+  const lazyComp = /* @__PURE__ */ __name(function Lazy(props) {
     if (reload) {
       window.location.reload();
       throw new Promise(() => {
@@ -530,31 +554,34 @@ function lazyRouteComponent(importer, exportName) {
     if (!comp) if (reactUse) reactUse(load());
     else throw load();
     return reactExports.createElement(comp, props);
-  };
+  }, "Lazy");
   lazyComp.preload = load;
   return lazyComp;
 }
+__name(lazyRouteComponent, "lazyRouteComponent");
 function CatchNotFound(props) {
   const router = useRouter();
   {
     const resetKey = `not-found-${router.stores.location.get().pathname}-${router.stores.status.get()}`;
     return /* @__PURE__ */ jsxRuntimeExports.jsx(CatchBoundary, {
-      getResetKey: () => resetKey,
-      onCatch: (error, errorInfo) => {
+      getResetKey: /* @__PURE__ */ __name(() => resetKey, "getResetKey"),
+      onCatch: /* @__PURE__ */ __name((error, errorInfo) => {
         if (isNotFound(error)) props.onCatch?.(error, errorInfo);
         else throw error;
-      },
-      errorComponent: ({ error }) => {
+      }, "onCatch"),
+      errorComponent: /* @__PURE__ */ __name(({ error }) => {
         if (isNotFound(error)) return props.fallback?.(error);
         else throw error;
-      },
+      }, "errorComponent"),
       children: props.children
     });
   }
 }
+__name(CatchNotFound, "CatchNotFound");
 function DefaultGlobalNotFound() {
   return /* @__PURE__ */ jsxRuntimeExports.jsx("p", { children: "Not Found" });
 }
+__name(DefaultGlobalNotFound, "DefaultGlobalNotFound");
 function ScriptOnce({ children }) {
   const router = useRouter();
   return /* @__PURE__ */ jsxRuntimeExports.jsx("script", {
@@ -562,9 +589,11 @@ function ScriptOnce({ children }) {
     dangerouslySetInnerHTML: { __html: children + ";document.currentScript.remove()" }
   });
 }
+__name(ScriptOnce, "ScriptOnce");
 function SafeFragment(props) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(jsxRuntimeExports.Fragment, { children: props.children });
 }
+__name(SafeFragment, "SafeFragment");
 function renderRouteNotFound(router, route, data) {
   if (!route.options.notFoundComponent) {
     if (router.options.defaultNotFoundComponent) return /* @__PURE__ */ jsxRuntimeExports.jsx(router.options.defaultNotFoundComponent, { ...data });
@@ -572,12 +601,14 @@ function renderRouteNotFound(router, route, data) {
   }
   return /* @__PURE__ */ jsxRuntimeExports.jsx(route.options.notFoundComponent, { ...data });
 }
+__name(renderRouteNotFound, "renderRouteNotFound");
 function ScrollRestoration() {
   const script = getScrollRestorationScriptForRouter(useRouter());
   if (!script) return null;
   return /* @__PURE__ */ jsxRuntimeExports.jsx(ScriptOnce, { children: script });
 }
-var Match = reactExports.memo(function MatchImpl({ matchId }) {
+__name(ScrollRestoration, "ScrollRestoration");
+var Match = reactExports.memo(/* @__PURE__ */ __name(function MatchImpl({ matchId }) {
   const router = useRouter();
   {
     const match2 = router.stores.matchStores.get(matchId)?.get();
@@ -598,7 +629,7 @@ var Match = reactExports.memo(function MatchImpl({ matchId }) {
       }
     });
   }
-});
+}, "MatchImpl"));
 function MatchView({ router, matchId, resetKey, matchState }) {
   const route = router.routesById[matchState.routeId];
   const PendingComponent = route.options.pendingComponent ?? router.options.defaultPendingComponent;
@@ -615,21 +646,21 @@ function MatchView({ router, matchId, resetKey, matchState }) {
     children: /* @__PURE__ */ jsxRuntimeExports.jsx(ResolvedSuspenseBoundary, {
       fallback: pendingElement,
       children: /* @__PURE__ */ jsxRuntimeExports.jsx(ResolvedCatchBoundary, {
-        getResetKey: () => resetKey,
+        getResetKey: /* @__PURE__ */ __name(() => resetKey, "getResetKey"),
         errorComponent: routeErrorComponent || ErrorComponent,
-        onCatch: (error, errorInfo) => {
+        onCatch: /* @__PURE__ */ __name((error, errorInfo) => {
           if (isNotFound(error)) {
             error.routeId ??= matchState.routeId;
             throw error;
           }
           routeOnCatch?.(error, errorInfo);
-        },
+        }, "onCatch"),
         children: /* @__PURE__ */ jsxRuntimeExports.jsx(ResolvedNotFoundBoundary, {
-          fallback: (error) => {
+          fallback: /* @__PURE__ */ __name((error) => {
             error.routeId ??= matchState.routeId;
             if (!routeNotFoundComponent || error.routeId && error.routeId !== matchState.routeId || !error.routeId && !route.isRoot) throw error;
             return reactExports.createElement(routeNotFoundComponent, error);
-          },
+          }, "fallback"),
           children: resolvedNoSsr || matchState._displayPending ? /* @__PURE__ */ jsxRuntimeExports.jsx(ClientOnly, {
             fallback: pendingElement,
             children: /* @__PURE__ */ jsxRuntimeExports.jsx(MatchInner, { matchId })
@@ -639,15 +670,17 @@ function MatchView({ router, matchId, resetKey, matchState }) {
     })
   }), matchState.parentRouteId === rootRouteId ? /* @__PURE__ */ jsxRuntimeExports.jsxs(jsxRuntimeExports.Fragment, { children: [/* @__PURE__ */ jsxRuntimeExports.jsx(OnRendered, { resetKey }), router.options.scrollRestoration && isServer ? /* @__PURE__ */ jsxRuntimeExports.jsx(ScrollRestoration, {}) : null] }) : null] });
 }
+__name(MatchView, "MatchView");
 function OnRendered({ resetKey }) {
   useRouter();
   return null;
 }
-var MatchInner = reactExports.memo(function MatchInnerImpl({ matchId }) {
+__name(OnRendered, "OnRendered");
+var MatchInner = reactExports.memo(/* @__PURE__ */ __name(function MatchInnerImpl({ matchId }) {
   const router = useRouter();
-  const getMatchPromise = (match2, key2) => {
+  const getMatchPromise = /* @__PURE__ */ __name((match2, key2) => {
     return router.getMatch(match2.id)?._nonReactive[key2] ?? match2._nonReactive[key2];
-  };
+  }, "getMatchPromise");
   {
     const match2 = router.stores.matchStores.get(matchId)?.get();
     if (!match2) {
@@ -686,8 +719,8 @@ var MatchInner = reactExports.memo(function MatchInnerImpl({ matchId }) {
     });
     return out2;
   }
-});
-var Outlet = reactExports.memo(function OutletImpl() {
+}, "MatchInnerImpl"));
+var Outlet = reactExports.memo(/* @__PURE__ */ __name(function OutletImpl() {
   const router = useRouter();
   const matchId = reactExports.useContext(matchContext);
   let routeId;
@@ -716,7 +749,7 @@ var Outlet = reactExports.memo(function OutletImpl() {
     children: nextMatch
   });
   return nextMatch;
-});
+}, "OutletImpl"));
 function Matches() {
   const router = useRouter();
   const PendingComponent = router.routesById[rootRouteId].options.pendingComponent ?? router.options.defaultPendingComponent;
@@ -727,6 +760,7 @@ function Matches() {
   });
   return router.options.InnerWrap ? /* @__PURE__ */ jsxRuntimeExports.jsx(router.options.InnerWrap, { children: inner }) : inner;
 }
+__name(Matches, "Matches");
 function MatchesInner() {
   const router = useRouter();
   const matchId = router.stores.firstId.get();
@@ -735,28 +769,29 @@ function MatchesInner() {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(matchContext.Provider, {
     value: matchId,
     children: router.options.disableGlobalCatchBoundary ? matchComponent : /* @__PURE__ */ jsxRuntimeExports.jsx(CatchBoundary, {
-      getResetKey: () => resetKey,
+      getResetKey: /* @__PURE__ */ __name(() => resetKey, "getResetKey"),
       errorComponent: ErrorComponent,
       onCatch: void 0,
       children: matchComponent
     })
   });
 }
-var getStoreFactory = (opts) => {
+__name(MatchesInner, "MatchesInner");
+var getStoreFactory = /* @__PURE__ */ __name((opts) => {
   return {
     createMutableStore: createNonReactiveMutableStore,
     createReadonlyStore: createNonReactiveReadonlyStore,
-    batch: (fn) => fn()
+    batch: /* @__PURE__ */ __name((fn) => fn(), "batch")
   };
-};
-var createRouter = (options) => {
+}, "getStoreFactory");
+var createRouter = /* @__PURE__ */ __name((options) => {
   return new Router(options);
-};
-var Router = class extends RouterCore {
+}, "createRouter");
+var Router = (_e = class extends RouterCore {
   constructor(options) {
     super(options, getStoreFactory);
   }
-};
+}, __name(_e, "Router"), _e);
 function RouterContextProvider({ router, children, ...rest }) {
   if (hasKeys(rest)) router.update({
     ...router.options,
@@ -773,6 +808,7 @@ function RouterContextProvider({ router, children, ...rest }) {
   if (router.options.Wrap) return /* @__PURE__ */ jsxRuntimeExports.jsx(router.options.Wrap, { children: provider });
   return provider;
 }
+__name(RouterContextProvider, "RouterContextProvider");
 function RouterProvider({ router, ...rest }) {
   return /* @__PURE__ */ jsxRuntimeExports.jsx(RouterContextProvider, {
     router,
@@ -780,6 +816,7 @@ function RouterProvider({ router, ...rest }) {
     children: /* @__PURE__ */ jsxRuntimeExports.jsx(Matches, {})
   });
 }
+__name(RouterProvider, "RouterProvider");
 function useRouterState(opts) {
   const contextRouter = useRouter();
   const router = contextRouter;
@@ -788,12 +825,14 @@ function useRouterState(opts) {
     return state;
   }
 }
-var noopScriptHandler = () => {
-};
+__name(useRouterState, "useRouterState");
+var noopScriptHandler = /* @__PURE__ */ __name(() => {
+}, "noopScriptHandler");
 function setScriptAttrs(script, attrs) {
   if (!attrs) return;
   for (const [key, value] of Object.entries(attrs)) if (key !== "suppressHydrationWarning" && value !== void 0 && value !== false) script.setAttribute(key, typeof value === "boolean" ? "" : String(value));
 }
+__name(setScriptAttrs, "setScriptAttrs");
 function Asset(asset) {
   const { attrs, children, nonce, preventScriptHoist } = asset;
   switch (asset.tag) {
@@ -832,6 +871,7 @@ function Asset(asset) {
       return null;
   }
 }
+__name(Asset, "Asset");
 function Script({ attrs, children, preventScriptHoist }) {
   useRouter();
   useHydrated();
@@ -893,6 +933,7 @@ function Script({ attrs, children, preventScriptHoist }) {
     return null;
   }
 }
+__name(Script, "Script");
 function buildTagsFromMatches(router, nonce, matches, assetCrossOrigin) {
   const routeMeta = matches.map((match) => match.meta).filter((meta) => meta !== void 0);
   const resultMeta = [];
@@ -1012,11 +1053,12 @@ function buildTagsFromMatches(router, nonce, matches, assetCrossOrigin) {
   appendUniqueUserTags(tags, headScripts);
   return tags;
 }
-var useTags = (assetCrossOrigin) => {
+__name(buildTagsFromMatches, "buildTagsFromMatches");
+var useTags = /* @__PURE__ */ __name((assetCrossOrigin) => {
   const router = useRouter();
   const nonce = router.options.ssr?.nonce;
   return buildTagsFromMatches(router, nonce, router.stores.matches.get(), assetCrossOrigin);
-};
+}, "useTags");
 function HeadContent(props) {
   const tags = useTags(props.assetCrossOrigin);
   const nonce = useRouter().options.ssr?.nonce;
@@ -1026,10 +1068,11 @@ function HeadContent(props) {
     nonce
   })) });
 }
-var Scripts = () => {
+__name(HeadContent, "HeadContent");
+var Scripts = /* @__PURE__ */ __name(() => {
   const router = useRouter();
   const nonce = router.options.ssr?.nonce;
-  const getAssetScripts = (matches) => {
+  const getAssetScripts = /* @__PURE__ */ __name((matches) => {
     const assetScripts = [];
     const manifest = router.ssr?.manifest;
     if (!manifest) return [];
@@ -1047,8 +1090,8 @@ var Scripts = () => {
       });
     }
     return assetScripts;
-  };
-  const getScripts = (matches) => matches.map((match) => match.scripts).flat(1).filter(Boolean).map(({ children, ...script }) => ({
+  }, "getAssetScripts");
+  const getScripts = /* @__PURE__ */ __name((matches) => matches.map((match) => match.scripts).flat(1).filter(Boolean).map(({ children, ...script }) => ({
     tag: "script",
     attrs: {
       ...script,
@@ -1056,13 +1099,13 @@ var Scripts = () => {
       nonce
     },
     children
-  }));
+  })), "getScripts");
   {
     const activeMatches = router.stores.matches.get();
     const assetScripts = getAssetScripts(activeMatches);
     return renderScripts(router, getScripts(activeMatches), assetScripts);
   }
-};
+}, "Scripts");
 function renderScripts(router, scripts, assetScripts) {
   const allScripts = [...scripts, ...assetScripts];
   if (router.serverSsr) {
@@ -1074,14 +1117,15 @@ function renderScripts(router, scripts, assetScripts) {
     key: `tsr-scripts-${asset.tag}-${i}`
   })) });
 }
-var noop = () => {
-};
+__name(renderScripts, "renderScripts");
+var noop = /* @__PURE__ */ __name(() => {
+}, "noop");
 async function waitForReadyOrAbort(ready, signal) {
   let cleanup = noop;
   try {
     await Promise.race([ready, new Promise((resolve) => {
-      const onAbort = () => resolve();
-      cleanup = () => signal.removeEventListener("abort", onAbort);
+      const onAbort = /* @__PURE__ */ __name(() => resolve(), "onAbort");
+      cleanup = /* @__PURE__ */ __name(() => signal.removeEventListener("abort", onAbort), "cleanup");
       signal.addEventListener("abort", onAbort, { once: true });
       if (signal.aborted) resolve();
     })]);
@@ -1089,7 +1133,8 @@ async function waitForReadyOrAbort(ready, signal) {
     cleanup();
   }
 }
-var renderRouterToStream = async ({ request, router, responseHeaders, children }) => {
+__name(waitForReadyOrAbort, "waitForReadyOrAbort");
+var renderRouterToStream = /* @__PURE__ */ __name(async ({ request, router, responseHeaders, children }) => {
   if (typeof ReactDOMServer.renderToReadableStream === "function") {
     const stream = await ReactDOMServer.renderToReadableStream(children, {
       signal: request.signal,
@@ -1097,8 +1142,8 @@ var renderRouterToStream = async ({ request, router, responseHeaders, children }
       progressiveChunkSize: Number.POSITIVE_INFINITY
     });
     if (isbot(request.headers.get("User-Agent"))) await waitForReadyOrAbort(stream.allReady, request.signal);
-    const responseStream = transformReadableStreamWithRouter(router, stream, { onAbort: () => stream.cancel().catch(() => {
-    }) });
+    const responseStream = transformReadableStreamWithRouter(router, stream, { onAbort: /* @__PURE__ */ __name(() => stream.cancel().catch(() => {
+    }), "onAbort") });
     return createSsrStreamResponse(router, new Response(responseStream, {
       status: router.stores.statusCode.get(),
       headers: responseHeaders
@@ -1111,15 +1156,15 @@ var renderRouterToStream = async ({ request, router, responseHeaders, children }
     let aborted = false;
     let endedBeforeAttach = false;
     let pendingAbortReason;
-    const toError = (reason) => reason instanceof Error ? reason : new Error(String(reason ?? "SSR aborted"));
-    const destroyError = (reason) => reason === void 0 ? void 0 : toError(reason);
-    const pendingDestroyError = () => pendingAbortReason === void 0 ? toError(pendingAbortReason) : destroyError(pendingAbortReason);
-    const finishPassThrough = (reason, opts) => {
+    const toError = /* @__PURE__ */ __name((reason) => reason instanceof Error ? reason : new Error(String(reason ?? "SSR aborted")), "toError");
+    const destroyError = /* @__PURE__ */ __name((reason) => reason === void 0 ? void 0 : toError(reason), "destroyError");
+    const pendingDestroyError = /* @__PURE__ */ __name(() => pendingAbortReason === void 0 ? toError(pendingAbortReason) : destroyError(pendingAbortReason), "pendingDestroyError");
+    const finishPassThrough = /* @__PURE__ */ __name((reason, opts) => {
       if (reactAppPassthrough.destroyed) return;
       if (responseAttached) reactAppPassthrough.destroy(opts?.defaultError ? toError(reason) : destroyError(reason));
       else endedBeforeAttach = true;
-    };
-    const abortPipeable = (reason, opts) => {
+    }, "finishPassThrough");
+    const abortPipeable = /* @__PURE__ */ __name((reason, opts) => {
       if (aborted) return;
       aborted = true;
       pendingAbortReason = reason;
@@ -1129,10 +1174,10 @@ var renderRouterToStream = async ({ request, router, responseHeaders, children }
       } catch {
       }
       finishPassThrough(reason, opts);
-    };
+    }, "abortPipeable");
     if (request.signal.aborted) abortPipeable(request.signal.reason);
     else {
-      const onRequestAbort = () => abortPipeable(request.signal.reason);
+      const onRequestAbort = /* @__PURE__ */ __name(() => abortPipeable(request.signal.reason), "onRequestAbort");
       request.signal.addEventListener("abort", onRequestAbort, { once: true });
       router.serverSsr?.onCleanup(() => {
         request.signal.removeEventListener("abort", onRequestAbort);
@@ -1147,10 +1192,10 @@ var renderRouterToStream = async ({ request, router, responseHeaders, children }
         } } : { onShellReady() {
           pipeable.pipe(reactAppPassthrough);
         } },
-        onError: (error, info) => {
+        onError: /* @__PURE__ */ __name((error, info) => {
           console.error("Error in renderToPipeableStream:", error, info);
           abortPipeable(error, { defaultError: true });
-        }
+        }, "onError")
       });
     } catch (e) {
       console.error("Error in renderToPipeableStream:", e);
@@ -1170,19 +1215,19 @@ var renderRouterToStream = async ({ request, router, responseHeaders, children }
     }));
   }
   throw new Error("No renderToReadableStream or renderToPipeableStream found in react-dom/server. Ensure you are using a version of react-dom that supports streaming.");
-};
+}, "renderRouterToStream");
 export {
   HeadContent as H,
   Link as L,
   Outlet as O,
   RouterProvider as R,
   Scripts as S,
-  createRootRouteWithContext as a,
-  createFileRoute as b,
-  createRouter as c,
-  useRouterState as d,
+  createFileRoute as a,
+  createRouter as b,
+  createRootRouteWithContext as c,
+  useRouter as d,
   useNavigate as e,
   lazyRouteComponent as l,
   renderRouterToStream as r,
-  useRouter as u
+  useRouterState as u
 };

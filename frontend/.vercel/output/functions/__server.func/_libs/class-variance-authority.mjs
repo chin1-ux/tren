@@ -1,7 +1,9 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { c as clsx } from "./clsx.mjs";
-const falsyToString = (value) => typeof value === "boolean" ? `${value}` : value === 0 ? "0" : value;
+const falsyToString = /* @__PURE__ */ __name((value) => typeof value === "boolean" ? `${value}` : value === 0 ? "0" : value, "falsyToString");
 const cx = clsx;
-const cva = (base, config) => (props) => {
+const cva = /* @__PURE__ */ __name((base, config) => (props) => {
   var _config_compoundVariants;
   if ((config === null || config === void 0 ? void 0 : config.variants) == null) return cx(base, props === null || props === void 0 ? void 0 : props.class, props === null || props === void 0 ? void 0 : props.className);
   const { variants, defaultVariants } = config;
@@ -38,7 +40,7 @@ const cva = (base, config) => (props) => {
     ] : acc;
   }, []);
   return cx(base, getVariantClassNames, getCompoundVariantClassNames, props === null || props === void 0 ? void 0 : props.class, props === null || props === void 0 ? void 0 : props.className);
-};
+}, "cva");
 export {
   cva as c
 };

@@ -1,4 +1,6 @@
-const concatArrays = (array1, array2) => {
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
+const concatArrays = /* @__PURE__ */ __name((array1, array2) => {
   const combinedArray = new Array(array1.length + array2.length);
   for (let i = 0; i < array1.length; i++) {
     combinedArray[i] = array1[i];
@@ -7,34 +9,34 @@ const concatArrays = (array1, array2) => {
     combinedArray[array1.length + i] = array2[i];
   }
   return combinedArray;
-};
-const createClassValidatorObject = (classGroupId, validator) => ({
+}, "concatArrays");
+const createClassValidatorObject = /* @__PURE__ */ __name((classGroupId, validator) => ({
   classGroupId,
   validator
-});
-const createClassPartObject = (nextPart = /* @__PURE__ */ new Map(), validators = null, classGroupId) => ({
+}), "createClassValidatorObject");
+const createClassPartObject = /* @__PURE__ */ __name((nextPart = /* @__PURE__ */ new Map(), validators = null, classGroupId) => ({
   nextPart,
   validators,
   classGroupId
-});
+}), "createClassPartObject");
 const CLASS_PART_SEPARATOR = "-";
 const EMPTY_CONFLICTS = [];
 const ARBITRARY_PROPERTY_PREFIX = "arbitrary..";
-const createClassGroupUtils = (config) => {
+const createClassGroupUtils = /* @__PURE__ */ __name((config) => {
   const classMap = createClassMap(config);
   const {
     conflictingClassGroups,
     conflictingClassGroupModifiers
   } = config;
-  const getClassGroupId = (className) => {
+  const getClassGroupId = /* @__PURE__ */ __name((className) => {
     if (className.startsWith("[") && className.endsWith("]")) {
       return getGroupIdForArbitraryProperty(className);
     }
     const classParts = className.split(CLASS_PART_SEPARATOR);
     const startIndex = classParts[0] === "" && classParts.length > 1 ? 1 : 0;
     return getGroupRecursive(classParts, startIndex, classMap);
-  };
-  const getConflictingClassGroupIds = (classGroupId, hasPostfixModifier) => {
+  }, "getClassGroupId");
+  const getConflictingClassGroupIds = /* @__PURE__ */ __name((classGroupId, hasPostfixModifier) => {
     if (hasPostfixModifier) {
       const modifierConflicts = conflictingClassGroupModifiers[classGroupId];
       const baseConflicts = conflictingClassGroups[classGroupId];
@@ -47,13 +49,13 @@ const createClassGroupUtils = (config) => {
       return baseConflicts || EMPTY_CONFLICTS;
     }
     return conflictingClassGroups[classGroupId] || EMPTY_CONFLICTS;
-  };
+  }, "getConflictingClassGroupIds");
   return {
     getClassGroupId,
     getConflictingClassGroupIds
   };
-};
-const getGroupRecursive = (classParts, startIndex, classPartObject) => {
+}, "createClassGroupUtils");
+const getGroupRecursive = /* @__PURE__ */ __name((classParts, startIndex, classPartObject) => {
   const classPathsLength = classParts.length - startIndex;
   if (classPathsLength === 0) {
     return classPartObject.classGroupId;
@@ -77,36 +79,36 @@ const getGroupRecursive = (classParts, startIndex, classPartObject) => {
     }
   }
   return void 0;
-};
-const getGroupIdForArbitraryProperty = (className) => className.slice(1, -1).indexOf(":") === -1 ? void 0 : (() => {
+}, "getGroupRecursive");
+const getGroupIdForArbitraryProperty = /* @__PURE__ */ __name((className) => className.slice(1, -1).indexOf(":") === -1 ? void 0 : (() => {
   const content = className.slice(1, -1);
   const colonIndex = content.indexOf(":");
   const property = content.slice(0, colonIndex);
   return property ? ARBITRARY_PROPERTY_PREFIX + property : void 0;
-})();
-const createClassMap = (config) => {
+})(), "getGroupIdForArbitraryProperty");
+const createClassMap = /* @__PURE__ */ __name((config) => {
   const {
     theme,
     classGroups
   } = config;
   return processClassGroups(classGroups, theme);
-};
-const processClassGroups = (classGroups, theme) => {
+}, "createClassMap");
+const processClassGroups = /* @__PURE__ */ __name((classGroups, theme) => {
   const classMap = createClassPartObject();
   for (const classGroupId in classGroups) {
     const group = classGroups[classGroupId];
     processClassesRecursively(group, classMap, classGroupId, theme);
   }
   return classMap;
-};
-const processClassesRecursively = (classGroup, classPartObject, classGroupId, theme) => {
+}, "processClassGroups");
+const processClassesRecursively = /* @__PURE__ */ __name((classGroup, classPartObject, classGroupId, theme) => {
   const len = classGroup.length;
   for (let i = 0; i < len; i++) {
     const classDefinition = classGroup[i];
     processClassDefinition(classDefinition, classPartObject, classGroupId, theme);
   }
-};
-const processClassDefinition = (classDefinition, classPartObject, classGroupId, theme) => {
+}, "processClassesRecursively");
+const processClassDefinition = /* @__PURE__ */ __name((classDefinition, classPartObject, classGroupId, theme) => {
   if (typeof classDefinition === "string") {
     processStringDefinition(classDefinition, classPartObject, classGroupId);
     return;
@@ -116,12 +118,12 @@ const processClassDefinition = (classDefinition, classPartObject, classGroupId, 
     return;
   }
   processObjectDefinition(classDefinition, classPartObject, classGroupId, theme);
-};
-const processStringDefinition = (classDefinition, classPartObject, classGroupId) => {
+}, "processClassDefinition");
+const processStringDefinition = /* @__PURE__ */ __name((classDefinition, classPartObject, classGroupId) => {
   const classPartObjectToEdit = classDefinition === "" ? classPartObject : getPart(classPartObject, classDefinition);
   classPartObjectToEdit.classGroupId = classGroupId;
-};
-const processFunctionDefinition = (classDefinition, classPartObject, classGroupId, theme) => {
+}, "processStringDefinition");
+const processFunctionDefinition = /* @__PURE__ */ __name((classDefinition, classPartObject, classGroupId, theme) => {
   if (isThemeGetter(classDefinition)) {
     processClassesRecursively(classDefinition(theme), classPartObject, classGroupId, theme);
     return;
@@ -130,16 +132,16 @@ const processFunctionDefinition = (classDefinition, classPartObject, classGroupI
     classPartObject.validators = [];
   }
   classPartObject.validators.push(createClassValidatorObject(classGroupId, classDefinition));
-};
-const processObjectDefinition = (classDefinition, classPartObject, classGroupId, theme) => {
+}, "processFunctionDefinition");
+const processObjectDefinition = /* @__PURE__ */ __name((classDefinition, classPartObject, classGroupId, theme) => {
   const entries = Object.entries(classDefinition);
   const len = entries.length;
   for (let i = 0; i < len; i++) {
     const [key, value] = entries[i];
     processClassesRecursively(value, getPart(classPartObject, key), classGroupId, theme);
   }
-};
-const getPart = (classPartObject, path) => {
+}, "processObjectDefinition");
+const getPart = /* @__PURE__ */ __name((classPartObject, path) => {
   let current = classPartObject;
   const parts = path.split(CLASS_PART_SEPARATOR);
   const len = parts.length;
@@ -153,20 +155,20 @@ const getPart = (classPartObject, path) => {
     current = next;
   }
   return current;
-};
-const isThemeGetter = (func) => "isThemeGetter" in func && func.isThemeGetter === true;
-const createLruCache = (maxCacheSize) => {
+}, "getPart");
+const isThemeGetter = /* @__PURE__ */ __name((func) => "isThemeGetter" in func && func.isThemeGetter === true, "isThemeGetter");
+const createLruCache = /* @__PURE__ */ __name((maxCacheSize) => {
   if (maxCacheSize < 1) {
     return {
-      get: () => void 0,
-      set: () => {
-      }
+      get: /* @__PURE__ */ __name(() => void 0, "get"),
+      set: /* @__PURE__ */ __name(() => {
+      }, "set")
     };
   }
   let cacheSize = 0;
   let cache = /* @__PURE__ */ Object.create(null);
   let previousCache = /* @__PURE__ */ Object.create(null);
-  const update = (key, value) => {
+  const update = /* @__PURE__ */ __name((key, value) => {
     cache[key] = value;
     cacheSize++;
     if (cacheSize > maxCacheSize) {
@@ -174,7 +176,7 @@ const createLruCache = (maxCacheSize) => {
       previousCache = cache;
       cache = /* @__PURE__ */ Object.create(null);
     }
-  };
+  }, "update");
   return {
     get(key) {
       let value = cache[key];
@@ -194,23 +196,23 @@ const createLruCache = (maxCacheSize) => {
       }
     }
   };
-};
+}, "createLruCache");
 const IMPORTANT_MODIFIER = "!";
 const MODIFIER_SEPARATOR = ":";
 const EMPTY_MODIFIERS = [];
-const createResultObject = (modifiers, hasImportantModifier, baseClassName, maybePostfixModifierPosition, isExternal) => ({
+const createResultObject = /* @__PURE__ */ __name((modifiers, hasImportantModifier, baseClassName, maybePostfixModifierPosition, isExternal) => ({
   modifiers,
   hasImportantModifier,
   baseClassName,
   maybePostfixModifierPosition,
   isExternal
-});
-const createParseClassName = (config) => {
+}), "createResultObject");
+const createParseClassName = /* @__PURE__ */ __name((config) => {
   const {
     prefix,
     experimentalParseClassName
   } = config;
-  let parseClassName = (className) => {
+  let parseClassName = /* @__PURE__ */ __name((className) => {
     const modifiers = [];
     let bracketDepth = 0;
     let parenDepth = 0;
@@ -253,22 +255,22 @@ const createParseClassName = (config) => {
     }
     const maybePostfixModifierPosition = postfixModifierPosition && postfixModifierPosition > modifierStart ? postfixModifierPosition - modifierStart : void 0;
     return createResultObject(modifiers, hasImportantModifier, baseClassName, maybePostfixModifierPosition);
-  };
+  }, "parseClassName");
   if (prefix) {
     const fullPrefix = prefix + MODIFIER_SEPARATOR;
     const parseClassNameOriginal = parseClassName;
-    parseClassName = (className) => className.startsWith(fullPrefix) ? parseClassNameOriginal(className.slice(fullPrefix.length)) : createResultObject(EMPTY_MODIFIERS, false, className, void 0, true);
+    parseClassName = /* @__PURE__ */ __name((className) => className.startsWith(fullPrefix) ? parseClassNameOriginal(className.slice(fullPrefix.length)) : createResultObject(EMPTY_MODIFIERS, false, className, void 0, true), "parseClassName");
   }
   if (experimentalParseClassName) {
     const parseClassNameOriginal = parseClassName;
-    parseClassName = (className) => experimentalParseClassName({
+    parseClassName = /* @__PURE__ */ __name((className) => experimentalParseClassName({
       className,
       parseClassName: parseClassNameOriginal
-    });
+    }), "parseClassName");
   }
   return parseClassName;
-};
-const createSortModifiers = (config) => {
+}, "createParseClassName");
+const createSortModifiers = /* @__PURE__ */ __name((config) => {
   const modifierWeights = /* @__PURE__ */ new Map();
   config.orderSensitiveModifiers.forEach((mod, index) => {
     modifierWeights.set(mod, 1e6 + index);
@@ -297,15 +299,15 @@ const createSortModifiers = (config) => {
     }
     return result;
   };
-};
-const createConfigUtils = (config) => ({
+}, "createSortModifiers");
+const createConfigUtils = /* @__PURE__ */ __name((config) => ({
   cache: createLruCache(config.cacheSize),
   parseClassName: createParseClassName(config),
   sortModifiers: createSortModifiers(config),
   postfixLookupClassGroupIds: createPostfixLookupClassGroupIds(config),
   ...createClassGroupUtils(config)
-});
-const createPostfixLookupClassGroupIds = (config) => {
+}), "createConfigUtils");
+const createPostfixLookupClassGroupIds = /* @__PURE__ */ __name((config) => {
   const lookup = /* @__PURE__ */ Object.create(null);
   const classGroupIds = config.postfixLookupClassGroups;
   if (classGroupIds) {
@@ -314,9 +316,9 @@ const createPostfixLookupClassGroupIds = (config) => {
     }
   }
   return lookup;
-};
+}, "createPostfixLookupClassGroupIds");
 const SPLIT_CLASSES_REGEX = /\s+/;
-const mergeClassList = (classList, configUtils) => {
+const mergeClassList = /* @__PURE__ */ __name((classList, configUtils) => {
   const {
     parseClassName,
     getClassGroupId,
@@ -380,8 +382,8 @@ const mergeClassList = (classList, configUtils) => {
     result = originalClassName + (result.length > 0 ? " " + result : result);
   }
   return result;
-};
-const twJoin = (...classLists) => {
+}, "mergeClassList");
+const twJoin = /* @__PURE__ */ __name((...classLists) => {
   let index = 0;
   let argument;
   let resolvedValue;
@@ -395,8 +397,8 @@ const twJoin = (...classLists) => {
     }
   }
   return string;
-};
-const toValue = (mix) => {
+}, "twJoin");
+const toValue = /* @__PURE__ */ __name((mix) => {
   if (typeof mix === "string") {
     return mix;
   }
@@ -411,21 +413,21 @@ const toValue = (mix) => {
     }
   }
   return string;
-};
-const createTailwindMerge = (createConfigFirst, ...createConfigRest) => {
+}, "toValue");
+const createTailwindMerge = /* @__PURE__ */ __name((createConfigFirst, ...createConfigRest) => {
   let configUtils;
   let cacheGet;
   let cacheSet;
   let functionToCall;
-  const initTailwindMerge = (classList) => {
+  const initTailwindMerge = /* @__PURE__ */ __name((classList) => {
     const config = createConfigRest.reduce((previousConfig, createConfigCurrent) => createConfigCurrent(previousConfig), createConfigFirst());
     configUtils = createConfigUtils(config);
     cacheGet = configUtils.cache.get;
     cacheSet = configUtils.cache.set;
     functionToCall = tailwindMerge;
     return tailwindMerge(classList);
-  };
-  const tailwindMerge = (classList) => {
+  }, "initTailwindMerge");
+  const tailwindMerge = /* @__PURE__ */ __name((classList) => {
     const cachedResult = cacheGet(classList);
     if (cachedResult) {
       return cachedResult;
@@ -433,16 +435,16 @@ const createTailwindMerge = (createConfigFirst, ...createConfigRest) => {
     const result = mergeClassList(classList, configUtils);
     cacheSet(classList, result);
     return result;
-  };
+  }, "tailwindMerge");
   functionToCall = initTailwindMerge;
   return (...args) => functionToCall(twJoin(...args));
-};
+}, "createTailwindMerge");
 const fallbackThemeArr = [];
-const fromTheme = (key) => {
-  const themeGetter = (theme) => theme[key] || fallbackThemeArr;
+const fromTheme = /* @__PURE__ */ __name((key) => {
+  const themeGetter = /* @__PURE__ */ __name((theme) => theme[key] || fallbackThemeArr, "themeGetter");
   themeGetter.isThemeGetter = true;
   return themeGetter;
-};
+}, "fromTheme");
 const arbitraryValueRegex = /^\[(?:(\w[\w-]*):)?(.+)\]$/i;
 const arbitraryVariableRegex = /^\((?:(\w[\w-]*):)?(.+)\)$/i;
 const fractionRegex = /^\d+(?:\.\d+)?\/\d+(?:\.\d+)?$/;
@@ -451,41 +453,41 @@ const lengthUnitRegex = /\d+(%|px|r?em|[sdl]?v([hwib]|min|max)|pt|pc|in|cm|mm|ca
 const colorFunctionRegex = /^(rgba?|hsla?|hwb|(ok)?(lab|lch)|color-mix)\(.+\)$/;
 const shadowRegex = /^(inset_)?-?((\d+)?\.?(\d+)[a-z]+|0)_-?((\d+)?\.?(\d+)[a-z]+|0)/;
 const imageRegex = /^(url|image|image-set|cross-fade|element|(repeating-)?(linear|radial|conic)-gradient)\(.+\)$/;
-const isFraction = (value) => fractionRegex.test(value);
-const isNumber = (value) => !!value && !Number.isNaN(Number(value));
-const isInteger = (value) => !!value && Number.isInteger(Number(value));
-const isPercent = (value) => value.endsWith("%") && isNumber(value.slice(0, -1));
-const isTshirtSize = (value) => tshirtUnitRegex.test(value);
-const isAny = () => true;
-const isLengthOnly = (value) => (
+const isFraction = /* @__PURE__ */ __name((value) => fractionRegex.test(value), "isFraction");
+const isNumber = /* @__PURE__ */ __name((value) => !!value && !Number.isNaN(Number(value)), "isNumber");
+const isInteger = /* @__PURE__ */ __name((value) => !!value && Number.isInteger(Number(value)), "isInteger");
+const isPercent = /* @__PURE__ */ __name((value) => value.endsWith("%") && isNumber(value.slice(0, -1)), "isPercent");
+const isTshirtSize = /* @__PURE__ */ __name((value) => tshirtUnitRegex.test(value), "isTshirtSize");
+const isAny = /* @__PURE__ */ __name(() => true, "isAny");
+const isLengthOnly = /* @__PURE__ */ __name((value) => (
   // `colorFunctionRegex` check is necessary because color functions can have percentages in them which which would be incorrectly classified as lengths.
   // For example, `hsl(0 0% 0%)` would be classified as a length without this check.
   // I could also use lookbehind assertion in `lengthUnitRegex` but that isn't supported widely enough.
   lengthUnitRegex.test(value) && !colorFunctionRegex.test(value)
-);
-const isNever = () => false;
-const isShadow = (value) => shadowRegex.test(value);
-const isImage = (value) => imageRegex.test(value);
-const isAnyNonArbitrary = (value) => !isArbitraryValue(value) && !isArbitraryVariable(value);
-const isNamedContainerQuery = (value) => value.startsWith("@container") && (value[10] === "/" && value[11] !== void 0 || value[11] === "s" && value[16] !== void 0 && value.startsWith("-size/", 10) || value[11] === "n" && value[18] !== void 0 && value.startsWith("-normal/", 10));
-const isArbitrarySize = (value) => getIsArbitraryValue(value, isLabelSize, isNever);
-const isArbitraryValue = (value) => arbitraryValueRegex.test(value);
-const isArbitraryLength = (value) => getIsArbitraryValue(value, isLabelLength, isLengthOnly);
-const isArbitraryNumber = (value) => getIsArbitraryValue(value, isLabelNumber, isNumber);
-const isArbitraryWeight = (value) => getIsArbitraryValue(value, isLabelWeight, isAny);
-const isArbitraryFamilyName = (value) => getIsArbitraryValue(value, isLabelFamilyName, isNever);
-const isArbitraryPosition = (value) => getIsArbitraryValue(value, isLabelPosition, isNever);
-const isArbitraryImage = (value) => getIsArbitraryValue(value, isLabelImage, isImage);
-const isArbitraryShadow = (value) => getIsArbitraryValue(value, isLabelShadow, isShadow);
-const isArbitraryVariable = (value) => arbitraryVariableRegex.test(value);
-const isArbitraryVariableLength = (value) => getIsArbitraryVariable(value, isLabelLength);
-const isArbitraryVariableFamilyName = (value) => getIsArbitraryVariable(value, isLabelFamilyName);
-const isArbitraryVariablePosition = (value) => getIsArbitraryVariable(value, isLabelPosition);
-const isArbitraryVariableSize = (value) => getIsArbitraryVariable(value, isLabelSize);
-const isArbitraryVariableImage = (value) => getIsArbitraryVariable(value, isLabelImage);
-const isArbitraryVariableShadow = (value) => getIsArbitraryVariable(value, isLabelShadow, true);
-const isArbitraryVariableWeight = (value) => getIsArbitraryVariable(value, isLabelWeight, true);
-const getIsArbitraryValue = (value, testLabel, testValue) => {
+), "isLengthOnly");
+const isNever = /* @__PURE__ */ __name(() => false, "isNever");
+const isShadow = /* @__PURE__ */ __name((value) => shadowRegex.test(value), "isShadow");
+const isImage = /* @__PURE__ */ __name((value) => imageRegex.test(value), "isImage");
+const isAnyNonArbitrary = /* @__PURE__ */ __name((value) => !isArbitraryValue(value) && !isArbitraryVariable(value), "isAnyNonArbitrary");
+const isNamedContainerQuery = /* @__PURE__ */ __name((value) => value.startsWith("@container") && (value[10] === "/" && value[11] !== void 0 || value[11] === "s" && value[16] !== void 0 && value.startsWith("-size/", 10) || value[11] === "n" && value[18] !== void 0 && value.startsWith("-normal/", 10)), "isNamedContainerQuery");
+const isArbitrarySize = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelSize, isNever), "isArbitrarySize");
+const isArbitraryValue = /* @__PURE__ */ __name((value) => arbitraryValueRegex.test(value), "isArbitraryValue");
+const isArbitraryLength = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelLength, isLengthOnly), "isArbitraryLength");
+const isArbitraryNumber = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelNumber, isNumber), "isArbitraryNumber");
+const isArbitraryWeight = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelWeight, isAny), "isArbitraryWeight");
+const isArbitraryFamilyName = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelFamilyName, isNever), "isArbitraryFamilyName");
+const isArbitraryPosition = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelPosition, isNever), "isArbitraryPosition");
+const isArbitraryImage = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelImage, isImage), "isArbitraryImage");
+const isArbitraryShadow = /* @__PURE__ */ __name((value) => getIsArbitraryValue(value, isLabelShadow, isShadow), "isArbitraryShadow");
+const isArbitraryVariable = /* @__PURE__ */ __name((value) => arbitraryVariableRegex.test(value), "isArbitraryVariable");
+const isArbitraryVariableLength = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelLength), "isArbitraryVariableLength");
+const isArbitraryVariableFamilyName = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelFamilyName), "isArbitraryVariableFamilyName");
+const isArbitraryVariablePosition = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelPosition), "isArbitraryVariablePosition");
+const isArbitraryVariableSize = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelSize), "isArbitraryVariableSize");
+const isArbitraryVariableImage = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelImage), "isArbitraryVariableImage");
+const isArbitraryVariableShadow = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelShadow, true), "isArbitraryVariableShadow");
+const isArbitraryVariableWeight = /* @__PURE__ */ __name((value) => getIsArbitraryVariable(value, isLabelWeight, true), "isArbitraryVariableWeight");
+const getIsArbitraryValue = /* @__PURE__ */ __name((value, testLabel, testValue) => {
   const result = arbitraryValueRegex.exec(value);
   if (result) {
     if (result[1]) {
@@ -494,8 +496,8 @@ const getIsArbitraryValue = (value, testLabel, testValue) => {
     return testValue(result[2]);
   }
   return false;
-};
-const getIsArbitraryVariable = (value, testLabel, shouldMatchNoLabel = false) => {
+}, "getIsArbitraryValue");
+const getIsArbitraryVariable = /* @__PURE__ */ __name((value, testLabel, shouldMatchNoLabel = false) => {
   const result = arbitraryVariableRegex.exec(value);
   if (result) {
     if (result[1]) {
@@ -504,16 +506,16 @@ const getIsArbitraryVariable = (value, testLabel, shouldMatchNoLabel = false) =>
     return shouldMatchNoLabel;
   }
   return false;
-};
-const isLabelPosition = (label) => label === "position" || label === "percentage";
-const isLabelImage = (label) => label === "image" || label === "url";
-const isLabelSize = (label) => label === "length" || label === "size" || label === "bg-size";
-const isLabelLength = (label) => label === "length";
-const isLabelNumber = (label) => label === "number";
-const isLabelFamilyName = (label) => label === "family-name";
-const isLabelWeight = (label) => label === "number" || label === "weight";
-const isLabelShadow = (label) => label === "shadow";
-const getDefaultConfig = () => {
+}, "getIsArbitraryVariable");
+const isLabelPosition = /* @__PURE__ */ __name((label) => label === "position" || label === "percentage", "isLabelPosition");
+const isLabelImage = /* @__PURE__ */ __name((label) => label === "image" || label === "url", "isLabelImage");
+const isLabelSize = /* @__PURE__ */ __name((label) => label === "length" || label === "size" || label === "bg-size", "isLabelSize");
+const isLabelLength = /* @__PURE__ */ __name((label) => label === "length", "isLabelLength");
+const isLabelNumber = /* @__PURE__ */ __name((label) => label === "number", "isLabelNumber");
+const isLabelFamilyName = /* @__PURE__ */ __name((label) => label === "family-name", "isLabelFamilyName");
+const isLabelWeight = /* @__PURE__ */ __name((label) => label === "number" || label === "weight", "isLabelWeight");
+const isLabelShadow = /* @__PURE__ */ __name((label) => label === "shadow", "isLabelShadow");
+const getDefaultConfig = /* @__PURE__ */ __name(() => {
   const themeColor = fromTheme("color");
   const themeFont = fromTheme("font");
   const themeText = fromTheme("text");
@@ -533,8 +535,8 @@ const getDefaultConfig = () => {
   const themeAspect = fromTheme("aspect");
   const themeEase = fromTheme("ease");
   const themeAnimate = fromTheme("animate");
-  const scaleBreak = () => ["auto", "avoid", "all", "avoid-page", "page", "left", "right", "column"];
-  const scalePosition = () => [
+  const scaleBreak = /* @__PURE__ */ __name(() => ["auto", "avoid", "all", "avoid-page", "page", "left", "right", "column"], "scaleBreak");
+  const scalePosition = /* @__PURE__ */ __name(() => [
     "center",
     "top",
     "bottom",
@@ -552,36 +554,36 @@ const getDefaultConfig = () => {
     "bottom-left",
     // Deprecated since Tailwind CSS v4.1.0, see https://github.com/tailwindlabs/tailwindcss/pull/17378
     "left-bottom"
-  ];
-  const scalePositionWithArbitrary = () => [...scalePosition(), isArbitraryVariable, isArbitraryValue];
-  const scaleOverflow = () => ["auto", "hidden", "clip", "visible", "scroll"];
-  const scaleOverscroll = () => ["auto", "contain", "none"];
-  const scaleUnambiguousSpacing = () => [isArbitraryVariable, isArbitraryValue, themeSpacing];
-  const scaleInset = () => [isFraction, "full", "auto", ...scaleUnambiguousSpacing()];
-  const scaleGridTemplateColsRows = () => [isInteger, "none", "subgrid", isArbitraryVariable, isArbitraryValue];
-  const scaleGridColRowStartAndEnd = () => ["auto", {
+  ], "scalePosition");
+  const scalePositionWithArbitrary = /* @__PURE__ */ __name(() => [...scalePosition(), isArbitraryVariable, isArbitraryValue], "scalePositionWithArbitrary");
+  const scaleOverflow = /* @__PURE__ */ __name(() => ["auto", "hidden", "clip", "visible", "scroll"], "scaleOverflow");
+  const scaleOverscroll = /* @__PURE__ */ __name(() => ["auto", "contain", "none"], "scaleOverscroll");
+  const scaleUnambiguousSpacing = /* @__PURE__ */ __name(() => [isArbitraryVariable, isArbitraryValue, themeSpacing], "scaleUnambiguousSpacing");
+  const scaleInset = /* @__PURE__ */ __name(() => [isFraction, "full", "auto", ...scaleUnambiguousSpacing()], "scaleInset");
+  const scaleGridTemplateColsRows = /* @__PURE__ */ __name(() => [isInteger, "none", "subgrid", isArbitraryVariable, isArbitraryValue], "scaleGridTemplateColsRows");
+  const scaleGridColRowStartAndEnd = /* @__PURE__ */ __name(() => ["auto", {
     span: ["full", isInteger, isArbitraryVariable, isArbitraryValue]
-  }, isInteger, isArbitraryVariable, isArbitraryValue];
-  const scaleGridColRowStartOrEnd = () => [isInteger, "auto", isArbitraryVariable, isArbitraryValue];
-  const scaleGridAutoColsRows = () => ["auto", "min", "max", "fr", isArbitraryVariable, isArbitraryValue];
-  const scaleAlignPrimaryAxis = () => ["start", "end", "center", "between", "around", "evenly", "stretch", "baseline", "center-safe", "end-safe"];
-  const scaleAlignSecondaryAxis = () => ["start", "end", "center", "stretch", "center-safe", "end-safe"];
-  const scaleMargin = () => ["auto", ...scaleUnambiguousSpacing()];
-  const scaleSizing = () => [isFraction, "auto", "full", "dvw", "dvh", "lvw", "lvh", "svw", "svh", "min", "max", "fit", ...scaleUnambiguousSpacing()];
-  const scaleSizingInline = () => [isFraction, "screen", "full", "dvw", "lvw", "svw", "min", "max", "fit", ...scaleUnambiguousSpacing()];
-  const scaleSizingBlock = () => [isFraction, "screen", "full", "lh", "dvh", "lvh", "svh", "min", "max", "fit", ...scaleUnambiguousSpacing()];
-  const scaleColor = () => [themeColor, isArbitraryVariable, isArbitraryValue];
-  const scaleBgPosition = () => [...scalePosition(), isArbitraryVariablePosition, isArbitraryPosition, {
+  }, isInteger, isArbitraryVariable, isArbitraryValue], "scaleGridColRowStartAndEnd");
+  const scaleGridColRowStartOrEnd = /* @__PURE__ */ __name(() => [isInteger, "auto", isArbitraryVariable, isArbitraryValue], "scaleGridColRowStartOrEnd");
+  const scaleGridAutoColsRows = /* @__PURE__ */ __name(() => ["auto", "min", "max", "fr", isArbitraryVariable, isArbitraryValue], "scaleGridAutoColsRows");
+  const scaleAlignPrimaryAxis = /* @__PURE__ */ __name(() => ["start", "end", "center", "between", "around", "evenly", "stretch", "baseline", "center-safe", "end-safe"], "scaleAlignPrimaryAxis");
+  const scaleAlignSecondaryAxis = /* @__PURE__ */ __name(() => ["start", "end", "center", "stretch", "center-safe", "end-safe"], "scaleAlignSecondaryAxis");
+  const scaleMargin = /* @__PURE__ */ __name(() => ["auto", ...scaleUnambiguousSpacing()], "scaleMargin");
+  const scaleSizing = /* @__PURE__ */ __name(() => [isFraction, "auto", "full", "dvw", "dvh", "lvw", "lvh", "svw", "svh", "min", "max", "fit", ...scaleUnambiguousSpacing()], "scaleSizing");
+  const scaleSizingInline = /* @__PURE__ */ __name(() => [isFraction, "screen", "full", "dvw", "lvw", "svw", "min", "max", "fit", ...scaleUnambiguousSpacing()], "scaleSizingInline");
+  const scaleSizingBlock = /* @__PURE__ */ __name(() => [isFraction, "screen", "full", "lh", "dvh", "lvh", "svh", "min", "max", "fit", ...scaleUnambiguousSpacing()], "scaleSizingBlock");
+  const scaleColor = /* @__PURE__ */ __name(() => [themeColor, isArbitraryVariable, isArbitraryValue], "scaleColor");
+  const scaleBgPosition = /* @__PURE__ */ __name(() => [...scalePosition(), isArbitraryVariablePosition, isArbitraryPosition, {
     position: [isArbitraryVariable, isArbitraryValue]
-  }];
-  const scaleBgRepeat = () => ["no-repeat", {
+  }], "scaleBgPosition");
+  const scaleBgRepeat = /* @__PURE__ */ __name(() => ["no-repeat", {
     repeat: ["", "x", "y", "space", "round"]
-  }];
-  const scaleBgSize = () => ["auto", "cover", "contain", isArbitraryVariableSize, isArbitrarySize, {
+  }], "scaleBgRepeat");
+  const scaleBgSize = /* @__PURE__ */ __name(() => ["auto", "cover", "contain", isArbitraryVariableSize, isArbitrarySize, {
     size: [isArbitraryVariable, isArbitraryValue]
-  }];
-  const scaleGradientStopPosition = () => [isPercent, isArbitraryVariableLength, isArbitraryLength];
-  const scaleRadius = () => [
+  }], "scaleBgSize");
+  const scaleGradientStopPosition = /* @__PURE__ */ __name(() => [isPercent, isArbitraryVariableLength, isArbitraryLength], "scaleGradientStopPosition");
+  const scaleRadius = /* @__PURE__ */ __name(() => [
     // Deprecated since Tailwind CSS v4.0.0
     "",
     "none",
@@ -589,23 +591,23 @@ const getDefaultConfig = () => {
     themeRadius,
     isArbitraryVariable,
     isArbitraryValue
-  ];
-  const scaleBorderWidth = () => ["", isNumber, isArbitraryVariableLength, isArbitraryLength];
-  const scaleLineStyle = () => ["solid", "dashed", "dotted", "double"];
-  const scaleBlendMode = () => ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"];
-  const scaleMaskImagePosition = () => [isNumber, isPercent, isArbitraryVariablePosition, isArbitraryPosition];
-  const scaleBlur = () => [
+  ], "scaleRadius");
+  const scaleBorderWidth = /* @__PURE__ */ __name(() => ["", isNumber, isArbitraryVariableLength, isArbitraryLength], "scaleBorderWidth");
+  const scaleLineStyle = /* @__PURE__ */ __name(() => ["solid", "dashed", "dotted", "double"], "scaleLineStyle");
+  const scaleBlendMode = /* @__PURE__ */ __name(() => ["normal", "multiply", "screen", "overlay", "darken", "lighten", "color-dodge", "color-burn", "hard-light", "soft-light", "difference", "exclusion", "hue", "saturation", "color", "luminosity"], "scaleBlendMode");
+  const scaleMaskImagePosition = /* @__PURE__ */ __name(() => [isNumber, isPercent, isArbitraryVariablePosition, isArbitraryPosition], "scaleMaskImagePosition");
+  const scaleBlur = /* @__PURE__ */ __name(() => [
     // Deprecated since Tailwind CSS v4.0.0
     "",
     "none",
     themeBlur,
     isArbitraryVariable,
     isArbitraryValue
-  ];
-  const scaleRotate = () => ["none", isNumber, isArbitraryVariable, isArbitraryValue];
-  const scaleScale = () => ["none", isNumber, isArbitraryVariable, isArbitraryValue];
-  const scaleSkew = () => [isNumber, isArbitraryVariable, isArbitraryValue];
-  const scaleTranslate = () => [isFraction, "full", ...scaleUnambiguousSpacing()];
+  ], "scaleBlur");
+  const scaleRotate = /* @__PURE__ */ __name(() => ["none", isNumber, isArbitraryVariable, isArbitraryValue], "scaleRotate");
+  const scaleScale = /* @__PURE__ */ __name(() => ["none", isNumber, isArbitraryVariable, isArbitraryValue], "scaleScale");
+  const scaleSkew = /* @__PURE__ */ __name(() => [isNumber, isArbitraryVariable, isArbitraryValue], "scaleSkew");
+  const scaleTranslate = /* @__PURE__ */ __name(() => [isFraction, "full", ...scaleUnambiguousSpacing()], "scaleTranslate");
   return {
     cacheSize: 500,
     theme: {
@@ -3248,7 +3250,7 @@ const getDefaultConfig = () => {
     postfixLookupClassGroups: ["container-type"],
     orderSensitiveModifiers: ["*", "**", "after", "backdrop", "before", "details-content", "file", "first-letter", "first-line", "marker", "placeholder", "selection"]
   };
-};
+}, "getDefaultConfig");
 const twMerge = /* @__PURE__ */ createTailwindMerge(getDefaultConfig);
 export {
   twMerge as t

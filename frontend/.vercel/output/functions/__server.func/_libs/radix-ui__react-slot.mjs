@@ -1,3 +1,5 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 import { r as reactExports, b as React } from "./react.mjs";
 import { u as useComposedRefs } from "./radix-ui__react-compose-refs.mjs";
 // @__NO_SIDE_EFFECTS__
@@ -54,16 +56,17 @@ function createSlot(ownerName) {
   Slot2.displayName = `${ownerName}.Slot`;
   return Slot2;
 }
+__name(createSlot, "createSlot");
 var Slot = /* @__PURE__ */ createSlot("Slot");
 var SLOTTABLE_IDENTIFIER = /* @__PURE__ */ Symbol.for("radix.slottable");
-var getSlottableElementFromSlottable = (slottable, child) => {
+var getSlottableElementFromSlottable = /* @__PURE__ */ __name((slottable, child) => {
   if ("child" in slottable.props) {
     const child2 = slottable.props.child;
     if (!reactExports.isValidElement(child2)) return null;
     return reactExports.cloneElement(child2, void 0, slottable.props.children(child2.props.children));
   }
   return reactExports.isValidElement(child) ? child : null;
-};
+}, "getSlottableElementFromSlottable");
 function mergeProps(slotProps, childProps) {
   const overrideProps = { ...childProps };
   for (const propName in childProps) {
@@ -88,6 +91,7 @@ function mergeProps(slotProps, childProps) {
   }
   return { ...slotProps, ...overrideProps };
 }
+__name(mergeProps, "mergeProps");
 function getElementRef(element) {
   let getter = Object.getOwnPropertyDescriptor(element.props, "ref")?.get;
   let mayWarn = getter && "isReactWarning" in getter && getter.isReactWarning;
@@ -101,23 +105,28 @@ function getElementRef(element) {
   }
   return element.props.ref || element.ref;
 }
+__name(getElementRef, "getElementRef");
 function isSlottable(child) {
   return reactExports.isValidElement(child) && typeof child.type === "function" && "__radixId" in child.type && child.type.__radixId === SLOTTABLE_IDENTIFIER;
 }
+__name(isSlottable, "isSlottable");
 var REACT_LAZY_TYPE = /* @__PURE__ */ Symbol.for("react.lazy");
 function isLazyComponent(element) {
   return element != null && typeof element === "object" && "$$typeof" in element && element.$$typeof === REACT_LAZY_TYPE && "_payload" in element && isPromiseLike(element._payload);
 }
+__name(isLazyComponent, "isLazyComponent");
 function isPromiseLike(value) {
   return typeof value === "object" && value !== null && "then" in value;
 }
-var createSlotError = (ownerName) => {
+__name(isPromiseLike, "isPromiseLike");
+var createSlotError = /* @__PURE__ */ __name((ownerName) => {
   return `${ownerName} failed to slot onto its children. Expected a single React element child or \`Slottable\`.`;
-};
-var createSlottableError = (ownerName) => {
+}, "createSlotError");
+var createSlottableError = /* @__PURE__ */ __name((ownerName) => {
   return `${ownerName} failed to slot onto its \`Slottable\`. Expected \`Slottable\` to receive a single React element child.`;
-};
+}, "createSlottableError");
 var use = React[" use ".trim().toString()];
 export {
-  Slot as S
+  Slot as S,
+  createSlot as c
 };

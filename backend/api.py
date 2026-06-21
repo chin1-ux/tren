@@ -6,7 +6,7 @@ import requests
 import secrets
 import threading
 from typing import List, Optional
-from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request, Depends
+from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
@@ -200,9 +200,24 @@ class PrePostRequest(BaseModel):
     user_email: Optional[str] = None
 
 
-class HookRequest(BaseModel):
+class ScoreReelRequest(BaseModel):
+    audio: str
+    caption: str
+    posting_time: str
     niche: str
-    topic: str
+
+
+class HookRequest(BaseModel):
+    niche: Optional[str] = None
+    topic: Optional[str] = None
+    trend: Optional[str] = None
+    content_description: Optional[str] = None
+
+
+class GenerateHooksRequest(BaseModel):
+    trend: str
+    content_description: str
+
 
 
 class SeoCaptionRequest(BaseModel):
@@ -968,11 +983,128 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 @app.post("/api/generate-hooks")
 @limiter.limit("10/minute")
-def generate_hooks(request: Request, req: HookRequest, current_user_email: str = Depends(get_current_user)):
+def generate_hooks(request: Request, req: HookRequest, authorization: Optional[str] = Header(None)):
     try:
-        return creator_tools.generate_hooks(niche=req.niche, topic=req.topic)
+        niche = req.trend or req.niche or "lifestyle"
+        topic = req.content_description or req.topic or "viral reels"
+        return creator_tools.generate_hooks(niche=niche, topic=topic)
     except Exception as e:
         logger.error(f"Error in /api/generate-hooks: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/score-reel")
+@limiter.limit("10/minute")
+def score_reel(request: Request, req: ScoreReelRequest):
+    try:
+        import re
+        hashtags = re.findall(r"#\w+", req.caption)
+        hook = req.caption.split('\n')[0] if '\n' in req.caption else req.caption.split('.')[0]
+        if not hook:
+            hook = "Check this out!"
+            
+        res = creator_tools.get_pre_post_score(
+            niche=req.niche,
+            hook=hook,
+            audio_title=req.audio,
+            caption=req.caption,
+            hashtags=hashtags,
+            post_time=req.posting_time
+        )
+        
+        overall = res.get("overall_score", 75)
+        breakdown = res.get("breakdown", {})
+        
+        if overall >= 90:
+            grade = "A+"
+        elif overall >= 80:
+            grade = "A"
+        elif overall >= 70:
+            grade = "B"
+        elif overall >= 60:
+            grade = "C"
+        else:
+            grade = "D"
+
+        try:
+            analysis_data = {
+                "user_email": "anonymous@trendrop.app",
+                "video_url": "",
+                "analysis_details": res,
+                "score": overall
+            }
+            supabase.table("pre_post_analyses").insert(analysis_data).execute()
+        except Exception:
+            pass
+
+        return {
+            "overall_score": overall,
+            "grade": grade,
+            "hook_score": breakdown.get("hook_strength", 70),
+            "audio_score": breakdown.get("audio_match", 70),
+            "caption_score": breakdown.get("seo_and_caption", 70),
+            "hashtag_score": breakdown.get("hashtags", 70),
+            "timing_score": breakdown.get("timing", 70),
+            "top_fixes": res.get("fixes", [])
+        }
+    except Exception as e:
+        logger.error(f"Error in /api/score-reel: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/daily-ideas/{user_email}")
+@limiter.limit("10/minute")
+def get_daily_ideas_by_email(user_email: str, request: Request):
+    try:
+        ideas = creator_tools.get_daily_ideas(user_email=user_email)
+        difficulties = ["Easy", "Medium", "Hard"]
+        for i, idea in enumerate(ideas):
+            if "difficulty" not in idea:
+                idea["difficulty"] = difficulties[i % len(difficulties)]
+        return ideas
+    except Exception as e:
+        logger.error(f"Error in /api/daily-ideas/{user_email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/generate-calendar/{user_email}")
+@limiter.limit("5/minute")
+def generate_calendar_for_user(user_email: str, request: Request):
+    try:
+        niche = "lifestyle"
+        language = "en"
+        frequency = "daily"
+        
+        if supabase:
+            try:
+                res = supabase.table("users").select("niche, language_preference").eq("email", user_email).execute()
+                if res.data:
+                    niche = res.data[0].get("niche", niche)
+                    language = res.data[0].get("language_preference", language)
+            except Exception as db_err:
+                logger.warning(f"Error fetching user for calendar: {db_err}")
+                
+        res = creator_tools.generate_calendar(
+            user_email=user_email,
+            niche=niche,
+            language=language,
+            frequency=frequency
+        )
+        if supabase:
+            try:
+                calendar_data = {
+                    "user_email": user_email,
+                    "niche": niche,
+                    "language": language,
+                    "frequency": frequency,
+                    "schedule_data": res
+                }
+                supabase.table("calendar_plans").upsert(calendar_data, on_conflict="user_email").execute()
+            except Exception as db_err:
+                logger.warning(f"Error saving calendar to DB: {db_err}")
+        return res
+    except Exception as e:
+        logger.error(f"Error in /api/generate-calendar/{user_email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -990,10 +1122,16 @@ def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_
 @limiter.limit("10/minute")
 def get_daily_ideas(request: Request, current_user_email: str = Depends(get_current_user)):
     try:
-        return creator_tools.get_daily_ideas(user_email=current_user_email)
+        ideas = creator_tools.get_daily_ideas(user_email=current_user_email)
+        difficulties = ["Easy", "Medium", "Hard"]
+        for i, idea in enumerate(ideas):
+            if "difficulty" not in idea:
+                idea["difficulty"] = difficulties[i % len(difficulties)]
+        return ideas
     except Exception as e:
         logger.error(f"Error in /api/daily-ideas: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 
 @app.post("/api/calendar")

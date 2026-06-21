@@ -351,7 +351,80 @@ export function resolveOutputUrl(outputUrl: string): string {
   return `${API_URL || ""}/${outputUrl.replace(/^\//, "")}`;
 }
 
+// ── Ideas, Score, Hook, Calendar helper functions ──────────────────────────────
+export interface ApiDailyIdea {
+  title: string;
+  description: string;
+  hook: string;
+  audio_suggestion: string;
+  posting_time: string;
+  difficulty: "Easy" | "Medium" | "Hard" | string;
+}
+
+export interface ScoreReelResponse {
+  overall_score: number;
+  grade: string;
+  hook_score: number;
+  audio_score: number;
+  caption_score: number;
+  hashtag_score: number;
+  timing_score: number;
+  top_fixes: string[];
+}
+
+export interface GeneratedHook {
+  style: string;
+  text: string;
+  why_it_works: string;
+}
+
+export interface GenerateHooksResponse {
+  hooks: GeneratedHook[];
+}
+
+export interface CalendarDay {
+  day: number;
+  topic: string;
+  hook: string;
+  audio_style: string;
+  hashtags: string[];
+  posting_time: string;
+}
+
+export async function fetchDailyIdeas(userEmail: string): Promise<ApiDailyIdea[]> {
+  return http<ApiDailyIdea[]>(`/api/daily-ideas/${encodeURIComponent(userEmail)}`);
+}
+
+export async function scoreReel(args: {
+  audio: string;
+  caption: string;
+  posting_time: string;
+  niche: string;
+}): Promise<ScoreReelResponse> {
+  return http<ScoreReelResponse>("/api/score-reel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+}
+
+export async function generateHooks(args: {
+  trend: string;
+  content_description: string;
+}): Promise<GenerateHooksResponse> {
+  return http<GenerateHooksResponse>("/api/generate-hooks", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+}
+
+export async function generateCalendar(userEmail: string): Promise<{ calendar: CalendarDay[] }> {
+  return http<{ calendar: CalendarDay[] }>(`/api/generate-calendar/${encodeURIComponent(userEmail)}`);
+}
+
 // ── User ───────────────────────────────────────────────────────────────────────
+
 
 export async function subscribe(body: {
   email: string;

@@ -1,3 +1,5 @@
+var __defProp = Object.defineProperty;
+var __name = (target, value) => __defProp(target, "name", { value, configurable: true });
 globalThis.__nitro_main__ = import.meta.url;
 import { d as defineLazyEventHandler, H as HTTPError, a as H3Core } from "./_libs/h3.mjs";
 import { N as NodeResponse } from "./_libs/srvx.mjs";
@@ -17,15 +19,16 @@ function lazyService(loader) {
     }
   };
 }
+__name(lazyService, "lazyService");
 const services = {
   ["ssr"]: lazyService(() => import("./_ssr/index.mjs"))
 };
 globalThis.__nitro_vite_envs__ = services;
-const headers = ((m) => function headersRouteRule(event) {
+const headers = /* @__PURE__ */ __name(((m) => /* @__PURE__ */ __name(function headersRouteRule(event) {
   for (const [key, value] of Object.entries(m.options || {})) {
     event.res.headers.set(key, value);
   }
-});
+}, "headersRouteRule")), "headers");
 const findRouteRules = /* @__PURE__ */ (() => {
   const $0 = [{ name: "headers", route: "/assets/**", handler: headers, options: { "cache-control": "public, max-age=31536000, immutable" } }];
   return (m, p) => {
@@ -47,10 +50,10 @@ const findRoute = /* @__PURE__ */ (() => {
     return { data, params: { "_": p.slice(1) } };
   });
 })();
-const errorHandler$1 = (error, event) => {
+const errorHandler$1 = /* @__PURE__ */ __name((error, event) => {
   const res = defaultHandler(error, event);
   return new NodeResponse(typeof res.body === "string" ? res.body : JSON.stringify(res.body, null, 2), res);
-};
+}, "errorHandler$1");
 function defaultHandler(error, event) {
   const unhandled = error.unhandled ?? !HTTPError.isError(error);
   const { status = 500, statusText = "" } = unhandled ? {} : error;
@@ -84,6 +87,7 @@ function defaultHandler(error, event) {
     }
   };
 }
+__name(defaultHandler, "defaultHandler");
 const errorHandlers = [errorHandler$1];
 async function errorHandler(error, event) {
   for (const handler of errorHandlers) {
@@ -97,25 +101,26 @@ async function errorHandler(error, event) {
     }
   }
 }
+__name(errorHandler, "errorHandler");
 function createNitroApp() {
-  const captureError = (error, errorCtx) => {
+  const captureError = /* @__PURE__ */ __name((error, errorCtx) => {
     if (errorCtx?.event) {
       const errors = errorCtx.event.req.context?.nitro?.errors;
       if (errors) {
         errors.push({ error, context: errorCtx });
       }
     }
-  };
+  }, "captureError");
   const h3App = createH3App({
     onError(error, event) {
       return errorHandler(error, event);
     }
   });
-  let appHandler = (req) => {
+  let appHandler = /* @__PURE__ */ __name((req) => {
     req.context ||= {};
     req.context.nitro = req.context.nitro || { errors: [] };
     return h3App.fetch(req);
-  };
+  }, "appHandler");
   return {
     fetch: appHandler,
     h3: h3App,
@@ -123,6 +128,7 @@ function createNitroApp() {
     captureError
   };
 }
+__name(createNitroApp, "createNitroApp");
 function createH3App(config) {
   const h3App = new H3Core(config);
   h3App["~findRoute"] = (event) => findRoute(event.req.method, event.url.pathname);
@@ -142,6 +148,7 @@ function createH3App(config) {
   };
   return h3App;
 }
+__name(createH3App, "createH3App");
 const APP_ID = "default";
 function useNitroApp() {
   let instance = useNitroApp._instance;
@@ -153,6 +160,7 @@ function useNitroApp() {
   globalThis.__nitro__[APP_ID] = instance;
   return instance;
 }
+__name(useNitroApp, "useNitroApp");
 function getRouteRules(method, pathname) {
   const m = findRouteRules(method, pathname);
   if (!m?.length) {
@@ -201,6 +209,7 @@ function getRouteRules(method, pathname) {
     routeRuleMiddleware: middleware
   };
 }
+__name(getRouteRules, "getRouteRules");
 const ISR_URL_PARAM = "__isr_route";
 function isrRouteRewrite(reqUrl, xNowRouteMatches) {
   if (xNowRouteMatches) {
@@ -220,6 +229,7 @@ function isrRouteRewrite(reqUrl, xNowRouteMatches) {
     }
   }
 }
+__name(isrRouteRewrite, "isrRouteRewrite");
 const nitroApp = useNitroApp();
 const vercel_web = { fetch(req, context) {
   const isrURL = isrRouteRewrite(req.url, req.headers.get("x-now-route-matches"));
