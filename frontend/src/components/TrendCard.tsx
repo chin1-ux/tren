@@ -145,12 +145,16 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   };
 
   return (
-    <article
-      ref={cardRef}
+    <motion.article
+      ref={cardRef as any}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={() => setIsExpanded(!isExpanded)}
-      className={`tilt-card relative space-y-4 rounded-2xl p-5 transition-all duration-300 cursor-pointer overflow-hidden ${getBorderAndBgClass()} ${
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.4, ease: "easeOut" }}
+      whileHover={{ y: -5, boxShadow: "0 15px 40px rgba(0, 0, 0, 0.4)" }}
+      className={`tilt-card relative space-y-4 rounded-2xl p-5 cursor-pointer overflow-hidden ${getBorderAndBgClass()} ${
         isEmerging ? "animate-pulse-urgent" : ""
       }`}
     >
@@ -208,15 +212,23 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         <div className="flex items-end gap-[3px] h-7">
           {Array.from({ length: 20 }).map((_, i) => {
             const filled = i < Math.round((viralPct / 100) * 20);
+            const targetHeight = 15 + Math.sin(i * 0.8) * 10;
             return (
-              <div
+              <motion.div
                 key={i}
-                className={`flex-1 rounded-sm transition-all duration-300 ${
+                initial={{ height: 0 }}
+                animate={{ height: `${targetHeight}px` }}
+                transition={{
+                  type: "spring",
+                  stiffness: 80,
+                  damping: 10,
+                  delay: i * 0.02
+                }}
+                className={`flex-1 rounded-sm ${
                   filled
                     ? "bg-gradient-to-t from-primary to-secondary"
                     : "bg-muted/30"
                 }`}
-                style={{ height: `${15 + Math.sin(i * 0.8) * 10}px` }}
               />
             );
           })}
@@ -394,7 +406,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
-    </article>
+    </motion.article>
   );
 }
 

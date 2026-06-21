@@ -4,11 +4,13 @@ import {
   Link,
   createRootRouteWithContext,
   useRouter,
+  useRouterState,
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
 import { useEffect, type ReactNode } from "react";
 import { Toaster } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
@@ -111,6 +113,8 @@ function RootShell({ children }: { children: ReactNode }) {
 
 function RootComponent() {
   const { queryClient } = Route.useRouteContext();
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
 
   useEffect(() => {
     registerPWA();
@@ -118,8 +122,19 @@ function RootComponent() {
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24">
-        <Outlet />
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden">
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={currentPath}
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            transition={{ duration: 0.25, ease: "easeInOut" }}
+            className="flex flex-col w-full"
+          >
+            <Outlet />
+          </motion.div>
+        </AnimatePresence>
       </div>
       <BottomTabBar />
       <InstallBanner />
@@ -127,10 +142,13 @@ function RootComponent() {
         position="top-center"
         toastOptions={{
           style: {
-            background: "#111120",
+            background: "rgba(17, 17, 24, 0.75)",
+            backdropFilter: "blur(20px)",
+            WebkitBackdropFilter: "blur(20px)",
             border: "1px solid rgba(255,255,255,0.08)",
             color: "#f0f0ff",
             fontFamily: "Inter, sans-serif",
+            boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           },
         }}
       />

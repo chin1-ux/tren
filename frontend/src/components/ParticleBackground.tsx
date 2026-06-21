@@ -25,7 +25,9 @@ export function ParticleBackground() {
     container.appendChild(renderer.domElement);
 
     // Particles Geometry
-    const particleCount = 200;
+    // Optimization: detect mobile or lower resolution and cut particle count
+    const isMobile = typeof window !== "undefined" && window.innerWidth < 640;
+    const particleCount = isMobile ? 80 : 150;
     const geometry = new THREE.BufferGeometry();
     const positions = new Float32Array(particleCount * 3);
     const colors = new Float32Array(particleCount * 3);
@@ -92,20 +94,21 @@ export function ParticleBackground() {
     const clock = new THREE.Clock();
 
     const animate = () => {
+      // Optimization: skip math and render when tab is invisible
+      if (document.hidden) {
+        animationFrameId = requestAnimationFrame(animate);
+        return;
+      }
+
       const elapsedTime = clock.getElapsedTime();
 
       // Rotate points slowly
-      points.rotation.y = elapsedTime * 0.08;
-      points.rotation.x = elapsedTime * 0.04;
+      points.rotation.y = elapsedTime * 0.05;
+      points.rotation.x = elapsedTime * 0.02;
 
-      // Subtle float up and down
-      const positionArr = geometry.attributes.position.array as Float32Array;
-      for (let i = 0; i < particleCount; i++) {
-        // Move in y direction based on sin wave
-        const indexY = i * 3 + 1;
-        positionArr[indexY] += Math.sin(elapsedTime + i) * 0.002;
-      }
-      geometry.attributes.position.needsUpdate = true;
+      // Subtle float up and down without looping over all particles in JS
+      // We can offset the whole mesh or do lightweight updates
+      points.position.y = Math.sin(elapsedTime * 0.5) * 0.1;
 
       renderer.render(scene, camera);
       animationFrameId = requestAnimationFrame(animate);

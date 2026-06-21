@@ -547,12 +547,13 @@ function IdeasPage() {
                           cx="64" 
                           cy="64" 
                           r="54" 
-                          className="stroke-indigo-500 fill-transparent" 
+                          className="fill-transparent" 
                           strokeWidth="10"
+                          stroke={scoringResult.overall_score >= 85 ? "#10b981" : scoringResult.overall_score >= 70 ? "#f59e0b" : "#ef4444"}
                           strokeDasharray={2 * Math.PI * 54}
                           initial={{ strokeDashoffset: 2 * Math.PI * 54 }}
                           animate={{ strokeDashoffset: 2 * Math.PI * 54 * (1 - scoringResult.overall_score / 100) }}
-                          transition={{ duration: 1.2, ease: "easeOut" }}
+                          transition={{ duration: 1.5, ease: "easeOut" }}
                           strokeLinecap="round"
                         />
                       </svg>

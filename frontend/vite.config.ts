@@ -23,9 +23,31 @@ export default defineConfig({
     plugins: [
       VitePWA({
         registerType: "autoUpdate",
-        injectRegister: null,
+        injectRegister: "auto",
         filename: "sw.js",
-        manifest: false,
+        manifest: {
+          name: "Trendrop",
+          short_name: "Trendrop",
+          description: "Drop the trend before anyone else",
+          start_url: "/",
+          display: "standalone",
+          background_color: "#0a0a0f",
+          theme_color: "#E63946",
+          icons: [
+            {
+              src: "/icon-192.png",
+              sizes: "192x192",
+              type: "image/png",
+              purpose: "any maskable"
+            },
+            {
+              src: "/icon-512.png",
+              sizes: "512x512",
+              type: "image/png",
+              purpose: "any maskable"
+            }
+          ]
+        },
         devOptions: { enabled: false },
         workbox: {
           globPatterns: ["**/*.{js,css,html,svg,png,ico,woff2}"],
@@ -42,11 +64,11 @@ export default defineConfig({
             },
             {
               urlPattern: ({ url, sameOrigin }) =>
-                sameOrigin && /\.(?:js|css|woff2)$/.test(url.pathname),
+                sameOrigin && /\.(?:js|css|woff2|png|svg|ico)$/.test(url.pathname),
               handler: "CacheFirst",
               options: {
                 cacheName: "trendrop-assets",
-                expiration: { maxEntries: 60, maxAgeSeconds: 60 * 60 * 24 * 30 },
+                expiration: { maxEntries: 100, maxAgeSeconds: 60 * 60 * 24 * 30 },
               },
             },
             {

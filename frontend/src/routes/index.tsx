@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useRef } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Zap, TrendingUp, Search, X } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, type UiTrend } from "@/lib/api";
@@ -120,10 +120,10 @@ function TrendsFeed() {
     );
   }, [activeData, filter, searchQuery]);
 
-  const withCountdown = (t: UiTrend): UiTrend => ({
+  const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
     hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
-  });
+  }), []);
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
