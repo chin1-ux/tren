@@ -127,8 +127,11 @@ export function TrendCard({ trend, onDanceTap }: Props) {
       </div>
 
       {/* Song info */}
-      <div className="space-y-0.5">
-        <h3 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground">
+      <div 
+        onClick={() => navigate({ to: `/trend/${trend.id}` })}
+        className="space-y-0.5 cursor-pointer group/title hover:opacity-85 transition-opacity"
+      >
+        <h3 className="font-display text-2xl font-bold leading-tight tracking-tight text-foreground group-hover/title:text-primary transition-colors flex items-center gap-1.5">
           {trend.song}
         </h3>
         <p className="text-sm text-muted-foreground">by {trend.artist}</p>
@@ -253,7 +256,13 @@ export function TrendCard({ trend, onDanceTap }: Props) {
             ) : (
               <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
                 {reels.slice(0, 4).map((reel) => (
-                  <div key={reel.id} className="flex flex-col gap-2 rounded-xl bg-white/[0.03] p-3 border border-border/50">
+                  <a 
+                    key={reel.id} 
+                    href={`https://instagram.com/reel/${reel.reel_id}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex flex-col gap-2 rounded-xl bg-white/[0.03] p-3 border border-border/50 hover:bg-white/[0.08] transition-colors hover:border-primary/20 text-left"
+                  >
                     <div className="flex items-center justify-between text-xs">
                       <span className="font-bold text-primary">@{reel.owner_username}</span>
                       <span className="text-muted-foreground">{formatViews(reel.view_count)} views</span>
@@ -261,7 +270,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                     {reel.caption && (
                       <p className="text-xs text-muted-foreground line-clamp-2 italic">"{reel.caption}"</p>
                     )}
-                  </div>
+                  </a>
                 ))}
               </div>
             )}
@@ -271,6 +280,12 @@ export function TrendCard({ trend, onDanceTap }: Props) {
 
       {/* Action buttons */}
       <div className="space-y-2 pt-1">
+        <Button
+          onClick={() => navigate({ to: `/trend/${trend.id}` })}
+          className="h-12 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
+        >
+          🧠 View Deep Dive & Strategy
+        </Button>
         <Button
           onClick={() => navigate({ to: "/generate", search: { trendId: trend.id } })}
           className="h-12 w-full bg-success font-bold uppercase tracking-wide text-success-foreground hover:bg-success/90 transition-all hover:scale-[1.01]"
