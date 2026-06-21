@@ -296,8 +296,54 @@ export async function generateReel(args: {
   return http<GenerateResponse>("/api/generate-reel", { method: "POST", body: fd });
 }
 
+export async function generateNarrative(args: {
+  files: File[];
+  trendId: string;
+  userEmail: string;
+  narrativeType: string;
+  textOverlays: string[];
+}): Promise<GenerateResponse> {
+  const fd = new FormData();
+  args.files.forEach((f) => fd.append("files", f));
+  fd.append("trend_id", args.trendId);
+  fd.append("user_email", args.userEmail);
+  fd.append("narrative_type", args.narrativeType);
+  fd.append("text_overlays", JSON.stringify(args.textOverlays));
+  return http<GenerateResponse>("/api/generate-narrative", { method: "POST", body: fd });
+}
+
+export async function generateFaceless(args: {
+  trendId: string;
+  userEmail: string;
+  niche: string;
+  contentDescription: string;
+}): Promise<GenerateResponse> {
+  const fd = new FormData();
+  fd.append("trend_id", args.trendId);
+  fd.append("user_email", args.userEmail);
+  fd.append("niche", args.niche);
+  fd.append("content_description", args.contentDescription);
+  return http<GenerateResponse>("/api/generate-faceless", { method: "POST", body: fd });
+}
+
+export async function repurposeVideo(args: {
+  file: File;
+  trendId: string;
+  userEmail: string;
+}): Promise<GenerateResponse> {
+  const fd = new FormData();
+  fd.append("file", args.file);
+  fd.append("trend_id", args.trendId);
+  fd.append("user_email", args.userEmail);
+  return http<GenerateResponse>("/api/repurpose", { method: "POST", body: fd });
+}
+
+export async function jobStatus(jobId: string): Promise<StatusResponse> {
+  return http<StatusResponse>(`/api/job-status/${encodeURIComponent(jobId)}`);
+}
+
 export async function reelStatus(jobId: string): Promise<StatusResponse> {
-  return http<StatusResponse>(`/api/reel-status/${encodeURIComponent(jobId)}`);
+  return jobStatus(jobId);
 }
 
 export function resolveOutputUrl(outputUrl: string): string {
