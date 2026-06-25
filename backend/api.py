@@ -982,20 +982,25 @@ def moderation_check(content: bytes, filename: str) -> bool:
 
 
 # 2.3 JOB QUEUE FOR GENERATION: Redis RQ integration
-import redis
-from rq import Queue
+try:
+    import redis
+    from rq import Queue
 
-UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
-if UPSTASH_REDIS_URL:
-    try:
-        redis_conn = redis.from_url(UPSTASH_REDIS_URL)
-        standard_queue = Queue("standard", connection=redis_conn)
-        priority_queue = Queue("priority", connection=redis_conn)
-    except Exception as redis_err:
-        logger.error(f"Failed to connect to Redis for RQ: {redis_err}")
+    UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
+    if UPSTASH_REDIS_URL:
+        try:
+            redis_conn = redis.from_url(UPSTASH_REDIS_URL)
+            standard_queue = Queue("standard", connection=redis_conn)
+            priority_queue = Queue("priority", connection=redis_conn)
+        except Exception as redis_err:
+            logger.error(f"Failed to connect to Redis for RQ: {redis_err}")
+            standard_queue = None
+            priority_queue = None
+    else:
         standard_queue = None
         priority_queue = None
-else:
+except Exception as e:
+    logger.warning(f"Redis/RQ integration disabled: {e}")
     standard_queue = None
     priority_queue = None
 
