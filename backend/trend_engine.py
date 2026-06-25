@@ -90,8 +90,8 @@ class TrendEngine:
 
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
-        if not self.gemini_key:
-            raise ValueError("GEMINI_API_KEY missing from .env")
+        if not self.gemini_key and not os.getenv("GROK_API_KEY") and not os.getenv("LLM_API_KEY"):
+            raise ValueError("No LLM API keys configured (GEMINI_API_KEY, GROK_API_KEY, or LLM_API_KEY must be set)")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
@@ -330,12 +330,8 @@ class TrendEngine:
                 if is_mega:
                     logging.info(f"MEGA TREND: '{trend['audio_title']}' also on YouTube Shorts")
 
-            # ── STEP 6: Gemini Classification ─────────────────────────────────
-            gemini_url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
-            )
-            headers = {"Content-Type": "application/json"}
+            # ── STEP 6: LLM Classification ─────────────────────────────────
+            from llm import call_llm
 
             def classify_single_trend(trend):
                 captions = [r.get("caption") for r in trend["reels"] if r.get("caption")]
@@ -347,6 +343,7 @@ class TrendEngine:
                         all_hashtags.update(tags)
                 unique_hashtags = ", ".join(list(all_hashtags)[:30])
 
+                system_prompt = "You are a social media trend analyst. Return ONLY valid JSON. No markdown."
                 user_prompt = f"""
 Classify this REAL social media trend and enrich it with creator intelligence.
 
@@ -380,47 +377,22 @@ Return ONLY a valid JSON object with EXACTLY these fields:
   "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
 }}
 """
-                payload = {
-                    "contents": [{"parts": [{"text": user_prompt}]}],
-                    "systemInstruction": {
-                        "parts": [{"text": "You are a social media trend analyst. Return ONLY valid JSON. No markdown."}]
-                    },
-                    "generationConfig": {"responseMimeType": "application/json"}
-                }
-
                 max_attempts = 4
                 success = False
                 for attempt in range(1, max_attempts + 1):
                     try:
-                        logging.info(f"Gemini call for '{trend['audio_title']}' (attempt {attempt})")
-                        # Lower timeout to 5 seconds so it doesn't hang if there's network/DNS delay
-                        resp = requests.post(gemini_url, headers=headers, json=payload, timeout=5)
-                        if resp.status_code == 429:
-                            if attempt < max_attempts:
-                                time.sleep(attempt * 2) # reduced sleep time to speed up fallback
-                                continue
-                        resp.raise_for_status()
-                        rj = resp.json()
-                        candidates = rj.get("candidates", [])
-                        if not candidates:
-                            break
-                        text = candidates[0]["content"]["parts"][0]["text"].strip()
-                        if text.startswith("```"):
-                            s = text.find("{")
-                            e = text.rfind("}")
-                            if s != -1 and e != -1:
-                                text = text[s:e + 1]
-                        classification = json.loads(text)
+                        logging.info(f"LLM call for '{trend['audio_title']}' (attempt {attempt})")
+                        classification = call_llm(system_prompt, user_prompt, timeout=10)
                         trend.update(classification)
                         success = True
                         break
                     except Exception as e:
-                        logging.warning(f"Gemini attempt {attempt} failed: {e}")
+                        logging.warning(f"LLM attempt {attempt} failed: {e}")
                         if attempt < max_attempts:
-                            time.sleep(1) # reduced sleep time to speed up fallback
+                            time.sleep(attempt)
                 
                 if not success:
-                    logging.warning(f"Gemini classification failed for '{trend['audio_title']}'. Applying local fallback.")
+                    logging.warning(f"LLM classification failed for '{trend['audio_title']}'. Applying local fallback.")
                     fallback = generate_local_fallback(trend)
                     trend.update(fallback)
 

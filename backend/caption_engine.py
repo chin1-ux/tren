@@ -33,14 +33,10 @@ class CaptionEngine:
 
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
-        if not self.gemini_key:
-            raise ValueError("GEMINI_API_KEY missing from .env")
+        if not self.gemini_key and not os.getenv("GROK_API_KEY") and not os.getenv("LLM_API_KEY"):
+            raise ValueError("No LLM API keys configured (GEMINI_API_KEY, GROK_API_KEY, or LLM_API_KEY must be set)")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-        self.gemini_url = (
-            f"https://generativelanguage.googleapis.com/v1beta/models/"
-            f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
-        )
 
     def get_caption_kit(self, trend_id: int) -> dict:
         """
@@ -146,32 +142,13 @@ Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON o
 }}
 """
 
-        payload = {
-            "contents": [{"parts": [{"text": prompt}]}],
-            "systemInstruction": {
-                "parts": [{"text": "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks."}]
-            },
-            "generationConfig": {"responseMimeType": "application/json"}
-        }
+        from llm import call_llm
 
-        headers = {"Content-Type": "application/json"}
+        system_instruction = "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks."
         max_attempts = 3
         for attempt in range(1, max_attempts + 1):
             try:
-                resp = requests.post(self.gemini_url, headers=headers, json=payload, timeout=30)
-                if resp.status_code == 429 and attempt < max_attempts:
-                    time.sleep(attempt * 5)
-                    continue
-                resp.raise_for_status()
-                data = resp.json()
-                text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-                # Strip markdown if accidentally included
-                if text.startswith("```"):
-                    start = text.find("{")
-                    end = text.rfind("}")
-                    if start != -1 and end != -1:
-                        text = text[start:end + 1]
-                kit = json.loads(text)
+                kit = call_llm(system_instruction, prompt, timeout=30)
                 logger.info(f"Caption kit generated for '{audio_title}'")
                 return kit
             except Exception as e:

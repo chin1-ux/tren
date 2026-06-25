@@ -30,7 +30,9 @@ class InstagramScraper:
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
 
-        self.apify_client = ApifyClient(self.apify_token)
+        # Support multiple comma-separated tokens for rotation
+        tokens = [t.strip() for t in self.apify_token.split(",") if t.strip()]
+        self.apify_clients = [ApifyClient(t) for t in tokens]
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
         # India-focused hashtag groups — heavily weighted toward regional
@@ -61,7 +63,7 @@ class InstagramScraper:
         }
 
     def _call_apify_with_retry(self, hashtag: str, max_retries: int = 3, delay: int = 15):
-        """Calls Apify Instagram Hashtag Scraper with retry logic."""
+        """Calls Apify Instagram Hashtag Scraper with retry logic and client rotation."""
         actor_id = "apify/instagram-hashtag-scraper"
         run_input = {
             "hashtags": [hashtag],
@@ -69,9 +71,11 @@ class InstagramScraper:
             "addParentData": True
         }
         for attempt in range(1, max_retries + 1):
+            # Rotate client on each attempt to distribute load
+            client = self.apify_clients[(attempt - 1) % len(self.apify_clients)]
             try:
-                logging.info(f"Apify call for #{hashtag} (attempt {attempt})")
-                run = self.apify_client.actor(actor_id).call(run_input=run_input)
+                logging.info(f"Apify call for #{hashtag} (attempt {attempt} using token index {(attempt - 1) % len(self.apify_clients)})")
+                run = client.actor(actor_id).call(run_input=run_input)
                 dataset_id = None
                 if run:
                     if hasattr(run, "default_dataset_id"):
@@ -82,7 +86,7 @@ class InstagramScraper:
                         dataset_id = getattr(run, "default_dataset_id", None) or getattr(run, "defaultDatasetId", None)
                 if not dataset_id:
                     raise ValueError("Could not retrieve defaultDatasetId from Apify run")
-                items = self.apify_client.dataset(dataset_id).list_items().items
+                items = client.dataset(dataset_id).list_items().items
                 logging.info(f"Scraped {len(items)} items for #{hashtag}")
                 return items
             except Exception as e:

@@ -29,8 +29,8 @@ class CreatorTools:
         self.supabase_key = os.getenv("SUPABASE_KEY")
         self.gemini_key = os.getenv("GEMINI_API_KEY")
 
-        if not self.gemini_key:
-            logger.warning("GEMINI_API_KEY missing; Gemini features disabled.")
+        if not self.gemini_key and not os.getenv("GROK_API_KEY") and not os.getenv("LLM_API_KEY"):
+            logger.warning("No LLM API keys configured (GEMINI_API_KEY, GROK_API_KEY, or LLM_API_KEY must be set). LLM features disabled.")
             self.gemini_key = None
 
         if not self.supabase_url or not self.supabase_key:
@@ -39,40 +39,13 @@ class CreatorTools:
         else:
             self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
-        if self.gemini_key:
-            self.gemini_url = (
-                f"https://generativelanguage.googleapis.com/v1beta/models/"
-                f"gemini-2.5-flash:generateContent?key={self.gemini_key}"
-            )
-        else:
-            self.gemini_url = None
-
     def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
-        """Helper to invoke Gemini API and return a JSON dictionary."""
-        payload = {
-            "contents": [{"parts": [{"text": user_prompt}]}],
-            "systemInstruction": {
-                "parts": [{"text": system_prompt}]
-            },
-            "generationConfig": {"responseMimeType": "application/json"}
-        }
-        headers = {"Content-Type": "application/json"}
-        
+        """Helper to invoke LLM API and return a JSON dictionary."""
+        from llm import call_llm
         try:
-            resp = requests.post(self.gemini_url, headers=headers, json=payload, timeout=30)
-            resp.raise_for_status()
-            data = resp.json()
-            text = data["candidates"][0]["content"]["parts"][0]["text"].strip()
-            
-            # Clean markdown code block wraps if returned
-            if text.startswith("```"):
-                start = text.find("{")
-                end = text.rfind("}")
-                if start != -1 and end != -1:
-                    text = text[start:end + 1]
-            return json.loads(text)
+            return call_llm(system_prompt, user_prompt, timeout=30)
         except Exception as e:
-            logger.error(f"Gemini prompt invocation failed: {e}", exc_info=True)
+            logger.error(f"LLM prompt invocation failed: {e}", exc_info=True)
             return {}
 
     def get_pre_post_score(self, niche: str, hook: str, audio_title: str, caption: str, hashtags: list, post_time: str) -> dict:

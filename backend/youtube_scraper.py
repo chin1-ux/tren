@@ -36,7 +36,39 @@ class YouTubeScraper:
             logging.error("Supabase credentials (SUPABASE_URL / SUPABASE_KEY) are missing.")
             raise ValueError("Supabase credentials are missing from .env")
             
+        # Support multiple comma-separated keys
+        self.api_keys = [k.strip() for k in self.api_key.split(",") if k.strip()]
+        self.key_index = 0
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+
+    def _get_api_key(self):
+        if not self.api_keys:
+            return self.api_key
+        return self.api_keys[self.key_index % len(self.api_keys)]
+
+    def _rotate_api_key(self):
+        if len(self.api_keys) > 1:
+            self.key_index += 1
+            logging.info(f"Switched YouTube API key to index {self.key_index % len(self.api_keys)}")
+
+    def _make_youtube_request(self, url, params, max_retries=3):
+        for attempt in range(max_retries):
+            params["key"] = self._get_api_key()
+            try:
+                response = requests.get(url, params=params, timeout=15)
+                if response.status_code in [403, 429]:
+                    logging.warning(f"YouTube API returned status {response.status_code}. Rotating key.")
+                    self._rotate_api_key()
+                    continue
+                response.raise_for_status()
+                return response.json()
+            except Exception as e:
+                logging.error(f"YouTube request attempt {attempt+1} failed: {e}")
+                if attempt < max_retries - 1:
+                    self._rotate_api_key()
+                    time.sleep(2)
+                else:
+                    raise
 
     def scrape_trending_shorts(self):
         """
@@ -82,13 +114,10 @@ class YouTubeScraper:
                     "publishedAfter": published_after,
                     "maxResults": 50,
                     "relevanceLanguage": lang,
-                    "q": query,
-                    "key": self.api_key
+                    "q": query
                 }
 
-                response = requests.get(search_url, params=params, timeout=15)
-                response.raise_for_status()
-                data = response.json()
+                data = self._make_youtube_request(search_url, params)
 
                 items = data.get("items", [])
                 logging.info(f"Found {len(items)} items for lang={lang} query='{query}'")
@@ -114,16 +143,12 @@ class YouTubeScraper:
         for i in range(0, len(video_ids_list), 50):
             batch_ids = video_ids_list[i:i+50]
             try:
-                logging.info(f"Fetching details for batch of {len(batch_ids)} videos...")
                 videos_url = "https://www.googleapis.com/youtube/v3/videos"
                 params = {
                     "part": "statistics,snippet",
-                    "id": ",".join(batch_ids),
-                    "key": self.api_key
+                    "id": ",".join(batch_ids)
                 }
-                response = requests.get(videos_url, params=params)
-                response.raise_for_status()
-                data = response.json()
+                data = self._make_youtube_request(videos_url, params)
                 
                 for item in data.get("items", []):
                     v_id = item.get("id")
@@ -143,16 +168,12 @@ class YouTubeScraper:
         for i in range(0, len(channel_ids_list), 50):
             batch_chans = channel_ids_list[i:i+50]
             try:
-                logging.info(f"Fetching subscriber counts for batch of {len(batch_chans)} channels...")
                 channels_url = "https://www.googleapis.com/youtube/v3/channels"
                 params = {
                     "part": "statistics",
-                    "id": ",".join(batch_chans),
-                    "key": self.api_key
+                    "id": ",".join(batch_chans)
                 }
-                response = requests.get(channels_url, params=params)
-                response.raise_for_status()
-                data = response.json()
+                data = self._make_youtube_request(channels_url, params)
                 
                 for item in data.get("items", []):
                     c_id = item.get("id")
