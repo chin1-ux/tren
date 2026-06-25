@@ -21,3 +21,5 @@ Pillow
 imageio
 imageio-ffmpeg
 psycopg2-binary
+redis
+rq

@@ -111,6 +111,97 @@ def run_full_pipeline():
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {elapsed}s ===")
 
 
+from datetime import timedelta
+import shutil
+
+def run_data_retention_job():
+    logging.info("Starting Daily Data Retention Cleanup Job (2 AM IST)...")
+    try:
+        sb = _get_supabase()
+    except Exception as sb_err:
+        logging.error(f"Cannot initialize Supabase client for data retention: {sb_err}")
+        return
+        
+    now_ts = datetime.utcnow()
+
+    # 1. Delete local uploads and outputs older than 24 hours
+    for folder in ["uploads", "outputs"]:
+        if os.path.exists(folder):
+            for item in os.listdir(folder):
+                item_path = os.path.join(folder, item)
+                try:
+                    mtime = datetime.utcfromtimestamp(os.path.getmtime(item_path))
+                    age_hours = (now_ts - mtime).total_seconds() / 3600.0
+                    if age_hours > 24:
+                        if os.path.isdir(item_path):
+                            shutil.rmtree(item_path)
+                        else:
+                            os.remove(item_path)
+                        logging.info(f"Deleted local file/folder: {item_path} (mtime: {mtime})")
+                except Exception as e:
+                    logging.error(f"Error deleting local path {item_path}: {e}")
+
+    # 2. Clean up Supabase Storage files older than 24 hours
+    try:
+        past_24h = (now_ts - timedelta(days=1)).isoformat()
+        old_jobs = sb.table("jobs").select("id, user_email").lt("created_at", past_24h).execute()
+        for job in old_jobs.data:
+            job_id = job.get("id")
+            email = job.get("user_email")
+            if email and job_id:
+                try:
+                    files = sb.storage.from_("uploads").list(path=f"{email}/{job_id}")
+                    if files:
+                        file_paths = [f"{email}/{job_id}/{f['name']}" for f in files]
+                        sb.storage.from_("uploads").remove(file_paths)
+                        logging.info(f"Deleted Supabase Storage uploads: {email}/{job_id}")
+                except Exception as e:
+                    logging.warning(f"Error clearing uploads storage folder for job {job_id}: {e}")
+
+                try:
+                    files = sb.storage.from_("outputs").list(path=f"outputs/{job_id}")
+                    if files:
+                        file_paths = [f"outputs/{job_id}/{f['name']}" for f in files]
+                        sb.storage.from_("outputs").remove(file_paths)
+                        logging.info(f"Deleted Supabase Storage outputs: outputs/{job_id}")
+                except Exception as e:
+                    logging.warning(f"Error clearing outputs storage folder for job {job_id}: {e}")
+    except Exception as e:
+        logging.error(f"Error cleaning up Supabase storage: {e}")
+
+    # 3. Delete jobs older than 30 days
+    try:
+        past_30d = (now_ts - timedelta(days=30)).isoformat()
+        deleted_jobs = sb.table("jobs").delete().lt("created_at", past_30d).execute()
+        logging.info(f"Deleted old jobs from DB (older than 30 days). count: {len(deleted_jobs.data) if deleted_jobs.data else 0}")
+    except Exception as e:
+        logging.error(f"Error deleting old jobs: {e}")
+
+    # 4. Delete inactive users after 2 years of no login (or no job activity)
+    try:
+        past_2y = (now_ts - timedelta(days=365*2)).isoformat()
+        old_users = sb.table("users").select("email").lt("created_at", past_2y).execute()
+        for u in old_users.data:
+            email = u.get("email")
+            if email:
+                recent_jobs = sb.table("jobs").select("id").eq("user_email", email).gt("created_at", past_2y).execute()
+                if not recent_jobs.data:
+                    sb.table("users").delete().eq("email", email).execute()
+                    logging.info(f"Deleted inactive user from DB: {email}")
+    except Exception as e:
+        logging.error(f"Error cleaning up inactive users: {e}")
+
+    # 5. Retain consent records for 7 years (delete older than 7 years)
+    try:
+        past_7y = (now_ts - timedelta(days=365*7)).isoformat()
+        deleted_consent = sb.table("consent_records").delete().lt("created_at", past_7y).execute()
+        logging.info(f"Deleted consent records older than 7 years. count: {len(deleted_consent.data) if deleted_consent.data else 0}")
+    except Exception as e:
+        logging.error(f"Error deleting old consent records: {e}")
+
+    logging.info("Daily Data Retention Cleanup Job Complete.")
+
+
 if __name__ == "__main__":
     logging.info("Trendrop cron job initialized. Running pipeline immediately on startup...")
     try:
@@ -118,9 +209,19 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup pipeline run failed: {e}", exc_info=True)
 
+    # Run data retention clean up immediately once on startup to verify / process pending
+    try:
+        run_data_retention_job()
+    except Exception as e:
+        logging.error(f"Startup data retention cleanup failed: {e}", exc_info=True)
+
     # Schedule every 3 hours
     logging.info("Scheduling pipeline to run every 3 hours...")
     schedule.every(3).hours.do(run_full_pipeline)
+
+    # Schedule daily at 2:00 AM IST
+    logging.info("Scheduling daily data retention cleanup at 02:00 AM IST...")
+    schedule.every().day.at("02:00").do(run_data_retention_job)
 
     try:
         while True:

@@ -234,6 +234,17 @@ TABLES_SQL = {
             public_hook text,
             created_at timestamp DEFAULT now()
         );
+    """,
+    "consent_records": """
+        CREATE TABLE IF NOT EXISTS consent_records (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            user_email text,
+            consent_type text,
+            granted boolean DEFAULT true,
+            ip_address text,
+            user_agent text,
+            created_at timestamp DEFAULT now()
+        );
     """
 }
 
@@ -301,9 +312,80 @@ def main():
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
             cursor.execute("ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS requirements text;")
-            print("Table alterations completed successfully.")
+            
+            # 2.1 DATABASE OPTIMISATION: INDEXES
+            print("Creating database indexes...")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_reels_vel_type_lang_posted_audio ON reels (velocity_score, content_type, language, posted_at, audio_title);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_trends_status_vel_type_lang_first ON trends (status, velocity_avg, content_type, language, first_detected_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_email_created ON jobs (status, user_email, created_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email_niche_lang ON users (email, niche, language_preference);")
+            
+            # 1.2 ROW LEVEL SECURITY ON SUPABASE (Enable RLS on every table)
+            print("Enabling Row Level Security (RLS) on all tables...")
+            tables_to_rls = [
+                "users", "jobs", "trends", "reels", "brand_deals",
+                "brand_deal_applications", "collab_requests", "daily_ideas",
+                "calendar_plans", "creator_profiles", "pre_post_analyses",
+                "trend_feedback", "creator_trend_memory", "trial_reel_plans",
+                "consent_records"
+            ]
+            for tbl in tables_to_rls:
+                cursor.execute(f"ALTER TABLE IF EXISTS {tbl} ENABLE ROW LEVEL SECURITY;")
+                
+            # Create policies. Use sub-queries or metadata where appropriate.
+            # First, drop policies if they exist. (In Postgres 9.6+, drop policy if exists is safe)
+            # 1.2 policies requirements:
+            # users: auth.uid() = id (or matching email via subquery or metadata)
+            # jobs: auth.uid() = user_id (since jobs has user_email, we can do auth.jwt() ->> 'email' = user_email)
+            # trends: all authenticated users can read, only service role can write (RLS enabled, select: true/authenticated, others: false/service role)
+            # reels: only service role can read and write (default RLS is deny-all unless policy allows)
+            # brand_deals: authenticated users can read open deals (status='open'), only service role can create/write.
+            # deal_applications (brand_deal_applications): users can only read and create their own applications (user_email = auth.jwt() ->> 'email')
+            # collab_requests: users can read requests where they are requester or target (from_email = auth.jwt() ->> 'email' or to_email = auth.jwt() ->> 'email')
+            # content_ideas (daily_ideas): users can only read their own ideas (user_email = auth.jwt() ->> 'email')
+
+            # We use auth.jwt() ->> 'email' for email matching since users tables use email as the identifier.
+            
+            # users policy
+            cursor.execute("DROP POLICY IF EXISTS users_owner_policy ON users;")
+            cursor.execute("CREATE POLICY users_owner_policy ON users FOR ALL USING (email = auth.jwt() ->> 'email');")
+            
+            # jobs policy
+            cursor.execute("DROP POLICY IF EXISTS jobs_owner_policy ON jobs;")
+            cursor.execute("CREATE POLICY jobs_owner_policy ON jobs FOR ALL USING (user_email = auth.jwt() ->> 'email');")
+            
+            # trends policy
+            cursor.execute("DROP POLICY IF EXISTS trends_auth_read_policy ON trends;")
+            cursor.execute("CREATE POLICY trends_auth_read_policy ON trends FOR SELECT TO authenticated USING (true);")
+            
+            # reels: no policy = service role bypasses RLS automatically, authenticated/public denied
+            cursor.execute("DROP POLICY IF EXISTS reels_deny_policy ON reels;")
+            
+            # brand_deals policy
+            cursor.execute("DROP POLICY IF EXISTS brand_deals_read_policy ON brand_deals;")
+            cursor.execute("CREATE POLICY brand_deals_read_policy ON brand_deals FOR SELECT TO authenticated USING (status = 'open' OR creator_email = auth.jwt() ->> 'email');")
+            
+            # brand_deal_applications policy
+            cursor.execute("DROP POLICY IF EXISTS deal_apps_owner_policy ON brand_deal_applications;")
+            cursor.execute("CREATE POLICY deal_apps_owner_policy ON brand_deal_applications FOR ALL USING (user_email = auth.jwt() ->> 'email');")
+            
+            # collab_requests policy
+            cursor.execute("DROP POLICY IF EXISTS collab_owner_policy ON collab_requests;")
+            cursor.execute("DROP POLICY IF EXISTS collab_insert_policy ON collab_requests;")
+            cursor.execute("CREATE POLICY collab_owner_policy ON collab_requests FOR SELECT USING (from_email = auth.jwt() ->> 'email' OR to_email = auth.jwt() ->> 'email');")
+            cursor.execute("CREATE POLICY collab_insert_policy ON collab_requests FOR INSERT WITH CHECK (from_email = auth.jwt() ->> 'email');")
+            
+            # daily_ideas policy
+            cursor.execute("DROP POLICY IF EXISTS daily_ideas_owner_policy ON daily_ideas;")
+            cursor.execute("CREATE POLICY daily_ideas_owner_policy ON daily_ideas FOR SELECT USING (user_email = auth.jwt() ->> 'email');")
+
+            # consent_records policy
+            cursor.execute("DROP POLICY IF EXISTS consent_owner_policy ON consent_records;")
+            cursor.execute("CREATE POLICY consent_owner_policy ON consent_records FOR ALL USING (user_email = auth.jwt() ->> 'email');")
+            
+            print("Table alterations, indexes, and RLS policies completed successfully.")
         except Exception as e:
-            print(f"Error performing alterations: {e}")
+            print(f"Error performing alterations/policies/indexes: {e}")
             all_success = False
 
     # Clean up connections
@@ -316,7 +398,6 @@ def main():
         print("All tables and modifications executed successfully")
     else:
         print("Some database setup tasks failed. Please check the logs above.")
-    # Do not exit with error to allow the app to continue
 
 if __name__ == "__main__":
     main()

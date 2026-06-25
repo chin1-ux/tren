@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Check, User, Bell, Flame, Globe, Heart, Smartphone,
@@ -390,6 +390,30 @@ function ProfilePage() {
             <span className="text-xs font-bold uppercase tracking-wider">Premium Access Active</span>
           </div>
         )}
+      </div>
+
+      {/* Legal & Privacy Section */}
+      <div className="glass-card p-5 space-y-4">
+        <h2 className="font-display text-base font-bold flex items-center gap-2 text-foreground">
+          <ShieldCheck className="h-5 w-5 text-primary" /> Legal & Data Privacy
+        </h2>
+        <p className="text-xs text-muted-foreground leading-normal">
+          We comply with India's DPDP Act 2023. Manage your consent, view terms, or exercise your digital data rights.
+        </p>
+        <div className="grid grid-cols-1 gap-2.5">
+          <Link to="/privacy" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground">
+            <span>Privacy Policy</span>
+            <span className="text-muted-foreground text-[10px]">Read &rarr;</span>
+          </Link>
+          <Link to="/terms" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground">
+            <span>Terms of Service</span>
+            <span className="text-muted-foreground text-[10px]">Read &rarr;</span>
+          </Link>
+          <Link to="/data-rights" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground font-semibold">
+            <span className="text-primary">Manage Digital Data Rights</span>
+            <span className="text-primary text-[10px]">Manage &rarr;</span>
+          </Link>
+        </div>
       </div>
 
       {/* Save Button */}

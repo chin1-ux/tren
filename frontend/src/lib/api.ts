@@ -198,8 +198,30 @@ export function adaptTrend(t: ApiTrend): UiTrend {
 
 // ── HTTP helper ────────────────────────────────────────────────────────────────
 
+import { supabase } from "./supabase";
+
+let inMemoryToken: string | null = null;
+
+if (typeof window !== "undefined") {
+  supabase.auth.getSession().then(({ data: { session } }) => {
+    inMemoryToken = session?.access_token || null;
+  });
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    inMemoryToken = session?.access_token || null;
+  });
+}
+
+export function setAuthToken(token: string | null) {
+  inMemoryToken = token;
+}
+
+export function getAuthToken(): string | null {
+  return inMemoryToken;
+}
+
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("trendrop_token") : null;
+  const token = getAuthToken();
   const headers = new Headers(init?.headers);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -213,7 +235,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = typeof window !== "undefined" ? localStorage.getItem("trendrop_token") : null;
+  const token = getAuthToken();
   const headers = new Headers(init?.headers);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);

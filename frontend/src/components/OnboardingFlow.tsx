@@ -40,6 +40,9 @@ export function OnboardingFlow({ onComplete }: Props) {
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
 
+  const [agreeToS, setAgreeToS] = useState(false);
+  const [agreeEmails, setAgreeEmails] = useState(true);
+
   // Pre-fill email from localStorage
   useEffect(() => {
     const saved = localStorage.getItem("trendrop_email");
@@ -47,7 +50,7 @@ export function OnboardingFlow({ onComplete }: Props) {
   }, []);
 
   const handleSubmit = async () => {
-    if (!email.includes("@")) return;
+    if (!email.includes("@") || !agreeToS) return;
     setSubmitting(true);
     try {
       const res = await subscribe({ email, niche: niche || "all", language: language || "en" });
@@ -57,6 +60,40 @@ export function OnboardingFlow({ onComplete }: Props) {
       localStorage.setItem("trendrop_email", email);
       localStorage.setItem("trendrop_niche", niche);
       localStorage.setItem("trendrop_language", language);
+      localStorage.setItem("trendrop_notify_trend_alerts", String(agreeEmails));
+      localStorage.setItem("trendrop_notify_daily_ideas", String(agreeEmails));
+      localStorage.setItem("trendrop_notify_brand_deals", String(agreeEmails));
+
+      // Log consents in supabase consent_records
+      try {
+        const { supabase } = await import("../lib/supabase");
+        let ip = "127.0.0.1";
+        try {
+          const ipRes = await fetch("https://api.ipify.org?format=json");
+          const ipData = await ipRes.json();
+          ip = ipData.ip;
+        } catch {}
+
+        await supabase.from("consent_records").insert([
+          {
+            user_email: email,
+            consent_type: "terms_and_privacy",
+            granted: true,
+            ip_address: ip,
+            user_agent: navigator.userAgent
+          },
+          {
+            user_email: email,
+            consent_type: "trend_alerts",
+            granted: agreeEmails,
+            ip_address: ip,
+            user_agent: navigator.userAgent
+          }
+        ]);
+      } catch (err) {
+        console.error("Failed to log onboarding consents:", err);
+      }
+
       setDone(true);
       setTimeout(onComplete, 1800);
     } catch {
@@ -186,11 +223,39 @@ export function OnboardingFlow({ onComplete }: Props) {
               placeholder="your@email.com"
               className="w-full rounded-xl bg-muted/60 px-4 py-3 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
+            
+            {/* DPDP Compliance Consent Checkboxes */}
+            <div className="space-y-3 pt-2">
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={agreeToS}
+                  onChange={(e) => setAgreeToS(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-muted-foreground/30 bg-muted/60 text-primary focus:ring-primary/50 cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground leading-tight">
+                  I agree to the <a href="/terms" target="_blank" className="underline text-foreground hover:text-primary">Terms of Service</a> and <a href="/privacy" target="_blank" className="underline text-foreground hover:text-primary">Privacy Policy</a> (Required)
+                </span>
+              </label>
+
+              <label className="flex items-start gap-2.5 cursor-pointer select-none">
+                <input
+                  type="checkbox"
+                  checked={agreeEmails}
+                  onChange={(e) => setAgreeEmails(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 rounded border-muted-foreground/30 bg-muted/60 text-primary focus:ring-primary/50 cursor-pointer"
+                />
+                <span className="text-xs text-muted-foreground leading-tight">
+                  I consent to receive real-time email alerts and daily trend ideas from Trendrop.
+                </span>
+              </label>
+            </div>
+
             <div className="flex gap-2">
               <Button onClick={() => setStep(2)} variant="ghost" className="flex-1 h-12">← Back</Button>
               <Button
                 onClick={handleSubmit}
-                disabled={submitting || !email.includes("@")}
+                disabled={submitting || !email.includes("@") || !agreeToS}
                 className="flex-1 h-12 bg-primary font-bold uppercase tracking-wide"
               >
                 {submitting ? "Setting up..." : "Start Dropping 🔥"}

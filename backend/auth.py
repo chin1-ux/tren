@@ -17,7 +17,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user(authorization: str = Header(None)) -> str:
     """
-    Validate the Bearer token in the Authorization header.
+    Validate the Supabase JWT in the Authorization header.
     Returns the user's email if valid.
     """
     if not authorization or not authorization.startswith("Bearer "):
@@ -34,20 +34,26 @@ def get_current_user(authorization: str = Header(None)) -> str:
         )
     
     try:
-        # Check users table for the token
-        res = supabase.table("users").select("email").eq("auth_token", token).execute()
-        if not res.data or len(res.data) == 0:
+        # Validate JWT token with Supabase Auth
+        user_res = supabase.auth.get_user(jwt=token)
+        if not user_res or not user_res.user:
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Invalid token"
             )
-        return res.data[0]["email"]
+        email = user_res.user.email
+        if not email:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="User email not found in token"
+            )
+        return email
     except HTTPException:
         raise
     except Exception as e:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Authentication check failed"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication check failed: " + str(e)
         )
 
 def get_admin_user(x_admin_key: str = Header(None)) -> bool:

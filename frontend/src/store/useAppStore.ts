@@ -1,4 +1,6 @@
 import { create } from "zustand";
+import { supabase } from "../lib/supabase";
+import { setAuthToken } from "../lib/api";
 
 interface UserState {
   email: string | null;
@@ -68,12 +70,17 @@ export const useUserStore = create<UserState>((set) => ({
     }),
 
   logout: () => {
+    // Clear Supabase Session and local cookies/memory
+    supabase.auth.signOut().catch((err) => console.error("SignOut error:", err));
+    setAuthToken(null);
+
     if (typeof window !== "undefined") {
       localStorage.removeItem("trendrop_email");
       localStorage.removeItem("trendrop_niche");
       localStorage.removeItem("trendrop_language");
       localStorage.removeItem("trendrop_token");
       localStorage.removeItem("trendrop_onboarded");
+      localStorage.removeItem("trendrop_plan");
     }
     set({
       email: null,
