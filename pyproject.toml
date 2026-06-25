@@ -10,5 +10,6 @@ dependencies = [
     "supabase",
     "slowapi",
     "pydantic",
-    "email-validator"
+    "email-validator",
+    "python-multipart"
 ]

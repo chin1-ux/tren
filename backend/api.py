@@ -1003,8 +1003,9 @@ except Exception as e:
     logger.warning(f"Redis/RQ integration disabled: {e}")
     standard_queue = None
     priority_queue = None
+    Queue = None
 
-def get_job_queue(user_email: str) -> Optional[Queue]:
+def get_job_queue(user_email: str) -> Optional["Queue"]:
     # Determine plan (Pro plan gets priority queue)
     if not supabase:
         return standard_queue
@@ -1242,6 +1243,7 @@ async def generate_faceless_endpoint(
         # Queue background task using rq or fallback
         q = get_job_queue(user_email)
         if q:
+            # pyrefly: ignore [missing-import]
             from worker import run_video_generation_job
             q.enqueue_call(
                 func=run_video_generation_job,
