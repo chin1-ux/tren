@@ -73,7 +73,9 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { title: "Trendrop — India's Trend Intelligence" },
       { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-first AI trend detection for Instagram Reels and YouTube Shorts." },
       { name: "theme-color", content: "#E63946" },
+      { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
+
       { name: "apple-mobile-web-app-status-bar-style", content: "black" },
       { name: "apple-mobile-web-app-title", content: "Trendrop" },
       { property: "og:title", content: "Trendrop — Know before they know" },
