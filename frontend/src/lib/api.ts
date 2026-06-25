@@ -1,8 +1,12 @@
 
 
-export const API_URL =
-  (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ||
-  (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+const _rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
+// Never use a localhost URL in production — it means the local .env was picked up by the build
+const _isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(_rawApiUrl);
+export const API_URL = (!_isLocalhost && _rawApiUrl) || (import.meta.env.DEV ? "http://localhost:8000" : "");
+
+
 
 
 // ── API types ──────────────────────────────────────────────────────────────────
