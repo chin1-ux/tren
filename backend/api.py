@@ -110,7 +110,7 @@ if not os.getenv("SUPABASE_URL"):
 required_env_vars = [
     "SUPABASE_URL",
     "SUPABASE_KEY",
-    "GEMINI_API_KEY",
+    "GROQ_API_KEY",
     "APIFY_API_TOKEN",
     "YOUTUBE_API_KEY",
     "RESEND_API_KEY",
@@ -144,6 +144,17 @@ app = FastAPI(
     description="AI-powered trend intelligence for Indian short-form creators",
     version="2.0"
 )
+
+# Health check endpoint
+@app.get("/health", tags=["Health"]) 
+async def health_check():
+    """Simple health check returning status OK."""
+    return {"status": "healthy"}
+
+@app.get("/api/health", tags=["Health"]) 
+async def health_check_api():
+    """Simple health check for API route returning status OK."""
+    return {"status": "healthy"}
 
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)

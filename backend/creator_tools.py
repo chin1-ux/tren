@@ -27,11 +27,13 @@ class CreatorTools:
 
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_KEY")
-        self.gemini_key = os.getenv("GEMINI_API_KEY")
+        # Remove Gemini key; rely on Groq or generic LLM API keys
+        self.gemini_key = None
 
-        if not self.gemini_key and not os.getenv("GROK_API_KEY") and not os.getenv("LLM_API_KEY"):
-            logger.warning("No LLM API keys configured (GEMINI_API_KEY, GROK_API_KEY, or LLM_API_KEY must be set). LLM features disabled.")
+        if not os.getenv("GROQ_API_KEY") and not os.getenv("LLM_API_KEY"):
+            logger.warning("No LLM API keys configured (GROQ_API_KEY or LLM_API_KEY must be set). LLM features disabled.")
             self.gemini_key = None
+
 
         if not self.supabase_url or not self.supabase_key:
             logger.warning("Supabase credentials missing; Supabase-dependent features disabled.")

@@ -7,6 +7,10 @@
       "destination": "https://trendrop-backend.onrender.com/api/$1"
     },
     {
+      "source": "/health",
+      "destination": "https://trendrop-backend.onrender.com/health"
+    },
+    {
       "source": "/outputs/(.*)",
       "destination": "https://trendrop-backend.onrender.com/outputs/$1"
     }
