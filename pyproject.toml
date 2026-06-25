@@ -9,5 +9,6 @@ dependencies = [
     "python-dotenv",
     "supabase",
     "slowapi",
-    "pydantic"
+    "pydantic",
+    "email-validator"
 ]
