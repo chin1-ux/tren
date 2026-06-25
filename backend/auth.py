@@ -17,44 +17,37 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user(authorization: str = Header(None)) -> str:
     """
-    Validate the Supabase JWT in the Authorization header.
-    Returns the user's email if valid.
+    Validate the Supabase JWT or the custom subscription auth_token in the Authorization header.
+    Returns the user's email if valid. Falls back to guest@trendrop.app if invalid or missing.
     """
     if not authorization or not authorization.startswith("Bearer "):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing or invalid Authorization header. Expected: Bearer <token>"
-        )
+        return "guest@trendrop.app"
     
     token = authorization.split("Bearer ")[1].strip()
     if not token:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Missing token in Authorization header"
-        )
+        return "guest@trendrop.app"
     
+    # 1. Try to validate as custom subscription auth_token
     try:
-        # Validate JWT token with Supabase Auth
-        user_res = supabase.auth.get_user(jwt=token)
-        if not user_res or not user_res.user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token"
-            )
-        email = user_res.user.email
-        if not email:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="User email not found in token"
-            )
-        return email
-    except HTTPException:
-        raise
+        res = supabase.table("users").select("email").eq("auth_token", token).execute()
+        if res.data and len(res.data) > 0:
+            email = res.data[0].get("email")
+            if email:
+                return email
     except Exception as e:
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication check failed: " + str(e)
-        )
+        pass
+
+    # 2. Fall back to validating as Supabase JWT
+    try:
+        user_res = supabase.auth.get_user(jwt=token)
+        if user_res and user_res.user:
+            email = user_res.user.email
+            if email:
+                return email
+    except Exception as e:
+        pass
+
+    return "guest@trendrop.app"
 
 def get_admin_user(x_admin_key: str = Header(None)) -> bool:
     """

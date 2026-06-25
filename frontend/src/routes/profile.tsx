@@ -195,6 +195,8 @@ function ProfilePage() {
             <div className="relative">
               <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-muted-foreground text-sm font-semibold">@</span>
               <input
+                id="profile-instagram-handle"
+                name="instagramHandle"
                 type="text"
                 value={instagramHandle}
                 onChange={(e) => setInstagramHandle(e.target.value.replace(/^@/, ""))}
@@ -210,6 +212,8 @@ function ProfilePage() {
               <div className="relative">
                 <Users className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
+                  id="profile-followers"
+                  name="followers"
                   type="text"
                   value={followers}
                   onChange={(e) => setFollowers(e.target.value)}
@@ -224,6 +228,8 @@ function ProfilePage() {
               <div className="relative">
                 <Mail className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                 <input
+                  id="profile-email"
+                  name="email"
                   type="email"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}

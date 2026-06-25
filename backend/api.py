@@ -161,14 +161,20 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 # Secure CORS config whitelisting Vercel, Railway, and Localhost
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
-if ENVIRONMENT == "production":
-    allowed_origins = ["https://trendrop-drop-first.vercel.app"]  # Target Vercel production domain
-else:
-    allowed_origins = ["http://localhost:5173", "http://localhost:8000"]
+allowed_origins = [
+    "https://trendrop-drop-first.vercel.app",
+    "http://localhost:8080",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:8080",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000"
+]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
+    allow_origin_regex=r"https://trendrop-drop-first-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],

@@ -11,5 +11,6 @@ dependencies = [
     "slowapi",
     "pydantic",
     "email-validator",
-    "python-multipart"
+    "python-multipart",
+    "schedule"
 ]

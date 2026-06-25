@@ -217,6 +217,8 @@ export function OnboardingFlow({ onComplete }: Props) {
               </p>
             </div>
             <input
+              id="onboarding-email"
+              name="email"
               type="email"
               value={email}
               onChange={(e) => setEmail(e.target.value)}
@@ -228,6 +230,8 @@ export function OnboardingFlow({ onComplete }: Props) {
             <div className="space-y-3 pt-2">
               <label className="flex items-start gap-2.5 cursor-pointer select-none">
                 <input
+                  id="onboarding-agree-tos"
+                  name="agreeToS"
                   type="checkbox"
                   checked={agreeToS}
                   onChange={(e) => setAgreeToS(e.target.checked)}
@@ -240,6 +244,8 @@ export function OnboardingFlow({ onComplete }: Props) {
 
               <label className="flex items-start gap-2.5 cursor-pointer select-none">
                 <input
+                  id="onboarding-agree-emails"
+                  name="agreeEmails"
                   type="checkbox"
                   checked={agreeEmails}
                   onChange={(e) => setAgreeEmails(e.target.checked)}
