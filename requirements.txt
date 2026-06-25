@@ -1,3 +1,8 @@
 fastapi
 uvicorn
 serverless_wsgi
+requests
+python-dotenv
+supabase
+slowapi
+pydantic

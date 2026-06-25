@@ -3,13 +3,8 @@ import json
 import random
 import logging
 import requests
+from llm import call_llm
 from dotenv import load_dotenv
-try:
-    from supabase import create_client, Client
-except Exception as e:
-    logger.warning(f"Supabase library import failed in creator_tools: {e}")
-    create_client = None
-    Client = None
 
 logging.basicConfig(
     filename="creator_tools.log",
@@ -17,6 +12,16 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+
+try:
+    from supabase import create_client, Client
+except Exception as e:
+    logger.warning(f"Supabase library import failed in creator_tools: {e}")
+    create_client = None
+    Client = None
+
+
+
 
 class CreatorTools:
     def __init__(self):
