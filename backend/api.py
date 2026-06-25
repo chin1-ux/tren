@@ -145,11 +145,7 @@ app = FastAPI(
     version="2.0"
 )
 
-# Health check endpoint
-@app.get("/health", tags=["Health"]) 
-async def health_check():
-    """Simple health check returning status OK."""
-    return {"status": "healthy"}
+
 
 @app.get("/api/health", tags=["Health"]) 
 async def health_check_api():

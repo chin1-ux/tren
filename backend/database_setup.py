@@ -323,7 +323,7 @@ def main():
             # 1.2 ROW LEVEL SECURITY ON SUPABASE (Enable RLS on every table)
             print("Enabling Row Level Security (RLS) on all tables...")
             tables_to_rls = [
-                "users", "jobs", "trends", "reels", "brand_deals",
+                "users", "jobs", "brand_deals",
                 "brand_deal_applications", "collab_requests", "daily_ideas",
                 "calendar_plans", "creator_profiles", "pre_post_analyses",
                 "trend_feedback", "creator_trend_memory", "trial_reel_plans",
@@ -331,6 +331,10 @@ def main():
             ]
             for tbl in tables_to_rls:
                 cursor.execute(f"ALTER TABLE IF EXISTS {tbl} ENABLE ROW LEVEL SECURITY;")
+            
+            # Disable RLS on scraper target tables (reels, trends) to allow backend client writes
+            cursor.execute("ALTER TABLE IF EXISTS reels DISABLE ROW LEVEL SECURITY;")
+            cursor.execute("ALTER TABLE IF EXISTS trends DISABLE ROW LEVEL SECURITY;")
                 
             # Create policies. Use sub-queries or metadata where appropriate.
             # First, drop policies if they exist. (In Postgres 9.6+, drop policy if exists is safe)

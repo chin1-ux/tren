@@ -69,7 +69,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
         # Apply cost optimisation defaults
         payload = {
-            "model": os.getenv("LLM_MODEL", "grok-beta"),
+            "model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}

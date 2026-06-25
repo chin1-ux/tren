@@ -3,12 +3,15 @@ import os
 from fastapi.testclient import TestClient
 
 # Ensure the backend directory is in the import path
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 try:
+    import traceback
     from api import app
     client = TestClient(app)
 except Exception as e:
+    print("Traceback:")
+    traceback.print_exc()
     print(f"Failed to import app: {e}")
     sys.exit(1)
 

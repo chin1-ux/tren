@@ -12,6 +12,7 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
+from .llm import call_llm
 
 
 class CaptionEngine:
@@ -141,8 +142,6 @@ Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON o
   "saturation_alert": "One line warning like 'Post in the next 6 hours — this trend peaks tomorrow morning' or 'You have 2 full days — take your time'"
 }}
 """
-
-        from llm import call_llm
 
         system_instruction = "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks."
         max_attempts = 3

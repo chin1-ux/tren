@@ -3,7 +3,13 @@ import json
 import random
 import logging
 import requests
-from .llm import call_llm
+try:
+    from llm import call_llm
+except ImportError:
+    try:
+        from backend.llm import call_llm
+    except ImportError:
+        from .llm import call_llm
 from dotenv import load_dotenv
 
 logging.basicConfig(

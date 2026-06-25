@@ -263,12 +263,12 @@ class TrendEngine:
                 # Determine initial status
                 very_viral = any((r.get("velocity_score", 0) or 0) > 3.0 for r in recent_reels_6h)
 
-                if creator_count >= 15 and composite_score >= 3.2:
+                if creator_count >= 3:
                     initial_status = "rising"
-                elif creator_count >= 10 and (avg_velocity > 1.4 or very_viral or composite_score >= 2.8):
+                elif creator_count >= 1:
                     initial_status = "emerging"
                 else:
-                    continue  # Skip if fewer than 10 unique creators have used this audio/workflow to verify success
+                    continue
 
                 # Validate time window: all reels within 48h of each other
                 posted_times = []
@@ -329,8 +329,13 @@ class TrendEngine:
                 if is_mega:
                     logging.info(f"MEGA TREND: '{trend['audio_title']}' also on YouTube Shorts")
 
-            # ── STEP 6: LLM Classification ─────────────────────────────────
-            from llm import call_llm
+            try:
+                from llm import call_llm
+            except ImportError:
+                try:
+                    from backend.llm import call_llm
+                except ImportError:
+                    from .llm import call_llm
 
             def classify_single_trend(trend):
                 captions = [r.get("caption") for r in trend["reels"] if r.get("caption")]
