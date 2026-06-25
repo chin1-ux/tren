@@ -217,6 +217,9 @@ export function setAuthToken(token: string | null) {
 }
 
 export function getAuthToken(): string | null {
+  if (!inMemoryToken && typeof window !== "undefined") {
+    inMemoryToken = localStorage.getItem("trendrop_token");
+  }
   return inMemoryToken;
 }
 
