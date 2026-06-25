@@ -3,7 +3,7 @@ import json
 import random
 import logging
 import requests
-from llm import call_llm
+from .llm import call_llm
 from dotenv import load_dotenv
 
 logging.basicConfig(
@@ -48,7 +48,7 @@ class CreatorTools:
 
     def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
         """Helper to invoke LLM API and return a JSON dictionary."""
-        from llm import call_llm
+        from .llm import call_llm
         try:
             return call_llm(system_prompt, user_prompt, timeout=30)
         except Exception as e:
