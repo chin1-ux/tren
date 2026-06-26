@@ -34,11 +34,14 @@ if os.path.exists(config_path):
     if os.path.exists(func_dir):
         print(f"Cleaning existing function directory...")
         # Handle potential read-only file removal issues on Windows
-        def onerror(func, path, exc_info):
+        def remove_readonly(func, path, exc_info):
             import stat
             os.chmod(path, stat.S_IWRITE)
             func(path)
-        shutil.rmtree(func_dir, onexc=onerror)
+        try:
+            shutil.rmtree(func_dir, onexc=remove_readonly)
+        except TypeError:
+            shutil.rmtree(func_dir, onerror=remove_readonly)
         
     os.makedirs(func_dir, exist_ok=True)
     
