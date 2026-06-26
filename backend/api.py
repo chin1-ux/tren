@@ -446,6 +446,27 @@ def health_check():
 
 # ── Trends Feed ────────────────────────────────────────────────────────────────
 
+# Normalize content_type variants → canonical keys so the frontend filter works
+CONTENT_TYPE_NORMALIZE = {
+    "faceless_video": "faceless",
+    "face_less":      "faceless",
+    "narrative_edit": "narrative_edit",
+    "text_overlay":   "text_overlay",
+    "regional":       "regional",
+    "motivation":     "motivation",
+    "fitness":        "fitness",
+    "study":          "study",
+}
+
+def _normalize_trends(trends: list) -> list:
+    """Normalize content_type and inject song/artist aliases on each trend row."""
+    for t in trends:
+        t["song"]   = t.get("audio_title")
+        t["artist"] = t.get("audio_artist")
+        ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
+        t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
+    return trends
+
 @app.get("/api/trends")
 @limiter.limit("60/minute")
 def get_trends(request: Request, language: Optional[str] = None, sort: Optional[str] = "velocity", current_user: str = Depends(get_current_user)):
@@ -485,11 +506,8 @@ def get_trends(request: Request, language: Optional[str] = None, sort: Optional[
             q = q.order("velocity_avg", desc=True)
 
         res = q.execute()
-        trends = res.data or []
-        for t in trends:
-            t["song"] = t.get("audio_title")
-            t["artist"] = t.get("audio_artist")
-            
+        trends = _normalize_trends(res.data or [])
+
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
             try:
@@ -519,12 +537,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
-        trends = res.data or []
-        for t in trends:
-            t["song"] = t.get("audio_title")
-
-            t["artist"] = t.get("audio_artist")
-        return trends
+        return _normalize_trends(res.data or [])
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -538,11 +551,7 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).order("velocity_avg", desc=True).execute()
-        trends = res.data or []
-        for t in trends:
-            t["song"] = t.get("audio_title")
-            t["artist"] = t.get("audio_artist")
-        return trends
+        return _normalize_trends(res.data or [])
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
@@ -560,11 +569,7 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
             .execute()
-        trends = res.data or []
-        for t in trends:
-            t["song"] = t.get("audio_title")
-            t["artist"] = t.get("audio_artist")
-        return trends
+        return _normalize_trends(res.data or [])
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 

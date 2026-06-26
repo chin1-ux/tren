@@ -1,8 +1,9 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Flame, Sparkles, Lightbulb, Building2, User } from "lucide-react";
+import { Sparkles, Lightbulb, Building2, User, Flame } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
 import { motion } from "framer-motion";
+import { TrenddropLogo } from "@/components/TrenddropLogo";
 
 export function BottomTabBar() {
   const routerState = useRouterState();
@@ -39,7 +40,7 @@ export function BottomTabBar() {
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
-                {/* Active indicator line at top using layoutId for smooth transition */}
+                {/* Active indicator line at top */}
                 {isActive && (
                   <motion.div
                     layoutId="activeTabIndicator"
@@ -52,10 +53,15 @@ export function BottomTabBar() {
                   whileHover={{ scale: 1.1 }}
                   className="relative"
                 >
-                  <Icon className="h-5 w-5" />
+                  {/* Show logo icon only on the Trends tab */}
+                  {label === "Trends" ? (
+                    <TrenddropLogo iconOnly size={20} animate={false} />
+                  ) : (
+                    <Icon className="h-5 w-5" />
+                  )}
                   {/* Emerging count badge on Trends tab */}
                   {label === "Trends" && emergingCount > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-primary-red text-[8px] font-extrabold text-white animate-pulse">
+                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-extrabold text-white animate-pulse">
                       {emergingCount}
                     </span>
                   )}

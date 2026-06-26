@@ -89,6 +89,8 @@ type TrendCategory =
   | "Study"
   | "Narrative"
   | "Text Overlay"
+  | "Faceless"
+  | "Regional"
   | "Viral";
 
 const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }> = {
@@ -105,6 +107,10 @@ const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }>
   study:          { emoji: "📚", category: "Study" },
   narrative_edit: { emoji: "🎞️", category: "Narrative" },
   text_overlay:   { emoji: "✏️", category: "Text Overlay" },
+  faceless:       { emoji: "🎭", category: "Faceless" },
+  faceless_video: { emoji: "🎭", category: "Faceless" },
+  face_less:      { emoji: "🎭", category: "Faceless" },
+  regional:       { emoji: "🌍", category: "Regional" },
   other:          { emoji: "🔥", category: "Viral" },
   viral:          { emoji: "🔥", category: "Viral" },
 };

@@ -146,15 +146,21 @@ class InstagramScraper:
                             timestamp_str = timestamp_str[:-1] + "+00:00"
                         posted_at = datetime.fromisoformat(timestamp_str)
 
-                        # Follower-normalized velocity:
-                        # velocity = engagement / hours_live / max(followers, 1000) * 10000
-                        posted_naive = posted_at.astimezone().replace(tzinfo=None)
-                        time_diff = datetime.now() - posted_naive
-                        hours_live = max(time_diff.total_seconds() / 3600, 0.5)
-
-                        engagement = view_count + (like_count * 2) + (comment_count * 5)
+                        # 2026 Instagram algorithm-weighted velocity:
+                        # DM shares ≈ 15× likes | Saves ≈ 10× likes | Rewatches ≈ 5× likes | Comments ≈ 4× likes
+                        # Since we don't have DM/save/rewatch data from the scraper,
+                        # we proxy: saves ≈ like_count*0.1, rewatches ≈ view_count*0.05
+                        proxy_saves   = like_count * 0.1     # ~10% of likes become saves
+                        proxy_replays = view_count * 0.05    # ~5% of views are rewatches
+                        engagement_2026 = (
+                            view_count  * 1.0 +
+                            proxy_saves * 10.0 +    # saves = 10× likes
+                            comment_count * 4.0 +   # threaded comments are strong signal
+                            like_count  * 1.0 +     # likes = weakest signal
+                            proxy_replays * 5.0     # rewatches = strong quality signal
+                        )
                         subscribers = max(follower_count, 1000)
-                        velocity_score = (engagement / hours_live / subscribers) * 10000
+                        velocity_score = (engagement_2026 / hours_live / subscribers) * 10000
 
                         # Accept if:
                         # - velocity > 0.3 (normalized), OR

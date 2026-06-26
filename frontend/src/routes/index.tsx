@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X } from "lucide-react";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, type UiTrend } from "@/lib/api";
 import { FilterPills } from "@/components/FilterPills";
 import { TrendCard } from "@/components/TrendCard";
@@ -10,8 +10,9 @@ import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
 import { ParticleBackground } from "@/components/ParticleBackground";
-import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
+import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,13 +26,13 @@ export const Route = createFileRoute("/")({
 
 const LANGUAGES = [
   { code: "all", label: "🌐 All" },
+  { code: "en",  label: "🇬🇧 English" },
   { code: "hi",  label: "🇮🇳 Hindi" },
   { code: "kn",  label: "🎯 Kannada" },
   { code: "ta",  label: "🌴 Tamil" },
   { code: "te",  label: "🌟 Telugu" },
   { code: "bn",  label: "🐯 Bengali" },
   { code: "mr",  label: "🦁 Marathi" },
-  { code: "en",  label: "🌐 English" },
 ];
 
 type FeedTab = "rising" | "emerging";
@@ -46,6 +47,7 @@ function TrendsFeed() {
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
 
@@ -109,7 +111,7 @@ function TrendsFeed() {
 
   const trends = useMemo(() => {
     const list = activeData ?? [];
-    const byCategory = filter === "All" ? list : list.filter((t) => t.category === filter);
+    const byCategory = filter === "All" ? list : list.filter((t) => t.category?.toLowerCase() === filter.toLowerCase());
     if (!searchQuery.trim()) return byCategory;
     const q = searchQuery.toLowerCase();
     return byCategory.filter(
@@ -136,34 +138,50 @@ function TrendsFeed() {
 
   return (
     <div className="flex flex-col gap-0 pb-24">
-      {/* ── Hero Section with Three.js Particle Background & Header ───────────────────────── */}
+      {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
       <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-6 pt-6 rounded-b-[2rem] border-b border-border/30">
         <ParticleBackground />
 
         {/* Header Row */}
         <div className="relative flex items-center justify-between mb-6">
           {/* Logo */}
-          <div className="flex items-center gap-2.5 animate-drop-fall">
-            <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-secondary shadow-lg shadow-primary/30 text-white text-lg font-bold">
-              ◈
-            </div>
-            <h1 className="font-display text-2xl font-extrabold tracking-tight gradient-text">
-              TRENDROP
-            </h1>
-          </div>
+          <TrenddropLogo size={34} />
 
           <div className="flex items-center gap-2">
-            {/* Notification bell */}
+            {/* Notification bell — switches to Emerging tab when tapped */}
             <button
-              onClick={() => navigate({ to: "/profile" })}
-              className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10"
-              aria-label="Notifications"
+              id="notification-bell"
+              onClick={() => {
+                setFeedTab("emerging");
+                toast("⚡ Switched to Emerging feed", {
+                  description: emergingCount > 0
+                    ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} detected right now`
+                    : "No new emerging trends yet — check back soon!",
+                });
+              }}
+              className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10 active:scale-95"
+              aria-label={`Notifications${emergingCount > 0 ? ` — ${emergingCount} emerging trends` : ""}`}
             >
               <Bell className="h-4 w-4" />
               {emergingCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white">
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white animate-pulse">
                   {emergingCount}
                 </span>
+              )}
+            </button>
+
+            {/* Filter / Settings drawer trigger */}
+            <button
+              id="filter-settings-btn"
+              onClick={() => setShowFilterDrawer(true)}
+              className={`relative rounded-full p-2 transition-colors ${
+                filter !== "All" ? "bg-primary/20 text-primary" : "bg-white/5 text-foreground hover:bg-white/10"
+              }`}
+              aria-label="Filter settings"
+            >
+              <SlidersHorizontal className="h-4 w-4" />
+              {filter !== "All" && (
+                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary" />
               )}
             </button>
 
@@ -173,10 +191,9 @@ function TrendsFeed() {
               className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all"
               aria-label="Profile"
             >
-              <Avatar className="h-full w-full">
-                <AvatarImage src="https://images.unsplash.com/photo-1534528741775-53994a69daeb?auto=format&fit=crop&w=100&q=80" />
-                <AvatarFallback>U</AvatarFallback>
-              </Avatar>
+              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white">
+                U
+              </div>
             </button>
           </div>
         </div>
@@ -259,7 +276,6 @@ function TrendsFeed() {
           ))}
         </div>
 
-        <FilterPills active={filter} onChange={setFilter} />
       </div>
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
@@ -310,6 +326,66 @@ function TrendsFeed() {
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
       {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+
+      {/* ── Filter / Settings Drawer ─────────────────────────────────────────────────────── */}
+      <AnimatePresence>
+        {showFilterDrawer && (
+          <>
+            {/* Backdrop */}
+            <motion.div
+              key="filter-backdrop"
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="fixed inset-0 z-40 bg-black/60 backdrop-blur-sm"
+              onClick={() => setShowFilterDrawer(false)}
+            />
+            {/* Drawer */}
+            <motion.div
+              key="filter-drawer"
+              initial={{ y: "100%" }}
+              animate={{ y: 0 }}
+              exit={{ y: "100%" }}
+              transition={{ type: "spring", damping: 28, stiffness: 300 }}
+              className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 rounded-t-3xl bg-[#0d0d14] border-t border-border/40 px-5 pt-4 pb-10 shadow-2xl"
+            >
+              {/* Handle */}
+              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border/60" />
+              <div className="flex items-center justify-between mb-5">
+                <h3 className="font-display text-base font-bold text-foreground">Filters & Sort</h3>
+                <button onClick={() => setShowFilterDrawer(false)} className="rounded-full p-1.5 text-muted-foreground hover:text-foreground transition-colors">
+                  <X className="h-4 w-4" />
+                </button>
+              </div>
+
+              {/* Category Filter */}
+              <div className="mb-5">
+                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Category</p>
+                <FilterPills active={filter} onChange={(cat) => { setFilter(cat); }} />
+              </div>
+
+              {/* Active filter indicator */}
+              {filter !== "All" && (
+                <button
+                  onClick={() => setFilter("All")}
+                  className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary mb-4 transition-all hover:bg-primary/20"
+                >
+                  <X className="h-3 w-3" /> Clear filter: {filter}
+                </button>
+              )}
+
+              {/* Apply button */}
+              <button
+                onClick={() => setShowFilterDrawer(false)}
+                className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white tracking-wide hover:bg-primary/90 transition-all active:scale-[0.98]"
+              >
+                Apply Filters
+              </button>
+            </motion.div>
+          </>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
