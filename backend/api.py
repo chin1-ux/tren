@@ -470,7 +470,10 @@ def get_trends(request: Request, language: Optional[str] = None, sort: Optional[
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "rising")
+        # Include both 'rising' and 'emerging' so the feed is never empty;
+        # scraper may assign either status to active trends
+        q = supabase.table("trends").select("*").not_.in_("status", ["expired", "peaked"])
+
         if language and language != "all":
             q = q.eq("language", language)
 
