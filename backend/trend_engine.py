@@ -51,6 +51,7 @@ def generate_local_fallback(trend):
     return {
         "content_type": content_type,
         "is_dance": is_dance,
+        "niche_tag": content_type if content_type != "viral" else "general",
         "needs_filming": is_dance,
         "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
         "narrative_structure": "transformation" if is_dance else "none",
@@ -86,7 +87,7 @@ class TrendEngine:
 
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_KEY")
-        self.gemini_key = os.getenv("GEMINI_API_KEY")
+        # Gemini removed – Groq is the sole LLM provider
         self.groq_key = os.getenv("GROQ_API_KEY")
 
         if not self.groq_key:
@@ -301,7 +302,7 @@ class TrendEngine:
                     "initial_status": initial_status,
                 })
 
-            logging.info(f"Confirmed {len(confirmed)} new trends for Gemini classification")
+            logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
 
             # Sort and limit to top 15 to avoid API rate limits and speed up processing
             confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)[:15]
@@ -420,9 +421,64 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     logging.info(f"Skipping '{trend['audio_title']}' — low confidence ({confidence:.2f})")
                     continue
 
+                # ── Aggregate audio_use_count + audio_id from linked reels ──
+                group_reels = trend.get("reels", [])
+                audio_use_count = max(
+                    (r.get("audio_use_count") or 0 for r in group_reels),
+                    default=0,
+                )
+                audio_id = next(
+                    (r.get("audio_id") for r in group_reels if r.get("audio_id")),
+                    None,
+                )
+                # India reel count = reels tagged creator_country=IN
+                india_use_count = sum(
+                    1 for r in group_reels if r.get("creator_country") == "IN"
+                )
+                india_use_count = max(india_use_count, int(audio_use_count * 0.08))
+
+                # Saturation percentages
+                global_sat = round(min(100.0, (audio_use_count / 100_000) * 100), 1)
+                india_sat = round(min(100.0, (india_use_count / 8_000) * 100), 1)
+
+                # Window hours
+                avg_vel = trend["avg_velocity"]
+                if audio_use_count > 100_000:
+                    window_h = 0
+                elif avg_vel * 100 > 300 and audio_use_count < 20_000:
+                    window_h = 8
+                elif avg_vel * 100 > 150 and audio_use_count < 50_000:
+                    window_h = 16
+                elif avg_vel * 100 > 100 and audio_use_count < 80_000:
+                    window_h = 24
+                else:
+                    window_h = int(trend.get("window_hours_remaining") or 24)
+
+                # Niche tag: from hook_brief if available, else content_type
+                niche_tag = (
+                    trend.get("niche_tag")
+                    or trend.get("content_type")
+                    or "general"
+                )
+                # hook_brief / format_patterns from reels (aggregated from any Groq analysis)
+                hook_brief = next(
+                    (r.get("hook_brief") for r in group_reels if r.get("hook_brief")),
+                    []
+                )
+                format_patterns = next(
+                    (r.get("format_patterns") for r in group_reels if r.get("format_patterns")),
+                    []
+                )
+                # trend_origin – most common among reels
+                origins = [r.get("trend_origin", "unknown") for r in group_reels if r.get("trend_origin")]
+                trend_origin = max(set(origins), key=origins.count) if origins else "unknown"
+                is_cross_cultural = any(r.get("is_cross_cultural") for r in group_reels)
+
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],
+                    "audio_id": audio_id,
+                    "audio_use_count": audio_use_count,
                     "platform": "instagram",
                     "trend_type": trend.get("trend_type", "trend"),
                     "velocity_avg": trend["avg_velocity"],
@@ -437,10 +493,17 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "cultural_context": trend.get("cultural_context"),
                     "ideal_content_description": trend.get("ideal_content_description"),
                     "camera_style": trend.get("camera_style"),
-                    "window_hours_remaining": int(trend.get("window_hours_remaining") or 24),
+                    "window_hours_remaining": window_h,
                     "confidence": confidence,
                     "status": trend.get("initial_status", "rising"),
                     "saturation_score": trend.get("saturation_score", 0.2),
+                    "global_saturation_pct": global_sat,
+                    "india_saturation_pct": india_sat,
+                    "niche_tag": niche_tag,
+                    "hook_brief": hook_brief,
+                    "format_patterns": format_patterns,
+                    "trend_origin": trend_origin,
+                    "is_cross_cultural": is_cross_cultural,
                     "optimal_post_hour_ist": trend.get("optimal_post_hour_ist"),
                     "best_platform_first": trend.get("best_platform_first", "instagram"),
                     "why_this_works": trend.get("why_this_works"),

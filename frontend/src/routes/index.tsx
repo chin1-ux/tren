@@ -37,6 +37,17 @@ const LANGUAGES = [
   { code: "mr",  label: "🦁 Marathi" },
 ];
 
+const NICHES = [
+  { id: "all",      label: "All" },
+  { id: "fitness",  label: "💪 Fitness" },
+  { id: "food",     label: "🍜 Food" },
+  { id: "comedy",   label: "😂 Comedy" },
+  { id: "fashion",  label: "👗 Fashion" },
+  { id: "business", label: "💼 Business" },
+  { id: "travel",   label: "✈️ Travel" },
+  { id: "beauty",   label: "💄 Beauty" },
+];
+
 type FeedTab = "rising" | "emerging";
 type SortMode = "velocity" | "time_left" | "newest";
 
@@ -52,6 +63,17 @@ function TrendsFeed() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
+
+  // Niche filter — persisted in localStorage
+  const [selectedNiche, setSelectedNiche] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem("trendrop_niche") ?? "all";
+  });
+
+  const handleNicheChange = (id: string) => {
+    setSelectedNiche(id);
+    localStorage.setItem("trendrop_niche", id);
+  };
 
   // Check if first visit → show onboarding
   useEffect(() => {
@@ -74,8 +96,8 @@ function TrendsFeed() {
     isError: risingError,
     refetch: refetchRising,
   } = useQuery({
-    queryKey: ["trends", language, sortMode],
-    queryFn: () => fetchTrends(language, sortMode),
+    queryKey: ["trends", language, sortMode, selectedNiche],
+    queryFn: () => fetchTrends(language, sortMode, selectedNiche),
     staleTime: 3 * 60_000,
     refetchInterval: 5 * 60_000,
   });
@@ -291,6 +313,24 @@ function TrendsFeed() {
           ))}
         </div>
 
+        {/* Niche filter */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
+          {NICHES.map((n) => (
+            <button
+              key={n.id}
+              id={`niche-filter-${n.id}`}
+              onClick={() => handleNicheChange(n.id)}
+              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                selectedNiche === n.id
+                  ? "bg-secondary text-white shadow-sm shadow-secondary/30"
+                  : "bg-muted text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </div>
+
       </div>
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
@@ -339,75 +379,98 @@ function TrendsFeed() {
         )}
       </div>
 
-      {/* ── Cross-Cultural Trends Feed ── */}
-      <div className="space-y-4 px-4 pt-8 pb-4 border-t border-border/20 mt-8">
-        <div className="flex items-center gap-2 mb-2">
+      {/* ── Global Trends Entering India — horizontal scroll section ── */}
+      <div className="pt-6 pb-2 border-t border-border/20 mt-6">
+        <div className="flex items-center gap-2 mb-3 px-4">
           <Globe className="h-5 w-5 text-primary" />
-          <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
-            Global trends entering India 🌍
+          <h2 className="text-base font-bold font-display tracking-tight text-foreground">
+            🌍 Global trends entering India
           </h2>
         </div>
 
         {crossCulturalLoading ? (
-          <div className="space-y-3">
-            <SkeletonCard />
-            <SkeletonCard />
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-2">
+            {[1, 2, 3].map((i) => (
+              <div key={i} className="shrink-0 w-52 h-36 rounded-2xl bg-muted/40 animate-pulse" />
+            ))}
           </div>
         ) : !crossCulturalData || crossCulturalData.length === 0 ? (
-          <div className="glass-card p-6 text-center text-xs text-muted-foreground">
-            No global cross-cultural trends detected in India yet.
+          <div className="mx-4 rounded-2xl border border-border/30 p-5 text-center text-xs text-muted-foreground">
+            No global cross-cultural trends detected yet.
           </div>
         ) : (
-          <div className="space-y-3">
-            {crossCulturalData.map((reel: any) => (
-              <div 
-                key={reel.id} 
-                className="relative overflow-hidden rounded-2xl border border-white/5 bg-[#0e0e15]/60 backdrop-blur-md p-4 transition-all duration-300 hover:border-primary/20 hover:bg-[#12121a] cursor-pointer"
-                onClick={() => {
-                  if (reel.video_url || reel.reel_id) {
-                    window.open(reel.video_url || `https://www.instagram.com/p/${reel.reel_id}/`, "_blank");
-                  }
-                }}
-              >
-                <div className="flex gap-4">
-                  {/* Thumbnail */}
-                  {reel.thumbnail_url && (
-                    <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-muted border border-white/5">
-                      <img 
-                        src={reel.thumbnail_url} 
-                        alt={reel.audio_title} 
-                        className="h-full w-full object-cover"
-                        loading="lazy"
+          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-3">
+            {crossCulturalData.map((reel: any) => {
+              const indiaPct = reel.india_saturation_pct ?? 0;
+              const originFlag: Record<string, string> = {
+                US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
+                DE: "🇩🇪", FR: "🇫🇷", MX: "🇲🇽",
+              };
+              const flag = originFlag[reel.trend_origin] ?? "🌍";
+              const audioUrl = reel.audio_id
+                ? `https://www.instagram.com/reels/audio/${reel.audio_id}/`
+                : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.audio_title || "")}/`;
+              const windowH = reel.window_hours_remaining;
+
+              return (
+                <div
+                  key={reel.id}
+                  className="shrink-0 w-56 rounded-2xl border border-white/5 bg-[#0e0e15]/80 backdrop-blur-md p-3.5 space-y-2.5 hover:border-primary/20 transition-all"
+                >
+                  {/* Origin → India */}
+                  <div className="flex items-center justify-between">
+                    <span className="text-[11px] font-bold text-muted-foreground">
+                      {flag} → 🇮🇳
+                    </span>
+                    {windowH > 0 && (
+                      <span className="text-[10px] font-semibold rounded-full bg-primary/10 border border-primary/20 text-primary px-2 py-0.5">
+                        ~{windowH}h window
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Trend name */}
+                  <div>
+                    <p className="text-sm font-bold text-foreground truncate">
+                      {reel.audio_title || "Original Audio"}
+                    </p>
+                    <p className="text-[10px] text-muted-foreground truncate">
+                      by {reel.audio_artist || "Unknown"}
+                    </p>
+                  </div>
+
+                  {/* India saturation bar */}
+                  <div className="space-y-1">
+                    <div className="flex items-center justify-between text-[9px]">
+                      <span className="text-muted-foreground">🇮🇳 India saturation</span>
+                      <span className="font-bold text-foreground">{Math.round(indiaPct)}%</span>
+                    </div>
+                    <div className="h-1 w-full rounded-full bg-white/5 overflow-hidden">
+                      <div
+                        className={`h-full rounded-full ${
+                          indiaPct < 30 ? "bg-emerald-500" :
+                          indiaPct < 60 ? "bg-amber-500" : "bg-red-500"
+                        }`}
+                        style={{ width: `${Math.min(100, indiaPct)}%` }}
                       />
                     </div>
-                  )}
-
-                  {/* Details */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
-                      <span>@{reel.owner_username}</span>
-                      <span>•</span>
-                      <span className="text-primary font-semibold">Origin: {reel.trend_origin || "Global"}</span>
-                    </div>
-
-                    <h3 className="truncate text-sm font-bold text-foreground">
-                      {reel.audio_title || "Original Audio"}
-                    </h3>
-                    <p className="truncate text-xs text-muted-foreground mb-2">
-                      by {reel.audio_artist || "Unknown Artist"}
-                    </p>
-
-                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                      <span className="flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full">
-                        🔥 Velocity: {reel.velocity_score?.toFixed(1) || "0.0"}
-                      </span>
-                      <span>💬 {reel.comment_count || 0}</span>
-                      <span>❤️ {reel.like_count || 0}</span>
-                    </div>
+                    {indiaPct < 30 && (
+                      <span className="text-[9px] font-bold text-emerald-400">🇮🇳 Opportunity window open</span>
+                    )}
                   </div>
+
+                  {/* Save Audio button */}
+                  <a
+                    href={audioUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex w-full items-center justify-center gap-1 rounded-lg bg-primary/10 border border-primary/20 text-primary text-[10px] font-bold px-2 py-1.5 hover:bg-primary/20 transition-all"
+                  >
+                    🎵 Save Audio →
+                  </a>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
       </div>

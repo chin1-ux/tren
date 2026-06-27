@@ -17,6 +17,8 @@ export interface ApiTrend {
   artist?: string;
   audio_title?: string;
   audio_artist?: string;
+  audio_id?: string | null;
+  audio_use_count?: number;
   content_type: string;
   window_hours_remaining: number;
   velocity_avg: number;
@@ -43,6 +45,22 @@ export interface ApiTrend {
   created_at?: string;
   format_transferable?: boolean;
   transfer_instructions?: string | null;
+  // v2 new fields
+  global_saturation_pct?: number;
+  india_saturation_pct?: number;
+  niche_tag?: string;
+  hook_brief?: Array<{
+    dominant_hook_type?: string;
+    hook_opening_patterns?: string[];
+    hook_brief_one_line?: string;
+    optimal_length_seconds?: number;
+  }>;
+  format_patterns?: Array<{
+    visual_format?: string;
+    dominant_hook_type?: string;
+  }>;
+  is_cross_cultural?: boolean;
+  trend_origin?: string;
 }
 
 export interface ApiCaptionKit {
@@ -145,7 +163,6 @@ export interface UiTrend {
   hashtags: string[];
 
   // additional optional UI fields
-
   expiresAt: number;
   status?: string;
   saturationScore?: number;
@@ -162,6 +179,25 @@ export interface UiTrend {
   isEmerging?: boolean;
   formatTransferable?: boolean;
   transferInstructions?: string | null;
+
+  // v2 new fields
+  audioId?: string | null;
+  audioUseCount?: number;
+  globalSaturationPct?: number;
+  indiaSaturationPct?: number;
+  nicheTag?: string;
+  hookBrief?: Array<{
+    dominant_hook_type?: string;
+    hook_opening_patterns?: string[];
+    hook_brief_one_line?: string;
+    optimal_length_seconds?: number;
+  }>;
+  formatPatterns?: Array<{
+    visual_format?: string;
+    dominant_hook_type?: string;
+  }>;
+  isCrossCultural?: boolean;
+  trendOrigin?: string;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -188,7 +224,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     idealContentDescription: t.ideal_content_description ?? "",
     cameraStyle: t.camera_style ?? "",
     hashtags: t.hashtags ?? [],
-    // New v2 fields
+    // Core v1 fields
     status: t.status ?? "rising",
     saturationScore: t.saturation_score ?? 0,
     saturationPenalty: t.saturation_penalty ?? 0,
@@ -203,6 +239,16 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     isEmerging: t.status === "emerging",
     formatTransferable: t.format_transferable,
     transferInstructions: t.transfer_instructions,
+    // v2 new fields
+    audioId: t.audio_id ?? null,
+    audioUseCount: t.audio_use_count ?? 0,
+    globalSaturationPct: t.global_saturation_pct ?? 0,
+    indiaSaturationPct: t.india_saturation_pct ?? 0,
+    nicheTag: t.niche_tag ?? "general",
+    hookBrief: t.hook_brief ?? [],
+    formatPatterns: t.format_patterns ?? [],
+    isCrossCultural: t.is_cross_cultural ?? false,
+    trendOrigin: t.trend_origin ?? "unknown",
   };
 }
 
@@ -282,10 +328,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 
 // ── Trend fetch functions ──────────────────────────────────────────────────────
 
-export async function fetchTrends(language?: string, sort?: string): Promise<UiTrend[]> {
+export async function fetchTrends(language?: string, sort?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
   if (sort) params.set("sort", sort);
+  if (niche && niche !== "all") params.set("niche", niche);
   const qs = params.toString() ? `?${params}` : "";
   const data = await http<ApiTrend[] | { trends: ApiTrend[] }>(`/api/trends${qs}`);
   const list = Array.isArray(data) ? data : (data as { trends: ApiTrend[] }).trends ?? [];
@@ -522,11 +569,23 @@ export interface ApiReel {
   owner_follower_count?: number;
   audio_title: string;
   audio_artist: string;
+  audio_id?: string | null;
+  audio_use_count?: number;
   hashtags: string[];
   caption: string;
   velocity_score: number;
   video_url?: string;
   thumbnail_url?: string;
+  // v2 new fields
+  global_saturation_pct?: number;
+  india_saturation_pct?: number;
+  niche_tag?: string;
+  hook_brief?: unknown[];
+  format_patterns?: unknown[];
+  window_hours_remaining?: number;
+  is_cross_cultural?: boolean;
+  trend_origin?: string;
+  scraped_at?: string;
 }
 
 // ── Marketplace APIs ──────────────────────────────────────────────────────────

@@ -469,10 +469,16 @@ def _normalize_trends(trends: list) -> list:
 
 @app.get("/api/trends")
 @limiter.limit("60/minute")
-def get_trends(request: Request, language: Optional[str] = None, sort: Optional[str] = "velocity", current_user: str = Depends(get_current_user)):
+def get_trends(
+    request: Request,
+    language: Optional[str] = None,
+    sort: Optional[str] = "velocity",
+    niche: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
+):
     """
     Fetch RISING trends from Supabase.
-    Optional filters: ?language=hi&sort=velocity|time_left|newest
+    Optional filters: ?language=hi&sort=velocity|time_left|newest&niche=fitness
     """
     lang_key = language or "all"
     cache_key = f"trends:{lang_key}:{sort}"
@@ -497,6 +503,9 @@ def get_trends(request: Request, language: Optional[str] = None, sort: Optional[
 
         if language and language != "all":
             q = q.eq("language", language)
+
+        if niche and niche != "all":
+            q = q.eq("niche_tag", niche)
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
@@ -825,7 +834,7 @@ def get_user_reels_feed(request: Request, current_user: str = Depends(get_curren
 @app.get("/api/reels/cross-cultural")
 @limiter.limit("30/minute")
 def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_current_user)):
-    """Fetch global trends entering India (is_cross_cultural = True, originated outside India)."""
+    """Fetch global trends entering India — is_cross_cultural=True, origin != IN, india_saturation < 40%."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -834,8 +843,9 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
             .eq("is_cross_cultural", True) \
             .in_("caption_language", ["english", "hindi"]) \
             .neq("trend_origin", "IN") \
-            .order("created_at", desc=True) \
-            .limit(20)
+            .lt("india_saturation_pct", 40) \
+            .order("scraped_at", desc=True) \
+            .limit(10)
         res = q.execute()
         return res.data or []
     except Exception as e:

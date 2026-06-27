@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft, Copy, CheckCheck, Clock, Flame, Share2, ExternalLink,
-  Zap, Volume2, Calendar, ChevronRight,
+  Zap, Volume2, Calendar, ChevronRight, Music2,
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
@@ -327,39 +327,56 @@ function TrendDetailPage() {
         )}
       </div>
 
-      {/* Source Reels */}
-      {reels && reels.length > 0 && (
-        <div className="glass-card p-5 space-y-3">
-          <h2 className="font-display text-lg font-bold flex items-center justify-between">
-            <span>📱 Source Reels (Verified Creators)</span>
-            <span className="text-xs font-semibold text-muted-foreground">{reels.length} found</span>
-          </h2>
-          <div className="space-y-2">
-            {reels.slice(0, 15).map((reel) => (
-              <a
-                key={reel.id}
-                href={`https://instagram.com/reel/${reel.reel_id}`}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5 hover:bg-muted/60 transition-colors border border-transparent hover:border-primary/20 text-left group"
-              >
-                <div>
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-xs font-bold text-primary group-hover:underline">@{reel.owner_username}</p>
-                    <ExternalLink className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      {/* Source Reels — audio deep-link, no post/profile links */}
+      {reels && reels.length > 0 && (() => {
+        // Build audio deep-link from first reel that has audio_id
+        const firstWithId = reels.find((r: any) => r.audio_id);
+        const audioId = (firstWithId as any)?.audio_id;
+        const audioTitle = reels[0]?.audio_title;
+        const audioUrl = audioId
+          ? `https://www.instagram.com/reels/audio/${audioId}/`
+          : `https://www.instagram.com/explore/tags/${encodeURIComponent(audioTitle || "")}/`;
+
+        return (
+          <div className="glass-card p-5 space-y-3">
+            <div className="flex items-center justify-between">
+              <h2 className="font-display text-lg font-bold">📱 Source Reels</h2>
+              <span className="text-xs font-semibold text-muted-foreground">{reels.length} found</span>
+            </div>
+
+            {/* Save Audio deep-link — the only external CTA */}
+            <a
+              href={audioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-sm font-bold text-primary hover:bg-primary/20 transition-all"
+            >
+              <Music2 className="h-4 w-4" />
+              {audioId ? "Save Audio on Instagram →" : "Search Audio on Instagram →"}
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
+
+            <div className="space-y-2">
+              {reels.slice(0, 15).map((reel) => (
+                <div
+                  key={reel.id}
+                  className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5 border border-transparent"
+                >
+                  <div>
+                    <p className="text-xs font-bold text-foreground">@{reel.owner_username}</p>
+                    {reel.caption && (
+                      <p className="text-xs text-muted-foreground line-clamp-1 italic mt-0.5">"{reel.caption}"</p>
+                    )}
                   </div>
-                  {reel.caption && (
-                    <p className="text-xs text-muted-foreground line-clamp-1 italic mt-0.5">"{reel.caption}"</p>
-                  )}
+                  <p className="text-xs font-semibold text-muted-foreground shrink-0">
+                    {reel.view_count >= 1000 ? `${(reel.view_count / 1000).toFixed(0)}K` : reel.view_count} views
+                  </p>
                 </div>
-                <p className="text-xs font-semibold text-muted-foreground shrink-0">
-                  {reel.view_count >= 1000 ? `${(reel.view_count / 1000).toFixed(0)}K` : reel.view_count} views
-                </p>
-              </a>
-            ))}
+              ))}
+            </div>
           </div>
-        </div>
-      )}
+        );
+      })()}
 
       {/* Similar Trends */}
       {similarTrends && similarTrends.length > 0 && (

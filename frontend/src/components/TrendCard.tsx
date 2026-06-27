@@ -3,7 +3,7 @@ import {
   Clock, Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
   Bookmark, BookmarkCheck, Sparkles, Film, HelpCircle,
-  ExternalLink, Eye, Heart, MessageCircle, Share2
+  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,7 @@ interface Props {
   onDanceTap: (trend: UiTrend) => void;
 }
 
-// ── Helpers ──────────────────────────────────────────────────────────────────
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function getSaturationMeta(score: number): { label: string; color: string; dot: string } {
   if (score < 0.2) return { label: "Very Early 🟢", color: "text-emerald-400", dot: "bg-emerald-400" };
@@ -71,7 +71,115 @@ const formatViews = (v: number) => {
   return v.toString();
 };
 
-// ── Main Component ────────────────────────────────────────────────────────────
+function formatAudioUseCount(count: number): string {
+  if (!count) return "—";
+  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
+  if (count >= 1_000) return `${count.toLocaleString()}`;
+  return count.toString();
+}
+
+/** Saturation bar component (Global / India) */
+function SaturationBar({
+  label,
+  pct,
+  showOpportunity = false,
+}: {
+  label: string;
+  pct: number;
+  showOpportunity?: boolean;
+}) {
+  const barColor =
+    pct < 30 ? "bg-emerald-500" :
+    pct < 60 ? "bg-amber-500" :
+    pct < 80 ? "bg-orange-500" :
+    "bg-red-500";
+
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center justify-between text-[10px]">
+        <span className="font-semibold text-muted-foreground">{label}</span>
+        <div className="flex items-center gap-1.5">
+          {showOpportunity && pct < 30 && (
+            <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
+              🇮🇳 Opportunity
+            </span>
+          )}
+          <span className="font-bold text-foreground">{Math.round(pct)}%</span>
+        </div>
+      </div>
+      <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
+        <motion.div
+          className={`h-full rounded-full ${barColor}`}
+          initial={{ width: 0 }}
+          animate={{ width: `${Math.min(100, pct)}%` }}
+          transition={{ duration: 0.6, ease: "easeOut" }}
+        />
+      </div>
+    </div>
+  );
+}
+
+/** Trial Reel Advisor Badge */
+function TrialReelBadge({
+  globalPct,
+  indiaPct,
+  hoursLeft,
+}: {
+  globalPct: number;
+  indiaPct: number;
+  hoursLeft: number;
+}) {
+  if (globalPct > 75) {
+    if (indiaPct < 20) {
+      return (
+        <span
+          title="Saturated globally but India window barely open"
+          className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 cursor-help"
+        >
+          🚀 Post now for India
+        </span>
+      );
+    }
+    return (
+      <span
+        title="Trend has peaked globally — use caution"
+        className="inline-flex items-center gap-1 rounded-full bg-red-500/15 border border-red-500/30 px-2.5 py-0.5 text-[10px] font-bold text-red-400 cursor-help"
+      >
+        ⚠️ Saturated globally
+      </span>
+    );
+  }
+  if (globalPct >= 35 && indiaPct < 30) {
+    return (
+      <span
+        title="Global peak but India window still open"
+        className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 cursor-help"
+      >
+        🚀 Post now for India
+      </span>
+    );
+  }
+  if (globalPct < 35 && hoursLeft > 8) {
+    return (
+      <span
+        title="Trend is early — test with non-followers before posting broadly"
+        className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 cursor-help"
+      >
+        🧪 Try as Trial Reel first
+      </span>
+    );
+  }
+  return null;
+}
+
+/** Audio deep-link builder */
+function buildAudioUrl(audioId?: string | null, audioName?: string): string {
+  if (audioId) return `https://www.instagram.com/reels/audio/${audioId}/`;
+  const q = encodeURIComponent(audioName || "");
+  return `https://www.instagram.com/explore/tags/${q}/`;
+}
+
+// ── Main Component ─────────────────────────────────────────────────────────────
 
 export function TrendCard({ trend, onDanceTap }: Props) {
   const navigate = useNavigate();
@@ -119,11 +227,16 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   const dmShareScore = getDMShareScore(trend);
   const optimalLength = getOptimalLength(trend.category);
   const saveBaitTip = getSaveBaitTip(trend.category);
-  const trialReco = compositeScore < 2.5
-    ? { label: "Use Trial Reel first", color: "text-amber-400", bg: "bg-amber-400/10 border-amber-400/20" }
-    : compositeScore > 4
-    ? { label: "Post directly ✓", color: "text-emerald-400", bg: "bg-emerald-400/10 border-emerald-400/20" }
-    : { label: "Trial Reel recommended", color: "text-blue-400", bg: "bg-blue-400/10 border-blue-400/20" };
+
+  // v2 saturation data
+  const globalPct = trend.globalSaturationPct ?? 0;
+  const indiaPct = trend.indiaSaturationPct ?? 0;
+  const audioUseCount = trend.audioUseCount ?? 0;
+  const hookBrief = trend.hookBrief ?? [];
+  const primaryHook = hookBrief[0] ?? null;
+  const nicheTag = trend.nicheTag ?? "general";
+  const audioId = trend.audioId;
+  const audioUrl = buildAudioUrl(audioId, trend.song);
 
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
@@ -192,7 +305,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         )}
       </div>
 
-      {/* Top row */}
+      {/* ── 1. Top row: platform + window ───────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
@@ -204,11 +317,11 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         </div>
         <span className={`inline-flex items-center gap-1 text-xs font-semibold ${isUrgent ? "text-primary animate-pulse" : "text-muted-foreground"}`}>
           <Clock className="h-3.5 w-3.5" />
-          {trend.hoursLeft > 0 ? `${trend.hoursLeft}h left` : "Ending soon"}
+          {trend.hoursLeft > 0 ? `~${trend.hoursLeft}h left` : "Ending soon"}
         </span>
       </div>
 
-      {/* Song info */}
+      {/* ── 1. Song info ─────────────────────────────────────────────────── */}
       <div className="space-y-0.5 min-w-0">
         <h3
           className="font-display text-xl font-bold leading-snug tracking-tight text-foreground flex items-center justify-between gap-2"
@@ -226,7 +339,35 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
       </div>
 
-      {/* Velocity waveform */}
+      {/* ── 2. Audio use count ────────────────────────────────────────────── */}
+      {audioUseCount > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
+          <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="text-muted-foreground">Using this audio now:</span>
+          <span className="font-bold text-foreground ml-auto">{formatAudioUseCount(audioUseCount)} reels</span>
+        </div>
+      )}
+
+      {/* ── 3. Window badge (shown in top row above) ─ also a chips row ─── */}
+      <div className="flex flex-wrap gap-1.5 min-w-0">
+        <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
+        {trend.languageEmoji && trend.language && (
+          <Chip>{trend.languageEmoji} {trend.language}</Chip>
+        )}
+        {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
+        {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
+        {/* Niche tag pill */}
+        {nicheTag && nicheTag !== "general" && (
+          <Chip className="bg-secondary/15 text-secondary border border-secondary/20">
+            # {nicheTag}
+          </Chip>
+        )}
+        {trend.reelCount !== undefined && (
+          <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount.toLocaleString()} reels</Chip>
+        )}
+      </div>
+
+      {/* ── 4. Velocity waveform ──────────────────────────────────────────── */}
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
@@ -249,26 +390,13 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         </div>
       </div>
 
-      {/* Chips */}
-      <div className="flex flex-wrap gap-1.5 min-w-0">
-        <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
-        {trend.languageEmoji && trend.language && (
-          <Chip>{trend.languageEmoji} {trend.language}</Chip>
-        )}
-        {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
-        {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
-        {trend.reelCount !== undefined && (
-          <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount.toLocaleString()} reels</Chip>
-        )}
-      </div>
-
       {/* Expand hint */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </div>
 
-      {/* Expanded section */}
+      {/* ── Expanded section ─────────────────────────────────────────────── */}
       <AnimatePresence>
         {isExpanded && (
           <motion.div
@@ -314,12 +442,48 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                 <p className="text-xs text-foreground/80 leading-relaxed">{saveBaitTip}</p>
               </div>
 
-              {/* Trial reel decision */}
-              <div className={`rounded-lg border px-3 py-2 ${trialReco.bg}`}>
-                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">🎯 Posting Strategy</p>
-                <p className={`text-xs font-bold ${trialReco.color}`}>{trialReco.label}</p>
+              {/* Trial reel badge row */}
+              <div className="flex items-center gap-2 flex-wrap">
+                <TrialReelBadge
+                  globalPct={globalPct}
+                  indiaPct={indiaPct}
+                  hoursLeft={trend.hoursLeft}
+                />
               </div>
             </div>
+
+            {/* ── 5. Hook Brief section (Groq-extracted) ── */}
+            {primaryHook && (
+              <div className="rounded-xl border border-secondary/20 bg-secondary/[0.04] p-3 space-y-2">
+                <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">🎬 Hook Brief</p>
+                {primaryHook.hook_brief_one_line && (
+                  <p className="text-sm font-semibold text-foreground leading-snug italic">
+                    "{primaryHook.hook_brief_one_line}"
+                  </p>
+                )}
+                {primaryHook.dominant_hook_type && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-[10px] text-muted-foreground">Hook type:</span>
+                    <span className="inline-flex rounded-full bg-secondary/15 border border-secondary/25 px-2 py-0.5 text-[10px] font-bold text-secondary capitalize">
+                      {primaryHook.dominant_hook_type.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                )}
+                {primaryHook.hook_opening_patterns && primaryHook.hook_opening_patterns.length > 0 && (
+                  <div className="space-y-1">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Opening patterns creators use:</p>
+                    <ul className="space-y-0.5">
+                      {primaryHook.hook_opening_patterns.slice(0, 3).map((p, i) => (
+                        <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
+                          <span className="text-secondary mt-0.5 shrink-0">▸</span>
+                          <span>{p}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
 
             {/* Content Concept */}
             <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
@@ -329,7 +493,14 @@ export function TrendCard({ trend, onDanceTap }: Props) {
               </p>
             </div>
 
-            {/* Saturation + scores */}
+            {/* ── 6. Saturation bars ── */}
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">📊 Saturation</p>
+              <SaturationBar label="🌍 Global" pct={globalPct} />
+              <SaturationBar label="🇮🇳 India" pct={indiaPct} showOpportunity />
+            </div>
+
+            {/* Creator scores + saturation status */}
             <div className="space-y-2">
               <div className="flex items-center gap-2">
                 <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${satMeta.dot}`} />
@@ -356,7 +527,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
               {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
             </button>
 
-            {/* ── Trending Reels using this sound ── */}
+            {/* ── Trending Reels using this sound (audio deep-link replaces post link) ── */}
             <div className="border-t border-border/40 pt-3">
               <button
                 onClick={(e) => { e.stopPropagation(); setShowReels(!showReels); }}
@@ -376,18 +547,13 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                     <div className="text-center py-4 text-xs text-muted-foreground">No reels indexed yet — check back soon!</div>
                   ) : (
                     reels.slice(0, 3).map((reel) => (
-                      <a
+                      <div
                         key={reel.id}
-                        href={`https://instagram.com/reel/${reel.reel_id}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex flex-col gap-2 rounded-xl bg-white/[0.02] p-3 border border-border/40 hover:bg-white/[0.05] hover:border-primary/30 transition-all text-left group"
-                        onClick={(e) => e.stopPropagation()}
+                        className="flex flex-col gap-2 rounded-xl bg-white/[0.02] p-3 border border-border/40"
                       >
-                        {/* Creator row */}
+                        {/* Creator row — no link to profile */}
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
-                            {/* Avatar */}
                             <div className="h-7 w-7 rounded-full bg-gradient-to-br from-primary/60 to-secondary/60 flex items-center justify-center shrink-0 text-[10px] font-bold text-white">
                               {(reel.owner_username?.[0] ?? "?").toUpperCase()}
                             </div>
@@ -398,7 +564,6 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                               )}
                             </div>
                           </div>
-                          {/* Instagram badge */}
                           <span className="shrink-0 text-[9px] font-semibold text-muted-foreground bg-white/5 rounded-full px-2 py-0.5">
                             ◎ Instagram
                           </span>
@@ -419,17 +584,25 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                             "{reel.caption.slice(0, 120)}{reel.caption.length > 120 ? "…" : ""}"
                           </p>
                         )}
-
-                        {/* View link */}
-                        <div className="flex items-center gap-1 text-[10px] font-semibold text-primary group-hover:underline">
-                          <ExternalLink className="h-3 w-3" /> View on Instagram
-                        </div>
-                      </a>
+                      </div>
                     ))
                   )}
                 </div>
               )}
             </div>
+
+            {/* ── 8. Save Audio deep-link button ── */}
+            <a
+              href={audioUrl}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-xs font-bold text-primary hover:bg-primary/20 hover:border-primary/70 transition-all"
+            >
+              <Music2 className="h-3.5 w-3.5" />
+              {audioId ? "Save Audio on Instagram →" : "Search Audio on Instagram →"}
+              <ExternalLink className="h-3 w-3 opacity-60" />
+            </a>
 
             {/* Action buttons */}
             <div className="space-y-2 pt-2 border-t border-border/40">
@@ -476,7 +649,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   );
 }
 
-// ── Sub-components ────────────────────────────────────────────────────────────
+// ── Sub-components ─────────────────────────────────────────────────────────────
 
 function Chip({ children, className = "" }: { children: React.ReactNode; className?: string }) {
   return (
