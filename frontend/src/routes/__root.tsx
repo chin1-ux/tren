@@ -90,7 +90,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" },
+      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap" },
     ],
   }),
   shellComponent: RootShell,
@@ -153,10 +153,11 @@ function RootComponent() {
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
         <button
           onClick={toggleTheme}
-          className="fixed top-4 right-4 md:right-[calc(50%-224px+16px)] z-50 flex h-9 w-9 items-center justify-center rounded-full bg-surface border border-border shadow-md text-base transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          className="fixed top-4 right-4 md:right-[calc(50%-224px+16px)] z-50 pill"
+          data-testid="theme-toggle"
           aria-label="Toggle theme"
         >
-          {theme === "dark" ? "☀️" : "🌙"}
+          {theme === "dark" ? "☀ light" : "◐ dark"}
         </button>
 
         <AnimatePresence mode="wait">

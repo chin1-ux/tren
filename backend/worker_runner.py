@@ -1,7 +1,7 @@
 import os
 import sys
 import redis
-from rq import Worker, Queue, Connection
+from rq import Worker, Queue
 from dotenv import load_dotenv
 
 # Ensure the backend directory is in the import path
@@ -32,9 +32,8 @@ def main():
     ]
 
     print("Starting RQ worker for priority and standard queues...")
-    with Connection(redis_conn):
-        worker = Worker(queues)
-        worker.work()
+    worker = Worker(queues, connection=redis_conn)
+    worker.work()
 
 if __name__ == "__main__":
     main()

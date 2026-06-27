@@ -1,112 +1,62 @@
-import { motion } from "framer-motion";
+import React from 'react';
 
-interface TrenddropLogoProps {
-  /** Show just the icon without the wordmark */
-  iconOnly?: boolean;
-  /** Size of the icon in pixels (default 36) */
-  size?: number;
-  /** Additional className for the wrapper */
-  className?: string;
-  /** Animate on mount */
-  animate?: boolean;
+export function TrenddropIcon({ size = 40, variant = 'coral', className = '' }: { size?: number; variant?: 'coral' | 'acid' | 'ink'; className?: string }) {
+  const variants = {
+    coral: { bg: '#FF4D3D', fg: '#FFFFFF', accent: '#C7F23A' },
+    acid:  { bg: '#C7F23A', fg: '#0B0B0F', accent: '#FF4D3D' },
+    ink:   { bg: '#0B0B0F', fg: '#F5F1E8', accent: '#C7F23A' },
+  };
+  const v = variants[variant] || variants.coral;
+  return (
+    <svg width={size} height={size} viewBox="0 0 120 120" className={className} data-testid="trendrop-icon">
+      <rect x="0" y="0" width="120" height="120" rx="28" fill={v.bg}/>
+      <path d="M 22 84 L 50 64 L 70 74 L 96 36" stroke={v.fg} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <path d="M 86 34 L 100 32 L 98 46" stroke={v.fg} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
+      <path d="M 36 96 C 36 88, 44 80, 44 70 C 44 80, 52 88, 52 96 C 52 102, 47 106, 44 106 C 41 106, 36 102, 36 96 Z" fill={v.accent}/>
+    </svg>
+  );
 }
 
-/**
- * Trendrop brand logo — SVG icon mark + wordmark.
- *
- * Icon concept: A rising trend waveform with an upward arrow peak,
- * symbolising real-time trend detection for Instagram Reels audio.
- */
+interface TrenddropLogoProps {
+  iconOnly?: boolean;
+  size?: number;
+  animate?: boolean;
+  variant?: 'default' | 'coral' | 'acid' | 'ink';
+  className?: string;
+}
+
 export function TrenddropLogo({
   iconOnly = false,
-  size = 36,
-  className = "",
-  animate = true,
+  size = 56,
+  animate = false,
+  variant = 'default',
+  className = '',
 }: TrenddropLogoProps) {
-  const iconRadius = Math.round(size * 0.28);
-  const fontSize = Math.round(size * 0.67);
-
-  const content = (
-    <>
-      {/* ── Icon Mark ── */}
-      <div
-        style={{
-          width: size,
-          height: size,
-          background: "linear-gradient(135deg, #E63946 0%, #ff006e 100%)",
-          borderRadius: iconRadius,
-          boxShadow: "0 0 18px rgba(230,57,70,0.45), 0 0 4px rgba(255,0,110,0.3)",
-          flexShrink: 0,
-          position: "relative",
-          overflow: "hidden",
-        }}
-      >
-        <svg
-          width={size}
-          height={size}
-          viewBox="0 0 36 36"
-          fill="none"
-          xmlns="http://www.w3.org/2000/svg"
-          aria-hidden="true"
-        >
-          {/* Subtle inner gradient overlay */}
-          <defs>
-            <linearGradient id="trendrop-icon-grad" x1="0" y1="0" x2="36" y2="36" gradientUnits="userSpaceOnUse">
-              <stop offset="0%" stopColor="rgba(255,255,255,0.18)" />
-              <stop offset="100%" stopColor="rgba(255,255,255,0)" />
-            </linearGradient>
-          </defs>
-          <rect width="36" height="36" rx={iconRadius} fill="url(#trendrop-icon-grad)" />
-
-          {/* Rising waveform / bar chart bars */}
-          <rect x="5"  y="22" width="3.5" height="8"  rx="1.75" fill="white" opacity="0.5" />
-          <rect x="10" y="17" width="3.5" height="13" rx="1.75" fill="white" opacity="0.65" />
-          <rect x="15" y="13" width="3.5" height="17" rx="1.75" fill="white" opacity="0.80" />
-          <rect x="20" y="7"  width="3.5" height="23" rx="1.75" fill="white" />
-          <rect x="25" y="12" width="3.5" height="18" rx="1.75" fill="white" opacity="0.65" />
-
-          {/* Arrow tip pointing up on the tallest bar */}
-          <path d="M21.75 5L24.5 7L21.75 9V5Z" fill="white" opacity="0.95" />
-        </svg>
-      </div>
-
-      {/* ── Wordmark ── */}
-      {!iconOnly && (
-        <span
-          style={{
-            fontFamily: "'Space Grotesk', 'Inter', sans-serif",
-            fontWeight: 800,
-            letterSpacing: "-0.03em",
-            fontSize,
-            lineHeight: 1,
-            background: "linear-gradient(135deg, #E63946 0%, #ff006e 55%, #E63946 100%)",
-            WebkitBackgroundClip: "text",
-            WebkitTextFillColor: "transparent",
-            backgroundClip: "text",
-          }}
-        >
-          TRENDROP
-        </span>
-      )}
-    </>
-  );
-
-  if (animate) {
-    return (
-      <motion.div
-        className={`flex items-center gap-2.5 select-none ${className}`}
-        initial={{ opacity: 0, scale: 0.85 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.4, ease: "easeOut" }}
-      >
-        {content}
-      </motion.div>
-    );
+  if (iconOnly) {
+    const iconVariant = variant === 'default' ? 'coral' : (variant as 'coral' | 'acid' | 'ink');
+    return <TrenddropIcon size={size} variant={iconVariant} className={className} />;
   }
 
   return (
-    <div className={`flex items-center gap-2.5 select-none ${className}`}>
-      {content}
+    <div
+      className={`trendrop-wordmark ${animate ? 'animate' : ''} variant-${variant} ${className}`}
+      style={{ fontSize: size }}
+      data-testid="trendrop-wordmark"
+    >
+      <span className="tr-arrow" aria-hidden="true">
+        <svg viewBox="0 0 100 50" preserveAspectRatio="xMinYMax meet">
+          <path d="M 6 44 L 32 30 L 56 36 L 88 8" stroke="currentColor" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+          <path d="M 76 4 L 94 4 L 94 22" stroke="currentColor" strokeWidth="8" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+        </svg>
+      </span>
+      <span className="tr-pre">trendr</span>
+      <span className="tr-play" aria-hidden="true" />
+      <span className="tr-post">p</span>
+      <span className="tr-drop" aria-hidden="true">
+        <svg viewBox="0 0 44 60" preserveAspectRatio="none">
+          <path d="M 22 2 C 22 16, 42 28, 42 44 C 42 54, 33 58, 22 58 C 11 58, 2 54, 2 44 C 2 28, 22 16, 22 2 Z" fill="currentColor"/>
+        </svg>
+      </span>
     </div>
   );
 }

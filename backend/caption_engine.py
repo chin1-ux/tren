@@ -12,7 +12,10 @@ logging.basicConfig(
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
 logger = logging.getLogger(__name__)
-from .llm import call_llm
+try:
+    from .llm import call_llm
+except ImportError:
+    from llm import call_llm
 
 
 class CaptionEngine:
