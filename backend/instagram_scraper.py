@@ -353,21 +353,14 @@ Rules:
                 "owner_username": "vickykaushal09", "owner_follower_count": 18500000,
                 "video_view_count": 4800000, "likes_count": 520000, "comments_count": 14000,
                 "caption": "Obsessed with this groove! #TaubaTauba #karanaujla #newdance #trend",
-                "shortCode": "C9X83lDJu2B", "country": "IN", "is_dance": True, "lang": "hi"
+                "shortCode": "C89o2v3tFjF", "country": "IN", "is_dance": True, "lang": "hi"
             },
             {
                 "audio_title": "Tauba Tauba", "audio_artist": "Karan Aujla",
                 "owner_username": "karanaujla_official", "owner_follower_count": 6200000,
                 "video_view_count": 3200000, "likes_count": 410000, "comments_count": 8900,
                 "caption": "Tauba Tauba reels going wild! Appreciate all the love. #TaubaTauba #karanaujla #punjabi",
-                "shortCode": "C9Y21hKPq4C", "country": "IN", "is_dance": True, "lang": "hi"
-            },
-            {
-                "audio_title": "Tauba Tauba", "audio_artist": "Karan Aujla",
-                "owner_username": "dance_with_alisha", "owner_follower_count": 160000,
-                "video_view_count": 420000, "likes_count": 46000, "comments_count": 1100,
-                "caption": "Here is my cover for the viral hook step! Rate it 1-10? #TaubaTauba #dancecover #reelsindia",
-                "shortCode": "C9Z14mLOv8F", "country": "IN", "is_dance": True, "lang": "hi"
+                "shortCode": "C8-V-uKPP1W", "country": "IN", "is_dance": True, "lang": "hi"
             },
             
             # --- Trend 2: Alibi by Sevdaliza ---
@@ -376,21 +369,7 @@ Rules:
                 "owner_username": "sevdaliza", "owner_follower_count": 1300000,
                 "video_view_count": 1200000, "likes_count": 140000, "comments_count": 3200,
                 "caption": "She is my alibi... #Alibi #sevdaliza #pabllovittar #transformation #reels",
-                "shortCode": "C9P34lDJu9Z", "country": "US", "is_dance": False, "lang": "en"
-            },
-            {
-                "audio_title": "Alibi", "audio_artist": "Sevdaliza",
-                "owner_username": "aashnashroff", "owner_follower_count": 1050000,
-                "video_view_count": 380000, "likes_count": 42000, "comments_count": 980,
-                "caption": "Transitioning into my weekend looks using this track. #Alibi #fashionreels #lookbook #aesthetic",
-                "shortCode": "C9Q22hKPm1X", "country": "IN", "is_dance": False, "lang": "en"
-            },
-            {
-                "audio_title": "Alibi", "audio_artist": "Sevdaliza",
-                "owner_username": "nagmaa", "owner_follower_count": 5100000,
-                "video_view_count": 1400000, "likes_count": 190000, "comments_count": 4100,
-                "caption": "This song is on repeat! Loving this vibe. #Alibi #transitionreels #creative #trend",
-                "shortCode": "C9R15mLOy3W", "country": "IN", "is_dance": True, "lang": "en"
+                "shortCode": "C8_Q4sSP2yK", "country": "US", "is_dance": False, "lang": "en"
             },
             
             # --- Trend 3: Pedro by Jaxomy & Agatino Romero ---
@@ -399,14 +378,7 @@ Rules:
                 "owner_username": "pedro_raccoon", "owner_follower_count": 820000,
                 "video_view_count": 18200000, "likes_count": 1850000, "comments_count": 21000,
                 "caption": "Pedro Pedro Pedro! #Pedro #raccoon #dance #funny #trend",
-                "shortCode": "C9K12lDJa4B", "country": "US", "is_dance": True, "lang": "en"
-            },
-            {
-                "audio_title": "Pedro", "audio_artist": "Jaxomy & Agatino Romero",
-                "owner_username": "siddharthnigam", "owner_follower_count": 11200000,
-                "video_view_count": 1100000, "likes_count": 135000, "comments_count": 2800,
-                "caption": "Joining the Pedro trend. Hands down the catchiest audio lately! #Pedro #funnyreels #foryou",
-                "shortCode": "C9L23hKPn6M", "country": "IN", "is_dance": True, "lang": "en"
+                "shortCode": "C52_jQ4xsT5", "country": "US", "is_dance": True, "lang": "en"
             },
             
             # --- Trend 4: Espresso by Sabrina Carpenter ---
@@ -415,14 +387,7 @@ Rules:
                 "owner_username": "sabrinacarpenter", "owner_follower_count": 35200000,
                 "video_view_count": 9200000, "likes_count": 1150000, "comments_count": 31000,
                 "caption": "That is that me espresso... #Espresso #sabrinacarpenter #vibe #singer",
-                "shortCode": "C9F32lDJe2A", "country": "US", "is_dance": False, "lang": "en"
-            },
-            {
-                "audio_title": "Espresso", "audio_artist": "Sabrina Carpenter",
-                "owner_username": "avneetkaur_13", "owner_follower_count": 32800000,
-                "video_view_count": 2900000, "likes_count": 310000, "comments_count": 5900,
-                "caption": "Sunny mornings and Espresso. #Espresso #italy #aestheticvlog #fashion",
-                "shortCode": "C9G43hKPo4K", "country": "IN", "is_dance": False, "lang": "en"
+                "shortCode": "C5q8oDJsy4G", "country": "US", "is_dance": False, "lang": "en"
             }
         ]
 
