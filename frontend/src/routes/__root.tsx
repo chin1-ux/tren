@@ -8,7 +8,7 @@ import {
   HeadContent,
   Scripts,
 } from "@tanstack/react-router";
-import { useEffect, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
@@ -118,13 +118,47 @@ function RootComponent() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
+  const [theme, setTheme] = useState<"light" | "dark">(() => {
+    if (typeof window !== "undefined") {
+      const savedTheme = localStorage.getItem("trendrop_theme");
+      if (savedTheme === "dark" || savedTheme === "light") {
+        return savedTheme;
+      }
+    }
+    return "light";
+  });
+
+  useEffect(() => {
+    const body = document.body;
+    if (theme === "dark") {
+      body.setAttribute("data-theme", "dark");
+      body.classList.add("dark");
+    } else {
+      body.removeAttribute("data-theme");
+      body.classList.remove("dark");
+    }
+    localStorage.setItem("trendrop_theme", theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+  };
+
   useEffect(() => {
     registerPWA();
   }, []);
 
   return (
     <QueryClientProvider client={queryClient}>
-      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden">
+      <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
+        <button
+          onClick={toggleTheme}
+          className="fixed top-4 right-4 md:right-[calc(50%-224px+16px)] z-50 flex h-9 w-9 items-center justify-center rounded-full bg-surface border border-border shadow-md text-base transition-all hover:scale-105 active:scale-95 cursor-pointer"
+          aria-label="Toggle theme"
+        >
+          {theme === "dark" ? "☀️" : "🌙"}
+        </button>
+
         <AnimatePresence mode="wait">
           <motion.div
             key={currentPath}
@@ -144,11 +178,11 @@ function RootComponent() {
         position="top-center"
         toastOptions={{
           style: {
-            background: "rgba(17, 17, 24, 0.75)",
+            background: "var(--surface)",
             backdropFilter: "blur(20px)",
             WebkitBackdropFilter: "blur(20px)",
-            border: "1px solid rgba(255,255,255,0.08)",
-            color: "#f0f0ff",
+            border: "1px solid var(--border)",
+            color: "var(--text-100)",
             fontFamily: "Inter, sans-serif",
             boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           },
