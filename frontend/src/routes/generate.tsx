@@ -80,7 +80,7 @@ function GeneratePage() {
     : undefined;
 
   // Global stages & state
-  const [activeTab, setActiveTab] = useState<Tab>("photos");
+  const [activeTab, setActiveTab] = useState<Tab>("faceless");
   const [stage, setStage] = useState<Stage>("upload");
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Starting...");
@@ -353,19 +353,15 @@ function GeneratePage() {
             </div>
           )}
 
-          {/* Sliding Tab Header */}
-          <div className="flex rounded-xl bg-slate-900/80 p-1 border border-white/5">
-            {(["photos", "narrative", "faceless", "repurpose"] as Tab[]).map((tab) => (
+          {/* Sliding Tab Header - Hidden as only Faceless generation is supported */}
+          <div className="hidden bg-slate-900/80 p-1 border border-white/5">
+            {(["faceless"] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className={`flex-1 py-2 text-xs font-bold rounded-lg transition-all capitalize ${
-                  activeTab === tab 
-                    ? "bg-gradient-to-r from-violet-600 to-indigo-600 text-white shadow-lg shadow-indigo-900/40" 
-                    : "text-slate-400 hover:text-slate-200"
-                }`}
+                className="hidden"
               >
-                {tab === "photos" ? "Photos Reel" : tab}
+                {tab}
               </button>
             ))}
           </div>

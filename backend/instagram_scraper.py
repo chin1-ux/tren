@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 from dotenv import load_dotenv
 from apify_client import ApifyClient
 from supabase import create_client, Client
+from llm import call_llm
 
 logging.basicConfig(
     filename="instagram_scraper.log",
@@ -67,7 +68,7 @@ class InstagramScraper:
         actor_id = "apify/instagram-hashtag-scraper"
         run_input = {
             "hashtags": [hashtag],
-            "resultsLimit": 30,
+            "resultsLimit": 10,
             "addParentData": True
         }
         for attempt in range(1, max_retries + 1):
@@ -96,6 +97,81 @@ class InstagramScraper:
                 else:
                     logging.error(f"All {max_retries} attempts failed for #{hashtag}")
                     raise
+
+    def detect_reel_metadata(self, reel: dict) -> dict:
+        prompt = f"""
+You are a metadata tagger for Instagram Reels. Analyse the following reel data
+and return ONLY a valid JSON object, no markdown, no explanation.
+
+Caption: "{reel.get('caption', '')}"
+Audio name: "{reel.get('audio_title', '') or reel.get('audio_name', '')}"
+Creator location hint: "unknown"
+
+Return this exact JSON structure:
+{{
+  "caption_language": "english" | "hindi" | "other",
+  "audio_language": "english" | "hindi" | "russian" | "portuguese" | "spanish" | "korean" | "other",
+  "trend_origin": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",
+  "creator_country": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",
+  "is_cross_cultural": true | false,
+  "confidence": 0.0 to 1.0
+}}
+
+Rules:
+- is_cross_cultural = true if audio_language !== caption_language
+- If caption is in Devanagari script → caption_language = "hindi"
+- If caption is in Latin script and English → caption_language = "english"
+- If audio name contains non-English/non-Hindi words → tag audio_language accordingly
+- Only return the JSON, nothing else
+"""
+        try:
+            return call_llm(
+                system_prompt="You are a metadata tagger for Instagram Reels.",
+                user_prompt=prompt,
+                response_mime_type="application/json",
+                timeout=15
+            )
+        except Exception as e:
+            logging.error(f"Error in detect_reel_metadata: {e}")
+            return {
+                "caption_language": "unknown",
+                "audio_language": "unknown",
+                "trend_origin": "unknown",
+                "creator_country": "unknown",
+                "is_cross_cultural": False,
+                "confidence": 0.0
+            }
+
+    def _update_trend_lifecycle(self, audio_title: str, creator_country: str, scraped_at: str):
+        """Update trend lifecycle spread timeline and saturation counts."""
+        if not audio_title:
+            return
+        try:
+            existing = self.supabase.table("trend_lifecycle").select("*").eq("trend_id", audio_title).execute()
+            if not existing.data:
+                # First time seeing this trend
+                self.supabase.table("trend_lifecycle").insert({
+                    "trend_id": audio_title,
+                    "first_seen_country": creator_country,
+                    "first_seen_at": scraped_at,
+                    "spread_timeline": [{"country": creator_country, "at": scraped_at}],
+                    "saturation_by_region": {creator_country: 1}
+                }).execute()
+            else:
+                row = existing.data[0]
+                timeline = row.get("spread_timeline") or []
+                saturation = row.get("saturation_by_region") or {}
+
+                timeline.append({"country": creator_country, "at": scraped_at})
+                saturation[creator_country] = saturation.get(creator_country, 0) + 1
+
+                self.supabase.table("trend_lifecycle").update({
+                    "spread_timeline": timeline,
+                    "saturation_by_region": saturation,
+                    "updated_at": datetime.now(timezone.utc).isoformat()
+                }).eq("trend_id", audio_title).execute()
+        except Exception as e:
+            logging.error(f"Error updating trend lifecycle: {e}", exc_info=True)
 
     def scrape_trending_reels(self):
         """
@@ -145,6 +221,7 @@ class InstagramScraper:
                         if timestamp_str.endswith("Z"):
                             timestamp_str = timestamp_str[:-1] + "+00:00"
                         posted_at = datetime.fromisoformat(timestamp_str)
+                        hours_live = max((datetime.now(timezone.utc) - posted_at).total_seconds() / 3600.0, 0.5)
 
                         # 2026 Instagram algorithm-weighted velocity:
                         # DM shares ≈ 15× likes | Saves ≈ 10× likes | Rewatches ≈ 5× likes | Comments ≈ 4× likes
@@ -217,8 +294,28 @@ class InstagramScraper:
                             "velocity_score": velocity_score,
                         }
 
+                        # Call Groq tagging for the reel metadata
+                        metadata = self.detect_reel_metadata(reel_data)
+                        reel_data.update({
+                            "audio_language": metadata.get("audio_language", "unknown"),
+                            "caption_language": metadata.get("caption_language", "unknown"),
+                            "trend_origin": metadata.get("trend_origin", "unknown"),
+                            "creator_country": metadata.get("creator_country", "unknown"),
+                            "is_cross_cultural": metadata.get("is_cross_cultural", False),
+                            "language_confidence": metadata.get("confidence", 0.0),
+                        })
+
                         self.supabase.table("reels").insert(reel_data).execute()
                         logging.info(f"Saved reel {reel_id} by @{owner_username} (velocity={velocity_score:.3f})")
+                        
+                        # Update trend lifecycle
+                        scraped_time_str = datetime.now(timezone.utc).isoformat()
+                        self._update_trend_lifecycle(
+                            audio_title=music_title or "unknown_trend",
+                            creator_country=metadata.get("creator_country", "unknown"),
+                            scraped_at=scraped_time_str
+                        )
+                        
                         high_velocity_reels.append(velocity_score)
                         saved_count += 1
 

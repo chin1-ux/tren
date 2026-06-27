@@ -212,13 +212,34 @@ import { supabase } from "./supabase";
 
 let inMemoryToken: string | null = null;
 
+export const createDefaultPreferences = async (userId: string) => {
+  try {
+    await supabase
+      .from('user_preferences')
+      .upsert({
+        user_id: userId,
+        languages: ['english', 'hindi'],   // Phase 1 default — hardcoded
+        categories: [],
+        regions: ['IN'],
+      }, { onConflict: 'user_id' });
+  } catch (err) {
+    console.error("Failed to create default preferences:", err);
+  }
+};
+
 if (typeof window !== "undefined") {
   supabase.auth.getSession().then(({ data: { session } }) => {
     inMemoryToken = session?.access_token || null;
+    if (session?.user?.id) {
+      createDefaultPreferences(session.user.id);
+    }
   });
 
-  supabase.auth.onAuthStateChange((_event, session) => {
+  supabase.auth.onAuthStateChange(async (event, session) => {
     inMemoryToken = session?.access_token || null;
+    if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user?.id) {
+      await createDefaultPreferences(session.user.id);
+    }
   });
 }
 
@@ -561,3 +582,12 @@ export async function sendCollabRequest(fromEmail: string, toEmail: string, mess
     body: JSON.stringify({ from_email: fromEmail, to_email: toEmail, message }),
   });
 }
+
+export async function fetchUserFeed(): Promise<ApiReel[]> {
+  return http<ApiReel[]>("/api/reels/feed");
+}
+
+export async function fetchCrossCulturalTrends(): Promise<ApiReel[]> {
+  return http<ApiReel[]>("/api/reels/cross-cultural");
+}
+

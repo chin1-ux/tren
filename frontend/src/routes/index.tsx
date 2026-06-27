@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, type UiTrend } from "@/lib/api";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Globe } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchCrossCulturalTrends, type UiTrend } from "@/lib/api";
 import { FilterPills } from "@/components/FilterPills";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -86,6 +86,16 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", language],
     queryFn: () => fetchEmergingTrends(language),
+    staleTime: 3 * 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+
+  const {
+    data: crossCulturalData,
+    isLoading: crossCulturalLoading,
+  } = useQuery({
+    queryKey: ["reels-cross-cultural"],
+    queryFn: () => fetchCrossCulturalTrends(),
     staleTime: 3 * 60_000,
     refetchInterval: 5 * 60_000,
   });
@@ -321,6 +331,79 @@ function TrendsFeed() {
               onDanceTap={setDanceTrend}
             />
           ))
+        )}
+      </div>
+
+      {/* ── Cross-Cultural Trends Feed ── */}
+      <div className="space-y-4 px-4 pt-8 pb-4 border-t border-border/20 mt-8">
+        <div className="flex items-center gap-2 mb-2">
+          <Globe className="h-5 w-5 text-primary" />
+          <h2 className="text-lg font-bold font-display tracking-tight text-foreground">
+            Global trends entering India 🌍
+          </h2>
+        </div>
+
+        {crossCulturalLoading ? (
+          <div className="space-y-3">
+            <SkeletonCard />
+            <SkeletonCard />
+          </div>
+        ) : !crossCulturalData || crossCulturalData.length === 0 ? (
+          <div className="glass-card p-6 text-center text-xs text-muted-foreground">
+            No global cross-cultural trends detected in India yet.
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {crossCulturalData.map((reel: any) => (
+              <div 
+                key={reel.id} 
+                className="relative overflow-hidden rounded-2xl border border-white/5 bg-[#0e0e15]/60 backdrop-blur-md p-4 transition-all duration-300 hover:border-primary/20 hover:bg-[#12121a] cursor-pointer"
+                onClick={() => {
+                  if (reel.video_url || reel.reel_id) {
+                    window.open(reel.video_url || `https://www.instagram.com/p/${reel.reel_id}/`, "_blank");
+                  }
+                }}
+              >
+                <div className="flex gap-4">
+                  {/* Thumbnail */}
+                  {reel.thumbnail_url && (
+                    <div className="relative h-20 w-16 shrink-0 overflow-hidden rounded-lg bg-muted border border-white/5">
+                      <img 
+                        src={reel.thumbnail_url} 
+                        alt={reel.audio_title} 
+                        className="h-full w-full object-cover"
+                        loading="lazy"
+                      />
+                    </div>
+                  )}
+
+                  {/* Details */}
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5 text-[10px] font-bold text-muted-foreground uppercase tracking-wider mb-1">
+                      <span>@{reel.owner_username}</span>
+                      <span>•</span>
+                      <span className="text-primary font-semibold">Origin: {reel.trend_origin || "Global"}</span>
+                    </div>
+
+                    <h3 className="truncate text-sm font-bold text-foreground">
+                      {reel.audio_title || "Original Audio"}
+                    </h3>
+                    <p className="truncate text-xs text-muted-foreground mb-2">
+                      by {reel.audio_artist || "Unknown Artist"}
+                    </p>
+
+                    <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                      <span className="flex items-center gap-1 text-emerald-400 font-semibold bg-emerald-500/10 px-2 py-0.5 rounded-full">
+                        🔥 Velocity: {reel.velocity_score?.toFixed(1) || "0.0"}
+                      </span>
+                      <span>💬 {reel.comment_count || 0}</span>
+                      <span>❤️ {reel.like_count || 0}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
 

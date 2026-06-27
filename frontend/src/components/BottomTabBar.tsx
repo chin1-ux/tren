@@ -26,7 +26,7 @@ export function BottomTabBar() {
   ] as const;
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-[#0a0a0f]/95 backdrop-blur-lg">
+    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
       <ul className="grid grid-cols-5 relative">
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
@@ -36,7 +36,7 @@ export function BottomTabBar() {
             <li key={to}>
               <Link
                 to={to}
-                className={`relative flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[8px] sm:text-[9px] font-medium transition-colors text-center ${
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -66,7 +66,7 @@ export function BottomTabBar() {
                     </span>
                   )}
                 </motion.div>
-                <span className="text-[9px] font-display mt-0.5">{label}</span>
+                <span className="text-[8px] sm:text-[9px] font-display mt-0.5">{label}</span>
               </Link>
             </li>
           );

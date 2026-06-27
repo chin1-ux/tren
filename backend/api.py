@@ -784,6 +784,64 @@ def subscribe(request: Request, req: SubscribeRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@app.get("/api/reels/feed")
+@limiter.limit("30/minute")
+def get_user_reels_feed(request: Request, current_user: str = Depends(get_current_user)):
+    """Fetch reels matching the user's preferred languages."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        import psycopg2
+        db_url = os.getenv("SUPABASE_DB_URL")
+        languages = ['english', 'hindi']
+        
+        if current_user and current_user != "guest@trendrop.app":
+            try:
+                conn = psycopg2.connect(db_url)
+                cur = conn.cursor()
+                cur.execute("""
+                    SELECT up.languages
+                    FROM user_preferences up
+                    JOIN auth.users u ON up.user_id = u.id
+                    WHERE u.email = %s
+                """, (current_user,))
+                row = cur.fetchone()
+                if row and row[0]:
+                    languages = row[0]
+            except Exception as e:
+                logger.error(f"Error getting user preferences: {e}")
+            finally:
+                if 'cur' in locals(): cur.close()
+                if 'conn' in locals(): conn.close()
+
+        q = supabase.table("reels").select("*").in_("caption_language", languages).order("created_at", desc=True).limit(50)
+        res = q.execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"Error in getUserFeed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/reels/cross-cultural")
+@limiter.limit("30/minute")
+def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_current_user)):
+    """Fetch global trends entering India (is_cross_cultural = True, originated outside India)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        q = supabase.table("reels") \
+            .select("*") \
+            .eq("is_cross_cultural", True) \
+            .in_("caption_language", ["english", "hindi"]) \
+            .neq("trend_origin", "IN") \
+            .order("created_at", desc=True) \
+            .limit(20)
+        res = q.execute()
+        return res.data or []
+    except Exception as e:
+        logger.error(f"Error in getCrossCulturalTrends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 # ── Feedback ───────────────────────────────────────────────────────────────────
 
@@ -1041,6 +1099,7 @@ async def generate_reel_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
+    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
     
@@ -1131,6 +1190,7 @@ async def generate_narrative_endpoint(
     text_overlays: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
+    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
         
@@ -1290,6 +1350,7 @@ async def repurpose_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
+    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
         
