@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { subscribe } from "@/lib/api";
 import { toast } from "sonner";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -173,14 +174,17 @@ function ProfilePage() {
   return (
     <div className="flex flex-col gap-5 px-4 pb-12 pt-6">
       {/* Header */}
-      <div className="flex items-center gap-4">
-        <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white text-2xl shadow-lg shadow-primary/20">
-          {selectedNiche?.emoji || "🎯"}
+      <div className="flex items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white text-2xl shadow-lg shadow-primary/20">
+            {selectedNiche?.emoji || "🎯"}
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold gradient-text">Your Profile</h1>
+            <p className="text-sm text-muted-foreground">Configure your trend preferences and alerts</p>
+          </div>
         </div>
-        <div>
-          <h1 className="font-display text-2xl font-bold gradient-text">Your Profile</h1>
-          <p className="text-sm text-muted-foreground">Configure your trend preferences and alerts</p>
-        </div>
+        <ThemeToggle />
       </div>
 
       {/* Creator Info Section */}

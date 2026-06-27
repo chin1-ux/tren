@@ -14,6 +14,8 @@ import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
+import { ThemeToggle } from "@/components/ThemeToggle";
+
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
@@ -195,10 +197,13 @@ function TrendsFeed() {
               )}
             </button>
 
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
             {/* User avatar */}
             <button
               onClick={() => navigate({ to: "/profile" })}
-              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all"
+              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
               aria-label="Profile"
             >
               <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white">

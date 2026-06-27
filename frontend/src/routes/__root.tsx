@@ -151,14 +151,6 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
-        <button
-          onClick={toggleTheme}
-          className="fixed top-4 right-4 md:right-[calc(50%-224px+16px)] z-50 pill"
-          data-testid="theme-toggle"
-          aria-label="Toggle theme"
-        >
-          {theme === "dark" ? "☀ light" : "◐ dark"}
-        </button>
 
         <AnimatePresence mode="wait">
           <motion.div
