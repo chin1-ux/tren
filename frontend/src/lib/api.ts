@@ -61,6 +61,9 @@ export interface ApiTrend {
   }>;
   is_cross_cultural?: boolean;
   trend_origin?: string;
+  preview_url?: string | null;
+  video_storage_status?: string;
+  video_stored_at?: string;
 }
 
 export interface ApiCaptionKit {
@@ -198,6 +201,9 @@ export interface UiTrend {
   }>;
   isCrossCultural?: boolean;
   trendOrigin?: string;
+  preview_url?: string | null;
+  video_storage_status?: string;
+  video_stored_at?: string;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -249,6 +255,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     formatPatterns: t.format_patterns ?? [],
     isCrossCultural: t.is_cross_cultural ?? false,
     trendOrigin: t.trend_origin ?? "unknown",
+    preview_url: t.preview_url ?? null,
+    video_storage_status: t.video_storage_status ?? 'pending',
+    video_stored_at: t.video_stored_at,
   };
 }
 

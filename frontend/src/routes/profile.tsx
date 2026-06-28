@@ -255,7 +255,7 @@ function ProfilePage() {
         {/* Niche selector */}
         <div className="space-y-2">
           <span className="text-xs font-semibold text-muted-foreground block">Select Your Niche</span>
-          <div className="grid grid-cols-5 gap-1.5">
+          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
             {NICHES.map((n) => (
               <button
                 key={n.id}
@@ -267,7 +267,7 @@ function ProfilePage() {
                 }`}
               >
                 <span className="text-lg">{n.emoji}</span>
-                <span className="text-[9px] font-bold leading-tight truncate w-full">{n.label}</span>
+                <span className="text-[10px] font-bold leading-tight truncate w-full">{n.label}</span>
               </button>
             ))}
           </div>
@@ -276,7 +276,7 @@ function ProfilePage() {
         {/* Language selector */}
         <div className="space-y-2">
           <span className="text-xs font-semibold text-muted-foreground block">Select Language</span>
-          <div className="grid grid-cols-4 gap-2">
+          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
             {LANGUAGES.map((l) => (
               <button
                 key={l.code}
@@ -288,7 +288,7 @@ function ProfilePage() {
                 }`}
               >
                 <span className="text-base">{l.emoji}</span>
-                <span className="text-[10px] font-semibold">{l.label}</span>
+                <span className="text-[11px] font-semibold">{l.label}</span>
               </button>
             ))}
           </div>

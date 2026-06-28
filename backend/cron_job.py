@@ -199,6 +199,52 @@ def run_data_retention_job():
     except Exception as e:
         logging.error(f"Error deleting old consent records: {e}")
 
+    # 6. Cleanup stale reels preview videos (older than 30 days and not in top 50 by velocity)
+    try:
+        logging.info("Cleaning up stale reels preview videos (older than 30 days and not in top 50)...")
+        import psycopg2
+        SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
+        if SUPABASE_DB_URL:
+            conn = psycopg2.connect(SUPABASE_DB_URL)
+            conn.autocommit = True
+            cursor = conn.cursor()
+            
+            # Fetch stale reels
+            cursor.execute("""
+                SELECT id, reel_id, preview_url, audio_id FROM reels
+                WHERE video_stored_at < NOW() - INTERVAL '30 days'
+                AND id NOT IN (
+                    SELECT id FROM reels
+                    ORDER BY (velocity_score) DESC
+                    LIMIT 50
+                )
+                AND video_storage_status = 'stored';
+            """)
+            stale_reels = cursor.fetchall()
+            
+            for rid, reel_id, preview_url, audio_id in stale_reels:
+                # Delete from Supabase Storage
+                safe_audio_id = audio_id or "no_audio"
+                path = f"reels/{safe_audio_id}/{reel_id}.mp4"
+                try:
+                    sb.storage.from_("reels-preview").remove([path])
+                    logging.info(f"Deleted stale video file from storage: {path}")
+                except Exception as st_err:
+                    logging.error(f"Error removing {path} from storage: {st_err}")
+                
+                # Update DB row status
+                cursor.execute("""
+                    UPDATE reels 
+                    SET video_storage_status = 'expired', preview_url = null
+                    WHERE id = %s;
+                """, (rid,))
+            
+            cursor.close()
+            conn.close()
+            logging.info(f"Stale reels video cleanup complete. Processed {len(stale_reels)} video(s).")
+    except Exception as e:
+        logging.error(f"Error during reels video cleanup: {e}")
+
     logging.info("Daily Data Retention Cleanup Job Complete.")
 
 

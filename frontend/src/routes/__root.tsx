@@ -130,18 +130,41 @@ function RootComponent() {
 
   useEffect(() => {
     const body = document.body;
+    const root = document.documentElement;
     if (theme === "dark") {
       body.setAttribute("data-theme", "dark");
       body.classList.add("dark");
+      root.setAttribute("data-theme", "dark");
+      root.classList.add("dark");
     } else {
       body.removeAttribute("data-theme");
       body.classList.remove("dark");
+      root.removeAttribute("data-theme");
+      root.classList.remove("dark");
     }
     localStorage.setItem("trendrop_theme", theme);
   }, [theme]);
 
+  useEffect(() => {
+    const handleThemeChange = () => {
+      const savedTheme = localStorage.getItem("trendrop_theme");
+      if (savedTheme === "dark" || savedTheme === "light") {
+        setTheme(savedTheme);
+      }
+    };
+    window.addEventListener("storage", handleThemeChange);
+    window.addEventListener("theme-change", handleThemeChange);
+    return () => {
+      window.removeEventListener("storage", handleThemeChange);
+      window.removeEventListener("theme-change", handleThemeChange);
+    };
+  }, []);
+
   const toggleTheme = () => {
-    setTheme((prev) => (prev === "dark" ? "light" : "dark"));
+    const nextTheme = theme === "dark" ? "light" : "dark";
+    setTheme(nextTheme);
+    localStorage.setItem("trendrop_theme", nextTheme);
+    window.dispatchEvent(new Event("theme-change"));
   };
 
   useEffect(() => {

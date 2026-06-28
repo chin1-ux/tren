@@ -271,13 +271,13 @@ function IdeasPage() {
           <Lightbulb className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-white bg-clip-text bg-gradient-to-r from-white via-gray-200 to-indigo-200">Ideation Hub</h1>
+          <h1 className="font-display text-2xl font-bold bg-clip-text bg-gradient-to-r from-text via-text to-indigo-500 text-transparent">Ideation Hub</h1>
           <p className="text-xs text-muted-foreground">AI-powered trend scoring, hook generators, and daily schedules</p>
         </div>
       </header>
 
       {/* Modern High-End Tab Swapper */}
-      <div className="grid grid-cols-4 gap-1 rounded-xl bg-black/40 border border-white/5 p-1 backdrop-blur-md">
+      <div className="grid grid-cols-4 gap-1 rounded-xl bg-surface-2 border border-border p-1 backdrop-blur-md">
         <button
           onClick={() => setActiveTab("daily")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
@@ -346,7 +346,7 @@ function IdeasPage() {
             >
               <div className="flex items-center justify-between">
                 <div>
-                  <h2 className="text-lg font-bold text-white">Daily Idea Drop</h2>
+                  <h2 className="text-lg font-bold text-text">Daily Idea Drop</h2>
                   <p className="text-xs text-muted-foreground">3 fresh trend-backed ideas customized for your niche</p>
                 </div>
                 <Button 
@@ -354,7 +354,7 @@ function IdeasPage() {
                   disabled={loadingIdeas}
                   variant="outline"
                   size="sm"
-                  className="h-8 border-white/10 hover:bg-white/5 flex items-center gap-1.5 text-xs text-gray-300"
+                  className="h-8 border-border hover:bg-surface-2 flex items-center gap-1.5 text-xs text-text"
                 >
                   <RefreshCw className={`h-3 w-3 ${loadingIdeas ? 'animate-spin' : ''}`} /> 
                   Refresh
@@ -371,7 +371,7 @@ function IdeasPage() {
                   {ideas.map((idea, index) => (
                     <div 
                       key={index} 
-                      className="glass-card relative p-5 border border-white/5 hover:border-indigo-500/30 transition-all duration-300 rounded-2xl bg-gradient-to-b from-white/[0.04] to-transparent shadow-xl space-y-4"
+                      className="relative p-5 border border-border hover:border-indigo-500/30 transition-all duration-300 rounded-2xl bg-surface-2 shadow-xl space-y-4"
                     >
                       <div className="flex justify-between items-start gap-4">
                         <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${getDifficultyBadge(idea.difficulty)}`}>
@@ -383,25 +383,25 @@ function IdeasPage() {
                       </div>
 
                       <div className="space-y-2">
-                        <h3 className="font-display font-bold text-lg text-white leading-tight">{idea.title}</h3>
-                        <p className="text-sm text-gray-300 leading-relaxed">{idea.description}</p>
+                        <h3 className="font-display font-bold text-lg text-text leading-tight">{idea.title}</h3>
+                        <p className="text-sm text-text-muted leading-relaxed">{idea.description}</p>
                       </div>
 
                       {/* Hook & Details */}
-                      <div className="bg-black/35 rounded-xl border border-white/5 p-4 space-y-3">
+                      <div className="bg-surface rounded-xl border border-border p-4 space-y-3">
                         <div className="flex items-start gap-2.5">
                           <span className="text-indigo-400 text-xs font-black uppercase tracking-wider pt-0.5">Hook:</span>
-                          <p className="text-sm text-indigo-200 italic font-medium">"{idea.hook}"</p>
+                          <p className="text-sm text-indigo-600 dark:text-indigo-300 italic font-medium">"{idea.hook}"</p>
                         </div>
                         
-                        <div className="h-px bg-white/5" />
+                        <div className="h-px bg-border" />
                         
-                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-gray-400">
-                          <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
+                        <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
+                          <div className="flex items-center gap-1.5 bg-surface-2 border border-border px-2.5 py-1 rounded-lg">
                             <Music className="h-3.5 w-3.5 text-indigo-400" />
                             <span className="truncate max-w-[150px]">{idea.audio_suggestion}</span>
                           </div>
-                          <div className="flex items-center gap-1.5 bg-white/5 px-2.5 py-1 rounded-lg">
+                          <div className="flex items-center gap-1.5 bg-surface-2 border border-border px-2.5 py-1 rounded-lg">
                             <Clock className="h-3.5 w-3.5 text-indigo-400" />
                             <span>Post: {idea.posting_time}</span>
                           </div>
@@ -421,12 +421,12 @@ function IdeasPage() {
                           variant="outline"
                           size="icon"
                           onClick={() => handleCopy(`Title: ${idea.title}\nHook: ${idea.hook}\nAudio: ${idea.audio_suggestion}\nTime: ${idea.posting_time}`, "Idea details")}
-                          className="h-10 w-10 border-white/10 rounded-xl hover:bg-white/5"
+                          className="h-10 w-10 border-border rounded-xl hover:bg-surface-2"
                         >
                           {copiedText === `Title: ${idea.title}\nHook: ${idea.hook}\nAudio: ${idea.audio_suggestion}\nTime: ${idea.posting_time}` ? (
-                            <Check className="h-4 w-4 text-emerald-400" />
+                             <Check className="h-4 w-4 text-emerald-400" />
                           ) : (
-                            <Copy className="h-4 w-4 text-gray-400" />
+                            <Copy className="h-4 w-4 text-text-muted" />
                           )}
                         </Button>
                       </div>
@@ -448,15 +448,15 @@ function IdeasPage() {
               className="space-y-6"
             >
               <div>
-                <h2 className="text-lg font-bold text-white">Pre-Post Reel Scorer</h2>
+                <h2 className="text-lg font-bold text-text">Pre-Post Reel Scorer</h2>
                 <p className="text-xs text-muted-foreground">Test your post content, audio, and schedule to forecast performance</p>
               </div>
 
               {/* Form Input Section */}
-              <div className="glass-card p-5 border border-white/5 rounded-2xl bg-black/20 space-y-4 shadow-xl">
+              <div className="p-5 border border-border rounded-2xl bg-surface-2 space-y-4 shadow-xl">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                    <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
                       <Music className="h-3 w-3 text-indigo-400" /> Audio Title
                     </label>
                     <input 
@@ -464,12 +464,12 @@ function IdeasPage() {
                       placeholder="e.g. Trending Remix, Chill Beat"
                       value={scoreAudio} 
                       onChange={(e) => setScoreAudio(e.target.value)}
-                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                    <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
                       <Compass className="h-3 w-3 text-indigo-400" /> Niche
                     </label>
                     <input 
@@ -477,27 +477,27 @@ function IdeasPage() {
                       placeholder="e.g. dance, finance, tech"
                       value={scoreNiche} 
                       onChange={(e) => setScoreNiche(e.target.value)}
-                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
-                    <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                    <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
                       <Clock className="h-3 w-3 text-indigo-400" /> Posting Time (IST)
                     </label>
                     <input 
                       type="time" 
                       value={scorePostingTime} 
                       onChange={(e) => setScorePostingTime(e.target.value)}
-                      className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text focus:outline-none focus:border-indigo-500 transition-colors"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider flex items-center gap-1">
+                  <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
                     <Hash className="h-3 w-3 text-indigo-400" /> Caption & Hashtags
                   </label>
                   <textarea 
@@ -505,7 +505,7 @@ function IdeasPage() {
                     value={scoreCaption} 
                     onChange={(e) => setScoreCaption(e.target.value)}
                     rows={4}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors resize-none"
                   />
                 </div>
 
@@ -527,7 +527,7 @@ function IdeasPage() {
                 <motion.div 
                   initial={{ opacity: 0, scale: 0.95 }}
                   animate={{ opacity: 1, scale: 1 }}
-                  className="glass-card p-6 border border-white/10 rounded-2xl bg-gradient-to-b from-white/[0.03] to-transparent space-y-6 shadow-2xl relative overflow-hidden"
+                  className="glass-card p-6 border border-border rounded-2xl bg-surface-2 space-y-6 shadow-2xl relative overflow-hidden"
                 >
                   {/* Glowing background decor */}
                   <div className="absolute -top-16 -right-16 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
@@ -540,7 +540,7 @@ function IdeasPage() {
                           cx="64" 
                           cy="64" 
                           r="54" 
-                          className="stroke-white/5 fill-transparent" 
+                          className="stroke-border fill-transparent" 
                           strokeWidth="10"
                         />
                         <motion.circle 
@@ -558,27 +558,27 @@ function IdeasPage() {
                         />
                       </svg>
                       <div className="absolute flex flex-col items-center justify-center">
-                        <span className="text-3xl font-extrabold text-white">{scoringResult.overall_score}</span>
+                        <span className="text-3xl font-extrabold text-text">{scoringResult.overall_score}</span>
                         <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Score</span>
                       </div>
                     </div>
 
                     <div className="space-y-2 text-center sm:text-left flex-1">
                       <div className="flex items-center justify-center sm:justify-start gap-2.5">
-                        <h3 className="font-display font-extrabold text-xl text-white">Reel Health Grade</h3>
+                        <h3 className="font-display font-extrabold text-xl text-text">Reel Health Grade</h3>
                         <span className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-base font-black px-3 py-1 rounded-lg border border-indigo-400/20 shadow-md">
                           {scoringResult.grade}
                         </span>
                       </div>
-                      <p className="text-xs text-gray-300 leading-relaxed">
+                      <p className="text-xs text-text-muted leading-relaxed">
                         Your Reel scores higher than <span className="text-indigo-400 font-bold">{scoringResult.overall_score}%</span> of other creators in your niche. Fix the identified areas to boost engagement.
                       </p>
                     </div>
                   </div>
 
                   {/* Score breakdown metrics */}
-                  <div className="space-y-4 pt-4 border-t border-white/5">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-gray-400 flex items-center gap-1.5">
+                  <div className="space-y-4 pt-4 border-t border-border">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
                       <Award className="h-4 w-4 text-indigo-400" /> Detail Score Breakdown
                     </h4>
                     
@@ -586,10 +586,10 @@ function IdeasPage() {
                       {/* Hook Score */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Hook Score</span>
-                          <span className="text-white font-bold">{scoringResult.hook_score}/100</span>
+                          <span className="text-text-muted">Hook Score</span>
+                          <span className="text-text font-bold">{scoringResult.hook_score}/100</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
                             className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                             initial={{ width: 0 }}
@@ -602,10 +602,10 @@ function IdeasPage() {
                       {/* Audio Score */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Audio Score</span>
-                          <span className="text-white font-bold">{scoringResult.audio_score}/100</span>
+                          <span className="text-text-muted">Audio Score</span>
+                          <span className="text-text font-bold">{scoringResult.audio_score}/100</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
                             className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                             initial={{ width: 0 }}
@@ -618,10 +618,10 @@ function IdeasPage() {
                       {/* Caption Score */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Caption SEO Score</span>
-                          <span className="text-white font-bold">{scoringResult.caption_score}/100</span>
+                          <span className="text-text-muted">Caption SEO Score</span>
+                          <span className="text-text font-bold">{scoringResult.caption_score}/100</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
                             className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                             initial={{ width: 0 }}
@@ -634,10 +634,10 @@ function IdeasPage() {
                       {/* Hashtag Score */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Hashtag Score</span>
-                          <span className="text-white font-bold">{scoringResult.hashtag_score}/100</span>
+                          <span className="text-text-muted">Hashtag Score</span>
+                          <span className="text-text font-bold">{scoringResult.hashtag_score}/100</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
                             className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                             initial={{ width: 0 }}
@@ -650,10 +650,10 @@ function IdeasPage() {
                       {/* Timing Score */}
                       <div className="space-y-1.5">
                         <div className="flex justify-between text-xs">
-                          <span className="text-gray-400">Timing Score</span>
-                          <span className="text-white font-bold">{scoringResult.timing_score}/100</span>
+                          <span className="text-text-muted">Timing Score</span>
+                          <span className="text-text font-bold">{scoringResult.timing_score}/100</span>
                         </div>
-                        <div className="h-1.5 bg-white/5 rounded-full overflow-hidden">
+                        <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
                             className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
                             initial={{ width: 0 }}
@@ -666,13 +666,13 @@ function IdeasPage() {
                   </div>
 
                   {/* Top Fixes */}
-                  <div className="space-y-3 pt-4 border-t border-white/5 bg-red-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
+                  <div className="space-y-3 pt-4 border-t border-border bg-rose-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
                       <Wrench className="h-4 w-4" /> Top Fixes Recommended
                     </h4>
                     <ul className="space-y-2.5">
                       {scoringResult.top_fixes.map((fix, idx) => (
-                        <li key={idx} className="flex gap-2.5 text-xs text-gray-300 leading-relaxed items-start">
+                        <li key={idx} className="flex gap-2.5 text-xs text-text-muted leading-relaxed items-start">
                           <span className="h-4 w-4 shrink-0 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black flex items-center justify-center">
                             {idx + 1}
                           </span>
@@ -697,31 +697,31 @@ function IdeasPage() {
               className="space-y-6"
             >
               <div>
-                <h2 className="text-lg font-bold text-white">Scroll-Stopping Hook Generator</h2>
+                <h2 className="text-lg font-bold text-text">Scroll-Stopping Hook Generator</h2>
                 <p className="text-xs text-muted-foreground">Generate 5 psychological high-performing hook options</p>
               </div>
 
               {/* Hooks Input Box */}
-              <div className="glass-card p-5 border border-white/5 rounded-2xl bg-black/20 space-y-4 shadow-xl">
+              <div className="p-5 border border-border rounded-2xl bg-surface-2 space-y-4 shadow-xl">
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Trend or Core Topic</label>
+                  <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider">Trend or Core Topic</label>
                   <input 
                     type="text" 
                     placeholder="e.g. 5 AM Morning Routine, Transition edits"
                     value={hookTrend} 
                     onChange={(e) => setHookTrend(e.target.value)}
-                    className="w-full h-10 px-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
                   />
                 </div>
 
                 <div className="space-y-1">
-                  <label className="text-[10px] uppercase font-bold text-gray-400 tracking-wider">Video Content Description</label>
+                  <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider">Video Content Description</label>
                   <textarea 
                     placeholder="e.g. Showing step-by-step how I set up my planner and work productively without getting distracted."
                     value={hookDescription} 
                     onChange={(e) => setHookDescription(e.target.value)}
                     rows={3}
-                    className="w-full p-3 bg-black/40 border border-white/10 rounded-xl text-sm text-white placeholder-gray-500 focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors resize-none"
                   />
                 </div>
 
@@ -858,7 +858,7 @@ function IdeasPage() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="glass-card p-5 border border-indigo-500/30 rounded-2xl bg-indigo-500/[0.01] space-y-4 shadow-xl"
+                        className="p-5 border border-indigo-500/30 rounded-2xl bg-indigo-500/[0.01] space-y-4 shadow-xl"
                       >
                         <div className="flex justify-between items-center">
                           <span className="text-indigo-400 font-extrabold text-xs tracking-wider uppercase bg-indigo-500/10 px-2.5 py-1 rounded-md">
@@ -866,48 +866,48 @@ function IdeasPage() {
                           </span>
                           <button 
                             onClick={() => setSelectedDay(null)} 
-                            className="text-xs text-muted-foreground hover:text-white"
+                            className="text-xs text-muted-foreground hover:text-text"
                           >
                             Close
                           </button>
                         </div>
-
+ 
                         <div className="space-y-1">
-                          <h4 className="font-display text-base font-bold text-white">{selectedDay.topic}</h4>
+                          <h4 className="font-display text-base font-bold text-text">{selectedDay.topic}</h4>
                         </div>
-
+ 
                         <div className="space-y-3">
                           {/* Recommended Hook */}
-                          <div className="p-3.5 bg-black/40 rounded-xl border border-white/5 relative group">
+                          <div className="p-3.5 bg-surface rounded-xl border border-border relative group">
                             <span className="block font-bold text-[9px] text-indigo-400 uppercase tracking-widest mb-1.5">RECOMMENDED HOOK</span>
-                            <span className="text-sm text-gray-200 font-medium">"{selectedDay.hook}"</span>
+                            <span className="text-sm text-text font-medium">"{selectedDay.hook}"</span>
                             <button
                               onClick={() => handleCopy(selectedDay.hook, "Hook text")}
-                              className="absolute top-3 right-3 h-6 w-6 hover:bg-white/5 rounded-md flex items-center justify-center border border-white/5 opacity-0 group-hover:opacity-100 transition-opacity"
+                              className="absolute top-3 right-3 h-6 w-6 hover:bg-surface-2 rounded-md flex items-center justify-center border border-border opacity-0 group-hover:opacity-100 transition-opacity"
                             >
                               {copiedText === selectedDay.hook ? (
                                 <Check className="h-3 w-3 text-emerald-400" />
                               ) : (
-                                <Copy className="h-3 w-3 text-gray-400" />
+                                <Copy className="h-3 w-3 text-text-muted" />
                               )}
                             </button>
                           </div>
-
+ 
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
-                            <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-xl border border-white/5 text-gray-300">
+                            <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-border text-text">
                               <Music className="h-4 w-4 text-indigo-400 shrink-0" />
                               <span className="truncate">Audio: {selectedDay.audio_style}</span>
                             </div>
-                            <div className="flex items-center gap-2 bg-white/5 p-2.5 rounded-xl border border-white/5 text-gray-300">
+                            <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-border text-text">
                               <Clock className="h-4 w-4 text-indigo-400 shrink-0" />
                               <span>Optimal Time: {selectedDay.posting_time}</span>
                             </div>
                           </div>
-
+ 
                           {/* Hashtags */}
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             {selectedDay.hashtags.map((h, i) => (
-                              <span key={i} className="px-2.5 py-1 rounded-lg bg-black/30 border border-white/5 text-indigo-300 text-[10px] font-bold">
+                              <span key={i} className="px-2.5 py-1 rounded-lg bg-surface border border-border text-indigo-600 dark:text-indigo-300 text-[10px] font-bold">
                                 {h}
                               </span>
                             ))}
@@ -915,7 +915,7 @@ function IdeasPage() {
                         </div>
                       </motion.div>
                     ) : (
-                      <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-white/5 rounded-2xl">
+                      <div className="text-center py-6 text-xs text-muted-foreground border border-dashed border-border rounded-2xl">
                         Select any Day above to view details and hook copy options
                       </div>
                     )}

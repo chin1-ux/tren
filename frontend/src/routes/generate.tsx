@@ -317,7 +317,7 @@ function GeneratePage() {
   };
 
   return (
-    <div className="flex flex-col min-h-screen bg-black text-slate-100 font-sans">
+    <div className="flex flex-col min-h-screen bg-bg text-text font-sans">
       
       {/* ── STAGE 1: UPLOAD & SETUP ── */}
       {stage === "upload" && (
@@ -333,15 +333,15 @@ function GeneratePage() {
 
           {/* Active Trend Badge */}
           {activeTrend && (
-            <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/5 backdrop-blur-md p-4">
+            <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 backdrop-blur-md p-4">
               <div className="flex items-start gap-3 min-w-0">
                 <div className="grid h-10 w-10 shrink-0 place-items-center rounded-xl bg-amber-500/20 text-amber-400 ring-1 ring-amber-500/30">
                   <Flame className="h-5 w-5" />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-slate-400">Locked Sound Trend</p>
-                  <p className="truncate font-semibold text-slate-200">{activeTrend.song}</p>
-                  <p className="truncate text-xs text-slate-400">{activeTrend.artist}</p>
+                  <p className="text-[10px] font-bold uppercase tracking-wider text-text-muted">Locked Sound Trend</p>
+                  <p className="truncate font-semibold text-text">{activeTrend.song}</p>
+                  <p className="truncate text-xs text-text-muted">{activeTrend.artist}</p>
                 </div>
               </div>
               <button 
@@ -583,7 +583,7 @@ function GeneratePage() {
             <div className="space-y-6">
               {/* Niche Selector */}
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Select Creator Niche</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">1. Select Creator Niche</label>
                 <div className="flex flex-wrap gap-2">
                   {NICHES.map((n) => (
                     <button
@@ -591,8 +591,8 @@ function GeneratePage() {
                       onClick={() => setNiche(n.id)}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-bold transition-all ${
                         niche === n.id 
-                          ? "border-violet-500 bg-violet-600/10 text-white" 
-                          : "border-white/5 bg-slate-950 text-slate-400 hover:text-slate-200"
+                          ? "border-violet-500 bg-violet-600/10 text-violet-600 dark:text-violet-300" 
+                          : "border-border bg-surface text-text-muted hover:text-text"
                       }`}
                     >
                       <span>{n.emoji}</span>
@@ -604,28 +604,28 @@ function GeneratePage() {
 
               {/* Description */}
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Prompt Description</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">2. Prompt Description</label>
                 <textarea
                   value={contentDescription}
                   onChange={(e) => setContentDescription(e.target.value)}
                   placeholder="Describe your video topic... (e.g. '3 lessons from Elon Musk regarding time management')"
                   rows={4}
-                  className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 placeholder:text-slate-500 focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all resize-none"
+                  className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all resize-none"
                 />
               </div>
 
               {/* AI Preview Card */}
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">3. Live AI Preview Mockup</label>
-                <div className="rounded-xl border border-white/5 bg-slate-950 p-4 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 bg-violet-500/10 border-l border-b border-white/5 rounded-bl-xl text-[9px] font-bold text-violet-400 flex items-center gap-1">
+                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">3. Live AI Preview Mockup</label>
+                <div className="rounded-xl border border-border bg-surface p-4 relative overflow-hidden group">
+                  <div className="absolute top-0 right-0 p-2 bg-violet-500/10 border-l border-b border-border rounded-bl-xl text-[9px] font-bold text-violet-400 flex items-center gap-1">
                     <Sparkles className="h-3 w-3" /> Live Script Plan
                   </div>
 
                   <div className="space-y-3 mt-2">
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Estimated Hook</span>
-                      <p className="text-sm font-semibold text-slate-200 italic mt-0.5">
+                      <span className="text-[10px] font-bold text-text-muted uppercase">Estimated Hook</span>
+                      <p className="text-sm font-semibold text-text italic mt-0.5">
                         "{contentDescription.trim() 
                           ? `Why everyone is wrong about ${contentDescription.slice(0, 30)}...` 
                           : NICHES.find(x => x.id === niche)?.hook}"
@@ -633,8 +633,8 @@ function GeneratePage() {
                     </div>
 
                     <div>
-                      <span className="text-[10px] font-bold text-slate-500 uppercase">Scene 1 Visuals</span>
-                      <p className="text-xs text-slate-400 mt-0.5">
+                      <span className="text-[10px] font-bold text-text-muted uppercase">Scene 1 Visuals</span>
+                      <p className="text-xs text-text-muted mt-0.5">
                         Fast cut between stylized B-roll animations in dark theme matching {niche} aesthetic.
                       </p>
                     </div>
@@ -705,7 +705,7 @@ function GeneratePage() {
                     className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-violet-500 appearance-none"
                   >
                     {trends && Array.isArray(trends) && trends.map((t) => (
-                      <option key={t.id} value={t.id}>
+                      <option key={t.id} value={t.id} className="bg-slate-900 text-slate-100">
                         🎵 {t.song} — {t.artist}
                       </option>
                     ))}
@@ -850,11 +850,11 @@ function GeneratePage() {
 
           {/* Scorecard detail section */}
           {showScoreCard && scoreDetails && (
-            <div className="rounded-2xl border border-white/15 bg-slate-900/60 backdrop-blur-md p-5 space-y-4">
+            <div className="rounded-2xl border border-border bg-surface-2 backdrop-blur-md p-5 space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="font-bold text-white text-base">Virality Analysis</h3>
-                  <p className="text-[10px] text-slate-400 mt-0.5">Calculated using our real-time feedback loop.</p>
+                  <h3 className="font-bold text-text text-base">Virality Analysis</h3>
+                  <p className="text-[10px] text-text-muted mt-0.5">Calculated using our real-time feedback loop.</p>
                 </div>
                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-violet-500/10 ring-1 ring-violet-500/30 text-violet-400 text-lg font-black">
                   {scoreDetails.overall}%

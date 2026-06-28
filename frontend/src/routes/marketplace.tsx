@@ -211,26 +211,26 @@ function MarketplacePage() {
   };
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-lg mx-auto min-h-screen text-slate-100">
+    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-lg mx-auto min-h-screen text-text">
       {/* Header */}
       <header className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 text-white text-xl font-bold shadow-lg shadow-pink-500/20">
           <Building2 className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-white via-slate-200 to-pink-300">Creator Marketplace</h1>
+          <h1 className="font-display text-2xl font-bold bg-clip-text bg-gradient-to-r from-text via-text/90 to-pink-500 text-transparent">Creator Marketplace</h1>
           <p className="text-xs text-muted-foreground">Monetize content & find co-creators in India</p>
         </div>
       </header>
 
       {/* Navigation Tabs */}
-      <div className="flex gap-1.5 rounded-xl bg-slate-900/60 border border-slate-800 p-1.5 backdrop-blur-md">
+      <div className="flex gap-1.5 rounded-xl bg-surface-2 border border-border p-1.5 backdrop-blur-md">
         <button
           onClick={() => setActiveTab("deals")}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
             activeTab === "deals" 
               ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/10" 
-              : "text-slate-400 hover:text-slate-200"
+              : "text-text-muted hover:text-text"
           }`}
         >
           <Briefcase className="h-3.5 w-3.5" />
@@ -241,7 +241,7 @@ function MarketplacePage() {
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wider transition-all ${
             activeTab === "collabs" 
               ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-md shadow-indigo-600/10" 
-              : "text-slate-400 hover:text-slate-200"
+              : "text-text-muted hover:text-text"
           }`}
         >
           <Users className="h-3.5 w-3.5" />
@@ -254,8 +254,8 @@ function MarketplacePage() {
         <div className="space-y-6">
           {/* Stats Grid */}
           <div className="grid grid-cols-3 gap-3">
-            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Total Earnings</span>
+            <div className="p-3 rounded-2xl border border-border bg-surface-2 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-text-muted font-bold block mb-1">Total Earnings</span>
               <div>
                 <span className="text-base font-extrabold text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-teal-300">
                   ₹{stats.total_earnings.toLocaleString("en-IN")}
@@ -263,15 +263,15 @@ function MarketplacePage() {
                 <span className="text-[8px] block text-muted-foreground mt-0.5">Creator Payout</span>
               </div>
             </div>
-            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Active Deals</span>
+            <div className="p-3 rounded-2xl border border-border bg-surface-2 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-text-muted font-bold block mb-1">Active Deals</span>
               <div>
                 <span className="text-base font-extrabold text-indigo-400">{stats.active_partnerships}</span>
                 <span className="text-[8px] block text-muted-foreground mt-0.5">In Progress</span>
               </div>
             </div>
-            <div className="glass-card p-3 rounded-2xl border border-slate-800 flex flex-col justify-between">
-              <span className="text-[9px] uppercase tracking-wider text-slate-400 font-bold block mb-1">Applications</span>
+            <div className="p-3 rounded-2xl border border-border bg-surface-2 flex flex-col justify-between">
+              <span className="text-[9px] uppercase tracking-wider text-text-muted font-bold block mb-1">Applications</span>
               <div>
                 <span className="text-base font-extrabold text-pink-400">{stats.pending_applications}</span>
                 <span className="text-[8px] block text-muted-foreground mt-0.5">Pending Review</span>
@@ -287,12 +287,12 @@ function MarketplacePage() {
             </h3>
 
             {loadingDeals ? (
-              <div className="flex flex-col items-center justify-center py-12 text-slate-400">
+              <div className="flex flex-col items-center justify-center py-12 text-text-muted">
                 <Loader2 className="h-8 w-8 animate-spin text-primary mb-2" />
                 <p className="text-xs">Fetching active brand opportunities...</p>
               </div>
             ) : deals.length === 0 ? (
-              <div className="glass-card p-8 text-center rounded-2xl border border-slate-800 space-y-2">
+              <div className="p-8 text-center rounded-2xl border border-border bg-surface-2 space-y-2">
                 <AlertCircle className="h-8 w-8 text-indigo-400 mx-auto" />
                 <p className="text-sm font-bold">No active brand deals</p>
                 <p className="text-xs text-muted-foreground">Check back later for new campaign opportunities.</p>
@@ -301,7 +301,7 @@ function MarketplacePage() {
               deals.map((deal) => (
                 <div 
                   key={deal.id} 
-                  className="glass-card p-5 rounded-2xl border border-slate-800/80 hover:border-slate-700/80 transition-all duration-300 relative overflow-hidden group space-y-4"
+                  className="p-5 rounded-2xl border border-border hover:border-indigo-500/30 transition-all duration-300 bg-surface-2 relative overflow-hidden group space-y-4"
                 >
                   {/* Decorative background glow */}
                   <div className="absolute top-0 right-0 h-24 w-24 bg-gradient-to-br from-indigo-500/5 to-pink-500/5 rounded-full blur-2xl group-hover:scale-125 transition-all duration-500 pointer-events-none" />
@@ -309,8 +309,8 @@ function MarketplacePage() {
                   {/* Brand & Budget Header */}
                   <div className="flex justify-between items-start">
                     <div>
-                      <h4 className="font-display font-extrabold text-lg text-white group-hover:text-indigo-300 transition-colors">{deal.brand_name}</h4>
-                      <span className="text-[9px] bg-slate-800 text-slate-300 font-bold px-2 py-0.5 rounded-full border border-slate-700 capitalize mt-1 inline-block">
+                      <h4 className="font-display font-extrabold text-lg text-text group-hover:text-indigo-500 dark:group-hover:text-indigo-300 transition-colors">{deal.brand_name}</h4>
+                      <span className="text-[9px] bg-surface text-text-muted font-bold px-2 py-0.5 rounded-full border border-border capitalize mt-1 inline-block">
                         Campaign
                       </span>
                     </div>
@@ -324,21 +324,21 @@ function MarketplacePage() {
 
                   {/* Campaign details */}
                   <div className="space-y-3">
-                    <div className="bg-slate-900/40 p-3 rounded-xl border border-slate-800/60">
+                    <div className="bg-surface p-3 rounded-xl border border-border">
                       <h5 className="text-[9px] uppercase tracking-wider text-indigo-400 font-bold mb-1">Deliverables & Details</h5>
-                      <p className="text-xs text-slate-300 leading-relaxed font-medium">"{deal.details}"</p>
+                      <p className="text-xs text-text leading-relaxed font-medium">"{deal.details}"</p>
                     </div>
 
-                    <div className="bg-slate-900/20 p-3 rounded-xl border border-slate-800/30">
+                    <div className="bg-surface p-3 rounded-xl border border-border">
                       <h5 className="text-[9px] uppercase tracking-wider text-pink-400 font-bold mb-1">Requirements</h5>
-                      <p className="text-xs text-slate-400 leading-relaxed italic">{deal.requirements}</p>
+                      <p className="text-xs text-text-muted leading-relaxed italic">{deal.requirements}</p>
                     </div>
                   </div>
 
                   {/* Apply Button */}
                   <div className="pt-2">
                     {deal.applied ? (
-                      <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/80 text-emerald-400 text-xs font-bold py-2.5">
+                      <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface text-emerald-600 dark:text-emerald-400 text-xs font-bold py-2.5">
                         <CheckCircle className="h-4 w-4" />
                         Application Submitted
                       </div>
@@ -362,7 +362,7 @@ function MarketplacePage() {
       {activeTab === "collabs" && (
         <div className="space-y-6">
           {/* Intro Card */}
-          <div className="glass-card p-6 rounded-3xl border border-indigo-500/20 relative overflow-hidden bg-gradient-to-br from-slate-900 via-indigo-950/20 to-slate-900">
+          <div className="p-6 rounded-3xl border border-indigo-500/20 relative overflow-hidden bg-surface-2">
             <div className="absolute -top-12 -right-12 h-32 w-32 bg-indigo-500/10 rounded-full blur-3xl" />
             
             <div className="space-y-4 relative">
@@ -371,8 +371,8 @@ function MarketplacePage() {
               </div>
               
               <div className="space-y-1">
-                <h3 className="text-lg font-bold font-display text-white">Find Creator Collaborations</h3>
-                <p className="text-xs text-slate-400 leading-relaxed">
+                <h3 className="text-lg font-bold font-display text-text">Find Creator Collaborations</h3>
+                <p className="text-xs text-text-muted leading-relaxed">
                   Connect with local creators to co-create Reels and double your search reach. We match profiles based on content niche overlap, followers ratio, and visual styling harmony.
                 </p>
               </div>
@@ -419,20 +419,20 @@ function MarketplacePage() {
                   {matches.map((match, idx) => (
                     <div 
                       key={idx} 
-                      className="glass-card p-5 rounded-2xl border border-slate-800 hover:border-slate-700/80 transition-all duration-300 space-y-4 relative"
+                      className="p-5 rounded-2xl border border-border hover:border-indigo-500/30 transition-all duration-300 bg-surface-2 space-y-4 relative"
                     >
                       {/* Top Info Header */}
                       <div className="flex justify-between items-start">
                         <div>
-                          <h4 className="font-display font-extrabold text-base text-white">@{match.instagram_username}</h4>
+                          <h4 className="font-display font-extrabold text-base text-text">@{match.instagram_username}</h4>
                           <span className="text-[10px] bg-indigo-500/10 text-indigo-300 font-bold px-2.5 py-0.5 rounded-full border border-indigo-500/20 capitalize mt-1 inline-block">
                             {match.niche}
                           </span>
                         </div>
 
                         {/* Compatibility Score Circle/Pill */}
-                        <div className="bg-slate-900 border border-slate-800 px-3 py-1.5 rounded-xl text-center">
-                          <span className="text-[8px] uppercase tracking-wider text-slate-400 font-black block">Score</span>
+                        <div className="bg-surface border border-border px-3 py-1.5 rounded-xl text-center">
+                          <span className="text-[8px] uppercase tracking-wider text-text-muted font-black block">Score</span>
                           <span className="text-sm font-black text-transparent bg-clip-text bg-gradient-to-r from-emerald-400 to-indigo-400">
                             {match.compatibility_score}% Match
                           </span>
@@ -440,19 +440,19 @@ function MarketplacePage() {
                       </div>
 
                       {/* Creator Stats */}
-                      <div className="grid grid-cols-3 gap-2 py-3 border-y border-slate-800/60 text-center bg-slate-900/10 rounded-lg">
+                      <div className="grid grid-cols-3 gap-2 py-3 border-y border-border text-center bg-surface rounded-lg">
                         <div>
-                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Followers</span>
-                          <span className="font-extrabold text-sm text-slate-200">
+                          <span className="block text-[9px] text-text-muted uppercase font-semibold">Followers</span>
+                          <span className="font-extrabold text-sm text-text">
                             {match.followers >= 1000 ? `${(match.followers / 1000).toFixed(0)}K` : match.followers}
                           </span>
                         </div>
                         <div>
-                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Engagement</span>
-                          <span className="font-extrabold text-sm text-slate-200">{match.engagement_rate}%</span>
+                          <span className="block text-[9px] text-text-muted uppercase font-semibold">Engagement</span>
+                          <span className="font-extrabold text-sm text-text">{match.engagement_rate}%</span>
                         </div>
                         <div>
-                          <span className="block text-[9px] text-slate-400 uppercase font-semibold">Trend Score</span>
+                          <span className="block text-[9px] text-text-muted uppercase font-semibold">Trend Score</span>
                           <span className="font-extrabold text-sm text-pink-400">{match.trend_score}/100</span>
                         </div>
                       </div>
@@ -460,14 +460,14 @@ function MarketplacePage() {
                       {/* Request Button */}
                       <div>
                         {match.request_sent ? (
-                          <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-900/60 text-indigo-400 text-xs font-bold py-2.5">
+                          <div className="w-full flex items-center justify-center gap-1.5 rounded-xl border border-border bg-surface text-indigo-600 dark:text-indigo-400 text-xs font-bold py-2.5">
                             <CheckCircle className="h-4 w-4" />
                             Request Sent
                           </div>
                         ) : (
                           <Button
                             onClick={() => handleSendRequestClick(match)}
-                            className="w-full bg-gradient-to-r from-slate-900 to-indigo-950 hover:from-indigo-900 hover:to-indigo-950 text-white font-bold h-10 border border-indigo-500/20 rounded-xl transition-all duration-300"
+                            className="w-full bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold h-10 border border-indigo-500/20 rounded-xl transition-all duration-300"
                           >
                             Send Collab Request
                           </Button>
@@ -484,39 +484,39 @@ function MarketplacePage() {
 
       {/* APPLICATION MODAL (BRAND DEALS) */}
       {selectedDeal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass-card w-full max-w-md p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl relative space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md p-6 rounded-3xl border border-border bg-surface shadow-2xl relative space-y-5">
             
             {/* Header */}
             <div>
               <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-400">Submit Application</span>
-              <h3 className="font-display font-extrabold text-xl text-white mt-0.5">{selectedDeal.brand_name}</h3>
-              <p className="text-xs text-slate-400 mt-1">Applying for campaign value of ₹{selectedDeal.deal_amount.toLocaleString("en-IN")}</p>
+              <h3 className="font-display font-extrabold text-xl text-text mt-0.5">{selectedDeal.brand_name}</h3>
+              <p className="text-xs text-text-muted mt-1">Applying for campaign value of ₹{selectedDeal.deal_amount.toLocaleString("en-IN")}</p>
             </div>
 
             {/* Auto-filled Creator Profile Section */}
-            <div className="bg-slate-950/60 p-4 rounded-2xl border border-slate-800 space-y-3">
-              <h4 className="text-[9px] uppercase tracking-wider text-slate-400 font-bold flex items-center gap-1.5">
+            <div className="bg-surface-2 p-4 rounded-2xl border border-border space-y-3">
+              <h4 className="text-[9px] uppercase tracking-wider text-text-muted font-bold flex items-center gap-1.5">
                 <Award className="h-3.5 w-3.5 text-indigo-400" />
                 Verified Creator Profile
               </h4>
               
               <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase">Instagram handle</span>
-                  <span className="font-bold text-slate-200">@{profile.instagram_username}</span>
+                  <span className="text-text-muted block text-[9px] uppercase">Instagram handle</span>
+                  <span className="font-bold text-text">@{profile.instagram_username}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase">Niche category</span>
-                  <span className="font-bold text-slate-200 capitalize">{profile.niche}</span>
+                  <span className="text-text-muted block text-[9px] uppercase">Niche category</span>
+                  <span className="font-bold text-text capitalize">{profile.niche}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase">Verified followers</span>
-                  <span className="font-bold text-slate-200">{profile.followers.toLocaleString()}</span>
+                  <span className="text-text-muted block text-[9px] uppercase">Verified followers</span>
+                  <span className="font-bold text-text">{profile.followers.toLocaleString()}</span>
                 </div>
                 <div>
-                  <span className="text-slate-500 block text-[9px] uppercase">Pricing rate</span>
-                  <span className="font-bold text-indigo-300">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
+                  <span className="text-text-muted block text-[9px] uppercase">Pricing rate</span>
+                  <span className="font-bold text-indigo-600 dark:text-indigo-300">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
                 </div>
               </div>
             </div>
@@ -524,13 +524,13 @@ function MarketplacePage() {
             {/* Form */}
             <form onSubmit={handleSubmitApplication} className="space-y-4">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Your Campaign Pitch</label>
+                <label className="text-[10px] uppercase font-bold text-text-muted block mb-1.5">Your Campaign Pitch</label>
                 <textarea
                   rows={4}
                   value={pitchText}
                   onChange={(e) => setPitchText(e.target.value)}
                   placeholder="Explain why you're a great fit for this brand deal..."
-                  className="w-full rounded-xl bg-slate-950/60 border border-slate-800 text-slate-200 px-3.5 py-3 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
+                  className="w-full rounded-xl bg-surface border border-border text-text px-3.5 py-3 text-xs placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
                 />
               </div>
 
@@ -538,7 +538,7 @@ function MarketplacePage() {
                 <Button 
                   type="button"
                   onClick={() => setSelectedDeal(null)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold h-11 rounded-xl"
+                  className="flex-1 bg-surface-2 border border-border hover:bg-surface-2/80 text-text font-bold h-11 rounded-xl"
                 >
                   Cancel
                 </Button>
@@ -564,26 +564,26 @@ function MarketplacePage() {
 
       {/* REQUEST MODAL (COLLABS) */}
       {selectedMatch && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="glass-card w-full max-w-md p-6 rounded-3xl border border-slate-800 bg-slate-900/90 shadow-2xl relative space-y-5">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="w-full max-w-md p-6 rounded-3xl border border-border bg-surface shadow-2xl relative space-y-5">
             
             {/* Header */}
             <div>
               <span className="text-[9px] uppercase tracking-wider font-extrabold text-indigo-400">Collaboration Request</span>
-              <h3 className="font-display font-extrabold text-xl text-white mt-0.5">Connect with @{selectedMatch.instagram_username}</h3>
-              <p className="text-xs text-slate-400 mt-1">compatibility score: {selectedMatch.compatibility_score}% ({selectedMatch.niche} niche)</p>
+              <h3 className="font-display font-extrabold text-xl text-text mt-0.5">Connect with @{selectedMatch.instagram_username}</h3>
+              <p className="text-xs text-text-muted mt-1">compatibility score: {selectedMatch.compatibility_score}% ({selectedMatch.niche} niche)</p>
             </div>
 
             {/* Form */}
             <form onSubmit={handleSubmitCollabRequest} className="space-y-4">
               <div>
-                <label className="text-[10px] uppercase font-bold text-slate-400 block mb-1.5">Collaboration Proposal Message</label>
+                <label className="text-[10px] uppercase font-bold text-text-muted block mb-1.5">Collaboration Proposal Message</label>
                 <textarea
                   rows={4}
                   value={requestMessage}
                   onChange={(e) => setRequestMessage(e.target.value)}
                   placeholder="Introduce yourself and propose a collab idea..."
-                  className="w-full rounded-xl bg-slate-950/60 border border-slate-800 text-slate-200 px-3.5 py-3 text-xs placeholder:text-slate-600 focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
+                  className="w-full rounded-xl bg-surface border border-border text-text px-3.5 py-3 text-xs placeholder:text-text-muted focus:outline-none focus:ring-1 focus:ring-indigo-500 resize-none font-medium"
                 />
               </div>
 
@@ -591,7 +591,7 @@ function MarketplacePage() {
                 <Button 
                   type="button"
                   onClick={() => setSelectedMatch(null)}
-                  className="flex-1 bg-slate-800 hover:bg-slate-700 text-white font-bold h-11 rounded-xl"
+                  className="flex-1 bg-surface-2 border border-border hover:bg-surface-2/80 text-text font-bold h-11 rounded-xl"
                 >
                   Cancel
                 </Button>

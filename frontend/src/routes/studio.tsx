@@ -209,7 +209,7 @@ function StudioPage() {
           <PenTool className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold text-white">Creator Studio</h1>
+          <h1 className="font-display text-2xl font-bold text-text">Creator Studio</h1>
           <p className="text-xs text-muted-foreground">Level up your posts before publishing</p>
         </div>
       </header>
@@ -249,7 +249,7 @@ function StudioPage() {
       {activeTool === "prepost" && (
         <div className="space-y-4">
           <form onSubmit={handleAnalyze} className="glass-card p-5 rounded-2xl space-y-4">
-            <h3 className="font-display font-bold text-base text-white">Audit Your Post</h3>
+            <h3 className="font-display font-bold text-base text-text">Audit Your Post</h3>
             
             <div className="space-y-3">
               <div>
@@ -349,12 +349,12 @@ function StudioPage() {
                     <span className="text-gray-400">Audio:</span>
                     <span className="font-bold">{analysisResult.breakdown.audio_match}/100</span>
                   </div>
-                  <div className="bg-white/5 p-2 rounded-lg flex justify-between">
-                    <span className="text-gray-400">SEO:</span>
+                  <div className="bg-surface-2 p-2 rounded-lg flex justify-between border border-border">
+                    <span className="text-text-muted">SEO:</span>
                     <span className="font-bold">{analysisResult.breakdown.seo_and_caption}/100</span>
                   </div>
-                  <div className="bg-white/5 p-2 rounded-lg flex justify-between">
-                    <span className="text-gray-400">Hashtags:</span>
+                  <div className="bg-surface-2 p-2 rounded-lg flex justify-between border border-border">
+                    <span className="text-text-muted">Hashtags:</span>
                     <span className="font-bold">{analysisResult.breakdown.hashtags}/100</span>
                   </div>
                 </div>
@@ -362,7 +362,7 @@ function StudioPage() {
 
               <div className="space-y-2">
                 <span className="text-[10px] font-bold uppercase text-muted-foreground">Specific Fixes Required</span>
-                <ul className="space-y-1.5 text-xs text-gray-300">
+                <ul className="space-y-1.5 text-xs text-text-muted">
                   {analysisResult.fixes.map((fix, i) => (
                     <li key={i} className="flex gap-2 items-start">
                       <span className="text-emerald-400 font-bold">•</span>
@@ -380,7 +380,7 @@ function StudioPage() {
       {activeTool === "hooks" && (
         <div className="space-y-4">
           <form onSubmit={handleGenerateHooks} className="glass-card p-5 rounded-2xl space-y-4">
-            <h3 className="font-display font-bold text-base text-white">Generate High-Converting Hooks</h3>
+            <h3 className="font-display font-bold text-base text-text">Generate High-Converting Hooks</h3>
             <div className="space-y-3">
               <div>
                 <label className="text-[10px] uppercase font-bold text-muted-foreground">Niche</label>
@@ -412,7 +412,7 @@ function StudioPage() {
             <div className="space-y-3">
               <h4 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Your Tailored Hooks</h4>
               {hooksResult.hooks.map((h, i) => (
-                <div key={i} className="glass-card p-4 rounded-xl space-y-2 border border-white/5">
+                <div key={i} className="glass-card p-4 rounded-xl space-y-2 border border-border">
                   <div className="flex justify-between items-center">
                     <span className="text-xs font-bold text-indigo-400">{h.style} Hook</span>
                     <button 
@@ -420,12 +420,12 @@ function StudioPage() {
                         navigator.clipboard.writeText(h.text);
                         toast.success("Hook copied!");
                       }} 
-                      className="text-[10px] text-muted-foreground hover:text-white"
+                      className="text-[10px] text-muted-foreground hover:text-text"
                     >
                       Copy
                     </button>
                   </div>
-                  <p className="text-sm text-white font-semibold">"{h.text}"</p>
+                  <p className="text-sm text-text font-semibold">"{h.text}"</p>
                   <p className="text-xs text-muted-foreground">{h.why_it_works}</p>
                 </div>
               ))}
@@ -438,7 +438,7 @@ function StudioPage() {
       {activeTool === "seo" && (
         <div className="space-y-4">
           <form onSubmit={handleGenerateSeo} className="glass-card p-5 rounded-2xl space-y-4">
-            <h3 className="font-display font-bold text-base text-white">SEO Caption Generator</h3>
+            <h3 className="font-display font-bold text-base text-text">SEO Caption Generator</h3>
             <div className="space-y-3">
               <div>
                 <label className="text-[10px] uppercase font-bold text-muted-foreground">Video Description</label>
@@ -457,8 +457,8 @@ function StudioPage() {
                   onChange={(e) => setSeoPlatform(e.target.value)}
                   className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
                 >
-                  <option value="instagram">Instagram Reels</option>
-                  <option value="youtube_shorts">YouTube Shorts</option>
+                  <option value="instagram" className="bg-surface text-text">Instagram Reels</option>
+                  <option value="youtube_shorts" className="bg-surface text-text">YouTube Shorts</option>
                 </select>
               </div>
             </div>
@@ -482,7 +482,7 @@ function StudioPage() {
                     Copy Caption
                   </button>
                 </div>
-                <div className="bg-white/5 p-3 rounded-xl text-xs whitespace-pre-wrap text-gray-200 border border-white/5">
+                <div className="bg-surface p-3 rounded-xl text-xs whitespace-pre-wrap text-text border border-border">
                   {seoResult.caption}
                 </div>
               </div>
@@ -504,12 +504,12 @@ function StudioPage() {
                       navigator.clipboard.writeText(seoResult.alt_text);
                       toast.success("Alt text copied!");
                     }} 
-                    className="text-[10px] text-muted-foreground hover:text-white"
+                    className="text-[10px] text-muted-foreground hover:text-text"
                   >
                     Copy
                   </button>
                 </div>
-                <p className="text-xs text-gray-300 italic">"{seoResult.alt_text}"</p>
+                <p className="text-xs text-text-muted italic">"{seoResult.alt_text}"</p>
               </div>
             </div>
           )}

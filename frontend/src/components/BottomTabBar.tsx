@@ -36,7 +36,7 @@ export function BottomTabBar() {
             <li key={to}>
               <Link
                 to={to}
-                className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[8px] sm:text-[9px] font-medium transition-colors text-center ${
+                className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -66,7 +66,7 @@ export function BottomTabBar() {
                     </span>
                   )}
                 </motion.div>
-                <span className="text-[8px] sm:text-[9px] font-display mt-0.5">{label}</span>
+                <span className="text-[10px] sm:text-[11px] font-display mt-0.5">{label}</span>
               </Link>
             </li>
           );

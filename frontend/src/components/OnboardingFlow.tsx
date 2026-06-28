@@ -141,19 +141,19 @@ export function OnboardingFlow({ onComplete }: Props) {
               <h2 className="font-display text-2xl font-bold">Pick your vibe 🎨</h2>
               <p className="mt-1 text-sm text-muted-foreground">What kind of content do you create?</p>
             </div>
-            <div className="grid grid-cols-5 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
               {NICHES.map((n) => (
                 <button
                   key={n.id}
                   onClick={() => setNiche(n.id)}
-                  className={`flex flex-col items-center gap-1 rounded-xl p-2.5 text-center transition-all ${
+                  className={`flex flex-col items-center gap-1 rounded-xl p-2 text-center transition-all ${
                     niche === n.id
                       ? "bg-primary/20 border border-primary text-primary"
                       : "bg-muted/50 border border-transparent text-muted-foreground hover:border-border"
                   }`}
                 >
                   <span className="text-xl">{n.emoji}</span>
-                  <span className="text-[10px] font-semibold leading-tight">{n.label}</span>
+                  <span className="text-[10px] font-semibold leading-tight truncate w-full">{n.label}</span>
                 </button>
               ))}
             </div>
@@ -172,19 +172,19 @@ export function OnboardingFlow({ onComplete }: Props) {
               <h2 className="font-display text-2xl font-bold">Your language? 🌍</h2>
               <p className="mt-1 text-sm text-muted-foreground">We'll show you trends in your language first.</p>
             </div>
-            <div className="grid grid-cols-4 gap-2">
+            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
               {LANGUAGES.map((l) => (
                 <button
                   key={l.code}
                   onClick={() => setLanguage(l.code)}
-                  className={`flex flex-col items-center gap-1 rounded-xl p-3 text-center transition-all ${
+                  className={`flex flex-col items-center gap-1 rounded-xl p-2.5 text-center transition-all ${
                     language === l.code
                       ? "bg-primary/20 border border-primary text-primary"
                       : "bg-muted/50 border border-transparent text-muted-foreground hover:border-border"
                   }`}
                 >
                   <span className="text-xl">{l.emoji}</span>
-                  <span className="text-[10px] font-semibold">{l.label}</span>
+                  <span className="text-[10px] font-semibold truncate w-full">{l.label}</span>
                 </button>
               ))}
             </div>

@@ -100,6 +100,55 @@ class InstagramScraper:
             ]
         }
 
+    def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
+        """Check if reel would be in the top 20 reels by view_count for this audio_id."""
+        if not audio_id:
+            return False
+        try:
+            res = self.supabase.table("reels").select("id", count="exact").eq("audio_id", audio_id).gt("view_count", view_count).execute()
+            count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
+            return count < 20
+        except Exception as e:
+            logging.error(f"Error checking top 20 for audio {audio_id}: {e}")
+            return True
+
+    def _store_reel_video(self, reel_id: str, video_url: str, audio_id: str) -> str | None:
+        """Downloads MP4 from video_url and uploads to reels-preview bucket."""
+        if not video_url:
+            return None
+        try:
+            import requests
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            response = requests.get(video_url, headers=headers, timeout=20)
+            if not response.ok:
+                logging.error(f"Download failed for video {video_url} with status {response.status_code}")
+                return None
+            
+            safe_audio_id = audio_id or "no_audio"
+            path = f"reels/{safe_audio_id}/{reel_id}.mp4"
+            
+            self.supabase.storage.from_("reels-preview").upload(
+                path=path,
+                file=response.content,
+                file_options={"content-type": "video/mp4", "x-upsert": "true"}
+            )
+            
+            # Bulletproof public URL resolver
+            try:
+                public_url_obj = self.supabase.storage.from_("reels-preview").get_public_url(path)
+                if public_url_obj:
+                    url = str(public_url_obj)
+                else:
+                    url = f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
+            except Exception:
+                url = f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
+                
+            logging.info(f"Successfully stored reel video {reel_id} at {url}")
+            return url
+        except Exception as e:
+            logging.error(f"Video store failed for reel {reel_id}: {e}")
+            return None
+
     # ── Audio helpers ─────────────────────────────────────────────────────────
 
     def _extract_audio_id(self, music_info_dict: dict | None) -> str | None:
@@ -484,6 +533,21 @@ Rules:
                             "is_cross_cultural": metadata.get("is_cross_cultural", False),
                             "language_confidence": metadata.get("confidence", 0.0),
                         })
+
+                        # Video storage check for trend-card eligibility
+                        is_trend_card = (velocity_score > 0.5) or self._is_top_20_for_audio(audio_id, view_count)
+                        if is_trend_card:
+                            stored_url = self._store_reel_video(reel_id, video_url, audio_id)
+                            if stored_url:
+                                reel_data["preview_url"] = stored_url
+                                reel_data["video_storage_status"] = "stored"
+                                reel_data["video_stored_at"] = datetime.now(timezone.utc).isoformat()
+                            else:
+                                reel_data["preview_url"] = None
+                                reel_data["video_storage_status"] = "failed"
+                                reel_data["video_stored_at"] = None
+                        else:
+                            reel_data["video_storage_status"] = "pending"
 
                         self.supabase.table("reels").insert(reel_data).execute()
                         logging.info(f"Saved reel {reel_id} by @{owner_username} (velocity={velocity_score:.3f})")

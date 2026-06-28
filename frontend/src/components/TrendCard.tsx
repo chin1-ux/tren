@@ -12,6 +12,8 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTrendReels } from "@/lib/api";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
+import { TrendCardVideo } from "./TrendCardVideo";
+import { TrendPreviewModal } from "./TrendPreviewModal";
 
 interface Props {
   trend: UiTrend;
@@ -184,6 +186,7 @@ function buildAudioUrl(audioId?: string | null, audioName?: string): string {
 export function TrendCard({ trend, onDanceTap }: Props) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
+  const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showReels, setShowReels] = useState(false);
   const [copied, setCopied] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
@@ -284,7 +287,7 @@ export function TrendCard({ trend, onDanceTap }: Props) {
       ref={cardRef as any}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      onClick={() => setIsExpanded(!isExpanded)}
+      onClick={() => setShowPreviewModal(true)}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
@@ -319,6 +322,17 @@ export function TrendCard({ trend, onDanceTap }: Props) {
           <Clock className="h-3.5 w-3.5" />
           {trend.hoursLeft > 0 ? `~${trend.hoursLeft}h left` : "Ending soon"}
         </span>
+      </div>
+
+      {/* Video Preview Section */}
+      <div onClick={(e) => e.stopPropagation()} className="relative z-10">
+        <TrendCardVideo
+          reel={{
+            id: String(trend.id),
+            preview_url: trend.preview_url,
+            reel_id: trend.audioId || undefined,
+          }}
+        />
       </div>
 
       {/* ── 1. Song info ─────────────────────────────────────────────────── */}
@@ -645,6 +659,11 @@ export function TrendCard({ trend, onDanceTap }: Props) {
           </motion.div>
         )}
       </AnimatePresence>
+      <TrendPreviewModal
+        trend={trend}
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
+      />
     </motion.article>
   );
 }

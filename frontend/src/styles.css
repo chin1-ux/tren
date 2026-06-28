@@ -1,7 +1,6 @@
+@import "tw-animate-css";
 @import "tailwindcss" source(none);
 @source "../src";
-@import "tw-animate-css";
-@import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=swap');
 
 @custom-variant dark (&:is(.dark *));
 
@@ -32,6 +31,10 @@
   --color-error: var(--error);
   --color-primary: var(--primary);
   --color-accent: var(--accent);
+  --color-secondary: #7F77DD;
+  --color-amber: #EF9F27;
+  --color-purple: #7F77DD;
+  --color-teal: #1D9E75;
 
   /* System mappings for shadcn / component fallback compatibility */
   --color-background: var(--bg);
@@ -77,6 +80,12 @@
   --error:        #E33D3D;
   --primary:      #FF4D3D;   /* = brand-coral */
   --accent:       #C7F23A;   /* = brand-lime */
+
+  /* Theme variables for compatibility */
+  --surface-raised: #EDECE5;
+  --text-100: #0B0B0F;
+  --text-60: #4A4A55;
+  --text-40: #6C6C78;
 }
 
 [data-theme="dark"], .dark {
@@ -93,6 +102,12 @@
   --error:         #FF5C5C;
   --primary:      #FF6B57;   /* = brand-coral-2 */
   --accent:       #D4FF3A;   /* = brand-lime-2 */
+
+  /* Theme variables for compatibility */
+  --surface-raised: #2A2A35;
+  --text-100: #F5F1E8;
+  --text-60: #9898A8;
+  --text-40: #6C6C78;
 }
 
 /* ── Global Reset ────────────────────────────────────────────────────────────── */
@@ -291,10 +306,6 @@
 /* ── Typography Scale Overrides ────────────────────────────────────────────────── */
 .font-display {
   font-family: 'Bricolage Grotesque', system-ui, sans-serif !important;
-  font-size: 72px;
-  line-height: 0.95;
-  font-weight: 700;
-  letter-spacing: -0.04em;
 }
 
 h1, h2, h3, h4, h5, h6 {
@@ -519,6 +530,8 @@ body {
   letter-spacing: -0.055em;
   color: var(--wm-color);
   user-select: none;
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 .trendrop-wordmark .tr-play {
   position: relative;
@@ -565,3 +578,15 @@ body {
 .trendrop-wordmark.animate .tr-play  { opacity:0; transform-origin: center; animation: wm-play-pop 600ms cubic-bezier(0.34,1.56,0.64,1) 700ms forwards; }
 .trendrop-wordmark.animate .tr-arrow svg path { stroke-dasharray: 400; stroke-dashoffset: 400; animation: wm-arrow-draw 900ms cubic-bezier(0.65,0,0.35,1) 1100ms forwards; }
 .trendrop-wordmark.animate .tr-drop  { opacity:0; transform-origin: 50% 100%; animation: wm-drop-fall 900ms cubic-bezier(0.34,1.4,0.64,1) 1500ms forwards; }
+
+.niche-filter-bar {
+  display: flex !important;
+  flex-wrap: nowrap !important;
+  overflow-x: auto !important;
+  gap: 8px !important;
+  scrollbar-width: none !important;
+  -ms-overflow-style: none !important;
+}
+.niche-filter-bar::-webkit-scrollbar {
+  display: none !important;
+}

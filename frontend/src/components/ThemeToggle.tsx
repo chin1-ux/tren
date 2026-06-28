@@ -18,21 +18,39 @@ export function ThemeToggle() {
       root.classList.add("dark");
       body.setAttribute("data-theme", "dark");
       body.classList.add("dark");
-      localStorage.setItem("trendrop_theme", "dark");
     } else {
       root.removeAttribute("data-theme");
       root.classList.remove("dark");
       body.removeAttribute("data-theme");
       body.classList.remove("dark");
-      localStorage.setItem("trendrop_theme", "light");
     }
-    // Dispatch a storage event so other components or roots can sync if needed
-    window.dispatchEvent(new Event("storage"));
   }, [dark]);
+
+  React.useEffect(() => {
+    const handleSync = () => {
+      const saved = localStorage.getItem("trendrop_theme");
+      if (saved) {
+        setDark(saved === "dark");
+      }
+    };
+    window.addEventListener("storage", handleSync);
+    window.addEventListener("theme-change", handleSync);
+    return () => {
+      window.removeEventListener("storage", handleSync);
+      window.removeEventListener("theme-change", handleSync);
+    };
+  }, []);
+
+  const handleToggle = () => {
+    const nextDark = !dark;
+    setDark(nextDark);
+    localStorage.setItem("trendrop_theme", nextDark ? "dark" : "light");
+    window.dispatchEvent(new Event("theme-change"));
+  };
 
   return (
     <button
-      onClick={() => setDark(!dark)}
+      onClick={handleToggle}
       className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10 active:scale-95 text-xs font-semibold flex items-center justify-center h-8 px-3 gap-1 cursor-pointer border border-border"
       data-testid="theme-toggle"
       aria-label="Toggle theme"

@@ -152,6 +152,97 @@ async def health_check_api():
     """Simple health check for API route returning status OK."""
     return {"status": "healthy"}
 
+@app.get("/api/reels/stream/{db_id}")
+async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
+    """
+    Fallback: triggers Apify Instagram reel scraper for a specific reel URL
+    when the cached storage preview is expired, failed, or missing.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not initialized")
+        
+    # 1. Get original Instagram reel shortcode & audio_id from DB
+    res = supabase.table("reels").select("reel_id", "audio_id").eq("id", db_id).execute()
+    if not res.data:
+        raise HTTPException(status_code=404, detail="Reel not found")
+        
+    reel = res.data[0]
+    reel_id = reel.get("reel_id")
+    audio_id = reel.get("audio_id")
+    if not reel_id:
+        raise HTTPException(status_code=404, detail="Reel shortcode not found in DB")
+        
+    instagram_url = f"https://www.instagram.com/reel/{reel_id}/"
+    
+    # 2. Trigger lightweight Apify scrape
+    apify_token = os.getenv("APIFY_API_TOKEN")
+    if not apify_token:
+        raise HTTPException(status_code=500, detail="APIFY_API_TOKEN is not configured")
+        
+    tokens = [t.strip() for t in apify_token.split(",") if t.strip()]
+    token = tokens[0] if tokens else apify_token
+    
+    apify_url = f"https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token={token}"
+    
+    payload = {
+        "directUrls": [instagram_url],
+        "resultsLimit": 1
+    }
+    
+    try:
+        response = requests.post(apify_url, json=payload, headers={"Content-Type": "application/json"}, timeout=65)
+        if response.status_code not in (200, 201):
+            logging.error(f"Apify single reel fetch failed with status {response.status_code}: {response.text}")
+            raise HTTPException(status_code=500, detail="Scraper request failed")
+            
+        results = response.json()
+        fresh_video_url = results[0].get("videoUrl") if (results and len(results) > 0) else None
+        if not fresh_video_url:
+            raise HTTPException(status_code=500, detail="No video URL found in scraper results")
+            
+    except Exception as e:
+        logging.error(f"Apify request exception: {e}")
+        raise HTTPException(status_code=500, detail=f"Scraper error: {str(e)}")
+        
+    # 3. Attempt to store in background
+    def background_store():
+        try:
+            headers = {'User-Agent': 'Mozilla/5.0'}
+            dl_res = requests.get(fresh_video_url, headers=headers, timeout=30)
+            if dl_res.status_code == 200:
+                safe_audio_id = audio_id or "no_audio"
+                path = f"reels/{safe_audio_id}/{reel_id}.mp4"
+                
+                # Upload to storage
+                supabase.storage.from_("reels-preview").upload(
+                    path=path,
+                    file=dl_res.content,
+                    file_options={"content-type": "video/mp4", "x-upsert": "true"}
+                )
+                
+                # Public URL resolution
+                try:
+                    pub_obj = supabase.storage.from_("reels-preview").get_public_url(path)
+                    stored_url = str(pub_obj) if pub_obj else f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/reels-preview/{path}"
+                except Exception:
+                    stored_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/reels-preview/{path}"
+                
+                from datetime import datetime, timezone
+                supabase.table("reels").update({
+                    "preview_url": stored_url,
+                    "video_storage_status": "stored",
+                    "video_stored_at": datetime.now(timezone.utc).isoformat()
+                }).eq("id", db_id).execute()
+                logging.info(f"Successfully background-stored video for reel ID {db_id}")
+        except Exception as err:
+            logging.error(f"Failed background storing video for reel ID {db_id}: {err}")
+            
+    background_tasks.add_task(background_store)
+    
+    # 4. Return the fresh URL immediately
+    return {"videoUrl": fresh_video_url}
+
+
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
