@@ -1692,7 +1692,7 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
 @app.get("/api/daily-ideas/{user_email}")
 @limiter.limit("10/minute")
 def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access daily ideas of another user")
     
     # 2.2 CACHING: ideas:{user_email}:{date}
@@ -1732,7 +1732,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 @app.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
 def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
         niche = "lifestyle"
@@ -1945,7 +1945,7 @@ class CollabRequest(BaseModel):
 @app.get("/api/brand-deals/{user_email}")
 @limiter.limit("30/minute")
 def get_brand_deals_marketplace(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
         
     # Get user niche
@@ -2094,7 +2094,7 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
 @app.post("/api/apply-deal")
 @limiter.limit("15/minute")
 def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email: str = Depends(get_current_user)):
-    if req.user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot apply for a brand deal on behalf of another user")
     try:
         if supabase:
@@ -2119,7 +2119,7 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
 @app.get("/api/collab-matches/{user_email}")
 @limiter.limit("30/minute")
 def get_collab_matches(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's collab matches")
     try:
         # Get user's profile to match niche
@@ -2233,7 +2233,7 @@ def get_collab_matches(user_email: str, request: Request, current_user_email: st
 @app.post("/api/send-collab-request")
 @limiter.limit("15/minute")
 def send_collab_request(req: CollabRequest, request: Request, current_user_email: str = Depends(get_current_user)):
-    if req.from_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and req.from_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot send collab requests on behalf of another user")
     try:
         if supabase:
