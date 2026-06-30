@@ -93,33 +93,9 @@ function IdeasPage() {
       const data = await fetchDailyIdeas(email);
       setIdeas(data);
     } catch (err) {
-      // Fallback
-      setIdeas([
-        {
-          title: "The Ultimate " + userNiche.toUpperCase() + " Hack",
-          description: "Show a 15-second hack or shortcut in your niche. Record a close-up of the process and final result.",
-          hook: "Stop doing it the hard way! 🛑",
-          audio_suggestion: "Trending Lofi Beats",
-          posting_time: "06:30 PM",
-          difficulty: "Easy"
-        },
-        {
-          title: "Expectation vs Reality",
-          description: "A funny, relatable comparison of starting out in the niche versus reality. Perfect for high engagement.",
-          hook: "What they think I do vs What I actually do 🫠",
-          audio_suggestion: "Upbeat Comedy Background",
-          posting_time: "08:00 PM",
-          difficulty: "Medium"
-        },
-        {
-          title: "My Biggest Mistake in " + userNiche.toUpperCase(),
-          description: "Share a vulnerability and the exact lesson you learned to build authentic trust with your audience.",
-          hook: "I lost 10 hours of work doing this...",
-          audio_suggestion: "Dramatic build-up, beat drop",
-          posting_time: "07:15 PM",
-          difficulty: "Hard"
-        }
-      ]);
+      console.error("Failed to load daily ideas", err);
+      toast.error("Failed to load daily ideas from server.");
+      setIdeas([]);
     } finally {
       setLoadingIdeas(false);
     }
@@ -170,27 +146,9 @@ function IdeasPage() {
       setScoringResult(result);
       toast.success("Reel scored successfully!");
     } catch (err) {
-      // Mock Fallback
-      const scoreVal = Math.floor(Math.random() * 25) + 70; // 70 to 94
-      let grade = "B";
-      if (scoreVal >= 90) grade = "A+";
-      else if (scoreVal >= 80) grade = "A";
-
-      setScoringResult({
-        overall_score: scoreVal,
-        grade: grade,
-        hook_score: Math.floor(Math.random() * 20) + 75,
-        audio_score: Math.floor(Math.random() * 20) + 75,
-        caption_score: Math.floor(Math.random() * 20) + 75,
-        hashtag_score: Math.floor(Math.random() * 20) + 75,
-        timing_score: Math.floor(Math.random() * 20) + 75,
-        top_fixes: [
-          "Hook: Introduce a visual pattern break in the first 1.5 seconds.",
-          "Caption: Add 2 targeted local keywords to improve Instagram SEO ranking.",
-          "Hashtag: Mix broad hashtags with 3 highly specific sub-niche hashtags."
-        ]
-      });
-      toast.success("Reel scored! (Generated mockup score)");
+      console.error("Failed to score reel", err);
+      toast.error("Failed to score your reel. Please try again later.");
+      setScoringResult(null);
     } finally {
       setLoadingScore(false);
     }
@@ -212,14 +170,9 @@ function IdeasPage() {
       setGeneratedHooks(data.hooks);
       toast.success("5 high-converting hooks generated!");
     } catch (err) {
-      setGeneratedHooks([
-        { style: "Curiosity", text: `The hidden secret about ${hookTrend} they don't want you to know...`, why_it_works: "Forces the viewer to stay to solve the curiosity loop." },
-        { style: "Conflict", text: `Stop doing ${hookTrend} this way. It's destroying your reach!`, why_it_works: "Aggressive callout that provokes emotional responses." },
-        { style: "Authority", text: `I spent 30 hours analyzing ${hookTrend} so you don't have to. Here is the blueprint.`, why_it_works: "Positions you as an expert providing maximum value." },
-        { style: "Relatable", text: `POV: You realize everyone was lying to you about ${hookTrend}.`, why_it_works: "Establishes quick connection and shared feeling." },
-        { style: "FOMO", text: `If you aren't doing this one thing with ${hookTrend} today, you're missing out on millions of views.`, why_it_works: "Triggers fear of missing out on a major trend." }
-      ]);
-      toast.success("Generated mockup hooks!");
+      console.error("Failed to generate hooks", err);
+      toast.error("Failed to generate hooks. Please try again later.");
+      setGeneratedHooks([]);
     } finally {
       setLoadingHooks(false);
     }
@@ -234,17 +187,9 @@ function IdeasPage() {
       localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(res.calendar));
       toast.success("Your 30-Day Autopilot Calendar is ready!");
     } catch (err) {
-      const mockCalendar: CalendarDay[] = Array.from({ length: 30 }).map((_, i) => ({
-        day: i + 1,
-        topic: `Viral ${userNiche.toUpperCase()} Strategy Concept ${i + 1}`,
-        hook: `This changes everything about ${userNiche}... (${i + 1})`,
-        audio_style: "Trending audio remix / high energy beats",
-        hashtags: [`#${userNiche}`, "#viral", "#creatorhub", `#day${i + 1}`],
-        posting_time: "07:00 PM"
-      }));
-      setCalendar(mockCalendar);
-      localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(mockCalendar));
-      toast.success("Created mock 30-Day calendar!");
+      console.error("Failed to generate calendar", err);
+      toast.error("Failed to generate your 30-Day calendar.");
+      setCalendar([]);
     } finally {
       setLoadingCalendar(false);
     }

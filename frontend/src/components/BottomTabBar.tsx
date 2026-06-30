@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Sparkles, Lightbulb, Building2, User, Flame } from "lucide-react";
+import { Sparkles, Lightbulb, Building2, User, Flame, Settings } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
 import { motion } from "framer-motion";
@@ -23,11 +23,12 @@ export function BottomTabBar() {
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
     { to: "/marketplace", label: "Marketplace", Icon: Building2 },
     { to: "/profile", label: "Profile", Icon: User },
+    { to: "/settings", label: "Settings", Icon: Settings },
   ] as const;
 
   return (
     <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
-      <ul className="grid grid-cols-5 relative">
+      <ul className="grid grid-cols-6 relative">
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
             ? currentPath === "/"

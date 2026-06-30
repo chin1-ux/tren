@@ -2,7 +2,8 @@ import { createFileRoute, Link } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
   Check, User, Bell, Flame, Globe, Heart, Smartphone,
-  Instagram, Users, Mail, Calendar, Award, Sparkles, ShieldCheck
+  Instagram, Users, Mail, Calendar, Award, Sparkles, ShieldCheck,
+  Search, ChevronRight, SlidersHorizontal
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { subscribe } from "@/lib/api";
@@ -66,6 +67,11 @@ function ProfilePage() {
 
   const [saving, setSaving] = useState(false);
   const [upgrading, setUpgrading] = useState(false);
+
+  const [langSearch, setLangSearch] = useState("");
+  const [nicheSearch, setNicheSearch] = useState("");
+  const [showLangDropdown, setShowLangDropdown] = useState(false);
+  const [showNicheDropdown, setShowNicheDropdown] = useState(false);
 
   useEffect(() => {
     const sync = () => {
@@ -176,9 +182,6 @@ function ProfilePage() {
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-4">
-          <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-gradient-to-br from-primary to-secondary text-white text-2xl shadow-lg shadow-primary/20">
-            {selectedNiche?.emoji || "🎯"}
-          </div>
           <div>
             <h1 className="font-display text-2xl font-bold gradient-text">Your Profile</h1>
             <p className="text-sm text-muted-foreground">Configure your trend preferences and alerts</p>
@@ -253,44 +256,86 @@ function ProfilePage() {
         </h2>
 
         {/* Niche selector */}
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-muted-foreground block">Select Your Niche</span>
-          <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5">
-            {NICHES.map((n) => (
-              <button
-                key={n.id}
-                onClick={() => setNiche(n.id)}
-                className={`flex flex-col items-center gap-1 rounded-xl p-2 text-center transition-all ${
-                  niche === n.id
-                    ? "bg-primary/20 border border-primary/40 text-primary scale-[1.03]"
-                    : "bg-muted/30 border border-transparent text-muted-foreground hover:border-border hover:bg-muted/50"
-                }`}
-              >
-                <span className="text-lg">{n.emoji}</span>
-                <span className="text-[10px] font-bold leading-tight truncate w-full">{n.label}</span>
-              </button>
-            ))}
+        <div className="space-y-1.5 relative">
+          <label className="text-xs font-semibold text-muted-foreground block">Select Your Niche</label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowNicheDropdown(!showNicheDropdown)}
+              className="w-full rounded-xl bg-muted/60 border border-transparent px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/80 transition-colors"
+            >
+              <span>{selectedNiche ? `${selectedNiche.emoji} ${selectedNiche.label}` : "Select Niche"}</span>
+              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showNicheDropdown ? "rotate-90" : ""}`} />
+            </button>
+
+            {showNicheDropdown && (
+              <div className="absolute left-0 right-0 z-30 mt-1.5 rounded-xl border border-border bg-surface shadow-xl p-2.5 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={nicheSearch}
+                    onChange={(e) => setNicheSearch(e.target.value)}
+                    placeholder="Search niches..."
+                    className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {NICHES.filter(n => n.label.toLowerCase().includes(nicheSearch.toLowerCase())).map(n => (
+                    <button
+                      key={n.id}
+                      onClick={() => { setNiche(n.id); setShowNicheDropdown(false); }}
+                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
+                    >
+                      <span>{n.emoji} {n.label}</span>
+                      {niche === n.id && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
         {/* Language selector */}
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-muted-foreground block">Select Language</span>
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-            {LANGUAGES.map((l) => (
-              <button
-                key={l.code}
-                onClick={() => setLanguage(l.code)}
-                className={`flex items-center justify-center gap-1.5 rounded-xl py-2 px-1 text-center transition-all ${
-                  language === l.code
-                    ? "bg-primary/20 border border-primary/40 text-primary"
-                    : "bg-muted/30 border border-transparent text-muted-foreground hover:border-border hover:bg-muted/50"
-                }`}
-              >
-                <span className="text-base">{l.emoji}</span>
-                <span className="text-[11px] font-semibold">{l.label}</span>
-              </button>
-            ))}
+        <div className="space-y-1.5 relative">
+          <label className="text-xs font-semibold text-muted-foreground block">Select Language</label>
+          <div className="relative">
+            <button
+              type="button"
+              onClick={() => setShowLangDropdown(!showLangDropdown)}
+              className="w-full rounded-xl bg-muted/60 border border-transparent px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/80 transition-colors"
+            >
+              <span>{language ? `${LANGUAGES.find(l => l.code === language)?.emoji || ""} ${LANGUAGES.find(l => l.code === language)?.label || ""}` : "Select Language"}</span>
+              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showLangDropdown ? "rotate-90" : ""}`} />
+            </button>
+
+            {showLangDropdown && (
+              <div className="absolute left-0 right-0 z-30 mt-1.5 rounded-xl border border-border bg-surface shadow-xl p-2.5 space-y-2">
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+                  <input
+                    type="text"
+                    value={langSearch}
+                    onChange={(e) => setLangSearch(e.target.value)}
+                    placeholder="Search languages..."
+                    className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
+                  />
+                </div>
+                <div className="max-h-40 overflow-y-auto space-y-1">
+                  {LANGUAGES.filter(l => l.label.toLowerCase().includes(langSearch.toLowerCase())).map(l => (
+                    <button
+                      key={l.code}
+                      onClick={() => { setLanguage(l.code); setShowLangDropdown(false); }}
+                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
+                    >
+                      <span>{l.emoji} {l.label}</span>
+                      {language === l.code && <Check className="h-3.5 w-3.5 text-primary" />}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
           </div>
         </div>
 
@@ -351,7 +396,7 @@ function ProfilePage() {
       </div>
 
       {/* Plan Card */}
-      <div className="relative overflow-hidden rounded-2xl border border-primary/20 bg-gradient-to-br from-[#1c121e] to-[#0a0a0f] p-5 shadow-xl">
+      <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-muted/30 p-5 shadow-xl">
         <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
         <div className="absolute left-0 bottom-0 h-28 w-28 rounded-full bg-secondary/10 blur-2xl" />
         
@@ -403,25 +448,22 @@ function ProfilePage() {
       </div>
 
       {/* Legal & Privacy Section */}
-      <div className="glass-card p-5 space-y-4">
-        <h2 className="font-display text-base font-bold flex items-center gap-2 text-foreground">
-          <ShieldCheck className="h-5 w-5 text-primary" /> Legal & Data Privacy
+      <div className="glass-card p-5 space-y-3">
+        <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
+          <ShieldCheck className="h-4 w-4 text-primary" /> Legal & Privacy
         </h2>
-        <p className="text-xs text-muted-foreground leading-normal">
-          We comply with India's DPDP Act 2023. Manage your consent, view terms, or exercise your digital data rights.
+        <p className="text-[10px] text-muted-foreground leading-normal">
+          Manage digital consent in compliance with India's DPDP Act 2023.
         </p>
-        <div className="grid grid-cols-1 gap-2.5">
-          <Link to="/privacy" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground">
-            <span>Privacy Policy</span>
-            <span className="text-muted-foreground text-[10px]">Read &rarr;</span>
+        <div className="grid grid-cols-3 gap-2">
+          <Link to="/privacy" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-foreground font-semibold border border-border/20">
+            Privacy
           </Link>
-          <Link to="/terms" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground">
-            <span>Terms of Service</span>
-            <span className="text-muted-foreground text-[10px]">Read &rarr;</span>
+          <Link to="/terms" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-foreground font-semibold border border-border/20">
+            Terms
           </Link>
-          <Link to="/data-rights" className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors text-xs font-bold text-foreground font-semibold">
-            <span className="text-primary">Manage Digital Data Rights</span>
-            <span className="text-primary text-[10px]">Manage &rarr;</span>
+          <Link to="/data-rights" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-primary font-semibold border border-primary/20">
+            DPDP Rights
           </Link>
         </div>
       </div>

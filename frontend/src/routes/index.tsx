@@ -53,8 +53,11 @@ type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
-  const [filter, setFilter] = useState<string>("All");
-  const [language, setLanguage] = useState<string>("all");
+  const [filter] = useState<string>("All");
+  const [language] = useState<string>(() => {
+    if (typeof window === "undefined") return "all";
+    return localStorage.getItem("trendrop_pref_language") ?? "all";
+  });
   const [feedTab, setFeedTab] = useState<FeedTab>("rising");
   const [sortMode] = useState<SortMode>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
@@ -64,16 +67,11 @@ function TrendsFeed() {
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
 
-  // Niche filter — persisted in localStorage
-  const [selectedNiche, setSelectedNiche] = useState<string>(() => {
+  // Niche filter — read from preferences
+  const [selectedNiche] = useState<string>(() => {
     if (typeof window === "undefined") return "all";
-    return localStorage.getItem("trendrop_niche") ?? "all";
+    return localStorage.getItem("trendrop_pref_niche") ?? "all";
   });
-
-  const handleNicheChange = (id: string) => {
-    setSelectedNiche(id);
-    localStorage.setItem("trendrop_niche", id);
-  };
 
   // Check if first visit → show onboarding
   useEffect(() => {
@@ -173,11 +171,11 @@ function TrendsFeed() {
   return (
     <div className="flex flex-col gap-0 pb-24">
       {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-6 pt-6 rounded-b-[2rem] border-b border-border/30">
+      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
         <ParticleBackground />
 
         {/* Header Row */}
-        <div className="relative flex items-center justify-between mb-6">
+        <div className="relative flex items-center justify-between mb-4">
           {/* Logo */}
           <TrenddropLogo size={34} />
 
@@ -204,21 +202,6 @@ function TrendsFeed() {
               )}
             </button>
 
-            {/* Filter / Settings drawer trigger */}
-            <button
-              id="filter-settings-btn"
-              onClick={() => setShowFilterDrawer(true)}
-              className={`relative rounded-full p-2 transition-colors ${
-                filter !== "All" ? "bg-primary/20 text-primary" : "bg-white/5 text-foreground hover:bg-white/10"
-              }`}
-              aria-label="Filter settings"
-            >
-              <SlidersHorizontal className="h-4 w-4" />
-              {filter !== "All" && (
-                <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-primary" />
-              )}
-            </button>
-
             {/* Theme Toggle */}
             <ThemeToggle />
 
@@ -235,30 +218,15 @@ function TrendsFeed() {
           </div>
         </div>
 
-        {/* Hero copy and Stats */}
-        <div className="space-y-4 relative z-10 text-center">
-          <div>
-            <p className="text-[10px] font-extrabold uppercase tracking-widest text-primary animate-pulse">⚡ Live Trend Engine</p>
-            <h2 className="text-xl font-extrabold mt-1 tracking-tight text-foreground">India's Trend Intelligence</h2>
-            <p className="text-xs text-muted-foreground mt-1 max-w-[280px] mx-auto">Early trend detection signals to capitalize before they peak.</p>
-          </div>
-
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-md p-3 text-center">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Trend Count</span>
-              <p className="text-xl font-extrabold text-primary mt-0.5">{totalActive} Active</p>
-              <p className="text-[9px] text-muted-foreground/60">Real-time signals</p>
-            </div>
-            <div className="rounded-xl border border-white/5 bg-white/[0.02] backdrop-blur-md p-3 text-center">
-              <span className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">Avg Lead Time</span>
-              <p className="text-xl font-extrabold text-secondary mt-0.5">{avgLeadTime} hrs</p>
-              <p className="text-[9px] text-muted-foreground/60">Early window</p>
-            </div>
-          </div>
+        {/* Simplified Stats */}
+        <div className="relative z-10 text-center mt-2">
+          <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+            {totalActive.toLocaleString()} active trends tracked • {avgLeadTime}h avg. lead time
+          </p>
         </div>
       </div>
 
-      {/* ── Feed Tabs & Filters ─────────────────────────────────────────────────────────── */}
+      {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
           <TabButton
@@ -279,7 +247,7 @@ function TrendsFeed() {
         </div>
 
         {/* Search */}
-        <div className="relative mb-3">
+        <div className="relative">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
           <input
             id="search-query"
@@ -295,42 +263,6 @@ function TrendsFeed() {
             </button>
           )}
         </div>
-
-        {/* Language filter */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.code}
-              onClick={() => setLanguage(l.code)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                language === l.code
-                  ? "bg-primary text-white shadow-sm shadow-primary/30"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
-        </div>
-
-        {/* Niche filter */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1">
-          {NICHES.map((n) => (
-            <button
-              key={n.id}
-              id={`niche-filter-${n.id}`}
-              onClick={() => handleNicheChange(n.id)}
-              className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                selectedNiche === n.id
-                  ? "bg-secondary text-white shadow-sm shadow-secondary/30"
-                  : "bg-muted text-muted-foreground hover:text-foreground"
-              }`}
-            >
-              {n.label}
-            </button>
-          ))}
-        </div>
-
       </div>
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
@@ -478,65 +410,7 @@ function TrendsFeed() {
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
       {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
 
-      {/* ── Filter / Settings Drawer ─────────────────────────────────────────────────────── */}
-      <AnimatePresence>
-        {showFilterDrawer && (
-          <>
-            {/* Backdrop */}
-            <motion.div
-              key="filter-backdrop"
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              exit={{ opacity: 0 }}
-              transition={{ duration: 0.2 }}
-              className="fixed inset-0 z-[55] bg-black/60 backdrop-blur-sm"
-              onClick={() => setShowFilterDrawer(false)}
-            />
-            {/* Drawer */}
-            <motion.div
-              key="filter-drawer"
-              initial={{ y: "100%" }}
-              animate={{ y: 0 }}
-              exit={{ y: "100%" }}
-              transition={{ type: "spring", damping: 28, stiffness: 300 }}
-              className="fixed bottom-0 left-1/2 z-[60] w-full max-w-md -translate-x-1/2 rounded-t-3xl bg-[#0d0d14] border-t border-border/40 px-5 pt-4 pb-10 shadow-2xl"
-            >
-              {/* Handle */}
-              <div className="mx-auto mb-5 h-1 w-10 rounded-full bg-border/60" />
-              <div className="flex items-center justify-between mb-5">
-                <h3 className="font-display text-base font-bold text-foreground">Filters & Sort</h3>
-                <button onClick={() => setShowFilterDrawer(false)} className="rounded-full p-1.5 text-muted-foreground hover:text-foreground transition-colors">
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
 
-              {/* Category Filter */}
-              <div className="mb-5">
-                <p className="text-[10px] font-bold uppercase tracking-widest text-muted-foreground mb-2.5">Category</p>
-                <FilterPills active={filter} onChange={(cat) => { setFilter(cat); }} />
-              </div>
-
-              {/* Active filter indicator */}
-              {filter !== "All" && (
-                <button
-                  onClick={() => setFilter("All")}
-                  className="flex items-center gap-1.5 rounded-full border border-primary/30 bg-primary/10 px-3 py-1.5 text-xs font-semibold text-primary mb-4 transition-all hover:bg-primary/20"
-                >
-                  <X className="h-3 w-3" /> Clear filter: {filter}
-                </button>
-              )}
-
-              {/* Apply button */}
-              <button
-                onClick={() => setShowFilterDrawer(false)}
-                className="w-full rounded-xl bg-primary py-3 text-sm font-bold text-white tracking-wide hover:bg-primary/90 transition-all active:scale-[0.98]"
-              >
-                Apply Filters
-              </button>
-            </motion.div>
-          </>
-        )}
-      </AnimatePresence>
     </div>
   );
 }

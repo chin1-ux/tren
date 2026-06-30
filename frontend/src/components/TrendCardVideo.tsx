@@ -20,7 +20,9 @@ export const TrendCardVideo = ({ reel }: TrendCardVideoProps) => {
   const videoRef = useRef<HTMLVideoElement>(null);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const instagramUrl = `https://www.instagram.com/reel/${reel.reel_id || ""}/`;
+  const instagramUrl = reel.reel_id && /^\d+$/.test(reel.reel_id)
+    ? `https://www.instagram.com/reels/audio/${reel.reel_id}/`
+    : `https://www.instagram.com/reel/${reel.reel_id || ""}/`;
 
   // Start 8 seconds timeout for fallback link
   const startLoadingTimeout = () => {

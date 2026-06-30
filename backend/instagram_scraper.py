@@ -580,8 +580,7 @@ Rules:
         print(f"Total scraped: {total_scraped} | Saved: {saved_count} | Top 3 velocities: {top3}")
 
         if saved_count == 0:
-            logging.info("Apify scraping returned 0 items. Activating simulated fallback...")
-            saved_count = self._generate_simulated_trending_reels()
+            logging.info("Apify scraping returned 0 items. Retaining last successfully fetched stable dataset from Supabase.")
         else:
             # ── Run Groq hook analysis for each audio group ───────────────────
             logging.info(f"Running Groq hook analysis for {len(audio_groups)} audio groups...")

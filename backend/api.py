@@ -162,11 +162,28 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Supabase client not initialized")
         
     # 1. Get original Instagram reel shortcode & audio_id from DB
-    res = supabase.table("reels").select("reel_id", "audio_id").eq("id", db_id).execute()
+    res = supabase.table("reels").select("id", "reel_id", "audio_id").eq("id", db_id).execute()
     if not res.data:
-        raise HTTPException(status_code=404, detail="Reel not found")
+        # Fallback: treat db_id as a trend ID and find its top reel
+        trend_res = supabase.table("trends").select("audio_title", "audio_artist").eq("id", db_id).execute()
+        if trend_res.data:
+            t = trend_res.data[0]
+            reels_res = supabase.table("reels") \
+                .select("id", "reel_id", "audio_id") \
+                .eq("audio_title", t.get("audio_title")) \
+                .eq("audio_artist", t.get("audio_artist")) \
+                .order("velocity_score", desc=True) \
+                .limit(1) \
+                .execute()
+            if reels_res.data:
+                res = reels_res
+            else:
+                raise HTTPException(status_code=404, detail="No reels found for this trend")
+        else:
+            raise HTTPException(status_code=404, detail="Reel or Trend not found")
         
     reel = res.data[0]
+    reel_db_id = reel.get("id", db_id)
     reel_id = reel.get("reel_id")
     audio_id = reel.get("audio_id")
     if not reel_id:
@@ -232,15 +249,15 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
                     "preview_url": stored_url,
                     "video_storage_status": "stored",
                     "video_stored_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", db_id).execute()
-                logging.info(f"Successfully background-stored video for reel ID {db_id}")
+                }).eq("id", reel_db_id).execute()
+                logging.info(f"Successfully background-stored video for reel ID {reel_db_id}")
         except Exception as err:
-            logging.error(f"Failed background storing video for reel ID {db_id}: {err}")
+            logging.error(f"Failed background storing video for reel ID {reel_db_id}: {err}")
             
     background_tasks.add_task(background_store)
     
-    # 4. Return the fresh URL immediately
-    return {"videoUrl": fresh_video_url}
+    # 4. Return the fresh URL immediately along with correct reel details
+    return {"videoUrl": fresh_video_url, "reel_id": reel_id, "id": reel_db_id}
 
 
 app.state.limiter = limiter
@@ -588,9 +605,7 @@ def get_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        # Include both 'rising' and 'emerging' so the feed is never empty;
-        # scraper may assign either status to active trends
-        q = supabase.table("trends").select("*").not_.in_("status", ["expired", "peaked"])
+        q = supabase.table("trends").select("*").eq("status", "rising")
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -932,7 +947,7 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
         q = supabase.table("reels") \
             .select("*") \
             .eq("is_cross_cultural", True) \
-            .in_("caption_language", ["english", "hindi"]) \
+            .in_("caption_language", ["en", "hi", "english", "hindi"]) \
             .neq("trend_origin", "IN") \
             .lt("india_saturation_pct", 40) \
             .order("scraped_at", desc=True) \
@@ -1200,7 +1215,6 @@ async def generate_reel_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
-    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
     
@@ -1291,7 +1305,6 @@ async def generate_narrative_endpoint(
     text_overlays: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
-    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
         
@@ -1451,7 +1464,6 @@ async def repurpose_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user)
 ):
-    raise HTTPException(status_code=501, detail="Automatic AI video generation has been disabled. Trendrop is now focused on trend intelligence.")
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
         
@@ -1978,46 +1990,8 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
             except Exception as e:
                 logger.warning(f"Error fetching brand deals from DB: {e}")
         
-        # If DB contains no deals, use high-quality pre-populated deals
-        if not deals or len(deals) < 2:
-            deals = [
-                {
-                    "id": 101,
-                    "brand_name": "Myntra",
-                    "deal_amount": 35000,
-                    "commission_amount": 5250,
-                    "status": "open",
-                    "details": "Create 1x aesthetic styling Reel featuring the Myntra Summer Collection. Showcase 3 distinct outfits transition style.",
-                    "requirements": "Minimum 15k followers, niche: fashion/lifestyle, active engagement rate > 4.5%."
-                },
-                {
-                    "id": 102,
-                    "brand_name": "PUMA India",
-                    "deal_amount": 50000,
-                    "commission_amount": 7500,
-                    "status": "open",
-                    "details": "1x high-energy workout transition Reel wearing PUMA activewear, using the specified trending audio hook.",
-                    "requirements": "Niche: fitness/dance, minimum 25k followers, high retention score."
-                },
-                {
-                    "id": 103,
-                    "brand_name": "Mamaearth",
-                    "deal_amount": 20000,
-                    "commission_amount": 3000,
-                    "status": "open",
-                    "details": "1x morning routine Reel highlighting the Mamaearth Green Tea facewash. Focus on natural glowing skin hook.",
-                    "requirements": "Niche: skincare/lifestyle, minimum 5k followers, authentic voice."
-                },
-                {
-                    "id": 104,
-                    "brand_name": "Amazon Prime Video",
-                    "deal_amount": 65000,
-                    "commission_amount": 9750,
-                    "status": "open",
-                    "details": "2x story shares and 1x cinematic reaction Reel for the new upcoming web series release.",
-                    "requirements": "Niche: comedy/entertainment/cinematic, minimum 50k followers, high video velocity."
-                }
-            ]
+        # Return only real database brand deals
+        pass
 
         # 2. Fetch user's applications to see which ones they already applied for
         user_apps = []

@@ -157,13 +157,16 @@ export function OnboardingFlow({ onComplete }: Props) {
                 </button>
               ))}
             </div>
-            <Button
-              onClick={() => setStep(2)}
-              disabled={!niche}
-              className="w-full h-12 bg-primary font-bold uppercase tracking-wide"
-            >
-              Next →
-            </Button>
+            <div className="flex gap-2">
+              <Button onClick={onComplete} variant="ghost" className="flex-1 h-12">Skip</Button>
+              <Button
+                onClick={() => setStep(2)}
+                disabled={!niche}
+                className="flex-1 h-12 bg-primary font-bold uppercase tracking-wide"
+              >
+                Next →
+              </Button>
+            </div>
           </div>
         ) : step === 2 ? (
           <div className="space-y-5 animate-fade-in-up">
@@ -189,7 +192,8 @@ export function OnboardingFlow({ onComplete }: Props) {
               ))}
             </div>
             <div className="flex gap-2">
-              <Button onClick={() => setStep(1)} variant="ghost" className="flex-1 h-12">← Back</Button>
+              <Button onClick={() => setStep(1)} variant="ghost" className="h-12 w-12 px-0">←</Button>
+              <Button onClick={onComplete} variant="ghost" className="flex-1 h-12">Skip</Button>
               <Button
                 onClick={() => setStep(3)}
                 disabled={!language}

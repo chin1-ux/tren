@@ -108,7 +108,7 @@ function PrivacyPage() {
             For any queries, grievances, or requests, please contact our designated Grievance Officer:
           </p>
           <div className="rounded-xl bg-muted/30 p-3 mt-2 border border-border text-xs text-muted-foreground space-y-1">
-            <p><strong>Name:</strong> Chinmay Kumar</p>
+            <p><strong>Name:</strong> Data Protection Officer</p>
             <p><strong>Designation:</strong> Data Protection Officer & Grievance Redressal Lead</p>
             <p><strong>Email:</strong> privacy@trendrop.app</p>
             <p><strong>Response Time:</strong> Resolved within 7 business days as per rules.</p>
