@@ -62,7 +62,6 @@ def run_video_generation_job(job_id: str, job_type: str, trend_id: str, files: l
     logger.info(f"Worker processing job: job={job_id} type={job_type}")
     try:
         update_job_progress(job_id, 10, "processing")
-        time.sleep(2.0)
         
         # Audio extraction
         audio_url = None
@@ -74,40 +73,65 @@ def run_video_generation_job(job_id: str, job_type: str, trend_id: str, files: l
             except Exception as e:
                 logger.error(f"Error fetching audio_url: {e}")
                 
-        update_job_progress(job_id, 30, "processing")
-        time.sleep(2.0)
+        update_job_progress(job_id, 20, "processing")
         
-        # Generate simulation
+        # Download files locally
+        local_files = []
+        if files:
+            for f in files:
+                local_path = os.path.join("uploads", job_id, os.path.basename(f))
+                os.makedirs(os.path.dirname(local_path), exist_ok=True)
+                try:
+                    res_bytes = supabase.storage.from_("uploads").download(f)
+                    with open(local_path, "wb") as out_f:
+                        out_f.write(res_bytes)
+                    local_files.append(local_path)
+                except Exception as dl_err:
+                    logger.warning(f"Could not download file {f} from Supabase, checking if local path exists: {dl_err}")
+                    if os.path.exists(f):
+                        local_files.append(f)
+                    elif os.path.exists(local_path):
+                        local_files.append(local_path)
+                    else:
+                        raise RuntimeError(f"Source file {f} could not be retrieved: {dl_err}")
+        
+        update_job_progress(job_id, 30, "processing")
+        
+        audio_path = None
+        if audio_url:
+            try:
+                upload_dir = f"uploads/{job_id}"
+                os.makedirs(upload_dir, exist_ok=True)
+                audio_path = os.path.join(upload_dir, "audio.mp3")
+                resp = requests.get(audio_url, timeout=15)
+                resp.raise_for_status()
+                with open(audio_path, "wb") as f:
+                    f.write(resp.content)
+            except Exception as ae:
+                logger.warning(f"Failed to download audio from {audio_url}: {ae}")
+                audio_path = None
+                
         output_url = f"/outputs/{job_id}.mp4"
         output_path = os.path.join("outputs", f"{job_id}.mp4")
         os.makedirs(os.path.dirname(output_path), exist_ok=True)
         
-        # File copy or fallback download
-        downloaded = False
-        sample_urls = [
-            "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-            "https://assets.mixkit.co/videos/preview/mixkit-drones-eye-view-of-a-harbour-city-43283-large.mp4"
-        ]
-        for s_url in sample_urls:
-            try:
-                resp = requests.get(s_url, timeout=15)
-                resp.raise_for_status()
-                with open(output_path, "wb") as f:
-                    f.write(resp.content)
-                downloaded = True
-                break
-            except Exception as de:
-                logger.warning(f"Failed to download sample video: {de}")
-                
-        if not downloaded:
-            with open(output_path, "wb") as f:
-                f.write(b"dummy mp4 content")
-                
-        update_job_progress(job_id, 80, "processing")
-        time.sleep(2.0)
+        # Invoke actual ReelGenerator
+        from reel_generator import ReelGenerator
+        generator = ReelGenerator()
+        def progress_cb(pct: int):
+            scaled = 30 + int(pct * 0.5)
+            update_job_progress(job_id, scaled, "processing")
+            
+        generator.generate_reel(
+            image_paths=local_files,
+            audio_path=audio_path,
+            output_path=output_path,
+            progress_callback=progress_cb
+        )
+        
+        update_job_progress(job_id, 85, "processing")
         
         # 2.4 FILE STORAGE: Upload to Supabase Storage outputs bucket
-        # Upload user files & outputs to Supabase Storage buckets: uploads & outputs
         try:
             with open(output_path, "rb") as f:
                 file_content = f.read()

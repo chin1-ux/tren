@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Play, Loader2, ExternalLink } from "lucide-react";
+import { apiFetch } from "@/lib/api";
 
 interface TrendCardVideoProps {
   reel: {
@@ -48,7 +49,7 @@ export const TrendCardVideo = ({ reel }: TrendCardVideoProps) => {
     startLoadingTimeout();
 
     try {
-      const res = await fetch(`/api/reels/stream/${reel.id}`);
+      const res = await apiFetch(`/api/reels/stream/${reel.id}`);
       if (!res.ok) throw new Error("Stream failed");
       const data = await res.json();
       if (data.videoUrl) {

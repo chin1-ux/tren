@@ -175,27 +175,57 @@ class InstagramScraper:
         """Extract how many reels are currently using this audio."""
         if not music_info_dict:
             return 0
+            
+        # Log raw musicInfo structure
+        try:
+            logging.info(f"[AudioScraper] Raw music_info_dict keys: {list(music_info_dict.keys())} | raw: {json.dumps(music_info_dict)}")
+        except Exception as log_err:
+            logging.warning(f"Could not log music_info_dict: {log_err}")
+
+        # 1. Check music_info -> music_consumption_info -> use_count
         minfo = music_info_dict.get("music_info") or {}
+        m_cons = minfo.get("music_consumption_info") or {}
+        if "use_count" in m_cons and m_cons["use_count"] is not None:
+            try:
+                return int(m_cons["use_count"])
+            except (TypeError, ValueError):
+                pass
+                
+        # 2. Check music_info -> music_asset_info -> use_count / usage_count etc.
         asset = minfo.get("music_asset_info") or {}
-        count = (
-            asset.get("ig_artist", {}).get("follower_count")  # approximation
-            or asset.get("usage_count")
-            or asset.get("reel_count")
-            or asset.get("usageCount")
-        )
-        if count:
+        for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
+            if asset.get(key) is not None:
+                try:
+                    return int(asset[key])
+                except (TypeError, ValueError):
+                    pass
+                    
+        # 3. Check original_sound_info -> consumption_info -> use_count
+        orig = music_info_dict.get("original_sound_info") or {}
+        o_cons = orig.get("consumption_info") or {}
+        if "use_count" in o_cons and o_cons["use_count"] is not None:
             try:
-                return int(count)
+                return int(o_cons["use_count"])
             except (TypeError, ValueError):
                 pass
-        # Also check top-level clip_metadata
+                
+        # 4. Check original_sound_info direct fields
+        for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
+            if orig.get(key) is not None:
+                try:
+                    return int(orig[key])
+                except (TypeError, ValueError):
+                    pass
+                    
+        # 5. Check clip_metadata
         clip = music_info_dict.get("clip_metadata") or {}
-        count = clip.get("total_reel_usage_count") or clip.get("reel_count")
-        if count:
-            try:
-                return int(count)
-            except (TypeError, ValueError):
-                pass
+        for key in ["total_reel_usage_count", "reel_count", "use_count"]:
+            if clip.get(key) is not None:
+                try:
+                    return int(clip[key])
+                except (TypeError, ValueError):
+                    pass
+                    
         return 0
 
     # ── Groq hook analysis ────────────────────────────────────────────────────
@@ -492,13 +522,6 @@ Rules:
                         audio_id = self._extract_audio_id(music_info_dict)
                         audio_use_count = self._extract_audio_use_count(music_info_dict)
 
-                        # Saturation and window calculations
-                        # India use count approximation: count reels with creator_country=IN
-                        # We will estimate from scraped reels; accurate figure after DB accumulation
-                        india_use_count = max(1, int(audio_use_count * 0.08))  # ~8% of global as estimate
-                        sat = calculate_saturation(audio_use_count, india_use_count)
-                        window_hours = calculate_window_hours(audio_use_count, velocity_score * 100)
-
                         reel_data = {
                             "platform": "instagram",
                             "reel_id": reel_id,
@@ -517,21 +540,42 @@ Rules:
                             "audio_id": audio_id,
                             "audio_use_count": audio_use_count,
                             "velocity_score": velocity_score,
-                            "global_saturation_pct": sat["global"],
-                            "india_saturation_pct": sat["india"],
-                            "window_hours_remaining": window_hours,
                             "scraped_at": scraped_time_str,
                         }
 
                         # Groq metadata tagging
                         metadata = self.detect_reel_metadata(reel_data)
+                        creator_country = metadata.get("creator_country", "unknown")
+                        
+                        # Count Indian reels in DB for this audio ID / title
+                        india_use_count = 0
+                        try:
+                            if audio_id:
+                                res_in = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).eq("creator_country", "IN").execute()
+                                india_use_count = res_in.count or 0
+                            else:
+                                res_in = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_title", music_title).eq("creator_country", "IN").execute()
+                                india_use_count = res_in.count or 0
+                        except Exception as e:
+                            logging.warning(f"Error querying India reels count: {e}")
+                            
+                        # If current reel is from India, add it to count
+                        if creator_country == "IN":
+                            india_use_count += 1
+                            
+                        sat = calculate_saturation(audio_use_count, india_use_count)
+                        window_hours = calculate_window_hours(audio_use_count, velocity_score * 100)
+
                         reel_data.update({
                             "audio_language": metadata.get("audio_language", "unknown"),
                             "caption_language": metadata.get("caption_language", "unknown"),
                             "trend_origin": metadata.get("trend_origin", "unknown"),
-                            "creator_country": metadata.get("creator_country", "unknown"),
+                            "creator_country": creator_country,
                             "is_cross_cultural": metadata.get("is_cross_cultural", False),
                             "language_confidence": metadata.get("confidence", 0.0),
+                            "global_saturation_pct": sat["global"],
+                            "india_saturation_pct": sat["india"],
+                            "window_hours_remaining": window_hours,
                         })
 
                         # Video storage check for trend-card eligibility
@@ -594,144 +638,7 @@ Rules:
 
         return saved_count
 
-    def _generate_simulated_trending_reels(self) -> int:
-        """
-        Fallback generator that inserts high-quality simulated reels for key current trends.
-        """
-        import random
-        simulated_data = [
-            # --- Trend 1: Tauba Tauba by Karan Aujla ---
-            {
-                "audio_title": "Tauba Tauba", "audio_artist": "Karan Aujla",
-                "owner_username": "vickykaushal09", "owner_follower_count": 18500000,
-                "video_view_count": 4800000, "likes_count": 520000, "comments_count": 14000,
-                "caption": "Obsessed with this groove! #TaubaTauba #karanaujla #newdance #trend",
-                "shortCode": "C89o2v3tFjF", "country": "IN", "is_dance": True, "lang": "hi",
-                "audio_id": "1234567890", "audio_use_count": 45000,
-            },
-            {
-                "audio_title": "Tauba Tauba", "audio_artist": "Karan Aujla",
-                "owner_username": "karanaujla_official", "owner_follower_count": 6200000,
-                "video_view_count": 3200000, "likes_count": 410000, "comments_count": 8900,
-                "caption": "Tauba Tauba reels going wild! #TaubaTauba #karanaujla #punjabi",
-                "shortCode": "C8-V-uKPP1W", "country": "IN", "is_dance": True, "lang": "hi",
-                "audio_id": "1234567890", "audio_use_count": 45000,
-            },
-            # --- Trend 2: Alibi by Sevdaliza ---
-            {
-                "audio_title": "Alibi", "audio_artist": "Sevdaliza",
-                "owner_username": "sevdaliza", "owner_follower_count": 1300000,
-                "video_view_count": 1200000, "likes_count": 140000, "comments_count": 3200,
-                "caption": "She is my alibi... #Alibi #sevdaliza #transformation #reels",
-                "shortCode": "C8_Q4sSP2yK", "country": "US", "is_dance": False, "lang": "en",
-                "audio_id": "2345678901", "audio_use_count": 12000,
-            },
-            # --- Trend 3: Pedro ---
-            {
-                "audio_title": "Pedro", "audio_artist": "Jaxomy & Agatino Romero",
-                "owner_username": "pedro_raccoon", "owner_follower_count": 820000,
-                "video_view_count": 18200000, "likes_count": 1850000, "comments_count": 21000,
-                "caption": "Pedro Pedro Pedro! #Pedro #raccoon #dance #funny #trend",
-                "shortCode": "C52_jQ4xsT5", "country": "US", "is_dance": True, "lang": "en",
-                "audio_id": "3456789012", "audio_use_count": 180000,
-            },
-            # --- Trend 4: Espresso by Sabrina Carpenter ---
-            {
-                "audio_title": "Espresso", "audio_artist": "Sabrina Carpenter",
-                "owner_username": "sabrinacarpenter", "owner_follower_count": 35200000,
-                "video_view_count": 9200000, "likes_count": 1150000, "comments_count": 31000,
-                "caption": "That is that me espresso... #Espresso #sabrinacarpenter #vibe",
-                "shortCode": "C5q8oDJsy4G", "country": "US", "is_dance": False, "lang": "en",
-                "audio_id": "4567890123", "audio_use_count": 95000,
-            }
-        ]
 
-        inserted = 0
-        scraped_time_str = datetime.now(timezone.utc).isoformat()
-        audio_groups: dict[tuple, list[dict]] = {}
-
-        for item in simulated_data:
-            reel_id = item["shortCode"]
-            check = self.supabase.table("reels").select("reel_id").eq("reel_id", reel_id).execute()
-            if check.data:
-                continue
-
-            hours_live = random.uniform(2.0, 18.0)
-            subscribers = max(item["owner_follower_count"], 1000)
-            proxy_saves = item["likes_count"] * 0.12
-            proxy_replays = item["video_view_count"] * 0.06
-            engagement_2026 = (
-                item["video_view_count"] * 1.0 +
-                proxy_saves * 10.0 +
-                item["comments_count"] * 4.0 +
-                item["likes_count"] * 1.0 +
-                proxy_replays * 5.0
-            )
-            velocity_score = (engagement_2026 / hours_live / subscribers) * 10000
-
-            audio_use_count = item.get("audio_use_count", 0)
-            india_use_count = max(1, int(audio_use_count * 0.08))
-            sat = calculate_saturation(audio_use_count, india_use_count)
-            window_hours = calculate_window_hours(audio_use_count, velocity_score * 100)
-
-            reel_data = {
-                "platform": "instagram",
-                "reel_id": reel_id,
-                "view_count": item["video_view_count"],
-                "like_count": item["likes_count"],
-                "comment_count": item["comments_count"],
-                "posted_at": (datetime.now(timezone.utc) - timedelta(hours=hours_live)).isoformat(),
-                "owner_username": item["owner_username"],
-                "owner_follower_count": item["owner_follower_count"],
-                "caption": item["caption"],
-                "hashtags": re.findall(r"#(\w+)", item["caption"]),
-                "video_url": "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                "thumbnail_url": "https://assets.mixkit.co/videos/preview/mixkit-drones-eye-view-of-a-harbour-city-43283-large.mp4",
-                "audio_title": item["audio_title"],
-                "audio_artist": item["audio_artist"],
-                "audio_id": item.get("audio_id"),
-                "audio_use_count": audio_use_count,
-                "velocity_score": velocity_score,
-                "audio_language": item["lang"],
-                "caption_language": item["lang"],
-                "trend_origin": item["country"],
-                "creator_country": item["country"],
-                "is_cross_cultural": item["country"] != "IN",
-                "language_confidence": 0.95,
-                "global_saturation_pct": sat["global"],
-                "india_saturation_pct": sat["india"],
-                "window_hours_remaining": window_hours,
-                "scraped_at": scraped_time_str,
-            }
-
-            try:
-                self.supabase.table("reels").insert(reel_data).execute()
-                self._update_trend_lifecycle(
-                    audio_title=item["audio_title"],
-                    creator_country=item["country"],
-                    scraped_at=scraped_time_str
-                )
-                inserted += 1
-                logging.info(f"Generated simulated reel: {reel_id} for '{item['audio_title']}'")
-
-                key = (item["audio_title"].strip(), item["audio_artist"].strip())
-                if key not in audio_groups:
-                    audio_groups[key] = []
-                audio_groups[key].append(reel_data)
-            except Exception as e:
-                logging.error(f"Failed to insert simulated reel: {e}")
-
-        # Run hook analysis for simulated reels too
-        logging.info(f"Running Groq hook analysis for {len(audio_groups)} simulated audio groups...")
-        for (title, artist), group_reels in audio_groups.items():
-            try:
-                hook_data = self._run_hook_analysis(title, group_reels)
-                if hook_data:
-                    self._persist_hook_analysis(title, artist, hook_data)
-            except Exception as e:
-                logging.error(f"Hook analysis error for simulated '{title}': {e}")
-
-        return inserted
 
 
 if __name__ == "__main__":

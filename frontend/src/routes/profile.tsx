@@ -1,9 +1,7 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  Check, User, Bell, Flame, Globe, Heart, Smartphone,
-  Instagram, Users, Mail, Calendar, Award, Sparkles, ShieldCheck,
-  Search, ChevronRight, SlidersHorizontal
+  User, Users, Mail, Award, Sparkles, ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { subscribe } from "@/lib/api";
@@ -175,17 +173,13 @@ function ProfilePage() {
     }
   };
 
-  const selectedNiche = NICHES.find(n => n.id === niche);
-
   return (
     <div className="flex flex-col gap-5 px-4 pb-12 pt-6">
       {/* Header */}
       <div className="flex items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div>
-            <h1 className="font-display text-2xl font-bold gradient-text">Your Profile</h1>
-            <p className="text-sm text-muted-foreground">Configure your trend preferences and alerts</p>
-          </div>
+        <div>
+          <h1 className="font-display text-2xl font-bold gradient-text">Your Profile</h1>
+          <p className="text-sm text-muted-foreground">Manage your creator info and account tier</p>
         </div>
         <ThemeToggle />
       </div>
@@ -249,152 +243,6 @@ function ProfilePage() {
         </div>
       </div>
 
-      {/* Content Preferences Section */}
-      <div className="glass-card p-5 space-y-4">
-        <h2 className="font-display text-base font-bold flex items-center gap-2 text-foreground">
-          <Sparkles className="h-5 w-5 text-secondary" /> Content Preferences
-        </h2>
-
-        {/* Niche selector */}
-        <div className="space-y-1.5 relative">
-          <label className="text-xs font-semibold text-muted-foreground block">Select Your Niche</label>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowNicheDropdown(!showNicheDropdown)}
-              className="w-full rounded-xl bg-muted/60 border border-transparent px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/80 transition-colors"
-            >
-              <span>{selectedNiche ? `${selectedNiche.emoji} ${selectedNiche.label}` : "Select Niche"}</span>
-              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showNicheDropdown ? "rotate-90" : ""}`} />
-            </button>
-
-            {showNicheDropdown && (
-              <div className="absolute left-0 right-0 z-30 mt-1.5 rounded-xl border border-border bg-surface shadow-xl p-2.5 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={nicheSearch}
-                    onChange={(e) => setNicheSearch(e.target.value)}
-                    placeholder="Search niches..."
-                    className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {NICHES.filter(n => n.label.toLowerCase().includes(nicheSearch.toLowerCase())).map(n => (
-                    <button
-                      key={n.id}
-                      onClick={() => { setNiche(n.id); setShowNicheDropdown(false); }}
-                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
-                    >
-                      <span>{n.emoji} {n.label}</span>
-                      {niche === n.id && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Language selector */}
-        <div className="space-y-1.5 relative">
-          <label className="text-xs font-semibold text-muted-foreground block">Select Language</label>
-          <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowLangDropdown(!showLangDropdown)}
-              className="w-full rounded-xl bg-muted/60 border border-transparent px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/80 transition-colors"
-            >
-              <span>{language ? `${LANGUAGES.find(l => l.code === language)?.emoji || ""} ${LANGUAGES.find(l => l.code === language)?.label || ""}` : "Select Language"}</span>
-              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showLangDropdown ? "rotate-90" : ""}`} />
-            </button>
-
-            {showLangDropdown && (
-              <div className="absolute left-0 right-0 z-30 mt-1.5 rounded-xl border border-border bg-surface shadow-xl p-2.5 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={langSearch}
-                    onChange={(e) => setLangSearch(e.target.value)}
-                    placeholder="Search languages..."
-                    className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  {LANGUAGES.filter(l => l.label.toLowerCase().includes(langSearch.toLowerCase())).map(l => (
-                    <button
-                      key={l.code}
-                      onClick={() => { setLanguage(l.code); setShowLangDropdown(false); }}
-                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
-                    >
-                      <span>{l.emoji} {l.label}</span>
-                      {language === l.code && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
-          </div>
-        </div>
-
-        {/* Posting Frequency */}
-        <div className="space-y-2">
-          <span className="text-xs font-semibold text-muted-foreground block">Posting Frequency</span>
-          <div className="grid grid-cols-3 gap-2">
-            {FREQUENCIES.map((freq) => (
-              <button
-                key={freq.id}
-                onClick={() => setPostingFrequency(freq.id)}
-                className={`flex items-center justify-center gap-1.5 rounded-xl py-2.5 px-3 text-center transition-all border ${
-                  postingFrequency === freq.id
-                    ? "bg-secondary/20 border-secondary text-secondary font-bold"
-                    : "bg-muted/30 border-transparent text-muted-foreground hover:border-border hover:bg-muted/50"
-                }`}
-              >
-                <Calendar className="h-3.5 w-3.5" />
-                <span className="text-[11px] font-semibold">{freq.label}</span>
-              </button>
-            ))}
-          </div>
-        </div>
-      </div>
-
-      {/* Notifications Section */}
-      <div className="glass-card p-5 space-y-4">
-        <h2 className="font-display text-base font-bold flex items-center gap-2 text-foreground">
-          <Bell className="h-5 w-5 text-amber" /> Notification Alerts
-        </h2>
-
-        <div className="space-y-3">
-          <NotificationToggle
-            title="Trend Alerts"
-            description="Real-time alerts when new audio formats match your profile"
-            active={notifyTrendAlerts}
-            onChange={setNotifyTrendAlerts}
-          />
-          <NotificationToggle
-            title="Daily Ideas"
-            description="Fresh customized hooks and audio suggestions every morning"
-            active={notifyDailyIdeas}
-            onChange={setNotifyDailyIdeas}
-          />
-          <NotificationToggle
-            title="Brand Deals"
-            description="Get notified about high-matching campaigns & opportunities"
-            active={notifyBrandDeals}
-            onChange={setNotifyBrandDeals}
-          />
-          <NotificationToggle
-            title="Weekly Report"
-            description="Digest of viral formats, niches growing fastest in India"
-            active={notifyWeeklyReport}
-            onChange={setNotifyWeeklyReport}
-          />
-        </div>
-      </div>
-
       {/* Plan Card */}
       <div className="relative overflow-hidden rounded-2xl border border-border bg-gradient-to-br from-card to-muted/30 p-5 shadow-xl">
         <div className="absolute right-0 top-0 h-28 w-28 rounded-full bg-primary/10 blur-2xl" />
@@ -447,72 +295,18 @@ function ProfilePage() {
         )}
       </div>
 
-      {/* Legal & Privacy Section */}
-      <div className="glass-card p-5 space-y-3">
-        <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
-          <ShieldCheck className="h-4 w-4 text-primary" /> Legal & Privacy
-        </h2>
-        <p className="text-[10px] text-muted-foreground leading-normal">
-          Manage digital consent in compliance with India's DPDP Act 2023.
-        </p>
-        <div className="grid grid-cols-3 gap-2">
-          <Link to="/privacy" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-foreground font-semibold border border-border/20">
-            Privacy
-          </Link>
-          <Link to="/terms" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-foreground font-semibold border border-border/20">
-            Terms
-          </Link>
-          <Link to="/data-rights" className="rounded-lg bg-muted/40 hover:bg-muted text-[10px] py-2 text-center text-primary font-semibold border border-primary/20">
-            DPDP Rights
-          </Link>
-        </div>
-      </div>
-
       {/* Save Button */}
       <Button
         onClick={save}
         disabled={saving}
         className="h-12 w-full bg-primary hover:bg-primary/95 text-white font-bold uppercase tracking-wider shadow-lg shadow-primary/25 rounded-xl"
       >
-        {saving ? "Saving Preferences..." : "Save Profile ✓"}
+        {saving ? "Saving Profile..." : "Save Profile ✓"}
       </Button>
 
       <p className="text-center text-[10px] text-muted-foreground tracking-wide mt-2">
         Trendrop — India-first trend intelligence for short-form creators 🇮🇳
       </p>
-    </div>
-  );
-}
-
-function NotificationToggle({
-  title,
-  description,
-  active,
-  onChange,
-}: {
-  title: string;
-  description: string;
-  active: boolean;
-  onChange: (v: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between rounded-xl bg-muted/30 px-3.5 py-3 border border-transparent hover:border-border transition-colors">
-      <div className="space-y-0.5 pr-4">
-        <p className="text-xs font-bold text-foreground">{title}</p>
-        <p className="text-[10px] text-muted-foreground leading-normal">{description}</p>
-      </div>
-      <button
-        onClick={() => onChange(!active)}
-        className={`relative h-5 w-9 shrink-0 rounded-full transition-colors focus:outline-none ${
-          active ? "bg-primary" : "bg-muted-foreground/30"
-        }`}
-      >
-        <div
-          className={`absolute top-0.5 h-4 w-4 rounded-full bg-white shadow transition-all ${
-            active ? "left-[18px]" : "left-0.5"
-          }`}
-        />
-      </button>
     </div>
   );
 }

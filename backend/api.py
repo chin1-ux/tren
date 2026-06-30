@@ -1059,69 +1059,42 @@ def run_job_simulation(job_id: str, job_type: str, trend_id: str, files: List[st
         output_url = f"/outputs/{job_id}.mp4"
         output_path = os.path.join("outputs", f"{job_id}.mp4")
         
-        generated_successfully = False
-        if files and len(files) > 0 and job_type in ["reel_generation", "narrative_generation"]:
-            try:
-                audio_path = None
-                if audio_url:
-                    try:
-                        upload_dir = f"uploads/{job_id}"
-                        os.makedirs(upload_dir, exist_ok=True)
-                        audio_path = os.path.join(upload_dir, "audio.mp3")
-                        resp = requests.get(audio_url, timeout=15)
-                        resp.raise_for_status()
-                        with open(audio_path, "wb") as f:
-                            f.write(resp.content)
-                    except Exception:
-                        audio_path = None
-                
-                if ReelGenerator:
-                    generator = ReelGenerator()
-                    def progress_cb(pct: int):
-                        scaled = 30 + int(pct * 0.6)
-                        update_job_record(job_id, {"progress": scaled})
-                    
-                    generator.generate_reel(
-                        image_paths=files,
-                        audio_path=audio_path,
-                        output_path=output_path,
-                        progress_callback=progress_cb
-                    )
-                    generated_successfully = True
-            except Exception as e:
-                logger.warning(f"Real generation failed or ReelGenerator not available: {e}. Falling back to sample video.")
-        
-        if not generated_successfully:
-            update_job_record(job_id, {"progress": 60})
-            time.sleep(1.0)
+        if job_type == "repurpose" and files and len(files) > 0:
+            import shutil
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            shutil.copy2(files[0], output_path)
             update_job_record(job_id, {"progress": 85})
-            time.sleep(1.0)
+        elif files and len(files) > 0 and job_type in ["reel_generation", "narrative_generation"]:
+            audio_path = None
+            if audio_url:
+                try:
+                    upload_dir = f"uploads/{job_id}"
+                    os.makedirs(upload_dir, exist_ok=True)
+                    audio_path = os.path.join(upload_dir, "audio.mp3")
+                    resp = requests.get(audio_url, timeout=15)
+                    resp.raise_for_status()
+                    with open(audio_path, "wb") as f:
+                        f.write(resp.content)
+                except Exception as ae:
+                    logger.warning(f"Failed to download audio track: {ae}")
+                    audio_path = None
             
-            if job_type == "repurpose" and files and len(files) > 0:
-                import shutil
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                shutil.copy2(files[0], output_path)
-            else:
-                sample_urls = [
-                    "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/ForBiggerBlazes.mp4",
-                    "https://assets.mixkit.co/videos/preview/mixkit-drones-eye-view-of-a-harbour-city-43283-large.mp4"
-                ]
-                downloaded = False
-                os.makedirs(os.path.dirname(output_path), exist_ok=True)
-                for s_url in sample_urls:
-                    try:
-                        resp = requests.get(s_url, timeout=10)
-                        resp.raise_for_status()
-                        with open(output_path, "wb") as f:
-                            f.write(resp.content)
-                        downloaded = True
-                        break
-                    except Exception as de:
-                        logger.warning(f"Failed to download sample video from {s_url}: {de}")
+            if not ReelGenerator:
+                raise RuntimeError("ReelGenerator dependencies are not available")
                 
-                if not downloaded:
-                    with open(output_path, "wb") as f:
-                        f.write(b"dummy mp4 content")
+            generator = ReelGenerator()
+            def progress_cb(pct: int):
+                scaled = 30 + int(pct * 0.6)
+                update_job_record(job_id, {"progress": scaled})
+            
+            generator.generate_reel(
+                image_paths=files,
+                audio_path=audio_path,
+                output_path=output_path,
+                progress_callback=progress_cb
+            )
+        else:
+            raise ValueError(f"No valid files provided or unsupported job type: {job_type}")
             
         update_job_record(job_id, {
             "status": "complete",
@@ -2040,8 +2013,8 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
                 pass
 
         stats = {
-            "total_earnings": total_earnings or 42500, # default/starting demo stat if 0
-            "active_partnerships": active_deals or 1,
+            "total_earnings": total_earnings,
+            "active_partnerships": active_deals,
             "pending_applications": len(user_apps)
         }
 
@@ -2116,46 +2089,7 @@ def get_collab_matches(user_email: str, request: Request, current_user_email: st
             except Exception:
                 pass
 
-        # Fallback pre-populated matches to look rich
-        if not profiles or len(profiles) < 2:
-            profiles = [
-                {
-                    "user_email": "priya@trendrop.app",
-                    "instagram_username": "priya.dances",
-                    "niche": "dance",
-                    "followers": 125000,
-                    "engagement_rate": 6.8,
-                    "trend_score": 94,
-                    "portfolio_links": ["https://instagram.com/priya.dances"]
-                },
-                {
-                    "user_email": "kabir@trendrop.app",
-                    "instagram_username": "kabir.fits",
-                    "niche": "fitness",
-                    "followers": 84000,
-                    "engagement_rate": 5.2,
-                    "trend_score": 88,
-                    "portfolio_links": ["https://instagram.com/kabir.fits"]
-                },
-                {
-                    "user_email": "aanya@trendrop.app",
-                    "instagram_username": "aanya.style",
-                    "niche": "fashion",
-                    "followers": 210000,
-                    "engagement_rate": 7.4,
-                    "trend_score": 96,
-                    "portfolio_links": ["https://instagram.com/aanya.style"]
-                },
-                {
-                    "user_email": "rohan@trendrop.app",
-                    "instagram_username": "rohan.travels",
-                    "niche": "travel",
-                    "followers": 95000,
-                    "engagement_rate": 5.9,
-                    "trend_score": 90,
-                    "portfolio_links": ["https://instagram.com/rohan.travels"]
-                }
-            ]
+
 
         # Fetch collab requests sent by this user
         sent_requests = set()

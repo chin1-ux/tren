@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { X, CheckCircle } from "lucide-react";
+import { X, CheckCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { subscribe } from "@/lib/api";
 
@@ -42,6 +42,8 @@ export function OnboardingFlow({ onComplete }: Props) {
 
   const [agreeToS, setAgreeToS] = useState(false);
   const [agreeEmails, setAgreeEmails] = useState(true);
+  const [nicheSearch, setNicheSearch] = useState("");
+  const [langSearch, setLangSearch] = useState("");
 
   // Pre-fill email from localStorage
   useEffect(() => {
@@ -141,19 +143,29 @@ export function OnboardingFlow({ onComplete }: Props) {
               <h2 className="font-display text-2xl font-bold">Pick your vibe 🎨</h2>
               <p className="mt-1 text-sm text-muted-foreground">What kind of content do you create?</p>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-5 gap-2">
-              {NICHES.map((n) => (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search niches..."
+                value={nicheSearch}
+                onChange={(e) => setNicheSearch(e.target.value)}
+                className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar">
+              {NICHES.filter(n => n.label.toLowerCase().includes(nicheSearch.toLowerCase())).map((n) => (
                 <button
                   key={n.id}
                   onClick={() => setNiche(n.id)}
-                  className={`flex flex-col items-center gap-1 rounded-xl p-2 text-center transition-all ${
+                  className={`flex items-center gap-2.5 rounded-xl p-2.5 transition-all text-left border ${
                     niche === n.id
-                      ? "bg-primary/20 border border-primary text-primary"
-                      : "bg-muted/50 border border-transparent text-muted-foreground hover:border-border"
+                      ? "bg-primary/20 border-primary text-primary font-bold"
+                      : "bg-muted/50 border-transparent text-muted-foreground hover:border-border"
                   }`}
                 >
-                  <span className="text-xl">{n.emoji}</span>
-                  <span className="text-[10px] font-semibold leading-tight truncate w-full">{n.label}</span>
+                  <span className="text-lg">{n.emoji}</span>
+                  <span className="text-xs font-semibold leading-tight truncate">{n.label}</span>
                 </button>
               ))}
             </div>
@@ -175,19 +187,29 @@ export function OnboardingFlow({ onComplete }: Props) {
               <h2 className="font-display text-2xl font-bold">Your language? 🌍</h2>
               <p className="mt-1 text-sm text-muted-foreground">We'll show you trends in your language first.</p>
             </div>
-            <div className="grid grid-cols-3 sm:grid-cols-4 gap-2">
-              {LANGUAGES.map((l) => (
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search languages..."
+                value={langSearch}
+                onChange={(e) => setLangSearch(e.target.value)}
+                className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-4 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar">
+              {LANGUAGES.filter(l => l.label.toLowerCase().includes(langSearch.toLowerCase())).map((l) => (
                 <button
                   key={l.code}
                   onClick={() => setLanguage(l.code)}
-                  className={`flex flex-col items-center gap-1 rounded-xl p-2.5 text-center transition-all ${
+                  className={`flex items-center gap-2.5 rounded-xl p-2.5 transition-all text-left border ${
                     language === l.code
-                      ? "bg-primary/20 border border-primary text-primary"
-                      : "bg-muted/50 border border-transparent text-muted-foreground hover:border-border"
+                      ? "bg-primary/20 border-primary text-primary font-bold"
+                      : "bg-muted/50 border-transparent text-muted-foreground hover:border-border"
                   }`}
                 >
-                  <span className="text-xl">{l.emoji}</span>
-                  <span className="text-[10px] font-semibold truncate w-full">{l.label}</span>
+                  <span className="text-lg">{l.emoji}</span>
+                  <span className="text-xs font-semibold leading-tight truncate">{l.label}</span>
                 </button>
               ))}
             </div>

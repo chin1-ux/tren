@@ -63,23 +63,23 @@ export function InstallBanner() {
 
   return (
     <div className="fixed inset-x-0 bottom-20 z-50 mx-auto flex w-full max-w-md justify-center px-4 animate-in slide-in-from-bottom-8 duration-300">
-      <div className="w-full rounded-2xl border border-white/10 bg-[#15151c] p-4 shadow-2xl">
+      <div className="w-full rounded-2xl border border-border bg-card p-4 shadow-2xl">
         <div className="flex items-start gap-3">
-          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[#E63946] text-white font-bold">
+          <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-primary text-white font-bold">
             T
           </div>
           <div className="flex-1">
-            <h3 className="text-sm font-semibold text-white">
+            <h3 className="text-sm font-semibold text-foreground">
               Install Trendrop on your home screen
             </h3>
-            <p className="mt-0.5 text-xs text-[#888888]">
+            <p className="mt-0.5 text-xs text-muted-foreground">
               Get instant trend alerts
             </p>
           </div>
           <button
             onClick={dismiss}
             aria-label="Dismiss"
-            className="rounded-full p-1 text-[#888888] hover:bg-white/5 hover:text-white"
+            className="rounded-full p-1 text-muted-foreground hover:bg-muted hover:text-foreground"
           >
             <X className="h-4 w-4" />
           </button>
@@ -87,13 +87,13 @@ export function InstallBanner() {
         <div className="mt-3 flex gap-2">
           <button
             onClick={dismiss}
-            className="flex-1 rounded-xl border border-white/10 px-4 py-2.5 text-sm font-medium text-white hover:bg-white/5"
+            className="flex-1 rounded-xl border border-border px-4 py-2.5 text-sm font-medium text-foreground hover:bg-muted"
           >
             Not now
           </button>
           <button
             onClick={install}
-            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-[#E63946] px-4 py-2.5 text-sm font-semibold text-white hover:bg-[#E63946]/90"
+            className="flex flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 py-2.5 text-sm font-semibold text-white hover:bg-primary/90"
           >
             <Download className="h-4 w-4" />
             Install

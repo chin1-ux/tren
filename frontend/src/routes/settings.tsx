@@ -145,7 +145,11 @@ function SettingsPage() {
 
   const replayTutorial = () => {
     localStorage.removeItem("trendrop_visited");
-    toast.success("Tutorial reset! Return to the Home tab to experience the walkthrough tutorial.");
+    localStorage.removeItem("trendrop_tutorial_done");
+    toast.success("Tutorial reset! Redirecting to dashboard...");
+    setTimeout(() => {
+      window.location.href = "/";
+    }, 1000);
   };
 
   // Filter languages and niches based on search

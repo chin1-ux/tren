@@ -17,7 +17,7 @@ function TermsPage() {
       {/* Header */}
       <header className="flex items-center gap-3">
         <Link
-          to="/profile"
+          to="/settings"
           className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/60 border border-border text-foreground hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -94,10 +94,10 @@ function TermsPage() {
 
       <div className="text-center">
         <Link
-          to="/profile"
+          to="/settings"
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors underline"
         >
-          Return to Profile
+          Return to Settings
         </Link>
       </div>
     </div>

@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Sparkles, Trophy, Lightbulb, Target, Info, Check, Share2, ClipboardList, PenTool, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
@@ -82,7 +83,7 @@ function StudioPage() {
       headers["Authorization"] = `Bearer ${token}`;
     }
     try {
-      const res = await fetch("/api/prepost-score", {
+      const res = await apiFetch("/api/prepost-score", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -131,7 +132,7 @@ function StudioPage() {
       headers["Authorization"] = `Bearer ${token}`;
     }
     try {
-      const res = await fetch("/api/generate-hooks", {
+      const res = await apiFetch("/api/generate-hooks", {
         method: "POST",
         headers,
         body: JSON.stringify({
@@ -174,7 +175,7 @@ function StudioPage() {
       headers["Authorization"] = `Bearer ${token}`;
     }
     try {
-      const res = await fetch("/api/seo-caption", {
+      const res = await apiFetch("/api/seo-caption", {
         method: "POST",
         headers,
         body: JSON.stringify({

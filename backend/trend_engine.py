@@ -435,7 +435,6 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 india_use_count = sum(
                     1 for r in group_reels if r.get("creator_country") == "IN"
                 )
-                india_use_count = max(india_use_count, int(audio_use_count * 0.08))
 
                 # Saturation percentages
                 global_sat = round(min(100.0, (audio_use_count / 100_000) * 100), 1)

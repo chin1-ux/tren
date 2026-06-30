@@ -3,12 +3,12 @@ import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Globe } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchCrossCulturalTrends, type UiTrend } from "@/lib/api";
-import { FilterPills } from "@/components/FilterPills";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
 import { OnboardingFlow } from "@/components/OnboardingFlow";
+import { FeatureTutorial } from "@/components/FeatureTutorial";
 import { ParticleBackground } from "@/components/ParticleBackground";
 import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { toast } from "sonner";
@@ -53,22 +53,22 @@ type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
-  const [filter] = useState<string>("All");
-  const [language] = useState<string>(() => {
+  const [language] = useState<any>(() => {
     if (typeof window === "undefined") return "all";
     return localStorage.getItem("trendrop_pref_language") ?? "all";
   });
   const [feedTab, setFeedTab] = useState<FeedTab>("rising");
-  const [sortMode] = useState<SortMode>("velocity");
+  const [sortMode] = useState<any>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showOnboarding, setShowOnboarding] = useState(false);
+  const [showTutorial, setShowTutorial] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
 
   // Niche filter — read from preferences
-  const [selectedNiche] = useState<string>(() => {
+  const [selectedNiche] = useState<any>(() => {
     if (typeof window === "undefined") return "all";
     return localStorage.getItem("trendrop_pref_niche") ?? "all";
   });
@@ -79,6 +79,11 @@ function TrendsFeed() {
     if (!visited) {
       setShowOnboarding(true);
       localStorage.setItem("trendrop_visited", "1");
+    } else {
+      const tutorialDone = localStorage.getItem("trendrop_tutorial_done");
+      if (!tutorialDone) {
+        setShowTutorial(true);
+      }
     }
   }, []);
 
@@ -143,16 +148,15 @@ function TrendsFeed() {
 
   const trends = useMemo(() => {
     const list = activeData ?? [];
-    const byCategory = filter === "All" ? list : list.filter((t) => t.category?.toLowerCase() === filter.toLowerCase());
-    if (!searchQuery.trim()) return byCategory;
+    if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
-    return byCategory.filter(
+    return list.filter(
       (t) =>
         t.song?.toLowerCase().includes(q) ||
         t.artist?.toLowerCase().includes(q) ||
         t.contentType?.toLowerCase().includes(q)
     );
-  }, [activeData, filter, searchQuery]);
+  }, [activeData, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -277,7 +281,7 @@ function TrendsFeed() {
 
         {isError && (
           <div className="space-y-2">
-            <ApiErrorBanner />
+            <ApiErrorBanner message={(risingError as any)?.message || (emergingError as any)?.message || "Service temporarily unavailable"} />
             <button onClick={() => refetch()} className="text-xs font-semibold text-primary underline">
               Try again
             </button>
@@ -326,13 +330,13 @@ function TrendsFeed() {
               <div key={i} className="shrink-0 w-52 h-36 rounded-2xl bg-muted/40 animate-pulse" />
             ))}
           </div>
-        ) : !crossCulturalData || crossCulturalData.length === 0 ? (
+        ) : !crossCulturalData || (crossCulturalData as any).length === 0 ? (
           <div className="mx-4 rounded-2xl border border-border/30 p-5 text-center text-xs text-muted-foreground">
             No global cross-cultural trends detected yet.
           </div>
         ) : (
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 pb-3">
-            {crossCulturalData.map((reel: any) => {
+            {(crossCulturalData as any[]).map((reel: any) => {
               const indiaPct = reel.india_saturation_pct ?? 0;
               const originFlag: Record<string, string> = {
                 US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
@@ -408,7 +412,15 @@ function TrendsFeed() {
       </div>
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
-      {showOnboarding && <OnboardingFlow onComplete={() => setShowOnboarding(false)} />}
+      {showOnboarding && (
+        <OnboardingFlow
+          onComplete={() => {
+            setShowOnboarding(false);
+            setShowTutorial(true);
+          }}
+        />
+      )}
+      {showTutorial && <FeatureTutorial onClose={() => setShowTutorial(false)} />}
 
 
     </div>
