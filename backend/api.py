@@ -98,7 +98,13 @@ except Exception as e:
     def get_current_user():
         raise HTTPException(status_code=401, detail="Authentication not configured")
     def get_admin_user():
-        raise HTTPException(status_code=401, detail="Admin authentication not configured")
+        raise HTTPException(status_code=401, detail="Authentication not configured")
+
+try:
+    from instagram_oauth import InstagramOAuth
+except Exception as e:
+    logger.warning(f"InstagramOAuth import failed: {e}")
+    InstagramOAuth = None
 
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
@@ -2161,5 +2167,165 @@ def send_collab_request(req: CollabRequest, request: Request, current_user_email
     except Exception as e:
         logger.error(f"Error in POST /api/send-collab-request: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ── Instagram OAuth Endpoints ───────────────────────────────────────────────
+
+class InstagramAuthRequest(BaseModel):
+    user_email: str
+
+class InstagramCallbackRequest(BaseModel):
+    code: str
+    user_email: str
+
+@app.post("/api/instagram/auth-url")
+@limiter.limit("15/minute")
+def get_instagram_auth_url(req: InstagramAuthRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+    """Generate Instagram OAuth authorization URL for the user."""
+    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot generate auth URL for another user")
+    
+    if not InstagramOAuth:
+        raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
+    
+    try:
+        # Generate a state parameter for CSRF protection
+        state = secrets.token_urlsafe(16)
+        
+        auth_url = InstagramOAuth.get_auth_url(state=state)
+        
+        logger.info(f"Generated Instagram auth URL for user: {req.user_email}")
+        return {"auth_url": auth_url, "state": state}
+    except Exception as e:
+        logger.error(f"Error generating Instagram auth URL: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to generate auth URL")
+
+@app.post("/api/instagram/callback")
+@limiter.limit("15/minute")
+def instagram_callback(req: InstagramCallbackRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+    """Handle Instagram OAuth callback and store the token."""
+    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
+        raise HTTPException(status_code=403, detail="Forbidden: Cannot handle callback for another user")
+    
+    if not InstagramOAuth:
+        raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
+    
+    try:
+        # Exchange code for short-lived token
+        token_data = InstagramOAuth.exchange_code_for_token(req.code)
+        short_lived_token = token_data.get("access_token")
+        
+        if not short_lived_token:
+            raise HTTPException(status_code=400, detail="Failed to obtain access token")
+        
+        # Exchange for long-lived token (60 days)
+        long_lived_data = InstagramOAuth.get_long_lived_token(short_lived_token)
+        long_lived_token = long_lived_data.get("access_token")
+        
+        if not long_lived_token:
+            raise HTTPException(status_code=400, detail="Failed to obtain long-lived token")
+        
+        # Get Instagram Business Account
+        ig_account = InstagramOAuth.get_instagram_business_account(long_lived_token)
+        
+        if not ig_account:
+            raise HTTPException(status_code=400, detail="No Instagram Business Account found. Please ensure you have a Business/Creator account connected to a Facebook Page.")
+        
+        ig_account_id = ig_account.get("id")
+        ig_username = ig_account.get("username")
+        
+        # Store token in Supabase
+        stored = InstagramOAuth.store_token(
+            user_email=req.user_email,
+            token_data={"access_token": long_lived_token, "token_type": "long-lived"},
+            ig_account_id=ig_account_id
+        )
+        
+        if not stored:
+            raise HTTPException(status_code=500, detail="Failed to store token")
+        
+        logger.info(f"Successfully connected Instagram account for user: {req.user_email}")
+        return {
+            "success": True,
+            "message": "Instagram account connected successfully",
+            "ig_username": ig_username,
+            "ig_account_id": ig_account_id
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error in Instagram callback: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to connect Instagram account")
+
+@app.get("/api/instagram/insights")
+@limiter.limit("30/minute")
+def get_instagram_insights(request: Request, current_user_email: str = Depends(get_current_user)):
+    """Fetch Instagram Insights for the authenticated user."""
+    if not InstagramOAuth:
+        raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
+    
+    try:
+        # Get user's Instagram token
+        token_record = InstagramOAuth.get_user_token(current_user_email)
+        
+        if not token_record:
+            raise HTTPException(status_code=404, detail="No Instagram account connected. Please connect your account first.")
+        
+        access_token = token_record.get("access_token")
+        ig_account_id = token_record.get("ig_account_id")
+        
+        if not access_token or not ig_account_id:
+            raise HTTPException(status_code=400, detail="Invalid token data")
+        
+        # Fetch insights metrics
+        metrics = ["impressions", "reach", "engagement", "follower_count", "profile_views"]
+        insights_data = InstagramOAuth.get_insights(
+            access_token=access_token,
+            ig_account_id=ig_account_id,
+            metrics=metrics,
+            period="day"
+        )
+        
+        if not insights_data or "data" not in insights_data:
+            raise HTTPException(status_code=500, detail="Failed to fetch insights from Instagram")
+        
+        # Parse insights data
+        insights = {}
+        for item in insights_data["data"]:
+            metric_name = item.get("name")
+            values = item.get("values", [])
+            if values:
+                insights[metric_name] = values[0].get("value", 0)
+        
+        logger.info(f"Successfully fetched insights for user: {current_user_email}")
+        return {
+            "success": True,
+            "insights": insights,
+            "ig_username": token_record.get("ig_username"),
+            "last_updated": token_record.get("updated_at")
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error fetching Instagram insights: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to fetch Instagram insights")
+
+@app.delete("/api/instagram/disconnect")
+@limiter.limit("10/minute")
+def disconnect_instagram(request: Request, current_user_email: str = Depends(get_current_user)):
+    """Disconnect Instagram account for the user."""
+    if not InstagramOAuth:
+        raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
+    
+    try:
+        if supabase:
+            supabase.table("instagram_tokens").delete().eq("user_email", current_user_email).execute()
+            logger.info(f"Disconnected Instagram account for user: {current_user_email}")
+            return {"success": True, "message": "Instagram account disconnected successfully"}
+        else:
+            raise HTTPException(status_code=500, detail="Database not configured")
+    except Exception as e:
+        logger.error(f"Error disconnecting Instagram account: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to disconnect Instagram account")
 
 
