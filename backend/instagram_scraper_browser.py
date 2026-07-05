@@ -41,7 +41,7 @@ class InstagramScraperBrowser:
         script_dir = os.path.dirname(os.path.abspath(__file__))
         load_dotenv(os.path.join(script_dir, ".env"))
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)

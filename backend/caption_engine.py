@@ -32,7 +32,7 @@ class CaptionEngine:
             load_dotenv(os.path.join(script_dir, ".env"))
 
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
         self.gemini_key = None
 
         if not self.supabase_url or not self.supabase_key:

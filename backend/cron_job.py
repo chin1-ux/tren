@@ -45,7 +45,7 @@ def _get_supabase():
         script_dir = os.path.dirname(os.path.abspath(__file__))
         load_dotenv(os.path.join(script_dir, ".env"))
     url = os.getenv("SUPABASE_URL")
-    key = os.getenv("SUPABASE_KEY")
+    key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
     return create_client(url, key)
 
 
