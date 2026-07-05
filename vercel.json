@@ -1,4 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm install && npm run build && cp -r .vercel/output ../.vercel/output && cd .. && python inject_routes.py"
+  "buildCommand": "python inject_routes.py"
 }
