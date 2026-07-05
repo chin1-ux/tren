@@ -16,19 +16,27 @@ logging.basicConfig(
     ]
 )
 
-try:
-    import schedule
-    import time
-    from instagram_scraper import InstagramScraper
-    from youtube_scraper import YouTubeScraper
-    from trend_engine import TrendEngine
-    from trend_refresher import TrendRefresher
-    from alert_system import AlertSystem
-    from supabase import create_client
-    from dotenv import load_dotenv
-except Exception as import_err:
-    logging.critical(f"Failed to import modules: {import_err}", exc_info=True)
-    raise
+# Imports for pipeline
+import schedule
+import time
+from youtube_scraper import YouTubeScraper
+from trend_engine import TrendEngine
+from trend_refresher import TrendRefresher
+from alert_system import AlertSystem
+from supabase import create_client
+from dotenv import load_dotenv
+
+# Determine which Instagram scraper backend to use
+SCRAPER_BACKEND = os.getenv("SCRAPER_BACKEND", "apify")
+if SCRAPER_BACKEND == "browser_use":
+    try:
+        from instagram_scraper_browser import InstagramScraper as InstagramScraper
+        logging.info("Using browser-use Instagram scraper backend.")
+    except Exception as e:
+        logging.error(f"Failed to import InstagramScraperBrowser: {e}. Falling back to Apify scraper.")
+        from instagram_scraper import InstagramScraper as InstagramScraper
+else:
+    from instagram_scraper import InstagramScraper as InstagramScraper
 
 
 def _get_supabase():
@@ -57,7 +65,7 @@ def run_full_pipeline():
 
     # ── 2. YouTube Scraper ────────────────────────────────────────────────────
     try:
-        logging.info("Step 2/5: Scraping YouTube trending Shorts...")
+        logging.info("Step trending Shorts...")
         yt = YouTubeScraper()
         yt.scrape_trending_shorts()
         logging.info("Step 2/5: YouTube scraping complete.")

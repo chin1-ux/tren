@@ -1,17 +1,20 @@
 # Environments
 .env
+.env.*
 backend/.env
 
 # Python
 **/__pycache__/
 **/*.pyc
+**/*.pyo
 venv/
+.venv/
 backend/venv/
+backend/.venv/
 
 # Logs
 *.log
 backend/*.log
-**/*.log
 
 # Media / Uploads / Outputs
 uploads/
@@ -19,5 +22,17 @@ outputs/
 backend/uploads/
 backend/outputs/
 
-.vercel
-.env*
+# Large generated data files
+health_check.json
+trends_output.json
+api.log
+
+# Vercel build artifacts
+.vercel/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store

@@ -2,9 +2,9 @@ import os
 from dotenv import load_dotenv
 from supabase import create_client
 
-# Load environment variables
-env_path = r"c:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\.env"
-load_dotenv(env_path)
+# Load environment variables portably (works on any OS and on Vercel)
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
+load_dotenv()
 
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
