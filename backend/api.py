@@ -905,6 +905,132 @@ def subscribe(request: Request, req: SubscribeRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+# ── Razorpay Payment ────────────────────────────────────────────────────────────
+
+import hmac
+import hashlib
+
+RAZORPAY_KEY_ID     = os.getenv("RAZORPAY_KEY_ID", "")
+RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
+# ₹999/month in paise (100 paise = ₹1)
+PRO_AMOUNT_PAISE = 99900
+PRO_CURRENCY     = "INR"
+
+
+class CreateOrderRequest(BaseModel):
+    email: EmailStr
+
+
+class PaymentWebhookRequest(BaseModel):
+    razorpay_order_id:   str
+    razorpay_payment_id: str
+    razorpay_signature:  str
+    email:               EmailStr
+
+
+@app.post("/api/payment/create-order")
+@limiter.limit("10/minute")
+def create_payment_order(request: Request, req: CreateOrderRequest):
+    """
+    Create a Razorpay order for the Pro Creator plan (₹999/month).
+    Returns order_id, amount, currency, and key_id for the Razorpay checkout widget.
+    """
+    if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured. Contact support.")
+
+    try:
+        import razorpay  # type: ignore
+    except ImportError:
+        raise HTTPException(status_code=503, detail="Razorpay library not installed on server.")
+
+    try:
+        client = razorpay.Client(auth=(RAZORPAY_KEY_ID, RAZORPAY_KEY_SECRET))
+        order = client.order.create({
+            "amount":   PRO_AMOUNT_PAISE,
+            "currency": PRO_CURRENCY,
+            "receipt":  f"trendrop_pro_{req.email[:30]}",
+            "notes": {
+                "email": req.email,
+                "plan":  "pro_creator",
+            }
+        })
+        logger.info(f"Razorpay order created: {order['id']} for {req.email}")
+        return {
+            "order_id": order["id"],
+            "amount":   order["amount"],
+            "currency": order["currency"],
+            "key_id":   RAZORPAY_KEY_ID,
+        }
+    except Exception as e:
+        logger.error(f"Razorpay order creation failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Could not create payment order. Please try again.")
+
+
+@app.post("/api/payment/webhook")
+@limiter.limit("20/minute")
+def payment_webhook(request: Request, req: PaymentWebhookRequest):
+    """
+    Verify Razorpay payment signature and upgrade the user plan to 'pro'.
+    This is the ONLY server-side path that grants Pro access.
+    The signature check prevents any client-side forgery.
+    """
+    if not RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured.")
+
+    # ── Signature verification (HMAC-SHA256) ───────────────────────────────────
+    payload      = f"{req.razorpay_order_id}|{req.razorpay_payment_id}"
+    expected_sig = hmac.new(
+        RAZORPAY_KEY_SECRET.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(expected_sig, req.razorpay_signature):
+        logger.warning(f"Invalid Razorpay signature for order {req.razorpay_order_id} / email {req.email}")
+        raise HTTPException(status_code=400, detail="Payment verification failed — invalid signature.")
+
+    # ── Signature valid — upgrade plan ─────────────────────────────────────────
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured.")
+
+    try:
+        supabase.table("users").upsert(
+            {
+                "email": req.email,
+                "plan":  "pro",
+                "razorpay_payment_id": req.razorpay_payment_id,
+                "razorpay_order_id":   req.razorpay_order_id,
+            },
+            on_conflict="email"
+        ).execute()
+        logger.info(f"Plan upgraded to pro for {req.email} | payment {req.razorpay_payment_id}")
+        return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
+    except Exception as e:
+        logger.error(f"Plan upgrade DB write failed for {req.email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Payment verified but plan upgrade failed. Contact support.")
+
+
+@app.get("/api/user/plan")
+@limiter.limit("30/minute")
+def get_user_plan(request: Request, email: str, current_user: str = Depends(get_current_user)):
+    """
+    Return the server-side plan for the given email.
+    Frontend MUST use this (not localStorage) to gate Pro features.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured.")
+    try:
+        res = supabase.table("users").select("plan").eq("email", email).execute()
+        if not res.data:
+            return {"plan": "free"}
+        return {"plan": res.data[0].get("plan", "free")}
+    except Exception as e:
+        logger.error(f"get_user_plan failed for {email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
+
 @app.get("/api/reels/feed")
 @limiter.limit("30/minute")
 def get_user_reels_feed(request: Request, current_user: str = Depends(get_current_user)):

@@ -132,6 +132,7 @@ def run_video_generation_job(job_id: str, job_type: str, trend_id: str, files: l
         update_job_progress(job_id, 85, "processing")
         
         # 2.4 FILE STORAGE: Upload to Supabase Storage outputs bucket
+        storage_ok = False
         try:
             with open(output_path, "rb") as f:
                 file_content = f.read()
@@ -148,13 +149,21 @@ def run_video_generation_job(job_id: str, job_type: str, trend_id: str, files: l
                 output_url = signed_res["signedURL"]
             else:
                 output_url = f"{SUPABASE_URL}/storage/v1/object/public/outputs/{bucket_path}"
+            storage_ok = True
         except Exception as upload_err:
             logger.error(f"Failed to upload generated reel to Supabase Storage: {upload_err}")
-            # Fallback to local URL if storage fails
-            output_url = f"/outputs/{job_id}.mp4"
-            
-        update_job_progress(job_id, 100, "complete", output_url=output_url)
-        logger.info(f"Worker completed job {job_id}")
+            # Do NOT fall back to a local path — it will 404 for the user in production.
+            # Mark the job failed so the frontend shows a clear error state.
+            update_job_progress(
+                job_id, 100, "failed",
+                error_message=f"Video generated but upload failed: {upload_err}. Please retry."
+            )
+            return
+
+        if storage_ok:
+            update_job_progress(job_id, 100, "complete", output_url=output_url)
+            logger.info(f"Worker completed job {job_id}")
     except Exception as err:
         logger.error(f"Worker failed job {job_id}: {err}")
         update_job_progress(job_id, 100, "failed", error_message=str(err))
+
