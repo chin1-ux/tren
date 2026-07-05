@@ -550,6 +550,41 @@ export async function subscribe(body: {
   });
 }
 
+// ── Payment ────────────────────────────────────────────────────────────────────
+
+export interface CreateOrderResponse {
+  order_id: string;
+  amount: number;
+  currency: string;
+  key_id: string;
+}
+
+export async function createPaymentOrder(email: string): Promise<CreateOrderResponse> {
+  return http<CreateOrderResponse>("/api/payment/create-order", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
+export async function verifyPayment(args: {
+  razorpay_order_id: string;
+  razorpay_payment_id: string;
+  razorpay_signature: string;
+  email: string;
+}): Promise<{ success: boolean; plan: string; message: string }> {
+  return http<{ success: boolean; plan: string; message: string }>("/api/payment/webhook", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(args),
+  });
+}
+
+export async function getUserPlan(email: string): Promise<{ plan: string }> {
+  return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
+}
+
+
 export async function submitFeedback(body: {
   trend_id: number;
   feedback_type: string;

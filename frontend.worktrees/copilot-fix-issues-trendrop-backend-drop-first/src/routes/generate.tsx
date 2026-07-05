@@ -8,7 +8,7 @@ import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { 
   fetchTrends, generateReel, generateNarrative, generateFaceless, repurposeVideo, jobStatus, 
-  resolveOutputUrl, type UiTrend 
+  resolveOutputUrl, scoreReel, type UiTrend 
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 
@@ -91,6 +91,7 @@ function GeneratePage() {
   // Custom interactive scoring state
   const [showScoreCard, setShowScoreCard] = useState(false);
   const [scoreDetails, setScoreDetails] = useState<any>(null);
+  const [scoringLoading, setScoringLoading] = useState(false);
 
   // Tab 1: Photos Reel state
   const [photos, setPhotos] = useState<PhotoItem[]>([]);
@@ -193,21 +194,8 @@ function GeneratePage() {
 
         if (res.status === "complete" && res.output_url) {
           setOutputUrl(resolveOutputUrl(res.output_url));
-          
-          // Pre-generate a mock virality scorecard
-          const hookScore = Math.floor(Math.random() * 25) + 70; // 70-95
-          const retentionScore = Math.floor(Math.random() * 30) + 65; // 65-95
-          const audienceFit = Math.floor(Math.random() * 20) + 75; // 75-95
-          const avgScore = Math.round((hookScore + retentionScore + audienceFit) / 3);
-
-          setScoreDetails({
-            overall: avgScore,
-            hook: hookScore,
-            retention: retentionScore,
-            fit: audienceFit,
-            explanation: `This sound is pacing exceptionally high for "${niche || "your niche"}". Beat sync is correct and dynamic text triggers are locked in.`,
-          });
-          
+          // Scorecard is fetched on-demand when the user clicks "Score This Video"
+          setScoreDetails(null);
           setStage("result");
           if (pollTimerRef.current) clearInterval(pollTimerRef.current);
         } else if (res.status === "failed") {
@@ -424,6 +412,7 @@ function GeneratePage() {
                         <img src={p.url} alt="" className="h-full w-full object-cover select-none pointer-events-none" />
                         <button
                           onClick={() => removePhoto(p.id)}
+                          title="Remove photo"
                           className="absolute right-1.5 top-1.5 grid h-6 w-6 place-items-center rounded-lg bg-black/60 text-slate-300 hover:bg-red-500 hover:text-white transition-all backdrop-blur-sm"
                         >
                           <X className="h-3.5 w-3.5" />
@@ -450,6 +439,7 @@ function GeneratePage() {
                     <button
                       key={style.id}
                       onClick={() => setSelectedStyle(style.id)}
+                      title={`Choose ${style.title}`}
                       className={`flex flex-col items-start gap-1 p-3 rounded-xl border text-left transition-all ${
                         selectedStyle === style.id 
                           ? "border-violet-500 bg-violet-600/10" 
@@ -484,6 +474,7 @@ function GeneratePage() {
                     <button
                       key={type}
                       onClick={() => setNarrativeType(type)}
+                      title={`Choose ${NARRATIVE_PRESETS[type].label}`}
                       className={`flex flex-col text-left p-3 rounded-xl border transition-all ${
                         narrativeType === type 
                           ? "border-violet-500 bg-violet-600/10" 
@@ -531,6 +522,7 @@ function GeneratePage() {
                       <img src={p.url} alt="" className="h-full w-full object-cover" />
                       <button
                         onClick={() => removePhoto(p.id, true)}
+                        title="Remove narrative asset"
                         className="absolute right-1 top-1 grid h-5 w-5 place-items-center rounded bg-black/60 text-slate-300 hover:bg-red-500"
                       >
                         <X className="h-3 w-3" />
@@ -589,6 +581,7 @@ function GeneratePage() {
                     <button
                       key={n.id}
                       onClick={() => setNiche(n.id)}
+                      title={`Choose ${n.label}`}
                       className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-bold transition-all ${
                         niche === n.id 
                           ? "border-violet-500 bg-violet-600/10 text-violet-600 dark:text-violet-300" 
@@ -674,6 +667,8 @@ function GeneratePage() {
                         setRepurposeVideoFile(null);
                         setRepurposeVideoUrl(null);
                       }}
+                      title="Remove selected video"
+                      aria-label="Remove selected video"
                       className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-xl bg-black/75 border border-white/10 text-slate-300 hover:text-white"
                     >
                       <X className="h-4 w-4" />
@@ -682,6 +677,8 @@ function GeneratePage() {
                 ) : (
                   <button
                     onClick={() => repurposeInputRef.current?.click()}
+                    title="Select video clip"
+                    aria-label="Select video clip"
                     className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-slate-950 px-6 py-12 transition-colors hover:border-violet-500/40 hover:bg-slate-900/30 group"
                   >
                     <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/5 text-slate-400 group-hover:text-violet-400 group-hover:bg-violet-500/10 transition-all">
@@ -699,9 +696,11 @@ function GeneratePage() {
               <div className="space-y-2">
                 <label className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Select Target Trend Sound</label>
                 <div className="relative">
-                  <select
-                    value={selectedRepurposeTrendId}
-                    onChange={(e) => setSelectedRepurposeTrendId(e.target.value)}
+                    <select
+                      value={selectedRepurposeTrendId}
+                      onChange={(e) => setSelectedRepurposeTrendId(e.target.value)}
+                      aria-label="Select target trend sound"
+                      title="Select target trend sound"
                     className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-violet-500 appearance-none"
                   >
                     {trends && Array.isArray(trends) && trends.map((t) => (
@@ -840,12 +839,41 @@ function GeneratePage() {
             </Button>
           </div>
 
-          {/* Scoring panel toggle */}
+          {/* Scoring panel toggle — calls real /api/score-reel */}
           <Button
-            onClick={() => setShowScoreCard(!showScoreCard)}
+            onClick={async () => {
+              if (showScoreCard) { setShowScoreCard(false); return; }
+              setScoringLoading(true);
+              try {
+                const audio = activeTrend?.song ?? "unknown audio";
+                const postingTime = new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit", hour12: false });
+                const res = await scoreReel({
+                  audio,
+                  caption: `Trending reel using ${audio}`,
+                  posting_time: postingTime,
+                  niche: niche || "general",
+                });
+                setScoreDetails({
+                  overall: Math.round(res.overall_score),
+                  hook: Math.round(res.hook_score),
+                  retention: Math.round(res.audio_score),
+                  fit: Math.round(res.caption_score),
+                  explanation: res.top_fixes?.length
+                    ? `Top fixes: ${res.top_fixes.slice(0, 2).join(" • ")}`
+                    : `Grade ${res.grade} — Audio sync and hook strength are the key drivers.`,
+                });
+                setShowScoreCard(true);
+              } catch {
+                import("sonner").then(({ toast }) => toast.error("Score API unavailable — try again shortly."));
+              } finally {
+                setScoringLoading(false);
+              }
+            }}
+            disabled={scoringLoading}
             className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white rounded-xl shadow-lg"
           >
-            <Star className="h-4 w-4 mr-2 text-amber-300 fill-amber-300" /> Score This Video
+            <Star className="h-4 w-4 mr-2 text-amber-300 fill-amber-300" />
+            {scoringLoading ? "Scoring..." : showScoreCard ? "Hide Score" : "Score This Video"}
           </Button>
 
           {/* Scorecard detail section */}
@@ -863,14 +891,14 @@ function GeneratePage() {
 
               <div className="space-y-3">
                 {/* Hook Score */}
-                <div className="space-y-1">
+                <div className="space-y-3">
                   <div className="flex justify-between text-xs font-semibold">
                     <span className="text-slate-400">Hook Retention Score</span>
                     <span className="text-white">{scoreDetails.hook}%</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-amber-400" style={{ width: `${scoreDetails.hook}%` }} />
-                  </div>
+                      <svg viewBox="0 0 100 6" className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                        <rect x="0" y="0" width={Math.max(0, Math.min(100, scoreDetails.hook))} height="6" rx="3" fill="#fbbf24" />
+                      </svg>
                 </div>
 
                 {/* Audience Fit */}
@@ -879,9 +907,9 @@ function GeneratePage() {
                     <span className="text-slate-400">Creator Fit Score</span>
                     <span className="text-white">{scoreDetails.fit}%</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-violet-400" style={{ width: `${scoreDetails.fit}%` }} />
-                  </div>
+                  <svg viewBox="0 0 100 6" className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                    <rect x="0" y="0" width={Math.max(0, Math.min(100, scoreDetails.fit))} height="6" rx="3" fill="#a78bfa" />
+                  </svg>
                 </div>
 
                 {/* Platform Velocity */}
@@ -890,9 +918,9 @@ function GeneratePage() {
                     <span className="text-slate-400">Audio Sync & Rhythm Fit</span>
                     <span className="text-white">{scoreDetails.retention}%</span>
                   </div>
-                  <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                    <div className="h-full bg-emerald-400" style={{ width: `${scoreDetails.retention}%` }} />
-                  </div>
+                  <svg viewBox="0 0 100 6" className="h-1.5 w-full overflow-hidden rounded-full bg-slate-800" aria-hidden="true">
+                    <rect x="0" y="0" width={Math.max(0, Math.min(100, scoreDetails.retention))} height="6" rx="3" fill="#34d399" />
+                  </svg>
                 </div>
               </div>
 

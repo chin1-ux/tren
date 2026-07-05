@@ -177,12 +177,9 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
                   <span className="text-zinc-400">🌍 Global Saturation</span>
                   <span className="text-white">{Math.round(globalPct)}%</span>
                 </div>
-                <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-orange-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, globalPct)}%` }}
-                  />
-                </div>
+                <svg viewBox="0 0 100 8" className="h-2 w-full overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+                  <rect x="0" y="0" width={Math.max(0, Math.min(100, globalPct))} height="8" rx="4" fill="#f97316" />
+                </svg>
               </div>
 
               <div className="space-y-2">
@@ -197,12 +194,9 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
                     {Math.round(indiaPct)}%
                   </span>
                 </div>
-                <div className="h-2 w-full bg-zinc-800 rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-emerald-500 rounded-full transition-all duration-500"
-                    style={{ width: `${Math.min(100, indiaPct)}%` }}
-                  />
-                </div>
+                <svg viewBox="0 0 100 8" className="h-2 w-full overflow-hidden rounded-full bg-zinc-800" aria-hidden="true">
+                  <rect x="0" y="0" width={Math.max(0, Math.min(100, indiaPct))} height="8" rx="4" fill="#10b981" />
+                </svg>
               </div>
             </div>
 

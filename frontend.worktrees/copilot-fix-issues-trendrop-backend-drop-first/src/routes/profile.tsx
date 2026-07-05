@@ -4,7 +4,7 @@ import {
   User, Users, Mail, Award, Sparkles, ShieldCheck
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { subscribe } from "@/lib/api";
+import { subscribe, createPaymentOrder, verifyPayment, getUserPlan } from "@/lib/api";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
 
@@ -79,7 +79,6 @@ function ProfilePage() {
       const n = localStorage.getItem("trendrop_niche");
       const l = localStorage.getItem("trendrop_language");
       const freq = localStorage.getItem("trendrop_posting_frequency");
-      const p = localStorage.getItem("trendrop_plan");
 
       const nt = localStorage.getItem("trendrop_notify_trend_alerts");
       const nd = localStorage.getItem("trendrop_notify_daily_ideas");
@@ -92,7 +91,6 @@ function ProfilePage() {
       if (n) setNiche(n);
       if (l) setLanguage(l);
       if (freq) setPostingFrequency(freq);
-      if (p) setPlan(p);
 
       if (nt !== null) setNotifyTrendAlerts(nt === "true");
       if (nd !== null) setNotifyDailyIdeas(nd === "true");
@@ -103,6 +101,26 @@ function ProfilePage() {
     sync();
     window.addEventListener("storage", sync);
     window.addEventListener("focus", sync);
+
+    // Sync plan from server (source of truth)
+    const savedEmail = localStorage.getItem("trendrop_email");
+    if (savedEmail) {
+      getUserPlan(savedEmail)
+        .then(({ plan: serverPlan }) => {
+          const displayPlan = serverPlan === "pro" ? "Pro Creator" : "Free Trial";
+          setPlan(displayPlan);
+          localStorage.setItem("trendrop_plan", displayPlan);
+        })
+        .catch(() => {
+          // Fallback to cached value if server is unreachable
+          const p = localStorage.getItem("trendrop_plan");
+          if (p) setPlan(p);
+        });
+    } else {
+      const p = localStorage.getItem("trendrop_plan");
+      if (p) setPlan(p);
+    }
+
     return () => {
       window.removeEventListener("storage", sync);
       window.removeEventListener("focus", sync);
@@ -131,10 +149,10 @@ function ProfilePage() {
       localStorage.setItem("trendrop_notify_daily_ideas", String(notifyDailyIdeas));
       localStorage.setItem("trendrop_notify_brand_deals", String(notifyBrandDeals));
       localStorage.setItem("trendrop_notify_weekly_report", String(notifyWeeklyReport));
-      localStorage.setItem("trendrop_plan", plan);
       
       toast.success("Profile saved successfully! ✓");
     } catch {
+      // Still persist local fields, but be honest that the server sync failed
       localStorage.setItem("trendrop_email", email);
       localStorage.setItem("trendrop_instagram_handle", instagramHandle);
       localStorage.setItem("trendrop_followers", followers);
@@ -145,29 +163,86 @@ function ProfilePage() {
       localStorage.setItem("trendrop_notify_daily_ideas", String(notifyDailyIdeas));
       localStorage.setItem("trendrop_notify_brand_deals", String(notifyBrandDeals));
       localStorage.setItem("trendrop_notify_weekly_report", String(notifyWeeklyReport));
-      localStorage.setItem("trendrop_plan", plan);
       
-      toast.success("Saved locally!");
+      toast.error("Could not sync to server. Preferences saved locally — check your connection.");
     } finally {
       setSaving(false);
     }
   };
 
   const handleUpgrade = async () => {
-    const activeEmail = email || "creator@trendrop.app";
+    const activeEmail = email || localStorage.getItem("trendrop_email") || "";
+    if (!activeEmail.includes("@")) {
+      toast.error("Please save your email address first before upgrading.");
+      return;
+    }
     setUpgrading(true);
     try {
-      const res = await subscribe({ email: activeEmail, niche, language });
-      if (res && res.auth_token) {
-        localStorage.setItem("trendrop_token", res.auth_token);
+      // Step 1 — Create Razorpay order on the backend
+      const order = await createPaymentOrder(activeEmail);
+
+      // Step 2 — Load Razorpay checkout script dynamically
+      await new Promise<void>((resolve, reject) => {
+        if ((window as any).Razorpay) { resolve(); return; }
+        const script = document.createElement("script");
+        script.src = "https://checkout.razorpay.com/v1/checkout.js";
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error("Failed to load Razorpay SDK"));
+        document.head.appendChild(script);
+      });
+
+      // Step 3 — Open checkout modal
+      await new Promise<void>((resolve, reject) => {
+        const rzp = new (window as any).Razorpay({
+          key: order.key_id,
+          amount: order.amount,
+          currency: order.currency,
+          name: "Trendrop",
+          description: "Pro Creator Plan — ₹999/month",
+          order_id: order.order_id,
+          prefill: { email: activeEmail },
+          theme: { color: "#8b5cf6" },
+          handler: async (response: {
+            razorpay_order_id: string;
+            razorpay_payment_id: string;
+            razorpay_signature: string;
+          }) => {
+            try {
+              // Step 4 — Verify payment server-side (HMAC check)
+              const result = await verifyPayment({
+                razorpay_order_id:   response.razorpay_order_id,
+                razorpay_payment_id: response.razorpay_payment_id,
+                razorpay_signature:  response.razorpay_signature,
+                email: activeEmail,
+              });
+              if (result.success) {
+                // Step 5 — Only now update local plan state
+                setPlan("Pro Creator");
+                localStorage.setItem("trendrop_plan", "Pro Creator");
+                toast.success("Welcome to Pro Creator! 🚀 Your plan is now active.");
+                resolve();
+              } else {
+                toast.error("Payment received but verification failed. Please contact support.");
+                reject(new Error("Verification failed"));
+              }
+            } catch (err) {
+              toast.error("Payment verification error. Contact support with your payment ID.");
+              reject(err);
+            }
+          },
+          modal: {
+            ondismiss: () => {
+              toast.info("Payment cancelled.");
+              reject(new Error("Dismissed"));
+            },
+          },
+        });
+        rzp.open();
+      });
+    } catch (err: any) {
+      if (err?.message !== "Dismissed") {
+        toast.error(err?.message || "Upgrade failed. Please try again.");
       }
-      setPlan("Pro Creator");
-      localStorage.setItem("trendrop_plan", "Pro Creator");
-      toast.success("Successfully upgraded to Pro Creator! 🚀");
-    } catch {
-      setPlan("Pro Creator");
-      localStorage.setItem("trendrop_plan", "Pro Creator");
-      toast.success("Upgraded to Pro Creator locally!");
     } finally {
       setUpgrading(false);
     }

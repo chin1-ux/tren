@@ -445,6 +445,8 @@ function ToggleSwitch({
       </div>
       <button
         onClick={() => onChange(!active)}
+        title={title}
+        aria-label={title}
         className={`relative inline-flex h-5 w-9 shrink-0 cursor-pointer rounded-full transition-colors duration-200 ease-in-out focus:outline-none ${
           active ? "bg-primary" : "bg-muted-foreground/35"
         }`}

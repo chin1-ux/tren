@@ -59,7 +59,7 @@ function DashboardPage() {
         </div>
         <div>
           <h1 className="font-display text-2xl font-bold gradient-text">Dashboard</h1>
-          <p className="text-xs text-muted-foreground">Real-time creator performance metrics</p>
+          <p className="text-xs text-muted-foreground">Estimated performance based on your Trendrop activity</p>
         </div>
       </header>
 
@@ -71,7 +71,7 @@ function DashboardPage() {
             <TrendingUp className="h-3.5 w-3.5 text-primary" />
           </div>
           <p className="text-2xl font-extrabold">{viewsEst.toLocaleString()}</p>
-          <p className="text-[10px] text-primary font-semibold">+{reelsCount > 0 ? "24.5%" : "0%"} this week</p>
+          <p className="text-[10px] text-primary font-semibold">{reelsCount > 0 ? "based on trend velocity" : "No reels yet"}</p>
         </div>
 
         <div className="glass-card p-4 space-y-1">

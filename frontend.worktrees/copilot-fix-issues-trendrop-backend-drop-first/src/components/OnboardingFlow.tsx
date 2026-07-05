@@ -51,20 +51,24 @@ export function OnboardingFlow({ onComplete }: Props) {
     if (saved) setEmail(saved);
   }, []);
 
+  const persistLocalSetup = () => {
+    localStorage.setItem("trendrop_email", email);
+    localStorage.setItem("trendrop_niche", niche);
+    localStorage.setItem("trendrop_language", language);
+    localStorage.setItem("trendrop_notify_trend_alerts", String(agreeEmails));
+    localStorage.setItem("trendrop_notify_daily_ideas", String(agreeEmails));
+    localStorage.setItem("trendrop_notify_brand_deals", String(agreeEmails));
+  };
+
   const handleSubmit = async () => {
     if (!email.includes("@") || !agreeToS) return;
     setSubmitting(true);
+    persistLocalSetup();
     try {
       const res = await subscribe({ email, niche: niche || "all", language: language || "en" });
       if (res && res.auth_token) {
         localStorage.setItem("trendrop_token", res.auth_token);
       }
-      localStorage.setItem("trendrop_email", email);
-      localStorage.setItem("trendrop_niche", niche);
-      localStorage.setItem("trendrop_language", language);
-      localStorage.setItem("trendrop_notify_trend_alerts", String(agreeEmails));
-      localStorage.setItem("trendrop_notify_daily_ideas", String(agreeEmails));
-      localStorage.setItem("trendrop_notify_brand_deals", String(agreeEmails));
 
       // Log consents in supabase consent_records
       try {
@@ -98,11 +102,9 @@ export function OnboardingFlow({ onComplete }: Props) {
 
       setDone(true);
       setTimeout(onComplete, 1800);
-    } catch {
-      // Continue even if subscribe fails — don't block the user
-      localStorage.setItem("trendrop_email", email);
-      setDone(true);
-      setTimeout(onComplete, 1800);
+    } catch (err) {
+      toast.error("Could not finish account setup. Your local preferences were saved, but the server sync failed.");
+      console.error("Onboarding subscribe failed:", err);
     } finally {
       setSubmitting(false);
     }
@@ -123,7 +125,7 @@ export function OnboardingFlow({ onComplete }: Props) {
               />
             ))}
           </div>
-          <button onClick={onComplete} className="text-muted-foreground hover:text-foreground">
+          <button onClick={onComplete} aria-label="Close onboarding" title="Close onboarding" className="text-muted-foreground hover:text-foreground">
             <X className="h-5 w-5" />
           </button>
         </div>

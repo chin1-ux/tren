@@ -45,6 +45,8 @@ export function DanceTrendModal({ trend, onClose }: Props) {
           </div>
           <button
             onClick={onClose}
+            title="Close dance guide"
+            aria-label="Close dance guide"
             className="rounded-full bg-white/5 p-2 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
           >
             <X className="h-4 w-4" />
