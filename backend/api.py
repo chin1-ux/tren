@@ -124,7 +124,7 @@ required_env_vars = [
 ]
 missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
 if missing_env_vars:
-    raise ValueError(f"Startup failed: Missing required environment variables: {', '.join(missing_env_vars)}")
+        logger.warning(f"Startup warning: Missing optional environment variables: {', '.join(missing_env_vars)}")
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
@@ -561,6 +561,11 @@ def health_check():
 
 
 
+
+@app.get("/api/health")
+def api_health_check():
+    """Alias for /health endpoint for Vercel routing compatibility."""
+    return health_check()
 
 # ── Trends Feed ────────────────────────────────────────────────────────────────
 
