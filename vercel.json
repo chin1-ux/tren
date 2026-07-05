@@ -1,4 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "python inject_routes.py"
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/[...path]" },
+    { "source": "/(.*)", "destination": "/api/[...path]" }
+  ]
 }
