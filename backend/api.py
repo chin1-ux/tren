@@ -137,8 +137,12 @@ except Exception as e:
 creator_tools = CreatorTools()
 MOCK_JOBS = {}
 
-os.makedirs("uploads", exist_ok=True)
-os.makedirs("outputs", exist_ok=True)
+import tempfile
+base_dir = os.getenv("VERCEL_TMP_DIR", tempfile.gettempdir())
+uploads_path = os.path.join(base_dir, "uploads")
+outputs_path = os.path.join(base_dir, "outputs")
+os.makedirs(uploads_path, exist_ok=True)
+os.makedirs(outputs_path, exist_ok=True)
 
 # Rate limiter
 limiter = Limiter(key_func=get_remote_address)
@@ -399,7 +403,7 @@ def startup_event():
     logger.info("Trendrop API v2.0 started.")
     threading.Thread(target=start_cron_thread, daemon=True).start()
 
-app.mount("/outputs", StaticFiles(directory="outputs"), name="outputs")
+app.mount("/outputs", StaticFiles(directory=outputs_path), name="outputs")
 
 
 # ── Pydantic Models ────────────────────────────────────────────────────────────
