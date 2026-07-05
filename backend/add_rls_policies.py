@@ -20,6 +20,11 @@ STATEMENTS = [
     "DROP POLICY IF EXISTS reels_service_write ON reels",
     "CREATE POLICY reels_public_read ON reels FOR SELECT USING (true)",
     "CREATE POLICY reels_service_write ON reels FOR ALL TO service_role USING (true) WITH CHECK (true)",
+    "ALTER TABLE youtube_shorts ENABLE ROW LEVEL SECURITY",
+    "DROP POLICY IF EXISTS youtube_shorts_public_read ON youtube_shorts",
+    "DROP POLICY IF EXISTS youtube_shorts_service_write ON youtube_shorts",
+    "CREATE POLICY youtube_shorts_public_read ON youtube_shorts FOR SELECT USING (true)",
+    "CREATE POLICY youtube_shorts_service_write ON youtube_shorts FOR ALL TO service_role USING (true) WITH CHECK (true)",
 ]
 
 def main():

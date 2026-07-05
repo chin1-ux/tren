@@ -1,0 +1,37 @@
+import os
+import sys
+from dotenv import load_dotenv
+import psycopg2
+
+load_dotenv()
+
+DB_URL = os.getenv('SUPABASE_DB_URL')
+if not DB_URL:
+    raise RuntimeError('SUPABASE_DB_URL not set')
+
+CREATE_TABLE_SQL = """
+CREATE TABLE IF NOT EXISTS cron_runs (
+    id BIGSERIAL PRIMARY KEY,
+    run_at TIMESTAMPTZ NOT NULL,
+    new_trends_found INTEGER NOT NULL,
+    trend_ids JSONB,
+    status TEXT NOT NULL
+);
+"""
+
+def main():
+    conn = psycopg2.connect(DB_URL)
+    conn.autocommit = True
+    cur = conn.cursor()
+    try:
+        cur.execute(CREATE_TABLE_SQL)
+        print('cron_runs table ensured/created successfully')
+    except Exception as e:
+        print(f'Error creating cron_runs table: {e}', file=sys.stderr)
+        sys.exit(1)
+    finally:
+        cur.close()
+        conn.close()
+
+if __name__ == '__main__':
+    main()
