@@ -27,7 +27,8 @@ class YouTubeScraper:
         
         self.api_key = os.getenv("YOUTUBE_API_KEY")
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
+        # Prefer service‑role key for writes; fallback to anon key
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         
         if not self.api_key:
             logging.error("YOUTUBE_API_KEY is missing from environment variables.")

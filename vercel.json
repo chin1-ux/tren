@@ -5,7 +5,6 @@
   "outputDirectory": ".",
   "framework": null,
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/[...path]" },
-    { "source": "/(.*)", "destination": "/api/[...path]" }
+    { "source": "/api/(.*)", "destination": "/api/[...path]" }
   ]
 }
