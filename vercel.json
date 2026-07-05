@@ -4,7 +4,5 @@
   "installCommand": "pip install -r requirements.txt",
   "outputDirectory": ".",
   "framework": null,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" }
-  ]
+  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/index.py" }]
 }
