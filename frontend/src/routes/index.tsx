@@ -53,10 +53,7 @@ type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
-  const [language] = useState<any>(() => {
-    if (typeof window === "undefined") return "all";
-    return localStorage.getItem("trendrop_pref_language") ?? "all";
-  });
+  const [language, setLanguage] = useState<string>("all");
   const [feedTab, setFeedTab] = useState<FeedTab>("rising");
   const [sortMode] = useState<any>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
@@ -68,13 +65,15 @@ function TrendsFeed() {
   const prevCountRef = useRef<number>(0);
 
   // Niche filter — read from preferences
-  const [selectedNiche] = useState<any>(() => {
-    if (typeof window === "undefined") return "all";
-    return localStorage.getItem("trendrop_pref_niche") ?? "all";
-  });
+  const [selectedNiche, setSelectedNiche] = useState<string>("all");
 
   // Check if first visit → show onboarding
   useEffect(() => {
+    if (typeof window !== "undefined") {
+      setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
+      setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
+    }
+
     const visited = localStorage.getItem("trendrop_visited");
     if (!visited) {
       setShowOnboarding(true);

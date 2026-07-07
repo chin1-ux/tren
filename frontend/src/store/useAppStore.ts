@@ -8,7 +8,8 @@ interface UserState {
   language: string | null;
   authToken: string | null;
   isOnboarded: boolean;
-  setUser: (user: Partial<Omit<UserState, "setUser" | "logout">>) => void;
+  initializeFromLocalStorage: () => void;
+  setUser: (user: Partial<Omit<UserState, "setUser" | "logout" | "initializeFromLocalStorage">>) => void;
   logout: () => void;
 }
 
@@ -36,11 +37,23 @@ interface GenerateState {
 }
 
 export const useUserStore = create<UserState>((set) => ({
-  email: typeof window !== "undefined" ? localStorage.getItem("trendrop_email") : null,
-  niche: typeof window !== "undefined" ? localStorage.getItem("trendrop_niche") : null,
-  language: typeof window !== "undefined" ? localStorage.getItem("trendrop_language") : null,
-  authToken: typeof window !== "undefined" ? localStorage.getItem("trendrop_token") : null,
-  isOnboarded: typeof window !== "undefined" ? localStorage.getItem("trendrop_onboarded") === "true" : false,
+  email: null,
+  niche: null,
+  language: null,
+  authToken: null,
+  isOnboarded: false,
+
+  initializeFromLocalStorage: () => {
+    if (typeof window !== "undefined") {
+      const email = localStorage.getItem("trendrop_email");
+      const niche = localStorage.getItem("trendrop_niche");
+      const language = localStorage.getItem("trendrop_language");
+      const authToken = localStorage.getItem("trendrop_token");
+      const isOnboarded = localStorage.getItem("trendrop_onboarded") === "true";
+      set({ email, niche, language, authToken, isOnboarded });
+      if (authToken) setAuthToken(authToken);
+    }
+  },
 
   setUser: (updates) =>
     set((state) => {

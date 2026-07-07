@@ -17,6 +17,7 @@ import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomTabBar } from "../components/BottomTabBar";
 import { InstallBanner } from "../components/InstallBanner";
 import { registerPWA } from "../lib/pwa-register";
+import { useUserStore } from "../store/useAppStore";
 
 function NotFoundComponent() {
   return (
@@ -118,15 +119,7 @@ function RootComponent() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
 
-  const [theme, setTheme] = useState<"light" | "dark">(() => {
-    if (typeof window !== "undefined") {
-      const savedTheme = localStorage.getItem("trendrop_theme");
-      if (savedTheme === "dark" || savedTheme === "light") {
-        return savedTheme;
-      }
-    }
-    return "light";
-  });
+  const [theme, setTheme] = useState<"light" | "dark">("light");
 
   useEffect(() => {
     const body = document.body;
@@ -146,12 +139,16 @@ function RootComponent() {
   }, [theme]);
 
   useEffect(() => {
+    // Initialize user store from local storage after client hydration
+    useUserStore.getState().initializeFromLocalStorage();
+
     const handleThemeChange = () => {
       const savedTheme = localStorage.getItem("trendrop_theme");
       if (savedTheme === "dark" || savedTheme === "light") {
         setTheme(savedTheme);
       }
     };
+    handleThemeChange();
     window.addEventListener("storage", handleThemeChange);
     window.addEventListener("theme-change", handleThemeChange);
     return () => {
