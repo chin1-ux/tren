@@ -13,8 +13,15 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 import logging
+import tempfile
+is_vercel = os.getenv("VERCEL") is not None or os.getenv("VERCEL_TMP_DIR") is not None
+if is_vercel:
+    log_file = os.path.join(tempfile.gettempdir(), "api.log")
+else:
+    log_file = "api.log"
+
 logging.basicConfig(
-    filename="api.log",
+    filename=log_file,
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
 )
@@ -398,8 +405,8 @@ def start_cron_thread():
 
 @app.on_event("startup")
 def startup_event():
-    os.makedirs("uploads", exist_ok=True)
-    os.makedirs("outputs", exist_ok=True)
+    os.makedirs(uploads_path, exist_ok=True)
+    os.makedirs(outputs_path, exist_ok=True)
     logger.info("Trendrop API v2.0 started.")
     threading.Thread(target=start_cron_thread, daemon=True).start()
 
@@ -1198,7 +1205,7 @@ def run_job_simulation(job_id: str, job_type: str, trend_id: str, files: List[st
         time.sleep(1.0)
         
         output_url = f"/outputs/{job_id}.mp4"
-        output_path = os.path.join("outputs", f"{job_id}.mp4")
+        output_path = os.path.join(outputs_path, f"{job_id}.mp4")
         
         if job_type == "repurpose" and files and len(files) > 0:
             import shutil
@@ -1209,7 +1216,7 @@ def run_job_simulation(job_id: str, job_type: str, trend_id: str, files: List[st
             audio_path = None
             if audio_url:
                 try:
-                    upload_dir = f"uploads/{job_id}"
+                    upload_dir = os.path.join(uploads_path, job_id)
                     os.makedirs(upload_dir, exist_ok=True)
                     audio_path = os.path.join(upload_dir, "audio.mp3")
                     resp = requests.get(audio_url, timeout=15)
@@ -1349,7 +1356,7 @@ async def generate_reel_endpoint(
 
     try:
         job_id = create_job_record("reel_generation", user_email, {"files_count": len(files), "trend_id": trend_id})
-        job_dir = f"uploads/{job_id}"
+        job_dir = os.path.join(uploads_path, job_id)
         os.makedirs(job_dir, exist_ok=True)
         file_paths = []
         for file in files:
@@ -1448,7 +1455,7 @@ async def generate_narrative_endpoint(
             "narrative_type": narrative_type,
             "text_overlays": overlays
         })
-        job_dir = f"uploads/{job_id}"
+        job_dir = os.path.join(uploads_path, job_id)
         os.makedirs(job_dir, exist_ok=True)
         file_paths = []
         for file in files:
@@ -1607,7 +1614,7 @@ async def repurpose_endpoint(
             "trend_id": trend_id,
             "filename": file.filename
         })
-        job_dir = f"uploads/{job_id}"
+        job_dir = os.path.join(uploads_path, job_id)
         os.makedirs(job_dir, exist_ok=True)
         filename = os.path.basename(file.filename)
         fpath = os.path.join(job_dir, filename)

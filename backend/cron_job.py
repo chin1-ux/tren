@@ -6,14 +6,23 @@ from datetime import datetime
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Dual logging: file + stdout
-log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline.log")
+import tempfile
+is_vercel = os.getenv("VERCEL") is not None or os.getenv("VERCEL_TMP_DIR") is not None
+if is_vercel:
+    log_file = os.path.join(tempfile.gettempdir(), "pipeline.log")
+else:
+    log_file = os.path.join(os.path.dirname(os.path.abspath(__file__)), "pipeline.log")
+
+log_handlers = [logging.StreamHandler(sys.stdout)]
+try:
+    log_handlers.append(logging.FileHandler(log_file))
+except Exception:
+    pass
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[
-        logging.FileHandler(log_file),
-        logging.StreamHandler(sys.stdout)
-    ]
+    handlers=log_handlers
 )
 
 # Imports for pipeline
