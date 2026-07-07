@@ -167,7 +167,11 @@ app = FastAPI(
 @app.get("/api/health", tags=["Health"]) 
 async def health_check_api():
     """Simple health check for API route returning status OK."""
-    return {"status": "healthy"}
+    return {
+        "status": "healthy",
+        "supabase_initialized": supabase is not None,
+        "env_keys": list(os.environ.keys())
+    }
 
 @app.get("/api/reels/stream/{db_id}")
 async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
