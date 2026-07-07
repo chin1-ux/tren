@@ -20,5 +20,7 @@ dependencies = [
     "psycopg2-binary",
     "razorpay",
     "redis",
-    "rq"
+    "rq",
+    "camoufox>=0.4.11",
+    "browser-use>=0.11.13",
 ]

@@ -347,10 +347,15 @@ function TrendsFeed() {
                 : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.audio_title || "")}/`;
               const windowH = reel.window_hours_remaining;
 
+              const isDance = reel.is_dance || reel.niche_tag === "Dance";
+              const borderClass = isDance
+                ? "border border-amber/40 shadow-[0_0_12px_rgba(239,159,39,0.08)] bg-gradient-to-b from-[rgba(239,159,39,0.05)] to-transparent hover:border-amber/80"
+                : "border border-primary/40 shadow-[0_0_12px_rgba(230,57,70,0.08)] bg-gradient-to-b from-[rgba(230,57,70,0.05)] to-transparent hover:border-primary/80";
+
               return (
                 <div
                   key={reel.id}
-                  className="shrink-0 w-56 rounded-2xl border border-white/5 bg-[#0e0e15]/80 backdrop-blur-md p-3.5 space-y-2.5 hover:border-primary/20 transition-all"
+                  className={`shrink-0 w-56 rounded-2xl p-3.5 space-y-2.5 transition-all ${borderClass}`}
                 >
                   {/* Origin → India */}
                   <div className="flex items-center justify-between">
