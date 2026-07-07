@@ -36,3 +36,5 @@ api.log
 
 # macOS
 .DS_Store
+
+.vercel

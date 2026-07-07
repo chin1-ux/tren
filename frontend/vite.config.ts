@@ -13,6 +13,9 @@ export default defineConfig({
   },
   nitro: {
     preset: "vercel",
+    routeRules: {
+      "/api/**": { proxy: "https://trendrop-eta.vercel.app/api/**" }
+    },
     output: {
       dir: ".vercel/output",
       serverDir: ".vercel/output/functions/__server.func",
