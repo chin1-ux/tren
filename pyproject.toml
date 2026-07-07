@@ -12,5 +12,13 @@ dependencies = [
     "pydantic",
     "email-validator",
     "python-multipart",
-    "schedule"
+    "schedule",
+    "resend",
+    "numpy",
+    "google-generativeai",
+    "apify-client",
+    "psycopg2-binary",
+    "razorpay",
+    "redis",
+    "rq"
 ]
