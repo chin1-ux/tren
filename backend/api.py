@@ -133,6 +133,18 @@ missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
 if missing_env_vars:
         logger.warning(f"Startup warning: Missing optional environment variables: {', '.join(missing_env_vars)}")
 
+# Validate SUPABASE_SERVICE_ROLE_KEY and remove it from environment if it is invalid
+supabase_url_debug = os.getenv("SUPABASE_URL")
+service_key_debug = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+if supabase_url_debug and service_key_debug and create_client:
+    try:
+        create_client(supabase_url_debug, service_key_debug).table("trends").select("id").limit(1).execute()
+        logger.info("SUPABASE_SERVICE_ROLE_KEY is valid.")
+    except Exception as e:
+        logger.warning(f"SUPABASE_SERVICE_ROLE_KEY is invalid ({e}), deleting it from environment to fallback to SUPABASE_KEY (anon)")
+        if "SUPABASE_SERVICE_ROLE_KEY" in os.environ:
+            del os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
 try:
@@ -169,8 +181,7 @@ async def health_check_api():
     """Simple health check for API route returning status OK."""
     return {
         "status": "healthy",
-        "supabase_initialized": supabase is not None,
-        "env_keys": list(os.environ.keys())
+        "supabase_initialized": supabase is not None
     }
 
 @app.get("/api/reels/stream/{db_id}")
