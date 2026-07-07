@@ -4,11 +4,14 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-logging.basicConfig(
-    filename="trend_refresher.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="trend_refresher.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 

@@ -28,11 +28,14 @@ from supabase import create_client, Client
 from llm import call_llm
 
 # Setup logging
-logging.basicConfig(
-    filename="instagram_scraper_browser.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+try:
+    logging.basicConfig(
+        filename="instagram_scraper_browser.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 

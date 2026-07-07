@@ -20,11 +20,14 @@ if is_vercel:
 else:
     log_file = "api.log"
 
-logging.basicConfig(
-    filename=log_file,
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename=log_file,
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 try:

@@ -5,11 +5,14 @@ from supabase import create_client, Client
 import resend
 
 # Configure logging
-logging.basicConfig(
-    filename="alert_system.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="alert_system.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 
 class AlertSystem:
     def __init__(self):

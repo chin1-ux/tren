@@ -6,11 +6,14 @@ import requests
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
-logging.basicConfig(
-    filename="caption_engine.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="caption_engine.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 try:
     from .llm import call_llm

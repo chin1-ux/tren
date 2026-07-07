@@ -1,0 +1,39 @@
+# Virtual environments
+.venv
+.venv_temp
+venv
+**/venv
+**/.venv
+**/.venv_temp
+**/node_modules
+node_modules
+
+# Package manager lockfiles/configs to prevent Vercel from installing heavy dev/local dependencies
+uv.lock
+pyproject.toml
+
+# Frontend (not needed for backend deployment)
+frontend/
+
+
+# Local build artifacts
+.vercel
+.vercel_build_output
+**/dist
+
+# Python cache and logs
+**/__pycache__/
+**/*.pyc
+**/*.pyo
+**/*.log
+*.log
+
+# Uploaded/generated/test data
+**/uploads/
+**/outputs/
+health_check.json
+trends_output.json
+
+# Git metadata
+.git
+

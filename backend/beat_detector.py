@@ -4,11 +4,14 @@ import numpy as np
 import librosa
 
 # Configure logging
-logging.basicConfig(
-    filename="beat_detector.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="beat_detector.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 class AudioAnalysisError(Exception):

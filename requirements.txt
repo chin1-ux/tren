@@ -10,13 +10,15 @@ email-validator
 python-multipart
 schedule
 resend
-numpy
-google-generativeai
-apify-client
 psycopg2-binary
 razorpay
 redis
 rq
-# NOTE: librosa/scipy/moviepy/soundfile are NOT listed here — they are
+# NOTE: numpy/google-generativeai/apify-client are intentionally omitted
+# from the Vercel serverless build because they are only required by
+# local worker or browser-scraper pipelines and would exceed the 500MB limit.
+# NOTE: librosa/scipy/moviepy/soundfile are also not listed here — they are
 # only used by local workers (beat_detector, reel_generator) and would
 # pull in numba which fails to build on Python 3.12+.
+# browser scraping dependencies are intentionally omitted from the
+# production server bundle to keep Vercel function size under 500 MB.

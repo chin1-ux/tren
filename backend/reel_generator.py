@@ -2,11 +2,14 @@ import os
 import time
 import logging
 
-logging.basicConfig(
-    filename="reel_generator.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-)
+try:
+    logging.basicConfig(
+        filename="reel_generator.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 

@@ -12,11 +12,14 @@ except ImportError:
         from .llm import call_llm
 from dotenv import load_dotenv
 
-logging.basicConfig(
-    filename="creator_tools.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="creator_tools.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 try:

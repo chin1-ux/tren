@@ -5,11 +5,14 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-logging.basicConfig(
-    filename="create_instagram_tokens_table.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="create_instagram_tokens_table.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 

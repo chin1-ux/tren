@@ -14,13 +14,19 @@ dependencies = [
     "python-multipart",
     "schedule",
     "resend",
-    "numpy",
-    "google-generativeai",
-    "apify-client",
     "psycopg2-binary",
     "razorpay",
     "redis",
     "rq",
+]
+
+[project.optional-dependencies]
+worker = [
+    "numpy",
+    "google-generativeai",
+    "apify-client",
+]
+browser-scraper = [
     "camoufox>=0.4.11",
     "browser-use>=0.11.13",
 ]

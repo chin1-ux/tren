@@ -9,11 +9,14 @@ from apify_client import ApifyClient
 from supabase import create_client, Client
 from llm import call_llm
 
-logging.basicConfig(
-    filename="instagram_scraper.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="instagram_scraper.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 
 
 # ── Utility helpers ───────────────────────────────────────────────────────────

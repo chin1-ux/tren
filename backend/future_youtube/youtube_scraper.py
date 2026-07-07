@@ -7,11 +7,14 @@ import requests
 from supabase import create_client, Client
 
 # Configure logging
-logging.basicConfig(
-    filename="youtube_scraper.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="youtube_scraper.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 
 class YouTubeScraper:
     def __init__(self):

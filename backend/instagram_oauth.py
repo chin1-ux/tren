@@ -8,11 +8,14 @@ from supabase import create_client, Client
 
 load_dotenv()
 
-logging.basicConfig(
-    filename="instagram_oauth.log",
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s"
-)
+try:
+    logging.basicConfig(
+        filename="instagram_oauth.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+except Exception:
+    pass
 logger = logging.getLogger(__name__)
 
 # Instagram Graph API Configuration
