@@ -1,8 +1,4 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "",
-  "installCommand": "pip install -r requirements.txt",
-  "outputDirectory": ".",
-  "framework": null,
-  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/index.py" }]
+  "buildCommand": "cd frontend && npm install && npm run build && cp -r .vercel/output ../.vercel/output && cd .. && python inject_routes.py"
 }
