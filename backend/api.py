@@ -184,6 +184,30 @@ async def health_check_api():
         "supabase_initialized": supabase is not None
     }
 
+@app.get("/api/cron/trigger", tags=["Cron"])
+async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
+    """
+    Trigger the scraper pipeline. Secure it using Vercel's CRON_SECRET or a simple secret token.
+    """
+    cron_secret = os.getenv("CRON_SECRET")
+    auth_header = request.headers.get("Authorization")
+    secret_param = request.query_params.get("secret")
+    
+    is_authorized = False
+    if cron_secret:
+        if auth_header == f"Bearer {cron_secret}" or secret_param == cron_secret:
+            is_authorized = True
+    else:
+        # Fallback for local testing or if CRON_SECRET is not configured yet
+        is_authorized = True
+        
+    if not is_authorized:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+        
+    from cron_job import run_full_pipeline
+    background_tasks.add_task(run_full_pipeline)
+    return {"status": "triggered", "message": "Scraper pipeline running in background task"}
+
 @app.get("/api/reels/stream/{db_id}")
 async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     """
