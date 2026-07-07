@@ -288,6 +288,8 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 allowed_origins = [
     "https://trendrop-drop-first.vercel.app",
+    "https://copilot-fix-issues-trendrop-backend.vercel.app",
+    "https://copilot-fix-issues-trendrop-backend-drop-first.vercel.app",
     "http://localhost:8080",
     "http://localhost:5173",
     "http://localhost:3000",
