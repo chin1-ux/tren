@@ -91,7 +91,7 @@ export function ParticleBackground() {
 
     // Animation variables
     let animationFrameId: number;
-    const clock = new THREE.Clock();
+    const startTime = performance.now();
 
     const animate = () => {
       // Optimization: skip math and render when tab is invisible
@@ -100,7 +100,7 @@ export function ParticleBackground() {
         return;
       }
 
-      const elapsedTime = clock.getElapsedTime();
+      const elapsedTime = (performance.now() - startTime) / 1000;
 
       // Rotate points slowly
       points.rotation.y = elapsedTime * 0.05;
