@@ -45,10 +45,20 @@ class InstagramScraperBrowser:
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        # Global & Western focused hashtag groups
         self.hashtag_groups = {
-            "INDIA_TRENDING": ["trending","reels","viral","fyp","explore","instareels","reelsviral","trendingreels","reelsindia"],
-            "INDIAN_REGIONAL": ["kannadareels","kannada","karnataka","kannadiga","hindireels","bollywood","hindimusic","hindustani","tamilreels","kollywood","tamilsong","telugureels","tollywood","telugusongs","bengalireels","marathireels","punjabireel"],
-            "NICHE_CONTENT": ["glowup","transformation","beforeafter","fashionreels","foodreels","travelreels","motivationreels","devotional","festivalreels","comedyreels","studyreels","fitnessreels","dancecover","lipsync","aestheticreels"],
+            "GLOBAL_TRENDING": [
+                "trending", "reels", "viral", "fyp", "explore",
+                "trendingreels", "reelsinstagram", "globalreels", "reelsviral"
+            ],
+            "WESTERN_AND_GLOBAL": [
+                "aesthetic", "dance", "music", "popmusic", "chartmusic", 
+                "billboard", "tiktoktrend", "trendingsong", "latesthits"
+            ],
+            "INTERNATIONAL_REGIONAL": [
+                "brazilianfunk", "russianmusic", "latintrend", "kpop", 
+                "eurovision", "phonk", "techno", "electronicmusic"
+            ]
         }
         self.browser = None
         self._init_browser()
@@ -175,9 +185,9 @@ class InstagramScraperBrowser:
         saved_count = 0
         high_velocity = []
         priority_pool = (
-            self.hashtag_groups["INDIAN_REGIONAL"][:6]
-            + self.hashtag_groups["INDIA_TRENDING"][:4]
-            + self.hashtag_groups["NICHE_CONTENT"][:2]
+            self.hashtag_groups["INTERNATIONAL_REGIONAL"][:6]
+            + self.hashtag_groups["GLOBAL_TRENDING"][:4]
+            + self.hashtag_groups["WESTERN_AND_GLOBAL"][:2]
         )
         seen = set()
         selected = []

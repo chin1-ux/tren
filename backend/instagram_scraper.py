@@ -73,30 +73,19 @@ class InstagramScraper:
         self.apify_clients = [ApifyClient(t) for t in tokens]
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
-        # India-focused hashtag groups — heavily weighted toward regional
+        # Global & Western focused hashtag groups
         self.hashtag_groups = {
-            "INDIA_TRENDING": [
+            "GLOBAL_TRENDING": [
                 "trending", "reels", "viral", "fyp", "explore",
-                "instareels", "reelsviral", "trendingreels", "reelsindia"
+                "trendingreels", "reelsinstagram", "globalreels", "reelsviral"
             ],
-            "INDIAN_REGIONAL": [
-                # Kannada
-                "kannadareels", "kannada", "karnataka", "kannadiga",
-                # Hindi
-                "hindireels", "bollywood", "hindimusic", "hindustani",
-                # Tamil
-                "tamilreels", "kollywood", "tamilsong",
-                # Telugu
-                "telugureels", "tollywood", "telugusongs",
-                # Bengali / Marathi / Punjabi
-                "bengalireels", "marathireels", "punjabireel",
+            "WESTERN_AND_GLOBAL": [
+                "aesthetic", "dance", "music", "popmusic", "chartmusic", 
+                "billboard", "tiktoktrend", "trendingsong", "latesthits"
             ],
-            "NICHE_CONTENT": [
-                "glowup", "transformation", "beforeafter",
-                "fashionreels", "foodreels", "travelreels",
-                "motivationreels", "devotional", "festivalreels",
-                "comedyreels", "studyreels", "fitnessreels",
-                "dancecover", "lipsync", "aestheticreels"
+            "INTERNATIONAL_REGIONAL": [
+                "brazilianfunk", "russianmusic", "latintrend", "kpop", 
+                "eurovision", "phonk", "techno", "electronicmusic"
             ]
         }
 
@@ -426,9 +415,9 @@ Rules:
 
         # Flatten all hashtags with priority
         priority_pool = (
-            self.hashtag_groups["INDIAN_REGIONAL"][:6] +
-            self.hashtag_groups["INDIA_TRENDING"][:4] +
-            self.hashtag_groups["NICHE_CONTENT"][:2]
+            self.hashtag_groups["INTERNATIONAL_REGIONAL"][:6] +
+            self.hashtag_groups["GLOBAL_TRENDING"][:4] +
+            self.hashtag_groups["WESTERN_AND_GLOBAL"][:2]
         )
         seen = set()
         selected_hashtags = []
