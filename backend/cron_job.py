@@ -28,7 +28,10 @@ logging.basicConfig(
 # Imports for pipeline
 import schedule
 import time
-from youtube_scraper import YouTubeScraper
+try:
+    from youtube_scraper import YouTubeScraper
+except ImportError:
+    YouTubeScraper = None
 from trend_engine import TrendEngine
 from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
@@ -72,14 +75,8 @@ def run_full_pipeline():
     except Exception as e:
         logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
-    # ── 2. YouTube Scraper ────────────────────────────────────────────────────
-    try:
-        logging.info("Step trending Shorts...")
-        yt = YouTubeScraper()
-        yt.scrape_trending_shorts()
-        logging.info("Step 2/5: YouTube scraping complete.")
-    except Exception as e:
-        logging.error(f"Step 2/5 FAILED (YouTube): {e}", exc_info=True)
+    # ── 2. YouTube Scraper (Bypassed) ─────────────────────────────────────────
+    logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
 
     # ── 3. Trend Engine: detect new trends ───────────────────────────────────
     trend_ids = []

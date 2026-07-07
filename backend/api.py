@@ -1727,11 +1727,14 @@ def run_scrapers_background():
             insta.scrape_trending_reels()
         except Exception as e:
             logger.error(f"Instagram scraper background error: {e}", exc_info=True)
-        try:
-            yt = YouTubeScraper()
-            yt.scrape_trending_shorts()
-        except Exception as e:
-            logger.error(f"YouTube scraper background error: {e}", exc_info=True)
+        if YouTubeScraper:
+            try:
+                yt = YouTubeScraper()
+                yt.scrape_trending_shorts()
+            except Exception as e:
+                logger.error(f"YouTube scraper background error: {e}", exc_info=True)
+        else:
+            logger.info("YouTube scraper background task bypassed (disabled).")
         new_ids = []
         try:
             te = TrendEngine()
