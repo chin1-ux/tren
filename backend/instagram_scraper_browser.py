@@ -1,33 +1,14 @@
-"""
-Improved Browser-Based Instagram Scraper using Camoufox + Browser-Use + Playwright.
-
-This scraper replaces the Apify scraper to avoid monthly quota limits.
-It uses a stealth Firefox browser (Camoufox) for anti-detection and Playwright for page automation.
-Data pipeline: Browser → Instagram GraphQL → Supabase reels table → TrendEngine → trends table
-"""
-
 import os
-import re
 import json
 import logging
+import re
 import time
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from dotenv import load_dotenv
+from supabase import create_client, Client
+from llm import call_llm
 import requests
 
-# Playwright imports (Camoufox uses Playwright under the hood)
-try:
-    from playwright.sync_api import sync_playwright
-except ImportError:
-    raise ImportError("playwright is required. Install via: pip install playwright")
-
-# Supabase client
-from supabase import create_client, Client
-
-# LLM hook (reuse existing implementation)
-from llm import call_llm
-
-# Setup logging
 try:
     logging.basicConfig(
         filename="instagram_scraper_browser.log",
@@ -38,16 +19,7 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
-
 def calculate_saturation(audio_use_count: int, india_use_count: int) -> dict:
-    """
-    Returns global and India saturation percentages (0–100).
-    Thresholds:
-      < 5K   = early (0–15%)
-      5K–20K = rising (15–45%)
-      20K–100K = peak (45–80%)
-      > 100K = saturated (80–100%)
-    """
     global_pct = min(100.0, (audio_use_count / 100_000) * 100)
     india_pct = min(100.0, (india_use_count / 8_000) * 100)
     return {
@@ -55,9 +27,7 @@ def calculate_saturation(audio_use_count: int, india_use_count: int) -> dict:
         "india": round(india_pct, 1),
     }
 
-
 def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
-    """Estimates hours remaining before audio trend window closes."""
     if audio_use_count > 100_000:
         return 0
     if velocity_pct > 300 and audio_use_count < 20_000:
@@ -68,10 +38,7 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
         return 24
     return 4
 
-
 class InstagramScraper:
-    """Browser-based Instagram scraper that matches the original interface."""
-
     def __init__(self):
         load_dotenv()
         script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -83,8 +50,8 @@ class InstagramScraper:
             raise ValueError("Supabase credentials missing from .env")
         
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self.session = None
         
-        # Hashtag groups
         self.hashtag_groups = {
             "GLOBAL_TRENDING": [
                 "trending", "reels", "viral", "fyp", "explore",
@@ -99,207 +66,183 @@ class InstagramScraper:
                 "eurovision", "phonk", "techno", "electronicmusic"
             ]
         }
-        
-        self.playwright = None
-        self.browser = None
 
     def _init_browser(self):
-        """Initialize Camoufox browser for stealth Instagram scraping."""
         try:
-            logger.info("Initializing Camoufox browser...")
-            self.playwright = sync_playwright().start()
+            logger.info("Initializing Instagram API session with cookies...")
+            self.session = requests.Session()
             
-            # Launch with Camoufox for stealth
-            # Camoufox patches Playwright's Chromium to add anti-detection measures
-            self.browser = self.playwright.chromium.launch(
-                headless=True,
-                args=[
-                    "--disable-blink-features=AutomationControlled",
-                    "--no-sandbox",
-                    "--disable-gpu",
-                ]
-            )
-            logger.info("Camoufox browser initialized successfully")
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            if not os.path.exists(cookies_path):
+                logger.error("cookies.json not found! Run the cookie capturing setup first.")
+                return False
+            
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+            
+            for cookie in cookies:
+                self.session.cookies.set(
+                    cookie["name"],
+                    cookie["value"],
+                    domain=cookie.get("domain", ".instagram.com"),
+                    path=cookie.get("path", "/")
+                )
+            
+            self.session.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": "https://www.instagram.com/",
+                "Origin": "https://www.instagram.com",
+            })
+            
+            logger.info("Instagram API session successfully initialized.")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize browser: {e}", exc_info=True)
+            logger.error(f"Failed to initialize session: {e}", exc_info=True)
             return False
 
     def _close_browser(self):
-        """Clean up browser resources."""
+        if self.session:
+            self.session.close()
+            self.session = None
+
+    def _extract_audio_info(self, media: dict) -> tuple[str | None, str | None, str | None]:
         try:
-            if self.browser:
-                self.browser.close()
-            if self.playwright:
-                self.playwright.stop()
-        except Exception as e:
-            logger.warning(f"Error closing browser: {e}")
+            # 1. Try standard clips_metadata first
+            clips_metadata = media.get("clips_metadata", {}) or {}
+            music_info = clips_metadata.get("music_info")
+            if music_info:
+                minfo = music_info.get("music_info") or {}
+                asset = minfo.get("music_asset_info") or {}
+                audio_id = asset.get("id") or asset.get("audio_cluster_id")
+                audio_title = asset.get("title")
+                audio_artist = asset.get("display_artist")
+                if audio_id:
+                    return str(audio_id), audio_title, audio_artist
+                    
+            # 2. Try direct music_info
+            music_info = media.get("music_info")
+            if music_info:
+                minfo = music_info.get("music_info") or {}
+                asset = minfo.get("music_asset_info") or {}
+                audio_id = asset.get("id") or asset.get("audio_cluster_id")
+                audio_title = asset.get("title")
+                audio_artist = asset.get("display_artist")
+                if audio_id:
+                    return str(audio_id), audio_title, audio_artist
 
-    def _extract_audio_info(self, music_info_dict: dict | None) -> tuple[str | None, str | None, str | None]:
-        """Extract audio ID, title, and artist from musicInfo."""
-        if not music_info_dict:
-            return None, None, None
-        
-        # Extract audio ID
-        minfo = music_info_dict.get("music_info") or {}
-        asset = minfo.get("music_asset_info") or {}
-        audio_id = (
-            asset.get("id")
-            or asset.get("audio_cluster_id")
-            or asset.get("audioClusterId")
-            or asset.get("music_id")
-        )
-        if audio_id:
-            audio_id = str(audio_id)
-        else:
-            orig = music_info_dict.get("original_sound_info") or {}
-            audio_id = orig.get("audio_asset_id") or orig.get("id") or orig.get("audio_id")
-            if audio_id:
-                audio_id = str(audio_id)
-        
-        # Extract title and artist
-        audio_title = asset.get("title")
-        audio_artist = asset.get("display_artist")
-        
-        if not audio_title or not audio_title.strip():
-            orig = music_info_dict.get("original_sound_info") or {}
+            # 3. Fallback to original_sound_info
+            orig = clips_metadata.get("original_sound_info") or media.get("original_sound_info") or {}
+            audio_id = orig.get("audio_asset_id") or orig.get("id")
             audio_title = orig.get("original_audio_title")
-            if not audio_artist:
-                ig_artist = orig.get("ig_artist") or {}
-                audio_artist = ig_artist.get("username") or ig_artist.get("full_name")
-        
-        return audio_id, audio_title, audio_artist
+            ig_artist = orig.get("ig_artist") or {}
+            audio_artist = ig_artist.get("username") or ig_artist.get("full_name")
+            if audio_id:
+                return str(audio_id), audio_title, audio_artist
+        except Exception as e:
+            logger.warning(f"Error extracting audio info: {e}")
+        return None, None, None
 
-    def _extract_audio_use_count(self, music_info_dict: dict | None) -> int:
-        """Extract how many reels are currently using this audio."""
-        if not music_info_dict:
-            return 0
-        
-        minfo = music_info_dict.get("music_info") or {}
-        m_cons = minfo.get("music_consumption_info") or {}
-        if "use_count" in m_cons and m_cons["use_count"] is not None:
-            try:
+    def _extract_audio_use_count(self, media: dict) -> int:
+        try:
+            clips_metadata = media.get("clips_metadata", {}) or {}
+            music_info = clips_metadata.get("music_info") or media.get("music_info") or {}
+            minfo = music_info.get("music_info") or {}
+            m_cons = minfo.get("music_consumption_info") or {}
+            if "use_count" in m_cons and m_cons["use_count"] is not None:
                 return int(m_cons["use_count"])
-            except (TypeError, ValueError):
-                pass
-        
-        asset = minfo.get("music_asset_info") or {}
-        for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
-            if asset.get(key) is not None:
-                try:
-                    return int(asset[key])
-                except (TypeError, ValueError):
-                    pass
-        
-        orig = music_info_dict.get("original_sound_info") or {}
-        o_cons = orig.get("consumption_info") or {}
-        if "use_count" in o_cons and o_cons["use_count"] is not None:
-            try:
+            
+            orig = clips_metadata.get("original_sound_info") or media.get("original_sound_info") or {}
+            o_cons = orig.get("consumption_info") or {}
+            if "use_count" in o_cons and o_cons["use_count"] is not None:
                 return int(o_cons["use_count"])
-            except (TypeError, ValueError):
-                pass
-        
-        for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
-            if orig.get(key) is not None:
-                try:
-                    return int(orig[key])
-                except (TypeError, ValueError):
-                    pass
-        
+        except Exception:
+            pass
         return 0
 
     def _scrape_hashtag_page(self, hashtag: str) -> list[dict]:
-        """Scrape hashtag page using Playwright + Camoufox."""
-        url = f"https://www.instagram.com/explore/tags/{hashtag}/"
-        context = None
-        page = None
-        
+        url = f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}"
         try:
-            # Create new context for each request (better isolation)
-            context = self.browser.new_context(
-                viewport={"width": 1280, "height": 720},
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
-            )
-            page = context.new_page()
-            
-            # Navigate with timeout
-            logger.info(f"Loading {url}...")
-            page.goto(url, wait_until="networkidle", timeout=30000)
-            time.sleep(2)  # Extra wait for dynamic content
-            
-            # Extract Instagram shared data from script tag
-            script_content = page.evaluate(
-                """
-                () => {
-                    const scripts = Array.from(document.querySelectorAll('script'));
-                    const target = scripts.find(s => s.textContent && s.textContent.includes('window._sharedData'));
-                    return target ? target.textContent : '';
-                }
-                """
+            logger.info(f"Fetching #{hashtag} via web_info API...")
+            resp = self.session.get(
+                url,
+                headers={
+                    "Referer": f"https://www.instagram.com/explore/tags/{hashtag}/",
+                },
+                timeout=20
             )
             
-            if not script_content:
-                logger.warning(f"No shared data script found for #{hashtag}")
+            if resp.status_code != 200:
+                logger.warning(f"API returned status {resp.status_code} for #{hashtag}")
                 return []
+                
+            data = resp.json()
+            raw_data = data.get("data", {})
             
-            # Parse JSON
-            try:
-                json_str = script_content.split('window._sharedData = ')[1].split(';</script>')[0].strip()
-                data = json.loads(json_str)
-            except Exception as e:
-                logger.warning(f"Failed to parse shared data for #{hashtag}: {e}")
-                return []
+            top_sections = raw_data.get("top", {}).get("sections", [])
+            recent_sections = raw_data.get("recent", {}).get("sections", [])
             
-            # Extract media edges
-            edges = (
-                data.get('entry_data', {})
-                .get('TagPage', [{}])[0]
-                .get('graphql', {})
-                .get('hashtag', {})
-                .get('edge_hashtag_to_media', {})
-                .get('edges', [])
-            )
+            medias = []
+            for section in top_sections + recent_sections:
+                layout_content = section.get("layout_content") or {}
+                
+                # Standard list of medias
+                for m_wrapper in layout_content.get("medias", []):
+                    media = m_wrapper.get("media")
+                    if media:
+                        medias.append(media)
+                
+                # Nested layout (like 1x2 grid or other containers)
+                for key, val in layout_content.items():
+                    if isinstance(val, dict) and "media" in val:
+                        medias.append(val["media"])
+                    elif isinstance(val, list):
+                        for subval in val:
+                            if isinstance(subval, dict) and "media" in subval:
+                                medias.append(subval["media"])
+                            elif isinstance(subval, dict) and "clips" in subval:
+                                clips = subval.get("clips") or {}
+                                media = clips.get("media")
+                                if media:
+                                    medias.append(media)
             
             items = []
-            for edge in edges:
-                node = edge.get('node', {})
+            for media in medias:
+                media_type = media.get("media_type")
+                if media_type not in (2, 8):  # Must be video or video-carousel
+                    continue
+                
+                owner = media.get("user") or {}
+                caption_data = media.get("caption") or {}
+                caption_text = caption_data.get("text") or ""
+                
+                taken_at = media.get("taken_at", 0)
+                timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
+                
+                # Standardize format to match our pipeline expectancies
                 items.append({
-                    "shortCode": node.get('shortcode'),
-                    "videoViewCount": node.get('video_view_count'),
-                    "likesCount": node.get('edge_liked_by', {}).get('count'),
-                    "commentsCount": node.get('edge_media_to_comment', {}).get('count'),
-                    "ownerFollowersCount": node.get('owner', {}).get('edge_followed_by', {}).get('count'),
-                    "timestamp": datetime.fromtimestamp(
-                        node.get('taken_at_timestamp', 0),
-                        tz=timezone.utc
-                    ).isoformat(),
-                    "ownerUsername": node.get('owner', {}).get('username'),
-                    "caption": (node.get('edge_media_to_caption', {}).get('edges', [{}])[0].get('node', {}).get('text') or ''),
-                    "videoUrl": node.get('video_url'),
-                    "thumbnailUrl": node.get('display_url'),
-                    "musicInfo": node.get('music_info'),
+                    "shortCode": media.get("code"),
+                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
+                    "likesCount": media.get("like_count") or 0,
+                    "commentsCount": media.get("comment_count") or 0,
+                    "ownerFollowersCount": owner.get("follower_count") or 0,
+                    "timestamp": timestamp,
+                    "ownerUsername": owner.get("username"),
+                    "caption": caption_text[:500],
+                    "videoUrl": media.get("video_url"),
+                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
+                    "media_dict": media
                 })
-            
-            logger.info(f"Scraped {len(items)} reels for #{hashtag}")
+                
+            logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
             return items
             
         except Exception as e:
-            logger.error(f"Browser scrape failed for #{hashtag}: {e}", exc_info=True)
+            logger.error(f"API request failed for #{hashtag}: {e}", exc_info=True)
             return []
-        finally:
-            if page:
-                try:
-                    page.close()
-                except Exception:
-                    pass
-            if context:
-                try:
-                    context.close()
-                except Exception:
-                    pass
 
     def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
-        """Check if reel would be in top 20 by view_count for this audio_id."""
         if not audio_id:
             return False
         try:
@@ -311,7 +254,6 @@ class InstagramScraper:
             return True
 
     def _store_reel_video(self, reel_id: str, video_url: str, audio_id: str) -> str | None:
-        """Download and upload video to Supabase storage."""
         if not video_url:
             return None
         try:
@@ -343,7 +285,6 @@ class InstagramScraper:
             return None
 
     def detect_reel_metadata(self, reel: dict) -> dict:
-        """LLM metadata tagging."""
         caption = reel.get('caption', '')
         audio_name = reel.get('audio_title', '') or reel.get('audio_name', '')
         
@@ -384,7 +325,6 @@ class InstagramScraper:
             }
 
     def _run_hook_analysis(self, audio_title: str, reels_batch: list[dict]) -> dict:
-        """Groq inference for hook patterns."""
         lines = []
         for r in reels_batch[:10]:
             cap = (r.get("caption") or "")[:200]
@@ -419,7 +359,6 @@ Return ONLY valid JSON, no markdown, no explanation:
             return {}
 
     def _persist_hook_analysis(self, audio_title: str, audio_artist: str, hook_data: dict) -> None:
-        """Store hook analysis results back onto matching reels."""
         if not hook_data:
             return
         
@@ -450,7 +389,6 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.error(f"Failed to persist hook analysis for '{audio_title}': {e}")
 
     def _update_trend_lifecycle(self, audio_title: str, creator_country: str, scraped_at: str) -> None:
-        """Update trend lifecycle spread timeline."""
         if not audio_title:
             return
         try:
@@ -480,19 +418,18 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.error(f"Error updating trend lifecycle: {e}", exc_info=True)
 
     def scrape_trending_reels(self) -> int:
-        """Main scraping method - the core pipeline."""
         total_scraped = 0
         saved_count = 0
         high_velocity = []
         
         if not self._init_browser():
-            logger.error("Failed to initialize browser. Aborting scrape.")
+            logger.error("Failed to initialize session. Aborting scrape.")
             return 0
         
         try:
             priority_pool = (
-                self.hashtag_groups["INTERNATIONAL_REGIONAL"][:6]
-                + self.hashtag_groups["GLOBAL_TRENDING"][:4]
+                self.hashtag_groups["INTERNATIONAL_REGIONAL"][:3]
+                + self.hashtag_groups["GLOBAL_TRENDING"][:3]
                 + self.hashtag_groups["WESTERN_AND_GLOBAL"][:2]
             )
             
@@ -508,7 +445,6 @@ Return ONLY valid JSON, no markdown, no explanation:
             audio_groups: dict[tuple, list[dict]] = {}
             
             for tag_idx, tag in enumerate(selected):
-                # Rate limiting between hashtags
                 if tag_idx > 0:
                     wait_time = 3 + (tag_idx % 3)
                     logger.info(f"Rate limiting: waiting {wait_time}s before next hashtag...")
@@ -568,10 +504,10 @@ Return ONLY valid JSON, no markdown, no explanation:
                         video_url = item.get("videoUrl")
                         thumbnail_url = item.get("thumbnailUrl")
                         
-                        # Extract audio
-                        music = item.get("musicInfo")
-                        audio_id, audio_title, audio_artist = self._extract_audio_info(music)
-                        audio_use = self._extract_audio_use_count(music)
+                        # Extract audio using the raw media dictionary
+                        media_dict = item.get("media_dict")
+                        audio_id, audio_title, audio_artist = self._extract_audio_info(media_dict)
+                        audio_use = self._extract_audio_use_count(media_dict)
                         
                         reel = {
                             "platform": "instagram",
@@ -687,7 +623,6 @@ Return ONLY valid JSON, no markdown, no explanation:
             
         finally:
             self._close_browser()
-
 
 if __name__ == "__main__":
     scraper = InstagramScraper()

@@ -38,3 +38,13 @@ api.log
 .DS_Store
 
 .vercel
+
+# Sessions & Auth (Private)
+*cookies.json
+*session_*
+login_instagram.py
+login_cli.py
+import_session.py
+test_ig_api.py
+check_db.py
+
