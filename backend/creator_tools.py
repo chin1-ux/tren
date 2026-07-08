@@ -57,8 +57,14 @@ class CreatorTools:
 
     def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
         """Helper to invoke LLM API and return a JSON dictionary."""
-        from .llm import call_llm
         try:
+            try:
+                from llm import call_llm
+            except ImportError:
+                try:
+                    from backend.llm import call_llm
+                except ImportError:
+                    from .llm import call_llm
             return call_llm(system_prompt, user_prompt, timeout=30)
         except Exception as e:
             logger.error(f"LLM prompt invocation failed: {e}", exc_info=True)
