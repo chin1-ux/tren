@@ -763,6 +763,41 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@app.get("/api/trends/audio-scores")
+@limiter.limit("60/minute")
+def get_audio_trend_scores_api(request: Request, current_user: str = Depends(get_current_user)):
+    """Returns the latest audio trend scores, excluding INSUFFICIENT_DATA."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        latest_res = supabase.table("audio_trend_scores") \
+            .select("scrape_cycle_at") \
+            .order("scrape_cycle_at", desc=True) \
+            .limit(1) \
+            .execute()
+        if not latest_res.data:
+            return []
+        
+        latest_cycle = latest_res.data[0]["scrape_cycle_at"]
+        
+        res = supabase.table("audio_trend_scores") \
+            .select("*") \
+            .eq("scrape_cycle_at", latest_cycle) \
+            .neq("lifecycle_stage", "INSUFFICIENT_DATA") \
+            .execute()
+        
+        # Sort in memory since None values for velocities could exist
+        data = res.data or []
+        sorted_data = sorted(
+            data, 
+            key=lambda x: x.get("creator_velocity") if x.get("creator_velocity") is not None else -99999.0, 
+            reverse=True
+        )
+        return sorted_data
+    except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 @app.get("/api/trends/by-language/{lang}")
 @limiter.limit("60/minute")
 def get_trends_by_language(request: Request, lang: str, current_user: str = Depends(get_current_user)):

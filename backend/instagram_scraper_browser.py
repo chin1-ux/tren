@@ -3,6 +3,7 @@ import json
 import logging
 import re
 import time
+import math
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
@@ -478,17 +479,9 @@ Return ONLY valid JSON, no markdown, no explanation:
                         hours_live = max((datetime.now(timezone.utc) - posted).total_seconds() / 3600.0, 0.5)
                         
                         # Calculate velocity
-                        proxy_saves = likes * 0.1
-                        proxy_replays = view * 0.05
-                        engagement = (
-                            view * 1.0 +
-                            proxy_saves * 10.0 +
-                            comments * 4.0 +
-                            likes * 1.0 +
-                            proxy_replays * 5.0
-                        )
-                        subs = max(followers, 1000)
-                        velocity = (engagement / hours_live / subs) * 10000
+                        engagement = (view * 1.0) + (likes * 3.0) + (comments * 5.0)
+                        normalized_followers = math.log(followers + 10)
+                        velocity = (engagement / hours_live / normalized_followers) * 100
                         
                         # Filter low-engagement
                         if view < 10000 and likes < 200:

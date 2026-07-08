@@ -3,6 +3,7 @@ import re
 import json
 import time
 import logging
+import math
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from apify_client import ApifyClient
@@ -461,17 +462,9 @@ Rules:
                         hours_live = max((datetime.now(timezone.utc) - posted_at).total_seconds() / 3600.0, 0.5)
 
                         # 2026 algorithm-weighted velocity
-                        proxy_saves = like_count * 0.1
-                        proxy_replays = view_count * 0.05
-                        engagement_2026 = (
-                            view_count  * 1.0 +
-                            proxy_saves * 10.0 +
-                            comment_count * 4.0 +
-                            like_count  * 1.0 +
-                            proxy_replays * 5.0
-                        )
-                        subscribers = max(follower_count, 1000)
-                        velocity_score = (engagement_2026 / hours_live / subscribers) * 10000
+                        engagement_2026 = (view_count * 1.0) + (like_count * 3.0) + (comment_count * 5.0)
+                        normalized_followers = math.log(follower_count + 10)
+                        velocity_score = (engagement_2026 / hours_live / normalized_followers) * 100
 
                         if view_count < 10000 and like_count < 200:
                             continue

@@ -525,11 +525,247 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 except Exception as e:
                     logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
 
+            # Calculate and save audio-level trend scores
+            self.calculate_audio_trend_scores()
+
         except Exception as e:
             logging.error(f"Critical error in detect_trends: {e}", exc_info=True)
 
         logging.info(f"=== TrendEngine done. {len(new_trend_ids)} new trends saved ===")
         return new_trend_ids
+
+    def classify_lifecycle(self, audio_id: str, reels: list = None, percentile_80: float = 0.0) -> dict:
+        """
+        Classifies the lifecycle stage of a specific audio_id based on recent reels.
+        Returns a dict containing:
+          - lifecycle_stage: EMERGING, RISING, CRESTING, SATURATED/DECLINING
+          - reel_count: total reels
+          - unique_creator_count: total unique creators
+          - creator_velocity: current creator velocity
+          - reel_velocity: current reel velocity
+          - details: dict containing underlying bucket counts/velocities
+        """
+        import math
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if reels is None:
+            threshold_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            res = self.supabase.table("reels") \
+                .select("audio_id, owner_username, posted_at, velocity_score, reel_id, view_count, like_count, comment_count, audio_title, audio_artist") \
+                .eq("audio_id", audio_id) \
+                .gte("posted_at", threshold_7d) \
+                .execute()
+            reels = res.data or []
+        
+        def parse_utc_dt(dt_str):
+            if not dt_str:
+                return None
+            if isinstance(dt_str, datetime):
+                dt = dt_str
+            else:
+                if dt_str.endswith("Z"):
+                    dt_str = dt_str[:-1] + "+00:00"
+                dt = datetime.fromisoformat(dt_str)
+            if dt.tzinfo is not None:
+                return dt.astimezone(timezone.utc).replace(tzinfo=None)
+            return dt
+
+        buckets = []
+        for i in range(58):
+            buckets.append({"reels": [], "creators": set()})
+        
+        max_bucket_idx = -1
+        for r in reels:
+            posted_str = r.get("posted_at")
+            posted_dt = parse_utc_dt(posted_str)
+            if not posted_dt:
+                continue
+            
+            diff_seconds = (now - posted_dt).total_seconds()
+            if diff_seconds < 0:
+                diff_seconds = 0
+            
+            bucket_idx = int(diff_seconds / (3.0 * 3600.0))
+            if bucket_idx < 58:
+                buckets[bucket_idx]["reels"].append(r)
+                if r.get("owner_username"):
+                    buckets[bucket_idx]["creators"].add(r.get("owner_username"))
+                if bucket_idx > max_bucket_idx:
+                    max_bucket_idx = bucket_idx
+
+        all_creators = set()
+        for b in buckets:
+            all_creators.update(b["creators"])
+        total_unique_creators = len(all_creators)
+        
+        # Check if there is a previous record in audio_trend_scores
+        has_previous = False
+        try:
+            prev_res = self.supabase.table("audio_trend_scores") \
+                .select("id") \
+                .eq("audio_id", audio_id) \
+                .limit(1) \
+                .execute()
+            if prev_res.data:
+                has_previous = True
+        except Exception as e:
+            logging.warning(f"Error checking previous trend scores for {audio_id}: {e}")
+
+        reel_count_0 = len(buckets[0]["reels"])
+        reel_count_1 = len(buckets[1]["reels"])
+        reel_count_2 = len(buckets[2]["reels"])
+        
+        creator_count_0 = len(buckets[0]["creators"])
+        creator_count_1 = len(buckets[1]["creators"])
+        creator_count_2 = len(buckets[2]["creators"])
+
+        if not has_previous:
+            return {
+                "lifecycle_stage": "INSUFFICIENT_DATA",
+                "reel_count": len(reels),
+                "unique_creator_count": total_unique_creators,
+                "creator_velocity": None,
+                "reel_velocity": None,
+                "details": {
+                    "max_bucket_idx": max_bucket_idx,
+                    "creator_velocity_previous": None,
+                    "creator_count_current_bucket": creator_count_0,
+                    "creator_count_previous_bucket": creator_count_1,
+                    "reel_count_current_bucket": reel_count_0,
+                    "reel_count_previous_bucket": reel_count_1
+                }
+            }
+
+        creator_velocity_0 = (creator_count_0 - creator_count_1) / 3.0
+        creator_velocity_1 = (creator_count_1 - creator_count_2) / 3.0
+        
+        reel_velocity_0 = (reel_count_0 - reel_count_1) / 3.0
+        
+        # Classification
+        if creator_count_0 >= 3 and max_bucket_idx <= 1:
+            stage = "EMERGING"
+        elif creator_velocity_0 > 0 and creator_velocity_0 >= percentile_80 and total_unique_creators < 10:
+            stage = "RISING"
+        elif total_unique_creators >= 10 and creator_velocity_0 > 0 and creator_velocity_0 < creator_velocity_1:
+            stage = "CRESTING"
+        elif total_unique_creators >= 10 and creator_velocity_0 <= 0 and creator_velocity_1 <= 0:
+            stage = "SATURATED/DECLINING"
+        else:
+            if total_unique_creators >= 10:
+                if creator_velocity_0 > 0:
+                    stage = "RISING"
+                else:
+                    stage = "SATURATED/DECLINING"
+            else:
+                if creator_count_0 >= 1:
+                    stage = "EMERGING"
+                else:
+                    stage = "SATURATED/DECLINING"
+
+        return {
+            "lifecycle_stage": stage,
+            "reel_count": len(reels),
+            "unique_creator_count": total_unique_creators,
+            "creator_velocity": creator_velocity_0,
+            "reel_velocity": reel_velocity_0,
+            "details": {
+                "max_bucket_idx": max_bucket_idx,
+                "creator_velocity_previous": creator_velocity_1,
+                "creator_count_current_bucket": creator_count_0,
+                "creator_count_previous_bucket": creator_count_1,
+                "reel_count_current_bucket": reel_count_0,
+                "reel_count_previous_bucket": reel_count_1
+            }
+        }
+
+    def calculate_audio_trend_scores(self):
+        logging.info("=== Running calculate_audio_trend_scores ===")
+        try:
+            import math
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            
+            # Check for scraper outage
+            time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat()
+            new_reels_count_res = self.supabase.table("reels") \
+                .select("reel_id", count="exact") \
+                .gte("scraped_at", time_threshold_3h) \
+                .execute()
+            
+            new_reels_scraped = new_reels_count_res.count or 0
+            if new_reels_scraped < 5:
+                logging.warning(f"Possible scraper outage detected (only {new_reels_scraped} reels scraped in the last 3.5h). Skipping trend scoring to prevent false decline signals.")
+                return
+
+            threshold_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+            
+            reels_res = self.supabase.table("reels") \
+                .select("audio_id, owner_username, posted_at, velocity_score, reel_id, view_count, like_count, comment_count, audio_title, audio_artist") \
+                .gte("posted_at", threshold_7d) \
+                .execute()
+            
+            all_reels = reels_res.data or []
+            logging.info(f"Loaded {len(all_reels)} reels from last 7 days for audio trend scoring.")
+            
+            audio_groups = {}
+            for r in all_reels:
+                aid = r.get("audio_id")
+                if not aid:
+                    continue
+                audio_groups.setdefault(aid, []).append(r)
+            
+            if not audio_groups:
+                logging.info("No reels with audio_id found in the last 7 days.")
+                return
+            
+            creator_velocities = []
+            for aid, group in audio_groups.items():
+                res = self.classify_lifecycle(aid, reels=group, percentile_80=0.0)
+                creator_velocities.append(res["creator_velocity"])
+            
+            creator_velocities.sort()
+            if creator_velocities:
+                idx = int(len(creator_velocities) * 0.8)
+                percentile_80 = creator_velocities[idx]
+            else:
+                percentile_80 = 0.0
+                
+            logging.info(f"80th percentile of creator velocity: {percentile_80:.4f}")
+            
+            scrape_cycle_at = datetime.now(timezone.utc).isoformat()
+            for aid, group in audio_groups.items():
+                res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80)
+                
+                # Rank reels by velocity score descending
+                sorted_reels = sorted(group, key=lambda r: r.get("velocity_score") or 0.0, reverse=True)
+                top_reels_serialized = []
+                for r in sorted_reels[:5]:
+                    top_reels_serialized.append({
+                        "reel_id": r.get("reel_id"),
+                        "owner_username": r.get("owner_username"),
+                        "velocity_score": r.get("velocity_score"),
+                        "view_count": r.get("view_count"),
+                        "like_count": r.get("like_count"),
+                        "comment_count": r.get("comment_count"),
+                        "audio_title": r.get("audio_title"),
+                        "audio_artist": r.get("audio_artist"),
+                        "posted_at": r.get("posted_at")
+                    })
+                
+                score_data = {
+                    "audio_id": aid,
+                    "scrape_cycle_at": scrape_cycle_at,
+                    "reel_count": res["reel_count"],
+                    "unique_creator_count": res["unique_creator_count"],
+                    "creator_velocity": res["creator_velocity"],
+                    "reel_velocity": res["reel_velocity"],
+                    "lifecycle_stage": res["lifecycle_stage"],
+                    "top_reels": top_reels_serialized
+                }
+                
+                self.supabase.table("audio_trend_scores").insert(score_data).execute()
+                logging.info(f"Saved audio trend score for {aid}: stage={res['lifecycle_stage']}, total_creators={res['unique_creator_count']}, c_vel={res['creator_velocity']:.4f}")
+                
+        except Exception as e:
+            logging.error(f"Error in calculate_audio_trend_scores: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
