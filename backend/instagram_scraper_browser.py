@@ -220,6 +220,11 @@ class InstagramScraper:
                 taken_at = media.get("taken_at", 0)
                 timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
                 
+                # Extract video url from video_versions
+                video_url = media.get("video_url")
+                if not video_url and media.get("video_versions"):
+                    video_url = media["video_versions"][0].get("url")
+
                 # Standardize format to match our pipeline expectancies
                 items.append({
                     "shortCode": media.get("code"),
@@ -230,7 +235,7 @@ class InstagramScraper:
                     "timestamp": timestamp,
                     "ownerUsername": owner.get("username"),
                     "caption": caption_text[:500],
-                    "videoUrl": media.get("video_url"),
+                    "videoUrl": video_url,
                     "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
                     "media_dict": media
                 })

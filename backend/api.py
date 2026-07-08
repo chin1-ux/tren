@@ -220,15 +220,15 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not initialized")
         
-    # 1. Get original Instagram reel shortcode & audio_id from DB
-    res = supabase.table("reels").select("id", "reel_id", "audio_id").eq("id", db_id).execute()
+    # 1. Get original Instagram reel shortcode & URLs from DB
+    res = supabase.table("reels").select("id", "reel_id", "audio_id", "video_url", "preview_url").eq("id", db_id).execute()
     if not res.data:
         # Fallback: treat db_id as a trend ID and find its top reel
         trend_res = supabase.table("trends").select("audio_title", "audio_artist").eq("id", db_id).execute()
         if trend_res.data:
             t = trend_res.data[0]
             reels_res = supabase.table("reels") \
-                .select("id", "reel_id", "audio_id") \
+                .select("id", "reel_id", "audio_id", "video_url", "preview_url") \
                 .eq("audio_title", t.get("audio_title")) \
                 .eq("audio_artist", t.get("audio_artist")) \
                 .order("velocity_score", desc=True) \
@@ -245,40 +245,63 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     reel_db_id = reel.get("id", db_id)
     reel_id = reel.get("reel_id")
     audio_id = reel.get("audio_id")
+    video_url = reel.get("video_url")
+    preview_url = reel.get("preview_url")
+    
     if not reel_id:
         raise HTTPException(status_code=404, detail="Reel shortcode not found in DB")
         
-    instagram_url = f"https://www.instagram.com/reel/{reel_id}/"
-    
-    # 2. Trigger lightweight Apify scrape
-    apify_token = os.getenv("APIFY_API_TOKEN")
-    if not apify_token:
-        raise HTTPException(status_code=500, detail="APIFY_API_TOKEN is not configured")
+    # If we already have a valid preview URL (Supabase storage), use it!
+    if preview_url:
+        return {"videoUrl": preview_url, "reel_id": reel_id, "id": reel_db_id}
         
-    tokens = [t.strip() for t in apify_token.split(",") if t.strip()]
-    token = tokens[0] if tokens else apify_token
-    
-    apify_url = f"https://api.apify.com/v2/acts/apify~instagram-reel-scraper/run-sync-get-dataset-items?token={token}"
-    
-    payload = {
-        "directUrls": [instagram_url],
-        "resultsLimit": 1
-    }
-    
-    try:
-        response = requests.post(apify_url, json=payload, headers={"Content-Type": "application/json"}, timeout=65)
-        if response.status_code not in (200, 201):
-            logging.error(f"Apify single reel fetch failed with status {response.status_code}: {response.text}")
-            raise HTTPException(status_code=500, detail="Scraper request failed")
+    # If we already have a video_url in the database, return it
+    if video_url:
+        return {"videoUrl": video_url, "reel_id": reel_id, "id": reel_db_id}
+        
+    # Fallback: Fetch a fresh URL directly from Instagram API using the session cookies
+    fresh_video_url = None
+    cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+    if os.path.exists(cookies_path):
+        try:
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
             
-        results = response.json()
-        fresh_video_url = results[0].get("videoUrl") if (results and len(results) > 0) else None
-        if not fresh_video_url:
-            raise HTTPException(status_code=500, detail="No video URL found in scraper results")
+            s = requests.Session()
+            for cookie in cookies:
+                s.cookies.set(
+                    cookie["name"],
+                    cookie["value"],
+                    domain=cookie.get("domain", ".instagram.com"),
+                    path=cookie.get("path", "/")
+                )
             
-    except Exception as e:
-        logging.error(f"Apify request exception: {e}")
-        raise HTTPException(status_code=500, detail=f"Scraper error: {str(e)}")
+            s.headers.update({
+                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Referer": f"https://www.instagram.com/reel/{reel_id}/",
+            })
+            
+            # Instagram media info API
+            api_url = f"https://www.instagram.com/api/v1/oembed/?url=https://www.instagram.com/p/{reel_id}/"
+            resp = s.get(api_url, timeout=15)
+            if resp.status_code == 200:
+                # Some public endpoints give OEmbed. If not, fallback to GraphQL or standard page get
+                pass
+            
+            # Direct page request with cookies to find video URL in HTML
+            web_url = f"https://www.instagram.com/reel/{reel_id}/"
+            web_resp = s.get(web_url, timeout=15)
+            if web_resp.status_code == 200:
+                match = re.search(r'"video_url":"([^"]+)"', web_resp.text)
+                if match:
+                    fresh_video_url = match.group(1).replace("\\u0026", "&")
+        except Exception as err:
+            logging.error(f"Error fetching fresh video url via cookie session: {err}")
+
+    if not fresh_video_url:
+        raise HTTPException(status_code=500, detail="Could not retrieve video URL for streaming")
         
     # 3. Attempt to store in background
     def background_store():
@@ -306,6 +329,7 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
                 from datetime import datetime, timezone
                 supabase.table("reels").update({
                     "preview_url": stored_url,
+                    "video_url": fresh_video_url,
                     "video_storage_status": "stored",
                     "video_stored_at": datetime.now(timezone.utc).isoformat()
                 }).eq("id", reel_db_id).execute()
