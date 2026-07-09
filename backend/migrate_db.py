@@ -49,6 +49,7 @@ MIGRATIONS = [
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS preview_url TEXT;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS video_stored_at TIMESTAMPTZ;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS video_storage_status TEXT DEFAULT 'pending';",
+    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS is_original_audio BOOLEAN DEFAULT false;",
 
     # trends table – new columns mirrored for API enrichment
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS audio_id TEXT;",

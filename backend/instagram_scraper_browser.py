@@ -117,7 +117,7 @@ class InstagramScraper:
             self.session.close()
             self.session = None
 
-    def _extract_audio_info(self, media: dict) -> tuple[str | None, str | None, str | None]:
+    def _extract_audio_info(self, media: dict) -> tuple[str | None, str | None, str | None, bool]:
         try:
             # 1. Try standard clips_metadata first
             clips_metadata = media.get("clips_metadata", {}) or {}
@@ -129,7 +129,7 @@ class InstagramScraper:
                 audio_title = asset.get("title")
                 audio_artist = asset.get("display_artist")
                 if audio_id:
-                    return str(audio_id), audio_title, audio_artist
+                    return str(audio_id), audio_title, audio_artist, False
                     
             # 2. Try direct music_info
             music_info = media.get("music_info")
@@ -140,7 +140,7 @@ class InstagramScraper:
                 audio_title = asset.get("title")
                 audio_artist = asset.get("display_artist")
                 if audio_id:
-                    return str(audio_id), audio_title, audio_artist
+                    return str(audio_id), audio_title, audio_artist, False
 
             # 3. Fallback to original_sound_info
             orig = clips_metadata.get("original_sound_info") or media.get("original_sound_info") or {}
@@ -149,10 +149,10 @@ class InstagramScraper:
             ig_artist = orig.get("ig_artist") or {}
             audio_artist = ig_artist.get("username") or ig_artist.get("full_name")
             if audio_id:
-                return str(audio_id), audio_title, audio_artist
+                return str(audio_id), audio_title, audio_artist, True
         except Exception as e:
             logger.warning(f"Error extracting audio info: {e}")
-        return None, None, None
+        return None, None, None, False
 
     def _extract_audio_use_count(self, media: dict) -> int:
         try:
@@ -513,7 +513,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                         
                         # Extract audio using the raw media dictionary
                         media_dict = item.get("media_dict")
-                        audio_id, audio_title, audio_artist = self._extract_audio_info(media_dict)
+                        audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
                         audio_use = self._extract_audio_use_count(media_dict)
                         
                         reel = {
@@ -533,6 +533,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "audio_artist": audio_artist,
                             "audio_id": audio_id,
                             "audio_use_count": audio_use,
+                            "is_original_audio": is_original_audio,
                             "velocity_score": velocity,
                             "scraped_at": scraped_at,
                         }

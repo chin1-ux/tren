@@ -176,7 +176,13 @@ class TrendEngine:
 
             # ── STEP 2: Group by audio ─────────────────────────────────────────
             audio_groups = {}
+            excluded_original_audio = 0
+            proceeded_to_grouping = 0
             for reel in reels:
+                if reel.get("is_original_audio") is True:
+                    excluded_original_audio += 1
+                    continue
+                proceeded_to_grouping += 1
                 audio_title = reel.get("audio_title")
                 audio_artist = reel.get("audio_artist") or "Unknown Artist"
                 if not audio_title or not audio_title.strip():
@@ -185,7 +191,7 @@ class TrendEngine:
                 if key not in audio_groups:
                     audio_groups[key] = []
                 audio_groups[key].append(reel)
-            logging.info(f"Grouped into {len(audio_groups)} unique audio combinations")
+            logging.info(f"Audio grouping: excluded {excluded_original_audio} original-audio reels. {proceeded_to_grouping} reels proceeded to grouping. Grouped into {len(audio_groups)} unique audio combinations.")
 
             # ── STEP 3: Skip already-known trends ─────────────────────────────
             existing_res = self.supabase.table("trends") \
@@ -273,12 +279,40 @@ class TrendEngine:
                     - (saturation_penalty * 1.8)
                 )
 
+                # Calculate creator velocity based on buckets: creators in last 3h vs 3-6h
+                now_utc = datetime.now(timezone.utc)
+                creators_0 = set()
+                creators_1 = set()
+                for r in group_reels:
+                    posted_str = r.get("posted_at")
+                    if not posted_str:
+                        continue
+                    try:
+                        if posted_str.endswith("Z"):
+                            posted_str = posted_str[:-1] + "+00:00"
+                        posted_dt = datetime.fromisoformat(posted_str)
+                        if posted_dt.tzinfo is None:
+                            posted_dt = posted_dt.replace(tzinfo=timezone.utc)
+                        diff_seconds = (now_utc - posted_dt).total_seconds()
+                        if diff_seconds < 0:
+                            diff_seconds = 0
+                        username = r.get("owner_username")
+                        if username:
+                            if diff_seconds <= 3.0 * 3600.0:
+                                creators_0.add(username)
+                            elif diff_seconds <= 6.0 * 3600.0:
+                                creators_1.add(username)
+                    except Exception:
+                        pass
+                creator_velocity = (len(creators_0) - len(creators_1)) / 3.0
+
                 # Determine initial status
                 very_viral = any((r.get("velocity_score", 0) or 0) > 3.0 for r in recent_reels_6h)
 
-                if creator_count >= 3:
+                reel_count = len(group_reels)
+                if creator_count >= 3 and creator_velocity > 0:
                     initial_status = "rising"
-                elif creator_count >= 1:
+                elif creator_count >= 2 and reel_count >= 2:
                     initial_status = "emerging"
                 else:
                     continue
