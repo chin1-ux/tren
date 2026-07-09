@@ -316,8 +316,8 @@ class TrendEngine:
 
             logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
 
-            # Sort and limit to top 15 to avoid API rate limits and speed up processing
-            confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)[:15]
+            # Sort and limit to top 7 to avoid API rate limits and speed up processing
+            confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)[:7]
             logging.info(f"Selected top {len(confirmed)} trends for classification")
 
             # ── STEP 5: Cross-reference YouTube Shorts ─────────────────────────
@@ -394,7 +394,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
   "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
 }}
 """
-                max_attempts = 4
+                max_attempts = 2
                 success = False
                 for attempt in range(1, max_attempts + 1):
                     try:
@@ -413,10 +413,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     fallback = generate_local_fallback(trend)
                     trend.update(fallback)
 
-            # Classify top 15 trends sequentially with stagger/delay to respect rate limits
+            # Classify top 7 trends sequentially with stagger/delay to respect rate limits
             for idx, trend in enumerate(confirmed):
                 if idx > 0:
-                    stagger_delay = 2.0
+                    stagger_delay = 6.0
                     logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq classification...")
                     time.sleep(stagger_delay)
                 classify_single_trend(trend)
@@ -734,8 +734,13 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             
             creator_velocities = []
             for aid, group in audio_groups.items():
-                res = self.classify_lifecycle(aid, reels=group, percentile_80=0.0)
-                creator_velocities.append(res["creator_velocity"])
+                try:
+                    res = self.classify_lifecycle(aid, reels=group, percentile_80=0.0)
+                    v = res.get("creator_velocity")
+                    if v is not None:
+                        creator_velocities.append(v)
+                except Exception as e:
+                    logging.error(f"Error classifying lifecycle for percentile calculation on audio_id {aid}: {e}", exc_info=True)
             
             creator_velocities.sort()
             if creator_velocities:
@@ -748,40 +753,45 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             
             scrape_cycle_at = datetime.now(timezone.utc).isoformat()
             for aid, group in audio_groups.items():
-                res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80)
-                
-                # Rank reels by velocity score descending
-                sorted_reels = sorted(group, key=lambda r: r.get("velocity_score") or 0.0, reverse=True)
-                top_reels_serialized = []
-                for r in sorted_reels[:5]:
-                    top_reels_serialized.append({
-                        "reel_id": r.get("reel_id"),
-                        "owner_username": r.get("owner_username"),
-                        "velocity_score": r.get("velocity_score"),
-                        "view_count": r.get("view_count"),
-                        "like_count": r.get("like_count"),
-                        "comment_count": r.get("comment_count"),
-                        "audio_title": r.get("audio_title"),
-                        "audio_artist": r.get("audio_artist"),
-                        "posted_at": r.get("posted_at")
-                    })
-                
-                score_data = {
-                    "audio_id": aid,
-                    "scrape_cycle_at": scrape_cycle_at,
-                    "reel_count": res["reel_count"],
-                    "unique_creator_count": res["unique_creator_count"],
-                    "creator_velocity": res["creator_velocity"],
-                    "reel_velocity": res["reel_velocity"],
-                    "lifecycle_stage": res["lifecycle_stage"],
-                    "top_reels": top_reels_serialized
-                }
-                
-                self.supabase.table("audio_trend_scores").insert(score_data).execute()
-                logging.info(f"Saved audio trend score for {aid}: stage={res['lifecycle_stage']}, total_creators={res['unique_creator_count']}, c_vel={res['creator_velocity']:.4f}")
+                try:
+                    res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80)
+                    
+                    # Rank reels by velocity score descending
+                    sorted_reels = sorted(group, key=lambda r: r.get("velocity_score") or 0.0, reverse=True)
+                    top_reels_serialized = []
+                    for r in sorted_reels[:5]:
+                        top_reels_serialized.append({
+                            "reel_id": r.get("reel_id"),
+                            "owner_username": r.get("owner_username"),
+                            "velocity_score": r.get("velocity_score"),
+                            "view_count": r.get("view_count"),
+                            "like_count": r.get("like_count"),
+                            "comment_count": r.get("comment_count"),
+                            "audio_title": r.get("audio_title"),
+                            "audio_artist": r.get("audio_artist"),
+                            "posted_at": r.get("posted_at")
+                        })
+                    
+                    score_data = {
+                        "audio_id": aid,
+                        "scrape_cycle_at": scrape_cycle_at,
+                        "reel_count": res["reel_count"],
+                        "unique_creator_count": res["unique_creator_count"],
+                        "creator_velocity": res["creator_velocity"],
+                        "reel_velocity": res["reel_velocity"],
+                        "lifecycle_stage": res["lifecycle_stage"],
+                        "top_reels": top_reels_serialized
+                    }
+                    
+                    self.supabase.table("audio_trend_scores").insert(score_data).execute()
+                    c_vel_val = res.get("creator_velocity")
+                    c_vel_str = f"{c_vel_val:.4f}" if c_vel_val is not None else "None"
+                    logging.info(f"Saved audio trend score for {aid}: stage={res['lifecycle_stage']}, total_creators={res['unique_creator_count']}, c_vel={c_vel_str}")
+                except Exception as e:
+                    logging.error(f"Error processing audio trend score for audio_id {aid}: {e}", exc_info=True)
                 
         except Exception as e:
-            logging.error(f"Error in calculate_audio_trend_scores: {e}", exc_info=True)
+            logging.error(f"Critical error in calculate_audio_trend_scores: {e}", exc_info=True)
 
 
 if __name__ == "__main__":
