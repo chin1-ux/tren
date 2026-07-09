@@ -30,3 +30,6 @@ browser-scraper = [
     "camoufox>=0.4.11",
     "browser-use>=0.11.13",
 ]
+
+[tool.setuptools]
+packages = []
