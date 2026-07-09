@@ -67,11 +67,12 @@ def run_full_pipeline():
     logging.info(f"=== {run_label} STARTING ===")
 
     # ── 1. Instagram Scraper ───────────────────────────────────────────────────
+    new_reels_count = 0
     try:
         logging.info("Step 1/5: Scraping Instagram trending reels...")
         insta = InstagramScraper()
-        insta.scrape_trending_reels()
-        logging.info("Step 1/5: Instagram scraping complete.")
+        new_reels_count = insta.scrape_trending_reels()
+        logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
     except Exception as e:
         logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
@@ -80,13 +81,16 @@ def run_full_pipeline():
 
     # ── 3. Trend Engine: detect new trends ───────────────────────────────────
     trend_ids = []
-    try:
-        logging.info("Step 3/5: Running TrendEngine to detect new trends...")
-        engine = TrendEngine()
-        trend_ids = engine.detect_trends()
-        logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
-    except Exception as e:
-        logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
+    if new_reels_count >= 5:
+        try:
+            logging.info("Step 3/5: Running TrendEngine to detect new trends...")
+            engine = TrendEngine()
+            trend_ids = engine.detect_trends()
+            logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
+        except Exception as e:
+            logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
+    else:
+        logging.warning(f"Skipping trend detection — only {new_reels_count} new reels scraped this cycle, likely scraper failure.")
 
     # ── 4. Trend Refresher: update lifecycle of existing trends ──────────────
     try:

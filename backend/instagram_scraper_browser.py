@@ -78,8 +78,17 @@ class InstagramScraper:
                 logger.error("cookies.json not found! Run the cookie capturing setup first.")
                 return False
             
-            with open(cookies_path, "r") as f:
-                cookies = json.load(f)
+            try:
+                with open(cookies_path, "r") as f:
+                    content = f.read()
+                cookies = json.loads(content)
+            except json.JSONDecodeError as jde:
+                logger.error(
+                    f"CRITICAL ERROR: cookies.json is malformed or corrupted JSON! Details: {jde}. "
+                    "This is typically due to shell quote-escaping issues in the GitHub Secrets environment. "
+                    f"Content preview (first 100 chars): {content[:100]!r}"
+                )
+                return False
             
             for cookie in cookies:
                 self.session.cookies.set(
@@ -607,7 +616,11 @@ Return ONLY valid JSON, no markdown, no explanation:
             # Hook analysis
             if saved_count:
                 logger.info(f"Running Groq hook analysis for {len(audio_groups)} audio groups...")
-                for (title, artist), group in audio_groups.items():
+                for idx, ((title, artist), group) in enumerate(audio_groups.items()):
+                    if idx > 0:
+                        stagger_delay = 1.5
+                        logger.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq hook analysis...")
+                        time.sleep(stagger_delay)
                     try:
                         hook = self._run_hook_analysis(title, group)
                         if hook:

@@ -613,7 +613,11 @@ Rules:
         else:
             # ── Run Groq hook analysis for each audio group ───────────────────
             logging.info(f"Running Groq hook analysis for {len(audio_groups)} audio groups...")
-            for (title, artist), group_reels in audio_groups.items():
+            for idx, ((title, artist), group_reels) in enumerate(audio_groups.items()):
+                if idx > 0:
+                    stagger_delay = 1.5
+                    logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq hook analysis...")
+                    time.sleep(stagger_delay)
                 try:
                     hook_data = self._run_hook_analysis(title, group_reels)
                     if hook_data:

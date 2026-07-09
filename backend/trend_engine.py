@@ -150,6 +150,18 @@ class TrendEngine:
         new_trend_ids = []
 
         try:
+            # Check for scraper outage: skip if <5 reels scraped in last 3.5h
+            time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat()
+            new_reels_count_res = self.supabase.table("reels") \
+                .select("reel_id", count="exact") \
+                .gte("scraped_at", time_threshold_3h) \
+                .execute()
+            
+            new_reels_scraped = new_reels_count_res.count or 0
+            if new_reels_scraped < 5:
+                logging.warning(f"Possible scraper outage detected (only {new_reels_scraped} reels scraped in the last 3.5h). Skipping trend detection entirely.")
+                return []
+
             # ── STEP 1: Load recent high-velocity reels (last 48h) ─────────────
             time_threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
             time_threshold_6h = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
@@ -401,9 +413,13 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     fallback = generate_local_fallback(trend)
                     trend.update(fallback)
 
-            # Classify top 15 trends in parallel
-            with concurrent.futures.ThreadPoolExecutor(max_workers=5) as executor:
-                executor.map(classify_single_trend, confirmed)
+            # Classify top 15 trends sequentially with stagger/delay to respect rate limits
+            for idx, trend in enumerate(confirmed):
+                if idx > 0:
+                    stagger_delay = 2.0
+                    logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq classification...")
+                    time.sleep(stagger_delay)
+                classify_single_trend(trend)
 
             # ── STEP 7: Save to Supabase ───────────────────────────────────────
             for trend in confirmed:
