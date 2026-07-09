@@ -28,7 +28,7 @@ jobs:
 
       - name: Create cookies.json
         run: |
-          echo "${{ secrets.INSTAGRAM_COOKIES }}" | base64 -d > backend/cookies.json
+          echo "${{ secrets.INSTAGRAM_COOKIES_B64 }}" | base64 -d > backend/cookies.json
 
       - name: Run pipeline script
         env:
