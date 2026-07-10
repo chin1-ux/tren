@@ -5,6 +5,37 @@ import requests
 
 logger = logging.getLogger("llm")
 
+def call_gemini(system_prompt: str, user_prompt: str, gemini_key: str, response_mime_type: str = "application/json", timeout: int = 30) -> dict:
+    gemini_url = (
+        f"https://generativelanguage.googleapis.com/v1beta/models/"
+        f"gemini-2.5-flash:generateContent?key={gemini_key}"
+    )
+    
+    payload = {
+        "contents": [{"parts": [{"text": user_prompt}]}],
+        "systemInstruction": {
+            "parts": [{"text": system_prompt}]
+        },
+        "generationConfig": {"responseMimeType": response_mime_type}
+    }
+    
+    headers = {"Content-Type": "application/json"}
+    
+    response = requests.post(gemini_url, headers=headers, json=payload, timeout=timeout)
+    response.raise_for_status()
+    
+    rj = response.json()
+    text = rj["candidates"][0]["content"]["parts"][0]["text"].strip()
+    
+    if response_mime_type == "application/json":
+        if text.startswith("```"):
+            start = text.find("{")
+            end = text.rfind("}")
+            if start != -1 and end != -1:
+                text = text[start:end + 1]
+        return json.loads(text)
+    return {"text": text}
+
 def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "application/json", timeout: int = 30) -> dict:
     """
     Unified LLM call supporting Gemini (default) and Grok / OpenAI compatible providers.
@@ -103,10 +134,30 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
             except requests.HTTPError as e:
                 logger.warning(f"Groq request failed with key #{idx}: {e}")
                 if idx == len(keys):
+                    gemini_key = os.getenv("GEMINI_API_KEY")
+                    if gemini_key:
+                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-2.5-flash)...")
+                        try:
+                            res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
+                            logger.info("Fallback to Gemini successful.")
+                            return res
+                        except Exception as gemini_err:
+                            logger.error(f"Gemini fallback also failed: {gemini_err}")
+                            raise RuntimeError(f"All Groq keys failed. Gemini fallback also failed: {gemini_err}") from e
                     raise RuntimeError("All Groq API keys failed.")
             except requests.RequestException as e:
                 logger.warning(f"Groq request error with key #{idx}: {e}")
                 if idx == len(keys):
+                    gemini_key = os.getenv("GEMINI_API_KEY")
+                    if gemini_key:
+                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-2.5-flash)...")
+                        try:
+                            res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
+                            logger.info("Fallback to Gemini successful.")
+                            return res
+                        except Exception as gemini_err:
+                            logger.error(f"Gemini fallback also failed: {gemini_err}")
+                            raise RuntimeError(f"All Groq keys failed. Gemini fallback also failed: {gemini_err}") from e
                     raise RuntimeError("All Groq API keys failed.")
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
