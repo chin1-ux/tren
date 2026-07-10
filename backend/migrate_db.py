@@ -69,7 +69,13 @@ MIGRATIONS = [
     "CREATE INDEX IF NOT EXISTS idx_reels_is_cross_cultural ON reels (is_cross_cultural);",
     "CREATE INDEX IF NOT EXISTS idx_reels_india_saturation ON reels (india_saturation_pct);",
     "CREATE INDEX IF NOT EXISTS idx_trends_niche_tag ON trends (niche_tag);",
+
+    # Tracked audio & official counts tables
+    "CREATE TABLE IF NOT EXISTS tracked_audio (audio_id TEXT PRIMARY KEY, audio_title TEXT, audio_artist TEXT, first_seen_at TIMESTAMP DEFAULT now());",
+    "CREATE TABLE IF NOT EXISTS audio_official_counts (id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY, audio_id TEXT REFERENCES tracked_audio(audio_id) ON DELETE CASCADE, official_use_count INTEGER, checked_at TIMESTAMP DEFAULT now(), official_count_velocity FLOAT);",
+    "ALTER TABLE audio_official_counts ADD COLUMN IF NOT EXISTS precision_bucket VARCHAR(50) DEFAULT 'exact';"
 ]
+
 
 
 def run():

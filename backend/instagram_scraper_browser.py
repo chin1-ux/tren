@@ -4,7 +4,7 @@ import logging
 import re
 import time
 import math
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from llm import call_llm
@@ -129,7 +129,8 @@ class InstagramScraper:
                 audio_title = asset.get("title")
                 audio_artist = asset.get("display_artist")
                 if audio_id:
-                    return str(audio_id), audio_title, audio_artist, False
+                    is_orig = ("original audio" in audio_title.lower()) if audio_title else False
+                    return str(audio_id), audio_title, audio_artist, is_orig
                     
             # 2. Try direct music_info
             music_info = media.get("music_info")
@@ -140,7 +141,8 @@ class InstagramScraper:
                 audio_title = asset.get("title")
                 audio_artist = asset.get("display_artist")
                 if audio_id:
-                    return str(audio_id), audio_title, audio_artist, False
+                    is_orig = ("original audio" in audio_title.lower()) if audio_title else False
+                    return str(audio_id), audio_title, audio_artist, is_orig
 
             # 3. Fallback to original_sound_info
             orig = clips_metadata.get("original_sound_info") or media.get("original_sound_info") or {}
@@ -590,6 +592,28 @@ Return ONLY valid JSON, no markdown, no explanation:
                         # Insert to DB
                         self.supabase.table("reels").insert(reel).execute()
                         logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, origin={meta.get('trend_origin')})")
+
+                        # Track audio if it is a real (non-original) audio
+                        is_orig = is_original_audio or (audio_title and "original audio" in audio_title.lower())
+                        if audio_id and not is_orig:
+                            try:
+                                exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
+                                if not exist.data:
+                                    # Ensure we have at least 2 reels in the DB for this audio (including the one just inserted)
+                                    reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
+                                    reel_count = reels_res.count or 0
+                                    if reel_count >= 2:
+                                        self.supabase.table("tracked_audio").insert({
+                                            "audio_id": audio_id,
+                                            "audio_title": audio_title,
+                                            "audio_artist": audio_artist,
+                                            "first_seen_at": datetime.now(timezone.utc).isoformat()
+                                        }).execute()
+                                        logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
+                                    else:
+                                        logger.info(f"Skipped tracking audio_id {audio_id} ('{audio_title}'): only has {reel_count} reel(s) in DB (floor is 2+)")
+                            except Exception as tae:
+                                logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
                         
                         # Trend lifecycle
                         self._update_trend_lifecycle(
@@ -635,6 +659,227 @@ Return ONLY valid JSON, no markdown, no explanation:
             
         finally:
             self._close_browser()
+
+    def scrape_official_audio_counts(self, limit: int = 30) -> None:
+        try:
+            logger.info("Starting scrape of official audio counts...")
+            # Query all currently tracked audios
+            tracked_res = self.supabase.table("tracked_audio").select("audio_id").execute()
+            tracked_ids = [row["audio_id"] for row in (tracked_res.data or []) if row.get("audio_id")]
+            
+            if not tracked_ids:
+                logger.info("No tracked audios found to check.")
+                return
+
+            # Query recent reels to find active non-original audio IDs
+            three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
+            res = self.supabase.table("reels") \
+                .select("audio_id") \
+                .eq("is_original_audio", False) \
+                .not_.is_("audio_id", "null") \
+                .gte("scraped_at", three_days_ago.isoformat()) \
+                .execute()
+            
+            reels_data = res.data or []
+            audio_counts = {}
+            for r in reels_data:
+                aid = r.get("audio_id")
+                if aid:
+                    audio_counts[aid] = audio_counts.get(aid, 0) + 1
+            
+            # Sort by frequency and filter to only tracked audios
+            sorted_audios = sorted(audio_counts.items(), key=lambda x: x[1], reverse=True)
+            active_audio_ids = [aid for aid, count in sorted_audios if aid in tracked_ids][:limit]
+            
+            if not active_audio_ids:
+                logger.info("No active tracked audio IDs found to check in the last 3 days.")
+                # We still want to log all tracked audios as skipped
+                for aid in tracked_ids:
+                    logger.info(f"[AUDIO_COUNT_STATUS] ID {aid}: SKIPPED (queue cap)")
+                return
+
+            logger.info(f"Selected {len(active_audio_ids)} active audio IDs to scrape.")
+            results = self._scrape_audio_counts_playwright(active_audio_ids)
+            
+            for aid in tracked_ids:
+                if aid in active_audio_ids:
+                    status = results.get(aid, "ATTEMPTED BUT FAILED (unknown error)")
+                    if status == "SUCCESS":
+                        logger.info(f"[AUDIO_COUNT_STATUS] ID {aid}: SUCCESS")
+                    else:
+                        logger.info(f"[AUDIO_COUNT_STATUS] ID {aid}: ATTEMPTED BUT FAILED ({status})")
+                else:
+                    logger.info(f"[AUDIO_COUNT_STATUS] ID {aid}: SKIPPED (queue cap)")
+            
+        except Exception as e:
+            logger.error(f"Error in scrape_official_audio_counts: {e}", exc_info=True)
+
+    def _scrape_audio_counts_playwright(self, audio_ids: list[str]) -> dict[str, str]:
+        from playwright.sync_api import sync_playwright
+        
+        results = {}
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+        if not os.path.exists(cookies_path):
+            err_msg = "cookies.json not found"
+            logger.error(f"{err_msg}, cannot run Playwright audio scraper")
+            return {aid: err_msg for aid in audio_ids}
+            
+        with open(cookies_path, "r") as f:
+            cookies = json.load(f)
+            
+        logger.info("Launching Playwright browser context...")
+        with sync_playwright() as p:
+            browser = p.chromium.launch(headless=True)
+            context = browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+            )
+            
+            # Add cookies
+            formatted_cookies = []
+            for c in cookies:
+                formatted_cookies.append({
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                })
+            context.add_cookies(formatted_cookies)
+            
+            page = context.new_page()
+            
+            for aid in audio_ids:
+                url = f"https://www.instagram.com/reels/audio/{aid}/"
+                logger.info(f"Checking official count for audio_id {aid} via {url}...")
+                try:
+                    page.goto(url, wait_until="networkidle", timeout=20000)
+                    time.sleep(3)  # wait for client-side JS rendering
+                    
+                    current_url = page.url
+                    if "/accounts/login/" in current_url or "/challenge/" in current_url:
+                        logger.error(f"[INSTAGRAM_FRICTION] Redirected to login/challenge page: {current_url}")
+                        results[aid] = f"Redirected to login/challenge page: {current_url}"
+                        continue
+                        
+                    body_text = page.inner_text("body")
+                    
+                    # Scan for rate limits, block or captcha text
+                    friction_keywords = [
+                        "suspicious activity", "confirm it's you", "robot", "captcha",
+                        "restrict", "block", "try again later", "please wait a few minutes"
+                    ]
+                    friction_detected = None
+                    for kw in friction_keywords:
+                        if kw in body_text.lower():
+                            logger.error(f"[INSTAGRAM_FRICTION] Found friction keyword '{kw}' in body text of {url}")
+                            friction_detected = kw
+                            
+                    if friction_detected:
+                        results[aid] = f"Friction keyword found: '{friction_detected}'"
+                        continue
+                    
+                    # Parse count
+                    count, precision_bucket = self._parse_reels_count_text(body_text)
+                    if count is not None:
+                        logger.info(f"Successfully scraped count for {aid}: {count} (precision: {precision_bucket})")
+                        self._save_official_count(aid, count, precision_bucket)
+                        results[aid] = "SUCCESS"
+                    else:
+                        logger.warning(f"Could not find Reels count text in page body for {aid}")
+                        results[aid] = "Could not find Reels count text in page body"
+                        
+                except Exception as ex:
+                    logger.error(f"Error scraping audio {aid}: {ex}")
+                    results[aid] = str(ex)
+                
+                # Multi-second delay between requests to avoid rate limits
+                time.sleep(5)
+                
+            browser.close()
+        return results
+
+    def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:
+        match = re.search(r'([\d,.]+)([KMB]?)\s*reels?', text, re.IGNORECASE)
+        if not match:
+            return None, None
+        val_str, suffix = match.groups()
+        val_str = val_str.replace(',', '')
+        try:
+            val = float(val_str)
+            suffix_upper = suffix.upper()
+            if suffix_upper == 'K':
+                val *= 1000
+                precision_bucket = 'K'
+            elif suffix_upper == 'M':
+                val *= 1_000_000
+                precision_bucket = 'M'
+            elif suffix_upper == 'B':
+                val *= 1_000_000_000
+                precision_bucket = 'B'
+            else:
+                precision_bucket = 'exact'
+            return int(val), precision_bucket
+        except ValueError:
+            return None, None
+
+    def _save_official_count(self, audio_id: str, count: int, precision_bucket: str) -> None:
+        try:
+            # 1. Fetch previous count to calculate velocity
+            prev = self.supabase.table("audio_official_counts") \
+                .select("official_use_count, checked_at, precision_bucket") \
+                .eq("audio_id", audio_id) \
+                .order("checked_at", desc=True) \
+                .limit(1) \
+                .execute()
+                
+            velocity = 0.0
+            now = datetime.now(timezone.utc)
+            velocity_is_null = False
+            
+            if prev.data:
+                prev_row = prev.data[0]
+                prev_count = prev_row.get("official_use_count")
+                prev_time_str = prev_row.get("checked_at")
+                prev_bucket = prev_row.get("precision_bucket") or "exact"
+                
+                if prev_count is not None and prev_time_str:
+                    try:
+                        prev_time = datetime.fromisoformat(prev_time_str.replace("Z", "+00:00"))
+                        if prev_time.tzinfo is None:
+                            prev_time = prev_time.replace(tzinfo=timezone.utc)
+                        time_diff_hours = (now - prev_time).total_seconds() / 3600.0
+                        if time_diff_hours > 0.05: # avoid division by zero / super small windows
+                            count_diff = count - prev_count
+                            if count_diff == 0 and precision_bucket == prev_bucket and precision_bucket != 'exact':
+                                velocity_is_null = True
+                            else:
+                                velocity = count_diff / time_diff_hours
+                    except Exception as ve:
+                        logger.warning(f"Error parsing checked_at for velocity check: {ve}")
+            
+            # 2. Append new row to audio_official_counts
+            insert_data = {
+                "audio_id": audio_id,
+                "official_use_count": count,
+                "checked_at": now.isoformat(),
+                "precision_bucket": precision_bucket
+            }
+            if velocity_is_null:
+                insert_data["official_count_velocity"] = None
+            else:
+                insert_data["official_count_velocity"] = velocity
+
+            self.supabase.table("audio_official_counts").insert(insert_data).execute()
+            
+            # 3. Update the latest audio_use_count in the reels table
+            self.supabase.table("reels") \
+                .update({"audio_use_count": count}) \
+                .eq("audio_id", audio_id) \
+                .execute()
+                
+            velocity_str = f"{velocity:.3f}" if not velocity_is_null else "NULL"
+            logger.info(f"Saved official count {count} for audio_id {audio_id} (velocity={velocity_str} per hour, precision={precision_bucket})")
+        except Exception as e:
+            logger.error(f"Error saving official count: {e}", exc_info=True)
 
 if __name__ == "__main__":
     scraper = InstagramScraper()

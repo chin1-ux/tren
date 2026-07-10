@@ -266,6 +266,19 @@ def run_data_retention_job():
     logging.info("Daily Data Retention Cleanup Job Complete.")
 
 
+def run_audio_count_check():
+    logging.info("Starting Audio Official Counts Check Job...")
+    try:
+        if SCRAPER_BACKEND == "browser_use":
+            insta = InstagramScraper()
+            insta.scrape_official_audio_counts(limit=30)
+            logging.info("Audio Official Counts Check Job complete.")
+        else:
+            logging.info("Audio check job skipped (only supported with browser_use backend).")
+    except Exception as e:
+        logging.error(f"Audio Official Counts Check Job FAILED: {e}", exc_info=True)
+
+
 if __name__ == "__main__":
     logging.info("Trendrop cron job initialized. Running pipeline immediately on startup...")
     try:
@@ -279,9 +292,19 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup data retention cleanup failed: {e}", exc_info=True)
 
+    # Run audio count check immediately on startup
+    try:
+        run_audio_count_check()
+    except Exception as e:
+        logging.error(f"Startup audio counts check failed: {e}", exc_info=True)
+
     # Schedule every 3 hours
     logging.info("Scheduling pipeline to run every 3 hours...")
     schedule.every(3).hours.do(run_full_pipeline)
+
+    # Schedule every 6 hours for audio counts check
+    logging.info("Scheduling audio counts check to run every 6 hours...")
+    schedule.every(6).hours.do(run_audio_count_check)
 
     # Schedule daily at 2:00 AM IST
     logging.info("Scheduling daily data retention cleanup at 02:00 AM IST...")
