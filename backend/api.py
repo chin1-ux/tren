@@ -1182,7 +1182,12 @@ def get_user_reels_feed(request: Request, current_user: str = Depends(get_curren
                 if 'cur' in locals(): cur.close()
                 if 'conn' in locals(): conn.close()
 
-        q = supabase.table("reels").select("*").in_("caption_language", languages).order("created_at", desc=True).limit(50)
+        q = supabase.table("reels") \
+            .select("*") \
+            .eq("is_original_audio", False) \
+            .in_("caption_language", languages) \
+            .order("created_at", desc=True) \
+            .limit(50)
         res = q.execute()
         return res.data or []
     except Exception as e:
@@ -1200,6 +1205,7 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
         q = supabase.table("reels") \
             .select("*") \
             .eq("is_cross_cultural", True) \
+            .eq("is_original_audio", False) \
             .in_("caption_language", ["en", "hi", "english", "hindi"]) \
             .neq("trend_origin", "IN") \
             .lt("india_saturation_pct", 40) \
