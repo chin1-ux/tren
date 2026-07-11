@@ -76,8 +76,8 @@ for r in runs:
 # ── Check the 2026-07-11 18:00 UTC slot specifically ──────────────────────────
 print()
 print("=== CHECKING 2026-07-11 18:00 UTC SCHEDULED SLOT ===")
-target_start = datetime(2026, 7, 11, 17, 30, tzinfo=timezone.utc)  # 30min window
-target_end   = datetime(2026, 7, 11, 18, 30, tzinfo=timezone.utc)
+target_start = datetime(2026, 7, 11, 16, 30, tzinfo=timezone.utc)  # ±90min window (GH can delay up to 3h)
+target_end   = datetime(2026, 7, 11, 19, 30, tzinfo=timezone.utc)
 
 slot_runs = []
 for r in runs:

@@ -48,3 +48,9 @@ import_session.py
 test_ig_api.py
 check_db.py
 
+
+# Diagnostic scratch scripts (not for production)
+scratch/*.py
+!scratch/check_gh_actions.py
+!scratch/analyze_gaps.py
+!scratch/migrate_add_reels_count.py
