@@ -82,6 +82,24 @@ def run_full_pipeline():
     # ── 3. Trend Engine: detect new trends ───────────────────────────────────
     trend_ids = []
     if new_reels_count >= 5:
+        # Data-quality warning: check proportion of null audio titles in recent scrape
+        try:
+            sb = _get_supabase()
+            from datetime import timedelta
+            recent_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+            recent_reels = sb.table("reels").select("audio_title").gte("scraped_at", recent_time).execute().data or []
+            if recent_reels:
+                null_titles = sum(1 for r in recent_reels if not r.get("audio_title"))
+                pct_null = null_titles / len(recent_reels)
+                if pct_null > 0.5:
+                    logging.warning(
+                        f"DATA QUALITY WARNING: {pct_null*100:.1f}% of reels ({null_titles}/{len(recent_reels)}) "
+                        f"scraped in the last 30 minutes have a NULL audio_title. "
+                        f"This suggests a potential scraper parsing failure."
+                    )
+        except Exception as dq_err:
+            logging.warning(f"Failed to perform data-quality check: {dq_err}")
+
         try:
             logging.info("Step 3/5: Running TrendEngine to detect new trends...")
             engine = TrendEngine()

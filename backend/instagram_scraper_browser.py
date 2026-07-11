@@ -123,7 +123,7 @@ class InstagramScraper:
             clips_metadata = media.get("clips_metadata", {}) or {}
             music_info = clips_metadata.get("music_info")
             if music_info:
-                minfo = music_info.get("music_info") or {}
+                minfo = music_info.get("music_info") if music_info.get("music_info") else music_info
                 asset = minfo.get("music_asset_info") or {}
                 audio_id = asset.get("id") or asset.get("audio_cluster_id")
                 audio_title = asset.get("title")
@@ -135,7 +135,7 @@ class InstagramScraper:
             # 2. Try direct music_info
             music_info = media.get("music_info")
             if music_info:
-                minfo = music_info.get("music_info") or {}
+                minfo = music_info.get("music_info") if music_info.get("music_info") else music_info
                 asset = minfo.get("music_asset_info") or {}
                 audio_id = asset.get("id") or asset.get("audio_cluster_id")
                 audio_title = asset.get("title")

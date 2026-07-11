@@ -1185,6 +1185,8 @@ def get_user_reels_feed(request: Request, current_user: str = Depends(get_curren
         q = supabase.table("reels") \
             .select("*") \
             .eq("is_original_audio", False) \
+            .not_.is_("audio_title", "null") \
+            .neq("audio_title", "Original audio") \
             .in_("caption_language", languages) \
             .order("created_at", desc=True) \
             .limit(50)
@@ -1206,6 +1208,8 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
             .select("*") \
             .eq("is_cross_cultural", True) \
             .eq("is_original_audio", False) \
+            .not_.is_("audio_title", "null") \
+            .neq("audio_title", "Original audio") \
             .in_("caption_language", ["en", "hi", "english", "hindi"]) \
             .neq("trend_origin", "IN") \
             .lt("india_saturation_pct", 40) \
