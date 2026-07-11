@@ -136,6 +136,7 @@ def run_full_pipeline():
         sb = _get_supabase()
         sb.table("cron_runs").insert({
             "run_at": start.isoformat(),
+            "new_reels_count": new_reels_count,
             "new_trends_found": len(trend_ids),
             "trend_ids": trend_ids,
             "status": "success"
