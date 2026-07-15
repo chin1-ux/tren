@@ -444,9 +444,9 @@ Return ONLY valid JSON, no markdown, no explanation:
         
         try:
             priority_pool = (
-                self.hashtag_groups["INTERNATIONAL_REGIONAL"][:3]
+                self.hashtag_groups["INDIA_SUPPORTING"][:2]
                 + self.hashtag_groups["GLOBAL_TRENDING"][:3]
-                + self.hashtag_groups["WESTERN_AND_GLOBAL"][:2]
+                + self.hashtag_groups["GLOBAL_NICHES"][:2]
             )
             
             seen = set()

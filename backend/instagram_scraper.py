@@ -418,9 +418,9 @@ Rules:
 
         # Flatten all hashtags with priority
         priority_pool = (
-            self.hashtag_groups["INTERNATIONAL_REGIONAL"][:6] +
+            self.hashtag_groups["INDIA_SUPPORTING"][:2] +
             self.hashtag_groups["GLOBAL_TRENDING"][:4] +
-            self.hashtag_groups["WESTERN_AND_GLOBAL"][:2]
+            self.hashtag_groups["GLOBAL_NICHES"][:2]
         )
         seen = set()
         selected_hashtags = []
