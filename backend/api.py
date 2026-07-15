@@ -667,6 +667,21 @@ def _normalize_trends(trends: list) -> list:
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
     return trends
 
+
+def _trend_priority_key(trend: dict) -> tuple[int, int, float, float]:
+    origin = (trend.get("trend_origin") or "").upper()
+    is_cross = bool(trend.get("is_cross_cultural"))
+    global_first = 1 if is_cross or origin not in {"", "IN", "UNKNOWN"} else 0
+    regional = 0 if origin in {"", "IN", "UNKNOWN"} else 1
+    if is_cross:
+        regional = 0
+    return (
+        global_first,
+        regional,
+        float(trend.get("composite_score") or trend.get("velocity_avg") or 0.0),
+        float(trend.get("reel_count") or 0),
+    )
+
 @app.get("/api/trends")
 @limiter.limit("60/minute")
 def get_trends(
@@ -714,6 +729,7 @@ def get_trends(
 
         res = q.execute()
         trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -744,7 +760,9 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
-        return _normalize_trends(res.data or [])
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
+        return trends
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -758,7 +776,9 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).order("velocity_avg", desc=True).execute()
-        return _normalize_trends(res.data or [])
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
+        return trends
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
@@ -811,7 +831,9 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
             .execute()
-        return _normalize_trends(res.data or [])
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
+        return trends
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 

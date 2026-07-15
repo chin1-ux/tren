@@ -27,17 +27,24 @@ const ALL_LANGUAGES = [
   { code: "mr", label: "Marathi", emoji: "🦁" }
 ];
 
-const ALL_NICHES = [
-  { id: "dance", label: "Dance", emoji: "💃" },
-  { id: "fashion", label: "Fashion", emoji: "👗" },
-  { id: "travel", label: "Travel", emoji: "✈️" },
-  { id: "food", label: "Food", emoji: "🍳" },
-  { id: "comedy", label: "Comedy", emoji: "😂" },
-  { id: "motivation", label: "Motivation", emoji: "💪" },
-  { id: "devotional", label: "Devotional", emoji: "🙏" },
-  { id: "fitness", label: "Fitness", emoji: "🏋️" },
-  { id: "study", label: "Study", emoji: "📚" },
-  { id: "scenic", label: "Cinematic", emoji: "🎬" }
+const NICHES = [
+  "personal finance",
+  "pottery",
+  "true crime commentary",
+  "dance",
+  "fashion",
+  "travel",
+  "food",
+  "comedy",
+  "motivation",
+  "devotional",
+  "fitness",
+  "study",
+  "scenic",
+  "technology",
+  "gaming",
+  "parenting",
+  "real estate",
 ];
 
 function SettingsPage() {
@@ -61,12 +68,10 @@ function SettingsPage() {
 
   // Search-based filters state
   const [langSearch, setLangSearch] = useState("");
-  const [nicheSearch, setNicheSearch] = useState("");
+  const [customNiche, setCustomNiche] = useState("");
   const [showLangDropdown, setShowLangDropdown] = useState(false);
-  const [showNicheDropdown, setShowNicheDropdown] = useState(false);
 
   const langRef = useRef<HTMLDivElement>(null);
-  const nicheRef = useRef<HTMLDivElement>(null);
 
   // Load from local storage
   useEffect(() => {
@@ -88,7 +93,9 @@ function SettingsPage() {
     if (nw !== null) setNotifyWeeklyReport(nw === "true");
 
     setSelectedLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
-    setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
+    const savedNiche = localStorage.getItem("trendrop_pref_niche") ?? "all";
+    setSelectedNiche(savedNiche);
+    setCustomNiche(savedNiche === "all" ? "" : savedNiche);
   }, []);
 
   // Theme change
@@ -119,9 +126,6 @@ function SettingsPage() {
       if (langRef.current && !langRef.current.contains(event.target as Node)) {
         setShowLangDropdown(false);
       }
-      if (nicheRef.current && !nicheRef.current.contains(event.target as Node)) {
-        setShowNicheDropdown(false);
-      }
     }
     document.addEventListener("mousedown", handleClickOutside);
     return () => document.removeEventListener("mousedown", handleClickOutside);
@@ -138,7 +142,7 @@ function SettingsPage() {
     localStorage.setItem("trendrop_notify_weekly_report", String(notifyWeeklyReport));
 
     localStorage.setItem("trendrop_pref_language", selectedLanguage);
-    localStorage.setItem("trendrop_pref_niche", selectedNiche);
+    localStorage.setItem("trendrop_pref_niche", customNiche.trim() || selectedNiche || "all");
 
     toast.success("Settings saved successfully! ✓");
   };
@@ -157,12 +161,8 @@ function SettingsPage() {
     l.label.toLowerCase().includes(langSearch.toLowerCase())
   );
 
-  const filteredNiches = ALL_NICHES.filter(n => 
-    n.label.toLowerCase().includes(nicheSearch.toLowerCase())
-  );
-
   const activeLangObj = ALL_LANGUAGES.find(l => l.code === selectedLanguage);
-  const activeNicheObj = ALL_NICHES.find(n => n.id === selectedNiche);
+  const activeNicheLabel = customNiche.trim() || (selectedNiche !== "all" ? selectedNiche : "All niches");
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-md mx-auto">
@@ -183,7 +183,7 @@ function SettingsPage() {
         </h2>
 
         {/* Searchable Language Selection */}
-        <div className="space-y-1.5" ref={langRef}>
+      <div className="space-y-1.5" ref={langRef}>
           <label className="text-xs font-semibold text-muted-foreground block">Default Trend Language</label>
           <div className="relative">
             <button
@@ -232,51 +232,37 @@ function SettingsPage() {
         </div>
 
         {/* Searchable Niche Selection */}
-        <div className="space-y-1.5" ref={nicheRef}>
+        <div className="space-y-1.5">
           <label className="text-xs font-semibold text-muted-foreground block">Creator Niche / Category</label>
           <div className="relative">
-            <button
-              type="button"
-              onClick={() => setShowNicheDropdown(!showNicheDropdown)}
-              className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/60 transition-colors"
-            >
-              <span>{activeNicheObj ? `${activeNicheObj.emoji} ${activeNicheObj.label}` : "🔥 All Niches"}</span>
-              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showNicheDropdown ? "rotate-90" : ""}`} />
-            </button>
-
-            {showNicheDropdown && (
-              <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-border bg-surface shadow-xl p-2.5 space-y-2">
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
-                  <input
-                    type="text"
-                    value={nicheSearch}
-                    onChange={(e) => setNicheSearch(e.target.value)}
-                    placeholder="Search niches..."
-                    className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
-                  />
-                </div>
-                <div className="max-h-40 overflow-y-auto space-y-1">
-                  <button
-                    onClick={() => { setSelectedNiche("all"); setShowNicheDropdown(false); }}
-                    className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
-                  >
-                    <span>🔥 All Niches</span>
-                    {selectedNiche === "all" && <Check className="h-3.5 w-3.5 text-secondary" />}
-                  </button>
-                  {filteredNiches.map(n => (
-                    <button
-                      key={n.id}
-                      onClick={() => { setSelectedNiche(n.id); setShowNicheDropdown(false); }}
-                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
-                    >
-                      <span>{n.emoji} {n.label}</span>
-                      {selectedNiche === n.id && <Check className="h-3.5 w-3.5 text-secondary" />}
-                    </button>
-                  ))}
-                </div>
-              </div>
-            )}
+            <Search className="absolute left-2.5 top-1/2 h-3.5 w-3.5 -translate-y-1/2 text-muted-foreground" />
+            <input
+              type="text"
+              value={customNiche}
+              onChange={(e) => {
+                const value = e.target.value;
+                setCustomNiche(value);
+                setSelectedNiche(value.trim() ? value : "all");
+              }}
+              placeholder="e.g. personal finance, pottery, true crime commentary"
+              className="w-full rounded-xl bg-muted/40 border border-border px-8 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+            />
+          </div>
+          <p className="text-[10px] text-muted-foreground">Free-form niche value. Suggestions below are optional, not a fixed list.</p>
+          <div className="flex flex-wrap gap-2">
+            {NICHES.map((niche) => (
+              <button
+                key={niche}
+                type="button"
+                onClick={() => {
+                  setCustomNiche(niche);
+                  setSelectedNiche(niche);
+                }}
+                className="rounded-full border border-border/50 bg-background/60 px-2.5 py-1 text-[10px] font-semibold text-foreground/80 hover:border-primary/50 hover:text-foreground"
+              >
+                {niche}
+              </button>
+            ))}
           </div>
         </div>
       </div>

@@ -75,6 +75,14 @@ def generate_local_fallback(trend):
     }
 
 
+def _trend_discovery_source(trend: dict) -> str:
+    if trend.get("is_cross_cultural") or (trend.get("trend_origin") or "").upper() not in {"", "IN", "UNKNOWN"}:
+        return "global"
+    if (trend.get("max_velocity") or 0) >= 3.0 or (trend.get("avg_velocity") or 0) >= 1.5:
+        return "unexpected_candidate"
+    return "regional"
+
+
 
 class TrendEngine:
     def __init__(self):
@@ -346,6 +354,15 @@ class TrendEngine:
                     "count": len(group_reels),
                     "usernames": list(usernames),
                     "initial_status": initial_status,
+                    "discovery_source": _trend_discovery_source({
+                        "is_cross_cultural": any(r.get("is_cross_cultural") for r in group_reels),
+                        "trend_origin": max(
+                            (r.get("trend_origin") for r in group_reels if r.get("trend_origin")),
+                            default="IN",
+                        ),
+                        "max_velocity": max_velocity,
+                        "avg_velocity": avg_velocity,
+                    }),
                 })
 
             logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
@@ -553,6 +570,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "format_patterns": format_patterns,
                     "trend_origin": trend_origin,
                     "is_cross_cultural": is_cross_cultural,
+                    "discovery_source": trend.get("discovery_source", "regional"),
                     "optimal_post_hour_ist": trend.get("optimal_post_hour_ist"),
                     "best_platform_first": trend.get("best_platform_first", "instagram"),
                     "why_this_works": trend.get("why_this_works"),

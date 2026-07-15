@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { X, CheckCircle, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { subscribe } from "@/lib/api";
+import { toast } from "sonner";
 
 const NICHES = [
   { id: "dance",      emoji: "💃", label: "Dance" },

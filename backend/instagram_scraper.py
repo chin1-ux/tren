@@ -81,15 +81,14 @@ class InstagramScraper:
         self.hashtag_groups = {
             "GLOBAL_TRENDING": [
                 "trending", "reels", "viral", "fyp", "explore",
-                "trendingreels", "reelsinstagram", "globalreels", "reelsviral"
+                "trendingreels", "reelsinstagram", "globalreels", "reelsviral", "foryou"
             ],
-            "WESTERN_AND_GLOBAL": [
-                "aesthetic", "dance", "music", "popmusic", "chartmusic", 
-                "billboard", "tiktoktrend", "trendingsong", "latesthits"
+            "GLOBAL_NICHES": [
+                "aesthetic", "dance", "music", "popmusic", "chartmusic",
+                "billboard", "tiktoktrend", "trendingsong", "latesthits", "cinematic"
             ],
-            "INTERNATIONAL_REGIONAL": [
-                "brazilianfunk", "russianmusic", "latintrend", "kpop", 
-                "eurovision", "phonk", "techno", "electronicmusic"
+            "INDIA_SUPPORTING": [
+                "trendingindia", "reelsindia"
             ]
         }
 
