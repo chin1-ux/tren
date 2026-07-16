@@ -21,15 +21,4 @@ services:
       - key: PYTHON_VERSION
         value: 3.11.0
 
-  # Cron job — scrapes trends, refreshes lifecycle, sends Resend alert emails.
-  # Runs every 6 hours. Uses schedule loop; needs a persistent process.
-  - type: cron
-    name: trendrop-pipeline-cron
-    runtime: python
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    schedule: "0 */6 * * *"
-    startCommand: python cron_job.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
+

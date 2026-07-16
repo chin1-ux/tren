@@ -1177,8 +1177,28 @@ Return ONLY valid JSON, no markdown, no explanation:
             for c in cookies
         ]
 
-        logger.info("Launching Camoufox stealth browser for audio count scraping...")
-        async with CamoufoxBrowser(headless=True, geoip=True) as browser:
+        browser = None
+        context = None
+        page = None
+
+        async def launch_new_session():
+            nonlocal browser, context, page
+            try:
+                if context:
+                    await context.close()
+            except Exception:
+                pass
+            try:
+                if browser:
+                    # camoufox uses standard close, but if async it needs await
+                    if hasattr(browser, "close"):
+                        await browser.close()
+            except Exception:
+                pass
+
+            logger.info("Launching Camoufox stealth browser for audio count scraping...")
+            # We instantiate it manually via __aenter__ so we can handle crashes
+            browser = await CamoufoxBrowser(headless=True, geoip=True).__aenter__()
             context = await browser.new_context(no_viewport=True)
             await context.add_cookies(formatted_cookies)
             page = await context.new_page()
@@ -1190,20 +1210,25 @@ Return ONLY valid JSON, no markdown, no explanation:
             except Exception as warm_err:
                 logger.warning(f"Warm-up navigation failed (non-fatal): {warm_err}")
 
-            consecutive_failures = 0
-            MAX_CONSECUTIVE_FAILURES = 3  # Abort if driver keeps crashing
+        consecutive_failures = 0
+        MAX_CONSECUTIVE_FAILURES = 3  # Abort if browser repeatedly fails to launch/load
 
+        try:
             for aid in audio_ids:
                 if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
-                    logger.error(f"Too many consecutive driver failures ({consecutive_failures}). Aborting audio count scrape.")
+                    logger.error(f"Too many consecutive failures ({consecutive_failures}). Aborting audio count scrape.")
                     for remaining_aid in audio_ids:
                         if remaining_aid not in results:
-                            results[remaining_aid] = "Skipped: browser driver crashed"
+                            results[remaining_aid] = "Skipped: browser driver crashed repeatedly"
                     break
 
                 url = f"https://www.instagram.com/reels/audio/{aid}/"
                 logger.info(f"Checking official count for audio_id {aid} via {url}...")
                 try:
+                    # Lazily start/restart session if it was cleared due to a crash
+                    if page is None or page.is_closed():
+                        await launch_new_session()
+
                     # Use domcontentloaded (not networkidle) — networkidle hangs on Instagram's
                     # heavy SPA and eventually kills the Playwright driver process.
                     await page.goto(url, wait_until="domcontentloaded", timeout=25000)
@@ -1249,16 +1274,29 @@ Return ONLY valid JSON, no markdown, no explanation:
                     logger.error(f"Error scraping audio {aid}: {ex}")
                     results[aid] = err_str
                     # Driver-level errors (connection closed, socket errors) count as failures
-                    if "connection closed" in err_str.lower() or "socket" in err_str.lower():
+                    if "connection closed" in err_str.lower() or "socket" in err_str.lower() or "playwright" in err_str.lower() or "undefined" in err_str.lower():
                         consecutive_failures += 1
-                        logger.warning(f"Driver-level failure #{consecutive_failures} for {aid}")
+                        logger.warning(f"Driver-level failure #{consecutive_failures} for {aid}. Session discarded.")
+                        page = None  # Force re-initialization of browser on next loop
                     else:
                         consecutive_failures = 0
 
                 # Multi-second delay between requests to avoid rate limits
                 time.sleep(5)
+        finally:
+            # Always ensure clean teardown of whatever is currently active
+            try:
+                if context:
+                    await context.close()
+            except Exception:
+                pass
+            try:
+                if browser:
+                    if hasattr(browser, "close"):
+                        await browser.close()
+            except Exception:
+                pass
 
-            await context.close()
         return results
 
     def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:

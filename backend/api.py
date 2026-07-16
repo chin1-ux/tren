@@ -1307,6 +1307,9 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
+        from datetime import datetime, timedelta, timezone
+        threshold = (datetime.now(timezone.utc) - timedelta(hours=60)).isoformat()
+        
         q = supabase.table("reels") \
             .select("*") \
             .eq("is_cross_cultural", True) \
@@ -1319,6 +1322,9 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
             .neq("trend_origin", "unknown") \
             .neq("trend_origin", "UNKNOWN") \
             .not_.is_("trend_origin", "null") \
+            .gt("velocity_score", 0.3) \
+            .gt("view_count", 2000) \
+            .gte("scraped_at", threshold) \
             .lt("india_saturation_pct", 40) \
             .order("scraped_at", desc=True) \
             .limit(10)
