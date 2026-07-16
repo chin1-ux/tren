@@ -8,7 +8,7 @@ logger = logging.getLogger("llm")
 def call_gemini(system_prompt: str, user_prompt: str, gemini_key: str, response_mime_type: str = "application/json", timeout: int = 30) -> dict:
     gemini_url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
-        f"gemini-1.5-flash:generateContent?key={gemini_key}"
+        f"gemini-2.5-flash:generateContent?key={gemini_key}"
     )
     
     payload = {
@@ -144,7 +144,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
                 if idx == len(keys):
                     gemini_key = os.getenv("GEMINI_API_KEY")
                     if gemini_key:
-                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-1.5-flash)...")
+                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-2.5-flash)...")
                         try:
                             res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
                             logger.info("Fallback to Gemini successful.")
@@ -158,7 +158,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
                 if idx == len(keys):
                     gemini_key = os.getenv("GEMINI_API_KEY")
                     if gemini_key:
-                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-1.5-flash)...")
+                        logger.warning("All Groq API keys failed. Attempting fallback to Gemini (gemini-2.5-flash)...")
                         try:
                             res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
                             logger.info("Fallback to Gemini successful.")
