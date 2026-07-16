@@ -804,7 +804,7 @@ def get_trends(
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
         elif sort == "newest":
-            q = q.order("created_at", desc=True)
+            q = q.order("first_detected_at", desc=True)
         else:
             q = q.order("velocity_avg", desc=True)
 
@@ -2566,6 +2566,92 @@ def get_instagram_auth_url(req: InstagramAuthRequest, request: Request, current_
     except Exception as e:
         logger.error(f"Error generating Instagram auth URL: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to generate auth URL")
+
+@app.get("/api/instagram/callback")
+@limiter.limit("30/minute")
+def instagram_callback_get(request: Request, code: str = None, state: str = None, error: str = None):
+    """
+    Handle GET redirect from Meta OAuth.
+    Meta redirects here with ?code=... after user grants permission.
+    We process the code server-side and redirect to the frontend settings page.
+    The 'state' param is 'verify_flow_state' (hardcoded in auth URL).
+    """
+    frontend_url = os.getenv("FRONTEND_URL", "https://trendrop-black.vercel.app")
+    settings_url = f"{frontend_url}/settings"
+
+    if error:
+        logger.warning(f"Instagram OAuth error from Meta: {error}")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{settings_url}?ig_error={error}", status_code=302)
+
+    if not code:
+        logger.warning("Instagram callback received with no code")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{settings_url}?ig_error=no_code", status_code=302)
+
+    if not InstagramOAuth:
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{settings_url}?ig_error=not_configured", status_code=302)
+
+    try:
+        # Exchange code for tokens
+        token_data = InstagramOAuth.exchange_code_for_token(code)
+        short_lived_token = token_data.get("access_token")
+        if not short_lived_token:
+            raise ValueError("No short-lived token returned")
+
+        long_lived_data = InstagramOAuth.get_long_lived_token(short_lived_token)
+        long_lived_token = long_lived_data.get("access_token")
+        if not long_lived_token:
+            raise ValueError("No long-lived token returned")
+
+        # Get Instagram Business Account (uses direct Page ID fallback for Business Manager pages)
+        ig_account = InstagramOAuth.get_instagram_business_account(long_lived_token)
+        if not ig_account:
+            logger.error("No Instagram Business Account found during GET callback")
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=f"{settings_url}?ig_error=no_ig_account", status_code=302)
+
+        ig_account_id = ig_account.get("id")
+        ig_username = ig_account.get("username", "unknown")
+
+        # Use a system/guest email for the callback flow since we don't have a user JWT here.
+        # The token is associated with ig_account_id which is unique per IG account.
+        # We store using ig_account_id as the primary key for lookup later.
+        user_email = f"ig_{ig_account_id}@trendrop.app"
+
+        stored = InstagramOAuth.store_token(
+            user_email=user_email,
+            token_data={"access_token": long_lived_token, "token_type": "long-lived"},
+            ig_account_id=ig_account_id
+        )
+
+        if not stored:
+            logger.error(f"Failed to store token for IG account {ig_account_id}")
+            from fastapi.responses import RedirectResponse
+            return RedirectResponse(url=f"{settings_url}?ig_error=store_failed", status_code=302)
+
+        # Sync posts in background
+        def _sync():
+            try:
+                InstagramOAuth.sync_creator_posts(long_lived_token, ig_account_id, user_email)
+            except Exception as ex:
+                logger.warning(f"Background post sync failed for {ig_account_id}: {ex}")
+
+        threading.Thread(target=_sync, daemon=True).start()
+
+        logger.info(f"Successfully connected Instagram @{ig_username} (ID: {ig_account_id}) via GET callback")
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(
+            url=f"{settings_url}?ig_success=1&ig_username={ig_username}&ig_id={ig_account_id}",
+            status_code=302
+        )
+
+    except Exception as e:
+        logger.error(f"Error in GET Instagram callback: {e}", exc_info=True)
+        from fastapi.responses import RedirectResponse
+        return RedirectResponse(url=f"{settings_url}?ig_error=server_error", status_code=302)
+
 
 @app.post("/api/instagram/callback")
 @limiter.limit("15/minute")
