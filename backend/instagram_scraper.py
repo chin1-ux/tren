@@ -77,18 +77,19 @@ class InstagramScraper:
         self.apify_clients = [ApifyClient(t) for t in tokens]
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
-        # Global & Western focused hashtag groups
+        # Indian creator-focused hashtag groups
         self.hashtag_groups = {
-            "GLOBAL_TRENDING": [
-                "trending", "reels", "viral", "fyp", "explore",
-                "trendingreels", "reelsinstagram", "globalreels", "reelsviral", "foryou"
+            "INDIA_TRENDING": [
+                "trendingindia", "reelsindia", "instagramindia", "indiansong",
+                "reelkarofeelkaro", "desimemes", "exploreindia"
+            ],
+            "INDIA_VERNACULAR": [
+                "hindireels", "punjabisongs", "tamilreels", "telugureels",
+                "kannadareels", "bhojpurisong", "marathireels"
             ],
             "GLOBAL_NICHES": [
-                "aesthetic", "dance", "music", "popmusic", "chartmusic",
-                "billboard", "tiktoktrend", "trendingsong", "latesthits", "cinematic"
-            ],
-            "INDIA_SUPPORTING": [
-                "trendingindia", "reelsindia"
+                "fitnessreels", "foodreels", "comedyreels", "fashionreels",
+                "travelreels", "beautyreels", "artreels"
             ]
         }
 
@@ -300,7 +301,7 @@ Return ONLY valid JSON, no markdown, no explanation:
         actor_id = "apify/instagram-hashtag-scraper"
         run_input = {
             "hashtags": [hashtag],
-            "resultsLimit": 10,
+            "resultsLimit": 40,
             "addParentData": True
         }
         for attempt in range(1, max_retries + 1):
@@ -416,12 +417,14 @@ Rules:
         saved_count = 0
         high_velocity_reels = []
 
-        # Flatten all hashtags with priority
-        priority_pool = (
-            self.hashtag_groups["INDIA_SUPPORTING"][:2] +
-            self.hashtag_groups["GLOBAL_TRENDING"][:4] +
-            self.hashtag_groups["GLOBAL_NICHES"][:2]
-        )
+        if "CUSTOM" in self.hashtag_groups:
+            priority_pool = self.hashtag_groups["CUSTOM"]
+        else:
+            priority_pool = (
+                self.hashtag_groups["INDIA_TRENDING"][:6] +
+                self.hashtag_groups["INDIA_VERNACULAR"][:6] +
+                self.hashtag_groups["GLOBAL_NICHES"][:3]
+            )
         seen = set()
         selected_hashtags = []
         for h in priority_pool:

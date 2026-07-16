@@ -1,3 +1,5 @@
+# WARNING: Deprecated/Unused in production API environment.
+# This module is only intended for local worker run configurations.
 import os
 import time
 import logging

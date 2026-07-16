@@ -285,6 +285,30 @@ def run_data_retention_job():
     logging.info("Daily Data Retention Cleanup Job Complete.")
 
 
+def run_creator_sync_job():
+    logging.info("Starting Daily Creator Sync Job...")
+    try:
+        sb = _get_supabase()
+    except Exception as e:
+        logging.error(f"Cannot initialize Supabase for sync: {e}")
+        return
+        
+    try:
+        from instagram_oauth import InstagramOAuth
+        # Fetch all instagram tokens
+        tokens_res = sb.table("instagram_tokens").select("*").execute()
+        for token in (tokens_res.data or []):
+            email = token.get("user_email")
+            access_token = token.get("access_token")
+            ig_account_id = token.get("ig_account_id")
+            if email and access_token and ig_account_id:
+                logging.info(f"Syncing posts for creator {email}...")
+                InstagramOAuth.sync_creator_posts(access_token, ig_account_id, email)
+        logging.info("Daily Creator Sync Job completed.")
+    except Exception as e:
+        logging.error(f"Error during creator sync job: {e}")
+
+
 def run_audio_count_check():
     logging.info("Starting Audio Official Counts Check Job...")
     try:
@@ -311,6 +335,12 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup data retention cleanup failed: {e}", exc_info=True)
 
+    # Run daily sync immediately once on startup
+    try:
+        run_creator_sync_job()
+    except Exception as e:
+        logging.error(f"Startup creator sync failed: {e}", exc_info=True)
+
     # Run audio count check immediately on startup
     try:
         run_audio_count_check()
@@ -324,6 +354,10 @@ if __name__ == "__main__":
     # Schedule every 6 hours for audio counts check
     logging.info("Scheduling audio counts check to run every 6 hours...")
     schedule.every(6).hours.do(run_audio_count_check)
+
+    # Schedule daily creator sync job
+    logging.info("Scheduling daily creator sync job...")
+    schedule.every().day.at("01:00").do(run_creator_sync_job)
 
     # Schedule daily at 2:00 AM IST
     logging.info("Scheduling daily data retention cleanup at 02:00 AM IST...")

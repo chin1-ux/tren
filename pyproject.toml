@@ -27,7 +27,7 @@ worker = [
     "apify-client",
 ]
 browser-scraper = [
-    "camoufox>=0.4.11",
+    "camoufox[geoip]>=0.4.11",
     "browser-use>=0.11.13",
 ]
 

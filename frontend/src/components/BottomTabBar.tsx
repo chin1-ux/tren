@@ -23,7 +23,7 @@ export function BottomTabBar() {
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
     { to: "/marketplace", label: "Marketplace", Icon: Building2 },
     { to: "/profile", label: "Profile", Icon: User },
-    { to: "/settings", label: "Settings", Icon: Settings },
+    { to: "/stats", label: "Stats", Icon: Settings },
   ] as const;
 
   return (

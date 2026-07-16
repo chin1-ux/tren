@@ -211,6 +211,86 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     background_tasks.add_task(run_full_pipeline)
     return {"status": "triggered", "message": "Scraper pipeline running in background task"}
 
+
+@app.get("/api/creator/diagnostics", tags=["Creator Tools"])
+async def get_creator_diagnostics(email: str):
+    """Endpoint to run flop diagnostics on the user's synced posts."""
+    from creator_tools import CreatorTools
+    tools = CreatorTools()
+    res = tools.run_flop_diagnostics(email)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=500, detail=res.get("message"))
+    return res
+
+
+@app.get("/api/creator/niche-health", tags=["Creator Tools"])
+async def get_creator_niche_health(email: str):
+    """Endpoint to audit category focus and alignment drift."""
+    from creator_tools import CreatorTools
+    tools = CreatorTools()
+    res = tools.run_niche_health_audit(email)
+    if res.get("status") == "error":
+        raise HTTPException(status_code=500, detail=res.get("message"))
+    return res
+
+
+from urllib.parse import urlparse
+import socket
+
+def is_safe_instagram_url(url: str) -> bool:
+    if not url:
+        return False
+    try:
+        parsed = urlparse(url)
+        if parsed.scheme not in ["http", "https"]:
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        
+        # Enforce Meta/Instagram domain allowlist
+        allowed_domains = [
+            "instagram.com",
+            ".instagram.com",
+            ".cdninstagram.com",
+            ".fbcdn.net"
+        ]
+        is_allowed_domain = any(
+            hostname == domain or hostname.endswith(domain)
+            for domain in allowed_domains
+        )
+        if not is_allowed_domain:
+            return False
+            
+        # Reject private/internal IP resolutions
+        try:
+            ip = socket.gethostbyname(hostname)
+            parts = [int(p) for p in ip.split(".")]
+            if len(parts) != 4:
+                return False
+            # 127.0.0.0/8
+            if parts[0] == 127:
+                return False
+            # 10.0.0.0/8
+            if parts[0] == 10:
+                return False
+            # 172.16.0.0/12
+            if parts[0] == 172 and 16 <= parts[1] <= 31:
+                return False
+            # 192.168.0.0/16
+            if parts[0] == 192 and parts[1] == 168:
+                return False
+            # 169.254.0.0/16 (AWS metadata link-local)
+            if parts[0] == 169 and parts[1] == 254:
+                return False
+        except Exception:
+            # If DNS resolution fails, reject to be safe
+            return False
+            
+        return True
+    except Exception:
+        return False
+
 @app.get("/api/reels/stream/{db_id}")
 async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     """
@@ -257,6 +337,8 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
         
     # If we already have a video_url in the database, return it
     if video_url:
+        if not is_safe_instagram_url(video_url):
+            raise HTTPException(status_code=400, detail="Unsafe or invalid video URL in database")
         return {"videoUrl": video_url, "reel_id": reel_id, "id": reel_db_id}
         
     # Fallback: Fetch a fresh URL directly from Instagram API using the session cookies
@@ -287,7 +369,6 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
             api_url = f"https://www.instagram.com/api/v1/oembed/?url=https://www.instagram.com/p/{reel_id}/"
             resp = s.get(api_url, timeout=15)
             if resp.status_code == 200:
-                # Some public endpoints give OEmbed. If not, fallback to GraphQL or standard page get
                 pass
             
             # Direct page request with cookies to find video URL in HTML
@@ -299,9 +380,9 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
                     fresh_video_url = match.group(1).replace("\\u0026", "&")
         except Exception as err:
             logging.error(f"Error fetching fresh video url via cookie session: {err}")
-
-    if not fresh_video_url:
-        raise HTTPException(status_code=500, detail="Could not retrieve video URL for streaming")
+ 
+    if not fresh_video_url or not is_safe_instagram_url(fresh_video_url):
+        raise HTTPException(status_code=400, detail="Invalid or unsafe video URL retrieved")
         
     # 3. Attempt to store in background
     def background_store():

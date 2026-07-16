@@ -1,14 +1,25 @@
 import os
 import json
 import logging
+import os
 import re
 import time
 import math
+import signal
+import asyncio
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from llm import call_llm
 import requests
+
+# Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
+try:
+    from camoufox.async_api import AsyncCamoufox as CamoufoxBrowser
+    _CAMOUFOX_AVAILABLE = True
+except ImportError:
+    CamoufoxBrowser = None  # type: ignore
+    _CAMOUFOX_AVAILABLE = False
 
 try:
     logging.basicConfig(
@@ -44,6 +55,16 @@ class InstagramScraper:
         load_dotenv()
         script_dir = os.path.dirname(os.path.abspath(__file__))
         load_dotenv(os.path.join(script_dir, ".env"))
+        self._skip_instagram_warmup = os.getenv("CAMOUFOX_SKIP_INSTAGRAM_WARMUP", "1").strip().lower() not in {
+            "0",
+            "false",
+            "no",
+            "off",
+        }
+        self._last_cookie_check = "not checked"
+        self._last_browser_init = "not started"
+        self._last_scrape_result = "not started"
+        self._last_scrape_stats = {}
         
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
@@ -51,32 +72,64 @@ class InstagramScraper:
             raise ValueError("Supabase credentials missing from .env")
         
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-        self.session = None
+        self._camoufox_browser = None  # SyncCamoufox instance
+        self._camoufox_ctx = None       # Playwright browser context
+        self._camoufox_page = None      # Active page for scraping
         
         self.hashtag_groups = {
-            "GLOBAL_TRENDING": [
-                "trending", "reels", "viral", "fyp", "explore",
-                "trendingreels", "reelsinstagram", "globalreels", "reelsviral", "foryou"
+            "INDIA_TRENDING": [
+                "trendingindia", "reelsindia", "instagramindia", "indiansong",
+                "reelkarofeelkaro", "desimemes", "exploreindia"
+            ],
+            "INDIA_VERNACULAR": [
+                "hindireels", "punjabisongs", "tamilreels", "telugureels",
+                "kannadareels", "bhojpurisong", "marathireels"
             ],
             "GLOBAL_NICHES": [
-                "aesthetic", "dance", "music", "popmusic", "chartmusic",
-                "billboard", "tiktoktrend", "trendingsong", "latesthits", "cinematic"
-            ],
-            "INDIA_SUPPORTING": [
-                "trendingindia", "reelsindia"
+                "fitnessreels", "foodreels", "comedyreels", "fashionreels",
+                "travelreels", "beautyreels", "artreels"
             ]
         }
 
-    def _init_browser(self):
+        override = os.getenv("SCRAPER_HASHTAGS", "").strip()
+        if override:
+            custom_tags = [tag.strip().lstrip("#") for tag in override.split(",") if tag.strip()]
+            if custom_tags:
+                self.hashtag_groups = {"CUSTOM": custom_tags}
+
+    async def _init_browser_async(self) -> bool:
+        """Launch a Camoufox stealth Firefox browser and verify cookies."""
+        import sys
+        logger.info(f"CI Diagnostics - Python version: {sys.version}")
         try:
-            logger.info("Initializing Instagram API session with cookies...")
-            self.session = requests.Session()
-            
+            import playwright
+            logger.info(f"CI Diagnostics - Playwright version: {playwright.__version__}")
+        except Exception as pe:
+            logger.warning(f"Could not import playwright version: {pe}")
+        try:
+            import camoufox
+            logger.info(f"CI Diagnostics - Camoufox version: {getattr(camoufox, '__version__', 'unknown')}")
+        except Exception as ce:
+            logger.warning(f"Could not import camoufox version: {ce}")
+
+        if not _CAMOUFOX_AVAILABLE:
+            logger.error("Camoufox not installed. Run: pip install 'camoufox[geoip]' && python -m camoufox fetch")
+            return False
+        _has_sigalrm = hasattr(signal, "SIGALRM")
+        try:
+            if _has_sigalrm:
+                def _browser_init_timeout(signum, frame):
+                    raise TimeoutError("Camoufox browser init timed out after 120s")
+                signal.signal(signal.SIGALRM, _browser_init_timeout)
+                signal.alarm(120)
+
+            logger.info("Initializing Camoufox stealth browser with Instagram cookies...")
+
             cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
             if not os.path.exists(cookies_path):
-                logger.error("cookies.json not found! Run the cookie capturing setup first.")
+                logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
                 return False
-            
+
             try:
                 with open(cookies_path, "r") as f:
                     content = f.read()
@@ -88,33 +141,99 @@ class InstagramScraper:
                     f"Content preview (first 100 chars): {content[:100]!r}"
                 )
                 return False
-            
-            for cookie in cookies:
-                self.session.cookies.set(
-                    cookie["name"],
-                    cookie["value"],
-                    domain=cookie.get("domain", ".instagram.com"),
-                    path=cookie.get("path", "/")
-                )
-            
-            self.session.headers.update({
-                "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-                "X-IG-App-ID": "936619743392459",
-                "X-Requested-With": "XMLHttpRequest",
-                "Referer": "https://www.instagram.com/",
-                "Origin": "https://www.instagram.com",
-            })
-            
-            logger.info("Instagram API session successfully initialized.")
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            # Launch Camoufox browser
+            self._camoufox_cm = CamoufoxBrowser(headless=True, geoip=True)
+            self._camoufox_browser = await self._camoufox_cm.__aenter__()
+
+            # Verify cookies by creating a temporary validation context
+            temp_ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            try:
+                await temp_ctx.add_cookies(formatted_cookies)
+                await temp_ctx.set_extra_http_headers({
+                    "X-IG-App-ID": "936619743392459",
+                    "X-Requested-With": "XMLHttpRequest",
+                    "Accept-Language": "en-US,en;q=0.9",
+                    "Referer": "https://www.instagram.com/",
+                })
+
+                active_cookies = await temp_ctx.cookies("https://www.instagram.com")
+                sessionid_present = any(c["name"] == "sessionid" for c in active_cookies)
+                self._last_cookie_check = "sessionid present" if sessionid_present else "sessionid absent"
+                if not sessionid_present:
+                    raise RuntimeError(
+                        "INSTAGRAM COOKIE EXPIRED/INVALID: sessionid not found in injected cookies. "
+                        "Please refresh cookies.json using cookie_exporter_guide.md."
+                    )
+
+                if self._skip_instagram_warmup:
+                    logger.info(
+                        "Skipping Instagram warm-up navigation by config; "
+                        f"cookie check passed ({len(active_cookies)} Instagram cookies loaded, sessionid present)."
+                    )
+                else:
+                    logger.info("Warming up Camoufox session on Instagram home...")
+                    warmup_page = await temp_ctx.new_page()
+                    try:
+                        await warmup_page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+                        await warmup_page.wait_for_timeout(2000)
+                        if "/accounts/login/" in warmup_page.url:
+                            raise RuntimeError(
+                                "INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login page. Please refresh cookies.json using cookie_exporter_guide.md."
+                            )
+                    finally:
+                        try:
+                            await warmup_page.close()
+                        except Exception:
+                            pass
+            finally:
+                await temp_ctx.close()
+
+            self._last_browser_init = "initialized"
+            logger.info("Camoufox stealth browser verified and ready.")
             return True
         except Exception as e:
-            logger.error(f"Failed to initialize session: {e}", exc_info=True)
+            self._last_browser_init = "crashed"
+            logger.error(f"Failed to initialize Camoufox session: {e}", exc_info=True)
             return False
+        finally:
+            if _has_sigalrm:
+                signal.alarm(0)
 
-    def _close_browser(self):
-        if self.session:
-            self.session.close()
-            self.session = None
+    async def _close_browser_async(self):
+        """Async close helper used by the async scrape path."""
+        try:
+            if hasattr(self, '_camoufox_cm') and self._camoufox_cm:
+                try:
+                    await self._camoufox_cm.__aexit__(None, None, None)
+                except Exception:
+                    pass
+                self._camoufox_cm = None
+            else:
+                if self._camoufox_ctx:
+                    try:
+                        await self._camoufox_ctx.close()
+                    except Exception:
+                        pass
+                if self._camoufox_browser:
+                    try:
+                        await self._camoufox_browser.close()
+                    except Exception:
+                        pass
+            self._camoufox_ctx = None
+            self._camoufox_browser = None
+        except Exception as e:
+            logger.warning(f"Error closing Camoufox browser: {e}")
 
     def _extract_audio_info(self, media: dict) -> tuple[str | None, str | None, str | None, bool]:
         try:
@@ -150,47 +269,186 @@ class InstagramScraper:
             ig_artist = orig.get("ig_artist") or {}
             audio_artist = ig_artist.get("username") or ig_artist.get("full_name")
             if audio_id:
-                return str(audio_id), audio_title, audio_artist, True
+                # Check use count for user-uploaded audio tracks.
+                # If it has 50+ uses, treat it as a reused trend sound rather than personal original audio.
+                use_cnt = self._extract_audio_use_count(media)
+                is_orig = True
+                if use_cnt >= 50:
+                    is_orig = False
+                return str(audio_id), audio_title, audio_artist, is_orig
         except Exception as e:
             logger.warning(f"Error extracting audio info: {e}")
         return None, None, None, False
 
     def _extract_audio_use_count(self, media: dict) -> int:
+        if not media:
+            return 0
         try:
             clips_metadata = media.get("clips_metadata", {}) or {}
+            
+            # 1. Check music_info -> music_consumption_info -> use_count
             music_info = clips_metadata.get("music_info") or media.get("music_info") or {}
-            minfo = music_info.get("music_info") or {}
+            minfo = music_info.get("music_info") if music_info.get("music_info") else music_info
+            if not minfo:
+                minfo = {}
             m_cons = minfo.get("music_consumption_info") or {}
             if "use_count" in m_cons and m_cons["use_count"] is not None:
                 return int(m_cons["use_count"])
+                
+            # 2. Check music_info -> music_asset_info -> use_count/usage_count/reel_count
+            for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
+                if key in minfo and minfo[key] is not None:
+                    return int(minfo[key])
+                asset = minfo.get("music_asset_info") or {}
+                if key in asset and asset[key] is not None:
+                    return int(asset[key])
             
+            # 3. Check original_sound_info -> consumption_info -> use_count
             orig = clips_metadata.get("original_sound_info") or media.get("original_sound_info") or {}
             o_cons = orig.get("consumption_info") or {}
             if "use_count" in o_cons and o_cons["use_count"] is not None:
                 return int(o_cons["use_count"])
+                
+            # 4. Check original_sound_info key fallbacks
+            for key in ["use_count", "usage_count", "reel_count", "usageCount"]:
+                if key in orig and orig[key] is not None:
+                    return int(orig[key])
+                if key in o_cons and o_cons[key] is not None:
+                    return int(o_cons[key])
         except Exception:
             pass
         return 0
 
-    def _scrape_hashtag_page(self, hashtag: str) -> list[dict]:
-        url = f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}"
+    def _load_instagram_cookie_headers(self) -> tuple[dict, dict]:
+        """Load Instagram headers and cookies for direct HTTP fallbacks."""
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+        headers = {
+            "User-Agent": "Mozilla/5.0",
+            "X-IG-App-ID": "936619743392459",
+            "X-Requested-With": "XMLHttpRequest",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://www.instagram.com/",
+        }
+        cookies: dict[str, str] = {}
+
         try:
-            logger.info(f"Fetching #{hashtag} via web_info API...")
-            resp = self.session.get(
-                url,
-                headers={
-                    "Referer": f"https://www.instagram.com/explore/tags/{hashtag}/",
-                },
-                timeout=20
-            )
-            
-            if resp.status_code != 200:
-                logger.warning(f"API returned status {resp.status_code} for #{hashtag}")
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                raw_cookies = json.load(f)
+            for cookie in raw_cookies:
+                name = cookie.get("name")
+                value = cookie.get("value")
+                if name and value is not None:
+                    cookies[name] = value
+        except Exception as e:
+            logger.warning(f"Could not load cookies.json for direct API fallback: {e}")
+
+        return headers, cookies
+
+    async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
+        """Navigate to the Instagram hashtag explore page with the Camoufox stealth browser
+        and capture the API JSON response via XHR interception."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("Failed to initialize browser session.")
                 return []
-                
-            data = resp.json()
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            if not os.path.exists(cookies_path):
+                logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
+                return []
+
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            logger.info(f"Creating a fresh browser context for #{hashtag}...")
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            await ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.instagram.com/",
+            })
+
+            captured_json: list = [None]
+
+            def handle_response(response):
+                """Intercept the Instagram tags API XHR response."""
+                if "api/v1/tags/web_info" in response.url:
+                    try:
+                        captured_json[0] = response.json()
+                    except Exception:
+                        pass
+
+            page = await ctx.new_page()
+            page.on("response", handle_response)
+
+            try:
+                logger.info(f"Navigating Camoufox to explore page for #{hashtag}...")
+                await page.goto(
+                    f"https://www.instagram.com/explore/tags/{hashtag}/",
+                    wait_until="domcontentloaded",  # was: networkidle (waits 30s+ on Instagram SPA)
+                    timeout=15000,
+                )
+                await page.wait_for_timeout(800)
+            except Exception as e:
+                logger.warning(f"Navigation issue for #{hashtag}: {e}")
+            finally:
+                try:
+                    page.remove_listener("response", handle_response)
+                except Exception:
+                    pass
+
+            # Fallback: directly navigate to the API URL if the XHR was not captured
+            if not captured_json[0]:
+                logger.warning(f"XHR not captured for #{hashtag} — trying direct API endpoint...")
+                for attempt in range(2):
+                    try:
+                        headers, cookies = self._load_instagram_cookie_headers()
+                        response = requests.get(
+                            f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}",
+                            headers=headers,
+                            cookies=cookies,
+                            timeout=20,
+                        )
+                        response.raise_for_status()
+                        captured_json[0] = response.json()
+                        break
+                    except Exception as e:
+                        if attempt == 0:
+                            logger.warning(
+                                f"Direct API fetch failed for #{hashtag}: {e}. Reinitializing browser and retrying once..."
+                            )
+                        else:
+                            logger.error(f"Direct API fetch also failed for #{hashtag}: {e}")
+                            return []
+
+            # Detect login wall / challenge after navigation
+            current_url = page.url
+            if "/accounts/login/" in current_url or "/challenge/" in current_url:
+                raise RuntimeError(f"INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page ({current_url}) during scrape. Please refresh cookies.json.")
+
+            data = captured_json[0]
+            if not data:
+                logger.warning(f"No data returned for #{hashtag}")
+                return []
+
             raw_data = data.get("data", {})
-            
             top_sections = raw_data.get("top", {}).get("sections", [])
             recent_sections = raw_data.get("recent", {}).get("sections", [])
             
@@ -211,7 +469,7 @@ class InstagramScraper:
                     elif isinstance(val, list):
                         for subval in val:
                             if isinstance(subval, dict) and "media" in subval:
-                                medias.append(subval["media"])
+                                    medias.append(subval["media"])
                             elif isinstance(subval, dict) and "clips" in subval:
                                 clips = subval.get("clips") or {}
                                 media = clips.get("media")
@@ -256,7 +514,26 @@ class InstagramScraper:
             
         except Exception as e:
             logger.error(f"API request failed for #{hashtag}: {e}", exc_info=True)
+            err_str = str(e).lower()
+            if "connection closed" in err_str or "target closed" in err_str or "playwright driver" in err_str:
+                logger.warning("Detected connection closed or target closed error. Tearing down browser completely to recover...")
+                await self._close_browser_async()
             return []
+        finally:
+            if page:
+                try:
+                    page.remove_all_listeners()
+                except Exception:
+                    pass
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
 
     def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
         if not audio_id:
@@ -400,7 +677,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "niche_tag": niche_tag,
                 "avg_reel_length_seconds": hook_data.get("optimal_length_seconds", 0),
             }).eq("audio_title", audio_title).eq("audio_artist", audio_artist).execute()
-            logger.info(f"Hook analysis persisted for '{audio_title}' → niche={niche_tag}")
+            logger.info(f"Hook analysis persisted for '{audio_title}' â†’ niche={niche_tag}")
         except Exception as e:
             logger.error(f"Failed to persist hook analysis for '{audio_title}': {e}")
 
@@ -433,21 +710,42 @@ Return ONLY valid JSON, no markdown, no explanation:
         except Exception as e:
             logger.error(f"Error updating trend lifecycle: {e}", exc_info=True)
 
-    def scrape_trending_reels(self) -> int:
+    async def scrape_trending_reels_async(self) -> int:
+        if not _CAMOUFOX_AVAILABLE:
+            logger.error("Camoufox not installed. Run: pip install 'camoufox[geoip]' && python -m camoufox fetch")
+            self._last_scrape_result = "camoufox not installed"
+            return 0
+
         total_scraped = 0
         saved_count = 0
         high_velocity = []
-        
-        if not self._init_browser():
-            logger.error("Failed to initialize session. Aborting scrape.")
+        scrape_stats = {
+            "missing_reel_id": 0,
+            "missing_timestamp": 0,
+            "low_engagement": 0,
+            "velocity_failed": 0,
+            "duplicate": 0,
+            "insert_attempts": 0,
+            "insert_saved": 0,
+            "item_errors": 0,
+            "stored_videos": 0,
+            "failed_video_stores": 0,
+        }
+
+        if not await self._init_browser_async():
+            logger.error("Failed to initialize Camoufox stealth session. Aborting scrape.")
+            self._last_scrape_result = "browser init failed"
             return 0
         
         try:
-            priority_pool = (
-                self.hashtag_groups["INDIA_SUPPORTING"][:2]
-                + self.hashtag_groups["GLOBAL_TRENDING"][:3]
-                + self.hashtag_groups["GLOBAL_NICHES"][:2]
-            )
+            if "CUSTOM" in self.hashtag_groups:
+                priority_pool = self.hashtag_groups["CUSTOM"]
+            else:
+                priority_pool = (
+                    self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
+                    + self.hashtag_groups.get("GLOBAL_NICHES", [])[:3]
+                )
             
             seen = set()
             selected = []
@@ -459,21 +757,55 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.info(f"Scraping {len(selected)} hashtags: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
+            # Global wall-clock guard: abort scrape if pipeline runs >15 minutes total
+            _SCRAPE_TIMEOUT_S = 15 * 60
+            _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
+                # Global timeout check before each hashtag
+                if time.monotonic() - _scrape_start > _SCRAPE_TIMEOUT_S:
+                    logger.error(f"Scrape global timeout ({_SCRAPE_TIMEOUT_S}s) reached at hashtag {tag_idx+1}/{len(selected)}. Aborting.")
+                    break
                 if tag_idx > 0:
                     wait_time = 3 + (tag_idx % 3)
                     logger.info(f"Rate limiting: waiting {wait_time}s before next hashtag...")
                     time.sleep(wait_time)
                 
                 logger.info(f"Scraping #{tag} ({tag_idx + 1}/{len(selected)})...")
-                items = self._scrape_hashtag_page(tag)
+
+                # --- OS-level per-hashtag timeout (60s) ---
+                # Playwright-internal timeouts are worthless when the Firefox/Node.js
+                # driver process crashes â€” all Playwright calls then block forever.
+                # SIGALRM fires from the OS regardless of Python's blocking state.
+                # Only available on Linux (GitHub Actions ubuntu-latest). Safe to skip on Windows.
+                _has_sigalrm = hasattr(signal, "SIGALRM")
+                if _has_sigalrm:
+                    def _hashtag_timeout(signum, frame):
+                        raise TimeoutError(f"#{tag} scrape timed out after 60s â€” Playwright driver likely crashed")
+                    signal.signal(signal.SIGALRM, _hashtag_timeout)
+                    signal.alarm(60)  # 60 second wall-clock hard limit per hashtag
+
+                try:
+                    items = await self._scrape_hashtag_page_async(tag)
+                except TimeoutError as te:
+                    logger.error(f"{te}. Reinitializing browser for remaining hashtags...")
+                    await self._close_browser_async()
+                    if not await self._init_browser_async():
+                        logger.error("Browser reinitialization failed after timeout. Aborting scrape.")
+                        break
+                    items = []
+                finally:
+                    if _has_sigalrm:
+                        signal.alarm(0)  # Cancel the alarm
+
                 total_scraped += len(items)
                 
                 for item in items:
                     try:
                         reel_id = item.get("shortCode")
                         if not reel_id:
+                            logger.info("Skipping item with missing reel_id")
+                            scrape_stats["missing_reel_id"] += 1
                             continue
                         
                         view = int(item.get("videoViewCount") or 0)
@@ -483,6 +815,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                         
                         timestamp = item.get("timestamp")
                         if not timestamp:
+                            logger.info(f"Skipping reel {reel_id}: missing timestamp")
+                            scrape_stats["missing_timestamp"] += 1
                             continue
                         
                         posted = datetime.fromisoformat(timestamp)
@@ -495,14 +829,25 @@ Return ONLY valid JSON, no markdown, no explanation:
                         
                         # Filter low-engagement
                         if view < 10000 and likes < 200:
+                            logger.info(
+                                f"Skipping reel {reel_id}: low engagement (views={view}, likes={likes}, comments={comments})"
+                            )
+                            scrape_stats["low_engagement"] += 1
                             continue
                         
                         if not (velocity > 0.3 or (view > 15000 and hours_live < 6)):
+                            logger.info(
+                                f"Skipping reel {reel_id}: velocity threshold failed "
+                                f"(velocity={velocity:.3f}, hours_live={hours_live:.2f}, views={view})"
+                            )
+                            scrape_stats["velocity_failed"] += 1
                             continue
                         
                         # Check duplicates
                         dup = self.supabase.table("reels").select("reel_id").eq("reel_id", reel_id).execute()
                         if dup.data:
+                            logger.info(f"Skipping reel {reel_id}: already exists in reels table")
+                            scrape_stats["duplicate"] += 1
                             continue
                         
                         # Extract data
@@ -517,6 +862,19 @@ Return ONLY valid JSON, no markdown, no explanation:
                         audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
                         audio_use = self._extract_audio_use_count(media_dict)
                         
+                        # Secondary database-level safeguard:
+                        # If another creator has already used this audio_id, treat it as non-original.
+                        if audio_id and is_original_audio:
+                            try:
+                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_id", audio_id).execute()
+                                if creators_res.data:
+                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
+                                    unique_creators.add(owner)
+                                    if len(unique_creators) >= 2:
+                                        is_original_audio = False
+                            except Exception as ex:
+                                logger.warning(f"Error checking secondary safeguard for audio_id {audio_id}: {ex}")
+
                         reel = {
                             "platform": "instagram",
                             "reel_id": reel_id,
@@ -581,16 +939,21 @@ Return ONLY valid JSON, no markdown, no explanation:
                                 reel["preview_url"] = stored
                                 reel["video_storage_status"] = "stored"
                                 reel["video_stored_at"] = datetime.now(timezone.utc).isoformat()
+                                scrape_stats["stored_videos"] += 1
                             else:
                                 reel["preview_url"] = None
                                 reel["video_storage_status"] = "failed"
                                 reel["video_stored_at"] = None
+                                scrape_stats["failed_video_stores"] += 1
                         else:
                             reel["video_storage_status"] = "pending"
                         
                         # Insert to DB
+                        logger.info(f"Inserting reel {reel_id} for @{owner} into Supabase...")
+                        scrape_stats["insert_attempts"] += 1
                         self.supabase.table("reels").insert(reel).execute()
                         logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, origin={meta.get('trend_origin')})")
+                        scrape_stats["insert_saved"] += 1
 
                         # Track audio if it is a real (non-original) audio
                         is_orig = is_original_audio or (audio_title and "original audio" in audio_title.lower())
@@ -630,22 +993,65 @@ Return ONLY valid JSON, no markdown, no explanation:
                             audio_groups.setdefault(key, []).append(reel)
                         
                     except Exception as e:
-                        logger.error(f"Error processing reel: {e}", exc_info=True)
+                        logger.error(f"Error processing reel {reel_id if 'reel_id' in locals() else 'unknown'}: {e}", exc_info=True)
+                        scrape_stats["item_errors"] += 1
             
             high_velocity.sort(reverse=True)
             top3 = [round(v, 4) for v in high_velocity[:3]]
             print(f"Total scraped: {total_scraped} | Saved: {saved_count} | Top 3 velocities: {top3}")
             logger.info(f"Browser scraping complete: {total_scraped} items processed, {saved_count} saved")
+            logger.info(
+                "Scrape diagnostics: "
+                f"insert_attempts={scrape_stats['insert_attempts']}, "
+                f"insert_saved={scrape_stats['insert_saved']}, "
+                f"duplicate_skips={scrape_stats['duplicate']}, "
+                f"low_engagement_skips={scrape_stats['low_engagement']}, "
+                f"velocity_failed_skips={scrape_stats['velocity_failed']}, "
+                f"missing_timestamp_skips={scrape_stats['missing_timestamp']}, "
+                f"missing_reel_id_skips={scrape_stats['missing_reel_id']}, "
+                f"video_store_success={scrape_stats['stored_videos']}, "
+                f"video_store_fail={scrape_stats['failed_video_stores']}, "
+                f"item_errors={scrape_stats['item_errors']}"
+            )
             
             # Hook analysis
             if saved_count:
-                logger.info(f"Running Groq hook analysis for {len(audio_groups)} audio groups...")
-                for idx, ((title, artist), group) in enumerate(audio_groups.items()):
+                # 1. Filter and sort audio groups by max velocity of their reels
+                scored_groups = []
+                for (title, artist), reels in audio_groups.items():
+                    max_vel = max((r.get("velocity_score") or 0.0) for r in reels)
+                    scored_groups.append(((title, artist), reels, max_vel))
+                
+                # Sort by max velocity descending
+                scored_groups.sort(key=lambda x: x[2], reverse=True)
+                
+                # Filter out low signal: velocity floor >= 1.5
+                VELOCITY_FLOOR = 1.5
+                filtered_groups = [g for g in scored_groups if g[2] >= VELOCITY_FLOOR]
+                
+                logger.info(f"Hook analysis selection: total_groups={len(audio_groups)}, filtered (velocity >= {VELOCITY_FLOOR})={len(filtered_groups)}")
+                
+                # Cap to top 5
+                MAX_HOOK_ANALYSES = 5
+                target_groups = filtered_groups[:MAX_HOOK_ANALYSES]
+                
+                logger.info(f"Running Groq hook analysis for top {len(target_groups)} high-signal audio groups...")
+                
+                hook_start_time = time.monotonic()
+                MAX_HOOK_TIME_S = 5 * 60  # 5 minutes wall-clock time limit
+                
+                for idx, ((title, artist), group, max_vel) in enumerate(target_groups):
+                    # Check time budget
+                    if time.monotonic() - hook_start_time > MAX_HOOK_TIME_S:
+                        logger.warning(f"Hook analysis time budget exceeded ({MAX_HOOK_TIME_S}s). Skipping remaining analyses.")
+                        break
+                        
                     if idx > 0:
-                        stagger_delay = 1.5
+                        stagger_delay = 2.0
                         logger.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq hook analysis...")
                         time.sleep(stagger_delay)
                     try:
+                        logger.info(f"Analyzing hooks for '{title}' (max_velocity={max_vel:.3f})...")
                         hook = self._run_hook_analysis(title, group)
                         if hook:
                             self._persist_hook_analysis(title, artist, hook)
@@ -653,13 +1059,20 @@ Return ONLY valid JSON, no markdown, no explanation:
                         logger.error(f"Hook analysis error for '{title}': {e}")
             else:
                 logger.info("Browser scraper returned 0 items. No DB updates or hook analysis performed.")
-            
+            self._last_scrape_result = f"saved {saved_count} reels from {total_scraped} scraped items"
+            self._last_scrape_stats = scrape_stats
             return saved_count
-            
+        except Exception as e:
+            self._last_scrape_result = "scrape crashed"
+            self._last_scrape_stats = scrape_stats if 'scrape_stats' in locals() else {}
+            raise
         finally:
-            self._close_browser()
+            await self._close_browser_async()
 
-    def scrape_official_audio_counts(self, limit: int = 30) -> None:
+    def scrape_trending_reels(self) -> int:
+        return asyncio.run(self.scrape_trending_reels_async())
+
+    async def scrape_official_audio_counts_async(self, limit: int = 30) -> None:
         try:
             logger.info("Starting scrape of official audio counts...")
             # Query all currently tracked audios
@@ -698,7 +1111,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 return
 
             logger.info(f"Selected {len(active_audio_ids)} active audio IDs to scrape.")
-            results = self._scrape_audio_counts_playwright(active_audio_ids)
+            results = await self._scrape_audio_counts_playwright_async(active_audio_ids)
             
             for aid in tracked_ids:
                 if aid in active_audio_ids:
@@ -713,69 +1126,70 @@ Return ONLY valid JSON, no markdown, no explanation:
         except Exception as e:
             logger.error(f"Error in scrape_official_audio_counts: {e}", exc_info=True)
 
-    def _scrape_audio_counts_playwright(self, audio_ids: list[str]) -> dict[str, str]:
-        from playwright.sync_api import sync_playwright
-        
+    async def _scrape_audio_counts_playwright_async(self, audio_ids: list[str]) -> dict[str, str]:
+        """Scrape official reel counts for tracked audio IDs using Camoufox stealth browser."""
+        if not _CAMOUFOX_AVAILABLE:
+            logger.error("Camoufox not installed. Cannot run stealth audio count scraper.")
+            return {aid: "Camoufox not installed" for aid in audio_ids}
+
         results = {}
         cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
         if not os.path.exists(cookies_path):
             err_msg = "cookies.json not found"
-            logger.error(f"{err_msg}, cannot run Playwright audio scraper")
+            logger.error(f"{err_msg}, cannot run Camoufox audio scraper")
             return {aid: err_msg for aid in audio_ids}
-            
+
         with open(cookies_path, "r") as f:
             cookies = json.load(f)
-            
-        logger.info("Launching Playwright browser context...")
-        with sync_playwright() as p:
-            browser = p.chromium.launch(headless=True)
-            context = browser.new_context(
-                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
-            )
-            
-            # Add cookies
-            formatted_cookies = []
-            for c in cookies:
-                formatted_cookies.append({
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".instagram.com"),
-                    "path": c.get("path", "/"),
-                })
-            context.add_cookies(formatted_cookies)
-            
-            page = context.new_page()
-            
+
+        formatted_cookies = [
+            {
+                "name": c["name"],
+                "value": c["value"],
+                "domain": c.get("domain", ".instagram.com"),
+                "path": c.get("path", "/"),
+            }
+            for c in cookies
+        ]
+
+        logger.info("Launching Camoufox stealth browser for audio count scraping...")
+        with CamoufoxBrowser(headless=True, geoip=True) as browser:
+            context = await browser.new_context(no_viewport=True)
+            await context.add_cookies(formatted_cookies)
+            page = await context.new_page()
+
+            # Warm up session with home page before hitting audio pages
+            await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+            await page.wait_for_timeout(2000)
+
             for aid in audio_ids:
                 url = f"https://www.instagram.com/reels/audio/{aid}/"
                 logger.info(f"Checking official count for audio_id {aid} via {url}...")
                 try:
-                    page.goto(url, wait_until="networkidle", timeout=20000)
-                    time.sleep(3)  # wait for client-side JS rendering
-                    
+                    await page.goto(url, wait_until="networkidle", timeout=20000)
+                    await page.wait_for_timeout(3000)  # allow client-side JS rendering
+
                     current_url = page.url
                     if "/accounts/login/" in current_url or "/challenge/" in current_url:
                         logger.error(f"[INSTAGRAM_FRICTION] Redirected to login/challenge page: {current_url}")
                         results[aid] = f"Redirected to login/challenge page: {current_url}"
                         continue
-                        
-                    body_text = page.inner_text("body")
-                    
-                    # Scan for rate limits, block or captcha text
+
+                    body_text = await page.inner_text("body", timeout=15000)
+
+                    # Scan for rate limits, blocks, or captcha text
                     friction_keywords = [
                         "suspicious activity", "confirm it's you", "robot", "captcha",
                         "restrict", "block", "try again later", "please wait a few minutes"
                     ]
-                    friction_detected = None
-                    for kw in friction_keywords:
-                        if kw in body_text.lower():
-                            logger.error(f"[INSTAGRAM_FRICTION] Found friction keyword '{kw}' in body text of {url}")
-                            friction_detected = kw
-                            
+                    friction_detected = next(
+                        (kw for kw in friction_keywords if kw in body_text.lower()), None
+                    )
                     if friction_detected:
+                        logger.error(f"[INSTAGRAM_FRICTION] Found friction keyword '{friction_detected}' in body of {url}")
                         results[aid] = f"Friction keyword found: '{friction_detected}'"
                         continue
-                    
+
                     # Parse count
                     count, precision_bucket = self._parse_reels_count_text(body_text)
                     if count is not None:
@@ -785,15 +1199,15 @@ Return ONLY valid JSON, no markdown, no explanation:
                     else:
                         logger.warning(f"Could not find Reels count text in page body for {aid}")
                         results[aid] = "Could not find Reels count text in page body"
-                        
+
                 except Exception as ex:
                     logger.error(f"Error scraping audio {aid}: {ex}")
                     results[aid] = str(ex)
-                
+
                 # Multi-second delay between requests to avoid rate limits
                 time.sleep(5)
-                
-            browser.close()
+
+            await context.close()
         return results
 
     def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:
@@ -882,4 +1296,10 @@ Return ONLY valid JSON, no markdown, no explanation:
 
 if __name__ == "__main__":
     scraper = InstagramScraper()
-    scraper.scrape_trending_reels()
+    asyncio.run(scraper.scrape_trending_reels_async())
+
+
+
+
+
+

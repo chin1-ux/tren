@@ -94,7 +94,7 @@ class TrendEngine:
                 load_dotenv(backend_env)
 
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         # Gemini removed – Groq is the sole LLM provider
         self.groq_key = os.getenv("GROQ_API_KEY")
 
@@ -445,7 +445,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
   "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
 }}
 """
-                max_attempts = 2
+                max_attempts = int(os.getenv("TREND_CLASSIFICATION_MAX_ATTEMPTS", "4"))
+                base_delay = float(os.getenv("TREND_CLASSIFICATION_BASE_DELAY", "2.0"))
+                max_delay = float(os.getenv("TREND_CLASSIFICATION_MAX_DELAY", "24.0"))
                 success = False
                 for attempt in range(1, max_attempts + 1):
                     try:
@@ -457,7 +459,13 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     except Exception as e:
                         logging.warning(f"LLM attempt {attempt} failed: {e}")
                         if attempt < max_attempts:
-                            time.sleep(attempt)
+                            delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
+                            if "429" in str(e):
+                                delay = min(max_delay, delay * 1.5)
+                            logging.info(
+                                f"Backoff before retrying '{trend['audio_title']}': sleeping {delay:.1f}s"
+                            )
+                            time.sleep(delay)
                 
                 if not success:
                     logging.warning(f"LLM classification failed for '{trend['audio_title']}'. Applying local fallback.")
@@ -467,7 +475,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
             for idx, trend in enumerate(confirmed):
                 if idx > 0:
-                    stagger_delay = 6.0
+                    stagger_delay = float(os.getenv("TREND_CLASSIFICATION_STAGGER_DELAY", "10.0"))
                     logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq classification...")
                     time.sleep(stagger_delay)
                 classify_single_trend(trend)

@@ -334,3 +334,80 @@ class InstagramOAuth:
         except requests.RequestException as e:
             logger.error(f"Failed to fetch insights: {e}")
             raise
+
+    @staticmethod
+    def fetch_media_insights(access_token: str, media_id: str, media_type: str) -> Dict:
+        """Fetch insights for a specific media post (Reel/Video)."""
+        metrics = ["reach", "plays", "likes", "comments", "shares", "saves"]
+        insights_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{media_id}/insights"
+        params = {
+            "metric": ",".join(metrics),
+            "access_token": access_token
+        }
+        try:
+            res = requests.get(insights_url, params=params)
+            res.raise_for_status()
+            data = res.json()
+            insights = {}
+            for item in data.get("data", []):
+                name = item.get("name")
+                values = item.get("values", [])
+                if values:
+                    insights[name] = values[0].get("value", 0)
+            return insights
+        except Exception as e:
+            logger.warning(f"Error fetching insights for media {media_id}: {e}")
+            return {}
+
+    @staticmethod
+    def sync_creator_posts(access_token: str, ig_account_id: str, user_email: str) -> bool:
+        """Syncs the last 30 posts of the creator to our creator_posts database."""
+        if not supabase:
+            logger.error("Supabase not initialized")
+            return False
+            
+        media_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{ig_account_id}/media"
+        params = {
+            "fields": "id,caption,permalink,media_type,media_url,timestamp,username",
+            "access_token": access_token,
+            "limit": 30
+        }
+        
+        try:
+            res = requests.get(media_url, params=params)
+            res.raise_for_status()
+            media_data = res.json().get("data", [])
+            
+            for post in media_data:
+                media_id = post.get("id")
+                media_type = post.get("media_type")
+                
+                # Fetch insights for this specific media post
+                insights = InstagramOAuth.fetch_media_insights(access_token, media_id, media_type)
+                
+                record = {
+                    "user_email": user_email,
+                    "instagram_username": post.get("username", "unknown"),
+                    "media_id": media_id,
+                    "caption": post.get("caption"),
+                    "permalink": post.get("permalink"),
+                    "media_type": media_type,
+                    "media_url": post.get("media_url"),
+                    "timestamp": post.get("timestamp"),
+                    "like_count": insights.get("likes", 0),
+                    "comments_count": insights.get("comments", 0),
+                    "shares_count": insights.get("shares", 0),
+                    "saves_count": insights.get("saves", 0),
+                    "plays_count": insights.get("plays", 0),
+                    "reach_count": insights.get("reach", 0),
+                }
+                
+                # Upsert into creator_posts
+                supabase.table("creator_posts").upsert(record, on_conflict="media_id").execute()
+                
+            logger.info(f"Successfully synced posts for creator {user_email}")
+            return True
+        except Exception as e:
+            logger.error(f"Failed to sync posts for creator {user_email}: {e}")
+            return False
+

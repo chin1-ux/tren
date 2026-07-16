@@ -694,3 +694,47 @@ export async function fetchCrossCulturalTrends(): Promise<ApiReel[]> {
   return http<ApiReel[]>("/api/reels/cross-cultural");
 }
 
+export interface FlopDiagnosticsData {
+  status: string;
+  message?: string;
+  data?: {
+    baseline_avg_plays: number;
+    total_posts_analyzed: number;
+    flops_detected: number;
+    flops: Array<{
+      media_id: string;
+      permalink: string;
+      caption: string;
+      plays_count: number;
+      engagement: number;
+    }>;
+    suggested_remedy_tracks: Array<{
+      audio_title: string;
+      audio_artist: string;
+      why_this_works: string;
+      transfer_instructions: string;
+    }>;
+  };
+}
+
+export interface NicheHealthData {
+  status: string;
+  message?: string;
+  data?: {
+    primary_niche: string;
+    secondary_niches: string[];
+    niche_health_score: number;
+    alignment_drift_detected: boolean;
+    recommendations: string[];
+  };
+}
+
+export async function fetchCreatorDiagnostics(email: string): Promise<FlopDiagnosticsData> {
+  return http<FlopDiagnosticsData>(`/api/creator/diagnostics?email=${encodeURIComponent(email)}`);
+}
+
+export async function fetchCreatorNicheHealth(email: string): Promise<NicheHealthData> {
+  return http<NicheHealthData>(`/api/creator/niche-health?email=${encodeURIComponent(email)}`);
+}
+
+

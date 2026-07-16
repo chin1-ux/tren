@@ -1,7 +1,10 @@
+# WARNING: Deprecated/Unused in production API environment.
+# This module is only intended for local worker run configurations.
 import os
 import logging
 import numpy as np
 import librosa
+
 
 # Configure logging
 try:

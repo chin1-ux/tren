@@ -327,28 +327,39 @@ def main():
                 "brand_deal_applications", "collab_requests", "daily_ideas",
                 "calendar_plans", "creator_profiles", "pre_post_analyses",
                 "trend_feedback", "creator_trend_memory", "trial_reel_plans",
-                "consent_records"
+                "consent_records", "trends", "reels", "audio_trend_scores",
+                "cron_runs", "tracked_audio", "audio_official_counts"
             ]
             for tbl in tables_to_rls:
                 cursor.execute(f"ALTER TABLE IF EXISTS {tbl} ENABLE ROW LEVEL SECURITY;")
-            
-            # Disable RLS on scraper target tables (reels, trends) to allow backend client writes
-            cursor.execute("ALTER TABLE IF EXISTS reels DISABLE ROW LEVEL SECURITY;")
-            cursor.execute("ALTER TABLE IF EXISTS trends DISABLE ROW LEVEL SECURITY;")
                 
             # Create policies. Use sub-queries or metadata where appropriate.
-            # First, drop policies if they exist. (In Postgres 9.6+, drop policy if exists is safe)
-            # 1.2 policies requirements:
-            # users: auth.uid() = id (or matching email via subquery or metadata)
-            # jobs: auth.uid() = user_id (since jobs has user_email, we can do auth.jwt() ->> 'email' = user_email)
-            # trends: all authenticated users can read, only service role can write (RLS enabled, select: true/authenticated, others: false/service role)
-            # reels: only service role can read and write (default RLS is deny-all unless policy allows)
-            # brand_deals: authenticated users can read open deals (status='open'), only service role can create/write.
-            # deal_applications (brand_deal_applications): users can only read and create their own applications (user_email = auth.jwt() ->> 'email')
-            # collab_requests: users can read requests where they are requester or target (from_email = auth.jwt() ->> 'email' or to_email = auth.jwt() ->> 'email')
-            # content_ideas (daily_ideas): users can only read their own ideas (user_email = auth.jwt() ->> 'email')
+            # First, drop policies if they exist.
+            
+            # trends read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS trends_auth_read_policy ON trends;")
+            cursor.execute("DROP POLICY IF EXISTS trends_public_read ON trends;")
+            cursor.execute("CREATE POLICY trends_public_read ON trends FOR SELECT USING (true);")
+            
+            # reels read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS reels_public_read ON reels;")
+            cursor.execute("CREATE POLICY reels_public_read ON reels FOR SELECT USING (true);")
 
-            # We use auth.jwt() ->> 'email' for email matching since users tables use email as the identifier.
+            # audio_trend_scores read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS audio_trend_scores_public_read ON audio_trend_scores;")
+            cursor.execute("CREATE POLICY audio_trend_scores_public_read ON audio_trend_scores FOR SELECT USING (true);")
+
+            # cron_runs read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS cron_runs_public_read ON cron_runs;")
+            cursor.execute("CREATE POLICY cron_runs_public_read ON cron_runs FOR SELECT USING (true);")
+
+            # tracked_audio read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS tracked_audio_public_read ON tracked_audio;")
+            cursor.execute("CREATE POLICY tracked_audio_public_read ON tracked_audio FOR SELECT USING (true);")
+
+            # audio_official_counts read policy (Public)
+            cursor.execute("DROP POLICY IF EXISTS audio_official_counts_public_read ON audio_official_counts;")
+            cursor.execute("CREATE POLICY audio_official_counts_public_read ON audio_official_counts FOR SELECT USING (true);")
             
             # users policy
             cursor.execute("DROP POLICY IF EXISTS users_owner_policy ON users;")
@@ -357,13 +368,6 @@ def main():
             # jobs policy
             cursor.execute("DROP POLICY IF EXISTS jobs_owner_policy ON jobs;")
             cursor.execute("CREATE POLICY jobs_owner_policy ON jobs FOR ALL USING (user_email = auth.jwt() ->> 'email');")
-            
-            # trends policy
-            cursor.execute("DROP POLICY IF EXISTS trends_auth_read_policy ON trends;")
-            cursor.execute("CREATE POLICY trends_auth_read_policy ON trends FOR SELECT TO authenticated USING (true);")
-            
-            # reels: no policy = service role bypasses RLS automatically, authenticated/public denied
-            cursor.execute("DROP POLICY IF EXISTS reels_deny_policy ON reels;")
             
             # brand_deals policy
             cursor.execute("DROP POLICY IF EXISTS brand_deals_read_policy ON brand_deals;")

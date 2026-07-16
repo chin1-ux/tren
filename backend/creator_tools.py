@@ -283,3 +283,119 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
                 ]
             }
         return result
+
+    def run_flop_diagnostics(self, user_email: str) -> dict:
+        """Run diagnostics on synced creator posts to detect flops and suggest remedies using current active trends."""
+        if not self.supabase:
+            return {"status": "error", "message": "Supabase client not initialized"}
+        
+        try:
+            # Fetch last 30 posts for user
+            posts_res = self.supabase.table("creator_posts").select("*").eq("user_email", user_email).order("timestamp", desc=True).limit(30).execute()
+            posts = posts_res.data or []
+            if not posts:
+                return {"status": "no_data", "message": "No synced posts found. Make sure Instagram OAuth is connected."}
+            
+            # Calculate baseline averages
+            total_plays = sum(p.get("plays_count", 0) for p in posts)
+            avg_plays = total_plays / len(posts)
+            
+            flops = []
+            for post in posts:
+                plays = post.get("plays_count", 0)
+                if plays > 0 and plays < (avg_plays * 0.5):
+                    # Flag as flop if plays are less than 50% of the baseline average
+                    flops.append({
+                        "media_id": post.get("media_id"),
+                        "permalink": post.get("permalink"),
+                        "caption": post.get("caption"),
+                        "plays_count": plays,
+                        "engagement": post.get("like_count", 0) + post.get("comments_count", 0)
+                    })
+            
+            # Match top 3 flops against trending audio
+            trends_res = self.supabase.table("trends").select("*").order("velocity_avg", desc=True).limit(3).execute()
+            trends = trends_res.data or []
+            
+            diagnostics = {
+                "baseline_avg_plays": round(avg_plays, 1),
+                "total_posts_analyzed": len(posts),
+                "flops_detected": len(flops),
+                "flops": flops[:3],
+                "suggested_remedy_tracks": [
+                    {
+                        "audio_title": t.get("audio_title"),
+                        "audio_artist": t.get("audio_artist"),
+                        "why_this_works": t.get("why_this_works"),
+                        "transfer_instructions": t.get("transfer_instructions")
+                    } for t in trends
+                ]
+            }
+            return {"status": "success", "data": diagnostics}
+        except Exception as e:
+            logger.error(f"Error in run_flop_diagnostics: {e}")
+            return {"status": "error", "message": str(e)}
+
+    def run_niche_health_audit(self, user_email: str) -> dict:
+        """Analyze category focus and semantic consistency across creator's historical posts."""
+        if not self.supabase:
+            return {"status": "error", "message": "Supabase client not initialized"}
+        
+        try:
+            posts_res = self.supabase.table("creator_posts").select("caption").eq("user_email", user_email).limit(15).execute()
+            captions = [p.get("caption") or "" for p in (posts_res.data or []) if p.get("caption")]
+            
+            if not captions:
+                return {"status": "no_data", "message": "Insufficient caption data to determine niche profile."}
+            
+            sample_text = " | ".join(captions[:10])
+            system_prompt = "You are a professional creator niche audit specialist. Evaluate category consistency."
+            user_prompt = f"""
+            Analyze these recent post captions from a single creator account:
+            {sample_text}
+            
+            Determine:
+            1. What is the primary niche?
+            2. Are there secondary niches causing category dilution?
+            3. On a scale of 0.0 to 1.0, what is the Niche Health Score? (1.0 = completely consistent topic focus, 0.2 = scattered content/confused algorithm).
+            
+            Return ONLY a valid JSON response in this format:
+            {{
+              "primary_niche": "fitness",
+              "secondary_niches": ["travel", "personal finance"],
+              "niche_health_score": 0.65,
+              "alignment_drift_detected": true,
+              "recommendations": [
+                "Focus purely on workout routines for the next 4 posts",
+                "Remove unrelated travel highlights from your grid to stop algorithm confusion"
+              ]
+            }}
+            """
+            
+            audit_result = self._call_gemini(system_prompt, user_prompt)
+            if not audit_result:
+                audit_result = {
+                    "primary_niche": "general",
+                    "secondary_niches": [],
+                    "niche_health_score": 0.8,
+                    "alignment_drift_detected": False,
+                    "recommendations": ["Keep focus on consistent thematic styling."]
+                }
+                
+            # Persist profile
+            profile = {
+                "user_email": user_email,
+                "primary_niche": audit_result.get("primary_niche"),
+                "secondary_niches": audit_result.get("secondary_niches"),
+                "niche_health_score": audit_result.get("niche_health_score"),
+                "alignment_drift_detected": audit_result.get("alignment_drift_detected"),
+                "recommendations": audit_result.get("recommendations"),
+                "updated_at": datetime.now().isoformat()
+            }
+            self.supabase.table("creator_niche_profiles").upsert(profile, on_conflict="user_email").execute()
+            
+            return {"status": "success", "data": audit_result}
+        except Exception as e:
+            logger.error(f"Error in run_niche_health_audit: {e}")
+            return {"status": "error", "message": str(e)}
+

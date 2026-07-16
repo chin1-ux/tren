@@ -35,7 +35,7 @@ class TrendRefresher:
             load_dotenv(os.path.join(script_dir, ".env"))
 
         self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv("SUPABASE_KEY")
+        self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
@@ -83,9 +83,25 @@ class TrendRefresher:
 
                 age_hours = (now - created_at).total_seconds() / 3600
 
-                # ── EXPIRY: older than 72h OR window exhausted ──────────────────
-                if age_hours >= 72 or window_hours <= 0:
-                    self._update_status(trend_id, "expired", {"window_hours_remaining": 0})
+                # ── Recalculate total reels count from reels table ──────────────
+                try:
+                    res_total = self.supabase.table("reels") \
+                        .select("reel_id", count="exact") \
+                        .eq("audio_title", trend.get("audio_title")) \
+                        .eq("audio_artist", trend.get("audio_artist")) \
+                        .execute()
+                    total_reels_count = res_total.count or 0
+                except Exception as e:
+                    logger.warning(f"Failed to check total reels count for '{audio_title}': {e}")
+                    total_reels_count = trend.get("reel_count") or 0
+
+                # ── EXPIRY: older than the visibility floor or window exhausted ──
+                min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(15 * 24)))
+                if age_hours >= min_visible_hours or window_hours <= 0:
+                    self._update_status(trend_id, "expired", {
+                        "window_hours_remaining": 0,
+                        "reel_count": total_reels_count
+                    })
                     logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
                     summary["expired"] += 1
                     continue
@@ -95,15 +111,33 @@ class TrendRefresher:
                     trend.get("audio_title"), trend.get("audio_artist"), now
                 )
 
-                # Decrement window_hours_remaining
-                new_window = max(0, window_hours - 3)  # called every 3h
+                # Check if we scraped any new reels matching this audio in the last 6 hours
+                try:
+                    res_count = self.supabase.table("reels") \
+                        .select("reel_id", count="exact") \
+                        .eq("audio_title", trend.get("audio_title")) \
+                        .eq("audio_artist", trend.get("audio_artist")) \
+                        .gte("scraped_at", (now - timedelta(hours=6)).isoformat()) \
+                        .execute()
+                    new_reels_count = res_count.count or 0
+                except Exception as e:
+                    logger.warning(f"Failed to check new reels count for '{audio_title}': {e}")
+                    new_reels_count = 0
+
+                # Extend or decay window_hours_remaining
+                if new_reels_count > 0:
+                    new_window = min(48, window_hours + 12)
+                    logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
+                else:
+                    new_window = max(0, window_hours - 3)  # called every 3h
 
                 # ── PEAKED: velocity dropped >40% from peak ─────────────────────
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     self._update_status(trend_id, "peaked", {
                         "window_hours_remaining": new_window,
-                        "velocity_avg": velocity_for_check
+                        "velocity_avg": velocity_for_check,
+                        "reel_count": total_reels_count
                     })
                     logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
                     summary["peaked"] += 1
@@ -118,24 +152,27 @@ class TrendRefresher:
                         self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": live_velocity or current_velocity,
-                            "peak_velocity": max(live_velocity or 0, peak_velocity)
+                            "peak_velocity": max(live_velocity or 0, peak_velocity),
+                            "reel_count": total_reels_count
                         })
                         logger.info(f"[RISEN] '{audio_title}' ({creator_count} creators)")
                         summary["risen"] += 1
                     else:
-                        # Still emerging — just update window
+                        # Still emerging — just update window and reel count
                         self._update_status(trend_id, "emerging", {
                             "window_hours_remaining": new_window,
-                            "velocity_avg": live_velocity or current_velocity
+                            "velocity_avg": live_velocity or current_velocity,
+                            "reel_count": total_reels_count
                         })
                         summary["emerged"] += 1
                 else:
-                    # Still rising — update velocity and window
+                    # Still rising — update velocity, window, and reel count
                     new_peak = max(live_velocity or 0, peak_velocity)
                     self._update_status(trend_id, "rising", {
                         "window_hours_remaining": new_window,
                         "velocity_avg": live_velocity or current_velocity,
-                        "peak_velocity": new_peak
+                        "peak_velocity": new_peak,
+                        "reel_count": total_reels_count
                     })
 
             except Exception as e:

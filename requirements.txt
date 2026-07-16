@@ -1,5 +1,5 @@
 # Core API deps — keep lightweight for Vercel serverless
-fastapi
+fastapi==0.137.1
 uvicorn
 requests
 python-dotenv
@@ -10,7 +10,7 @@ email-validator
 python-multipart
 schedule
 resend
-psycopg2-binary
+psycopg2-binary==2.9.12
 razorpay
 redis
 rq

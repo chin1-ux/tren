@@ -9,7 +9,7 @@ load_dotenv()
 
 # Initialize Supabase client
 url = os.getenv('SUPABASE_URL')
-key = os.getenv('SUPABASE_KEY')
+key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
 if not url or not key:
     raise RuntimeError('Supabase credentials not set in environment')
 sb = create_client(url, key)
