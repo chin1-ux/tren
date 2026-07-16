@@ -164,7 +164,7 @@ class InstagramScraper:
         audio_id = orig.get("audio_asset_id") or orig.get("id") or orig.get("audio_id")
         return str(audio_id) if audio_id else None
 
-    def _extract_audio_use_count(self, music_info_dict: dict | None) -> int:
+    def _extract_audio_use_count(self, music_info_dict: dict | None, audio_id: str | None = None) -> int:
         """Extract how many reels are currently using this audio."""
         if not music_info_dict:
             return 0
@@ -218,6 +218,22 @@ class InstagramScraper:
                     return int(clip[key])
                 except (TypeError, ValueError):
                     pass
+
+        # 6. DB fallback: Instagram removed use_count from their API circa mid-2025.
+        #    If we've already fetched the official count for this audio via
+        #    scrape_official_audio_counts, use that as the best available proxy.
+        if audio_id:
+            try:
+                res = self.supabase.table("audio_official_counts") \
+                    .select("official_use_count") \
+                    .eq("audio_id", audio_id) \
+                    .order("checked_at", desc=True) \
+                    .limit(1) \
+                    .execute()
+                if res.data and res.data[0].get("official_use_count") is not None:
+                    return int(res.data[0]["official_use_count"])
+            except Exception:
+                pass
                     
         return 0
 
@@ -342,7 +358,7 @@ Creator location hint: "unknown"
 Return this exact JSON structure:
 {{
   "caption_language": "english" | "hindi" | "other",
-  "audio_language": "english" | "hindi" | "russian" | "portuguese" | "spanish" | "korean" | "other",
+  "audio_language": "english" | "hindi" | "tamil" | "telugu" | "punjabi" | "marathi" | "bengali" | "gujarati" | "kannada" | "malayalam" | "urdu" | "russian" | "portuguese" | "spanish" | "korean" | "other",
   "trend_origin": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",
   "creator_country": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",
   "is_cross_cultural": true | false,
@@ -350,10 +366,10 @@ Return this exact JSON structure:
 }}
 
 Rules:
-- is_cross_cultural = true if audio_language !== caption_language
+- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From "MovieName")', you MUST tag trend_origin and creator_country as "IN" and audio_language as "hindi" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.
+- is_cross_cultural should be true ONLY if the trend_origin is clearly from a different culture/country than the target consumer base (e.g., Russian, Korean, Spanish, or Brazilian audio being used by Indian creators). If the audio is Indian (IN origin) and caption is English (with English hashtags), is_cross_cultural MUST be false (since English is extremely common in Indian reels).
 - If caption is in Devanagari script → caption_language = "hindi"
 - If caption is in Latin script and English → caption_language = "english"
-- If audio name contains non-English/non-Hindi words → tag audio_language accordingly
 - Only return the JSON, nothing else
 """
         try:
@@ -507,7 +523,7 @@ Rules:
 
                         # Extract audio ID and use count
                         audio_id = self._extract_audio_id(music_info_dict)
-                        audio_use_count = self._extract_audio_use_count(music_info_dict)
+                        audio_use_count = self._extract_audio_use_count(music_info_dict, audio_id=audio_id)
 
                         reel_data = {
                             "platform": "instagram",

@@ -162,14 +162,31 @@ TABLES_SQL = {
     "brand_deals": """
         CREATE TABLE IF NOT EXISTS brand_deals (
             id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
-            creator_email text,
-            brand_name text,
-            deal_amount int,
-            commission_amount float,
-            status text DEFAULT 'pending',
-            details text,
-            requirements text,
-            created_at timestamp DEFAULT now()
+            creator_id text NOT NULL,
+            brand_name text NOT NULL,
+            deliverables text NOT NULL,
+            rate_amount numeric NOT NULL,
+            currency text DEFAULT 'INR',
+            usage_rights text,
+            exclusivity_clause text,
+            timeline_start timestamp with time zone,
+            timeline_end timestamp with time zone,
+            status text DEFAULT 'active',
+            contract_pdf text,
+            cover_note_type text DEFAULT 'english',
+            created_at timestamp with time zone DEFAULT now()
+        );
+    """,
+    "deal_payment_milestones": """
+        CREATE TABLE IF NOT EXISTS deal_payment_milestones (
+            id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+            deal_id bigint REFERENCES brand_deals(id) ON DELETE CASCADE,
+            milestone_name text NOT NULL,
+            amount numeric NOT NULL,
+            due_date timestamp with time zone NOT NULL,
+            paid_status text DEFAULT 'unpaid',
+            reminder_sent_at timestamp with time zone,
+            created_at timestamp with time zone DEFAULT now()
         );
     """,
     "brand_deal_applications": """
@@ -312,6 +329,7 @@ def main():
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
             cursor.execute("ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS requirements text;")
+            cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_token text;")
             
             # 2.1 DATABASE OPTIMISATION: INDEXES
             print("Creating database indexes...")
@@ -322,15 +340,15 @@ def main():
             
             # 1.2 ROW LEVEL SECURITY ON SUPABASE (Enable RLS on every table)
             print("Enabling Row Level Security (RLS) on all tables...")
-            tables_to_rls = [
-                "users", "jobs", "brand_deals",
+            tables_to_enable = [
+                "users", "jobs", "brand_deals", "deal_payment_milestones",
                 "brand_deal_applications", "collab_requests", "daily_ideas",
                 "calendar_plans", "creator_profiles", "pre_post_analyses",
                 "trend_feedback", "creator_trend_memory", "trial_reel_plans",
                 "consent_records", "trends", "reels", "audio_trend_scores",
                 "cron_runs", "tracked_audio", "audio_official_counts"
             ]
-            for tbl in tables_to_rls:
+            for tbl in tables_to_enable:
                 cursor.execute(f"ALTER TABLE IF EXISTS {tbl} ENABLE ROW LEVEL SECURITY;")
                 
             # Create policies. Use sub-queries or metadata where appropriate.
@@ -371,7 +389,20 @@ def main():
             
             # brand_deals policy
             cursor.execute("DROP POLICY IF EXISTS brand_deals_read_policy ON brand_deals;")
-            cursor.execute("CREATE POLICY brand_deals_read_policy ON brand_deals FOR SELECT TO authenticated USING (status = 'open' OR creator_email = auth.jwt() ->> 'email');")
+            cursor.execute("DROP POLICY IF EXISTS brand_deals_owner_policy ON brand_deals;")
+            cursor.execute("CREATE POLICY brand_deals_owner_policy ON brand_deals FOR ALL USING (creator_id = auth.jwt() ->> 'email');")
+            
+            # deal_payment_milestones policy
+            cursor.execute("DROP POLICY IF EXISTS milestones_owner_policy ON deal_payment_milestones;")
+            cursor.execute("""
+                CREATE POLICY milestones_owner_policy ON deal_payment_milestones FOR ALL USING (
+                    EXISTS (
+                        SELECT 1 FROM brand_deals
+                        WHERE brand_deals.id = deal_payment_milestones.deal_id
+                        AND brand_deals.creator_id = auth.jwt() ->> 'email'
+                    )
+                );
+            """)
             
             # brand_deal_applications policy
             cursor.execute("DROP POLICY IF EXISTS deal_apps_owner_policy ON brand_deal_applications;")
@@ -390,6 +421,18 @@ def main():
             # consent_records policy
             cursor.execute("DROP POLICY IF EXISTS consent_owner_policy ON consent_records;")
             cursor.execute("CREATE POLICY consent_owner_policy ON consent_records FOR ALL USING (user_email = auth.jwt() ->> 'email');")
+
+            # analytics_events policies
+            cursor.execute("DROP POLICY IF EXISTS insert_analytics_policy ON analytics_events;")
+            cursor.execute("DROP POLICY IF EXISTS select_analytics_policy ON analytics_events;")
+            cursor.execute("CREATE POLICY insert_analytics_policy ON analytics_events FOR INSERT WITH CHECK (true);")
+            cursor.execute("CREATE POLICY select_analytics_policy ON analytics_events FOR SELECT USING (user_id = auth.jwt() ->> 'email');")
+
+            # creator_feedback policies
+            cursor.execute("DROP POLICY IF EXISTS insert_feedback_policy ON creator_feedback;")
+            cursor.execute("DROP POLICY IF EXISTS select_feedback_policy ON creator_feedback;")
+            cursor.execute("CREATE POLICY insert_feedback_policy ON creator_feedback FOR INSERT WITH CHECK (true);")
+            cursor.execute("CREATE POLICY select_feedback_policy ON creator_feedback FOR SELECT USING (creator_id = auth.jwt() ->> 'email');")
             
             print("Table alterations, indexes, and RLS policies completed successfully.")
         except Exception as e:

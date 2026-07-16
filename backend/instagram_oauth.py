@@ -121,9 +121,10 @@ class InstagramOAuth:
         token_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/oauth/access_token"
         
         params = {
-            "grant_type": "ig_exchange_token",
+            "grant_type": "fb_exchange_token",
+            "client_id": INSTAGRAM_APP_ID,
             "client_secret": INSTAGRAM_APP_SECRET,
-            "access_token": short_lived_token
+            "fb_exchange_token": short_lived_token
         }
         
         try:
@@ -135,6 +136,8 @@ class InstagramOAuth:
             return token_data
         except requests.RequestException as e:
             logger.error(f"Failed to get long-lived token: {e}")
+            if response is not None:
+                logger.error(f"Response: {response.text}")
             raise
     
     @staticmethod
@@ -166,10 +169,16 @@ class InstagramOAuth:
             logger.error(f"Failed to refresh token: {e}")
             raise
     
+    # Known Page ID for Business Manager-owned pages that don't appear in /me/accounts
+    KNOWN_PAGE_IDS = ["1238153086047102"]
+
     @staticmethod
     def get_instagram_business_account(access_token: str) -> Optional[Dict]:
         """
         Get Instagram Business Account ID from the user's Facebook page.
+        
+        For Business Manager-owned pages, /me/accounts returns empty.
+        Falls back to querying known Page IDs directly.
         
         Args:
             access_token: Valid access token
@@ -177,46 +186,65 @@ class InstagramOAuth:
         Returns:
             Dictionary containing Instagram Business Account info
         """
-        # First get user's pages
-        pages_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/me/accounts"
-        params = {"access_token": access_token}
-        
+        page_id = None
+
+        # First try /me/accounts (works for personal pages)
         try:
-            response = requests.get(pages_url, params=params)
+            pages_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/me/accounts"
+            response = requests.get(pages_url, params={"access_token": access_token})
             response.raise_for_status()
             pages_data = response.json()
-            
-            if not pages_data.get("data"):
-                logger.warning("No Facebook pages found for user")
-                return None
-            
-            # Get first page's Instagram Business Account
-            page_id = pages_data["data"][0]["id"]
-            ig_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{page_id}?fields=instagram_business_account"
-            params = {"access_token": access_token}
-            
-            response = requests.get(ig_url, params=params)
+
+            if pages_data.get("data"):
+                page_id = pages_data["data"][0]["id"]
+                logger.info(f"Found page via /me/accounts: {page_id}")
+        except requests.RequestException as e:
+            logger.warning(f"Failed to fetch /me/accounts: {e}")
+
+        # Fallback: query known Page IDs directly (for Business Manager-owned pages)
+        if not page_id:
+            logger.warning("/me/accounts returned no pages. Trying known Page IDs directly.")
+            for known_id in InstagramOAuth.KNOWN_PAGE_IDS:
+                try:
+                    res = requests.get(
+                        f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{known_id}",
+                        params={"access_token": access_token, "fields": "id,name,instagram_business_account"}
+                    )
+                    res.raise_for_status()
+                    data = res.json()
+                    if "instagram_business_account" in data:
+                        page_id = known_id
+                        logger.info(f"Found page via direct query: {known_id}")
+                        break
+                except requests.RequestException:
+                    continue
+
+        if not page_id:
+            logger.warning("No Facebook page found via any method")
+            return None
+
+        try:
+            # Get Instagram Business Account linked to the page
+            ig_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{page_id}"
+            response = requests.get(ig_url, params={"access_token": access_token, "fields": "instagram_business_account"})
             response.raise_for_status()
             ig_data = response.json()
-            
+
             if "instagram_business_account" not in ig_data:
                 logger.warning("No Instagram Business Account found for page")
                 return None
-            
-            # Get Instagram Business Account details
+
             ig_id = ig_data["instagram_business_account"]["id"]
             details_url = f"https://graph.facebook.com/{INSTAGRAM_API_VERSION}/{ig_id}"
-            params = {
+            response = requests.get(details_url, params={
                 "access_token": access_token,
                 "fields": "id,username,profile_picture_url,followers_count,media_count"
-            }
-            
-            response = requests.get(details_url, params=params)
+            })
             response.raise_for_status()
-            
+
             logger.info(f"Successfully retrieved Instagram Business Account: {ig_id}")
             return response.json()
-            
+
         except requests.RequestException as e:
             logger.error(f"Failed to get Instagram Business Account: {e}")
             raise
@@ -241,14 +269,16 @@ class InstagramOAuth:
         try:
             # Check if user already has a token
             existing = supabase.table("instagram_tokens").select("*").eq("user_email", user_email).execute()
-            
+
+            from datetime import timezone
+            now = datetime.now(timezone.utc)
             token_record = {
                 "user_email": user_email,
                 "access_token": token_data.get("access_token"),
                 "token_type": token_data.get("token_type", "long-lived"),
-                "expires_at": datetime.now() + timedelta(days=60),  # Long-lived tokens expire in 60 days
+                "expires_at": (now + timedelta(days=60)).isoformat(),  # Must be ISO string for Supabase
                 "ig_account_id": ig_account_id,
-                "updated_at": datetime.now().isoformat()
+                "updated_at": now.isoformat()
             }
             
             if existing.data:

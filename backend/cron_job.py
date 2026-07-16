@@ -322,6 +322,183 @@ def run_audio_count_check():
         logging.error(f"Audio Official Counts Check Job FAILED: {e}", exc_info=True)
 
 
+def check_and_send_milestone_reminders() -> int:
+    logging.info("Starting Brand Deal Milestone Payment Reminders Job...")
+    try:
+        import resend
+    except ImportError:
+        logging.error("Resend package is not imported.")
+        return 0
+
+    try:
+        sb = _get_supabase()
+    except Exception as e:
+        logging.error(f"Cannot initialize Supabase for milestone reminders: {e}")
+        return 0
+
+    resend.api_key = os.getenv("RESEND_API_KEY")
+    from_email = os.getenv("RESEND_FROM_EMAIL", "alerts@trendrop.ai")
+    
+    # 1. Fetch all unpaid milestones with parent brand deal details
+    try:
+        # In supabase-py, we can do joins using select("*, brand_deals(*)")
+        res = sb.table("deal_payment_milestones").select("*, brand_deals(*)").eq("paid_status", "unpaid").execute()
+        milestones = res.data or []
+    except Exception as query_err:
+        logging.error(f"Failed to query unpaid milestones: {query_err}")
+        return 0
+        
+    now = datetime.utcnow()
+    emails_sent = 0
+    
+    for m in milestones:
+        due_date_str = m.get("due_date")
+        if not due_date_str:
+            continue
+            
+        try:
+            # Parse ISO due date string
+            due_date = datetime.fromisoformat(due_date_str.replace("Z", "+00:00")).replace(tzinfo=None)
+        except Exception as parse_err:
+            logging.warning(f"Error parsing due date '{due_date_str}': {parse_err}")
+            continue
+            
+        time_diff = due_date - now
+        # Check if approaching (within 2 days, i.e., 48 hours) or past due
+        is_approaching = timedelta(days=0) <= time_diff <= timedelta(days=2)
+        is_overdue = time_diff < timedelta(days=0)
+        
+        if not (is_approaching or is_overdue):
+            continue
+            
+        # Throttling: Check if a reminder was already sent in the last 24 hours
+        sent_at_str = m.get("reminder_sent_at")
+        if sent_at_str:
+            try:
+                sent_at = datetime.fromisoformat(sent_at_str.replace("Z", "+00:00")).replace(tzinfo=None)
+                if now - sent_at < timedelta(hours=24):
+                    logging.info(f"Skipping reminder for milestone {m['id']} (already sent within 24 hours)")
+                    continue
+            except Exception as throttle_err:
+                logging.warning(f"Error parsing reminder_sent_at: {throttle_err}")
+                
+        deal = m.get("brand_deals") or {}
+        creator_email = deal.get("creator_id")
+        brand_name = deal.get("brand_name", "the brand")
+        currency = deal.get("currency", "INR").upper()
+        amount = float(m.get("amount", 0))
+        milestone_name = m.get("milestone_name", "Milestone")
+        
+        if not creator_email:
+            logging.warning(f"No creator_email/creator_id found for deal ID {m.get('deal_id')}")
+            continue
+            
+        status_label = "OVERDUE" if is_overdue else "UPCOMING"
+        subject = f"[Trendrop Payment Alert] {status_label}: {currency} {amount:,.2f} milestone with {brand_name}"
+        
+        # Follow-up drafts for the creator
+        hinglish_draft = (
+            f"Hi team, humare campaign deliverables ke context mein ek chota reminder. "
+            f"Humare agreement ke hisab se milestone payment of {currency} {amount:,.2f} ({milestone_name}) "
+            f"{'due ho chuka hai' if is_overdue else 'due hone wala hai'} on {due_date.strftime('%d-%b-%Y')}. "
+            f"Please share update on the status. Thanks!"
+        )
+        
+        english_draft = (
+            f"Hi team, a quick reminder regarding the milestone payment for our campaign. "
+            f"The payment of {currency} {amount:,.2f} for '{milestone_name}' is "
+            f"{'currently overdue' if is_overdue else 'due'} on {due_date.strftime('%d-%b-%Y')} under our agreement. "
+            f"Could you please share a status update or remittance advice once processed? Thank you!"
+        )
+        
+        html_body = f"""
+        <html>
+        <body style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+            <div style="max-width: 600px; margin: 0 auto; padding: 20px; border: 1px solid #eee; border-radius: 8px;">
+                <h2 style="color: {'#e63946' if is_overdue else '#3182ce'}; border-bottom: 2px solid {'#e63946' if is_overdue else '#3182ce'}; padding-bottom: 10px;">
+                    Payment Milestone Reminder ({status_label})
+                </h2>
+                <p>Hello,</p>
+                <p>This is an automated alert from your Trendrop Payment Milestone Tracker. You have a payment milestone with <strong>{brand_name}</strong> that is {'overdue' if is_overdue else 'due soon'}:</p>
+                
+                <table style="width: 100%; border-collapse: collapse; margin: 20px 0;">
+                    <tr style="background-color: #f7fafc;">
+                        <td style="padding: 10px; border: 1px solid #edf2f7; font-weight: bold;">Brand Name</td>
+                        <td style="padding: 10px; border: 1px solid #edf2f7;">{brand_name}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #edf2f7; font-weight: bold;">Milestone</td>
+                        <td style="padding: 10px; border: 1px solid #edf2f7;">{milestone_name}</td>
+                    </tr>
+                    <tr style="background-color: #f7fafc;">
+                        <td style="padding: 10px; border: 1px solid #edf2f7; font-weight: bold;">Amount Due</td>
+                        <td style="padding: 10px; border: 1px solid #edf2f7; font-weight: bold; color: #e63946;">{currency} {amount:,.2f}</td>
+                    </tr>
+                    <tr>
+                        <td style="padding: 10px; border: 1px solid #edf2f7; font-weight: bold;">Due Date</td>
+                        <td style="padding: 10px; border: 1px solid #edf2f7;">{due_date.strftime('%B %d, %Y')}</td>
+                    </tr>
+                </table>
+                
+                <div style="background-color: #ebf8ff; border-left: 4px solid #3182ce; padding: 15px; margin: 20px 0; border-radius: 4px;">
+                    <h3 style="margin-top: 0; color: #2b6cb0;">📋 Ready-to-Send Brand Follow-Up Drafts</h3>
+                    <p style="font-size: 13px; color: #4a5568;">Copy and paste one of the messages below to follow up with the brand team:</p>
+                    
+                    <p><strong>English Option:</strong></p>
+                    <blockquote style="background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px; margin: 5px 0;">
+                        {english_draft}
+                    </blockquote>
+                    
+                    <p><strong>Hinglish Option:</strong></p>
+                    <blockquote style="background: #fff; padding: 10px; border: 1px solid #e2e8f0; border-radius: 4px; font-size: 13px; margin: 5px 0;">
+                        {hinglish_draft}
+                    </blockquote>
+                </div>
+                
+                <p style="font-size: 12px; color: #a0aec0; margin-top: 30px; border-top: 1px solid #edf2f7; padding-top: 10px; text-align: center;">
+                    Powered by Trendrop • Keep track of your brand deal contracts and payments.
+                </p>
+            </div>
+        </body>
+        </html>
+        """
+        
+        # Send via Resend
+        try:
+            if not resend.api_key:
+                logging.warning(f"RESEND_API_KEY is missing. Skipping actual email to {creator_email}, logged details: {subject}")
+            else:
+                try:
+                    resend.Emails.send({
+                        "from": from_email,
+                        "to": creator_email,
+                        "subject": subject,
+                        "html": html_body
+                    })
+                    logging.info(f"Sent payment reminder email to {creator_email} for brand {brand_name}")
+                except Exception as resend_err:
+                    if "domain is not verified" in str(resend_err).lower() and from_email != "onboarding@resend.dev":
+                        logging.warning("Retrying email send with onboarding@resend.dev fallback due to unverified domain...")
+                        resend.Emails.send({
+                            "from": "onboarding@resend.dev",
+                            "to": creator_email,
+                            "subject": subject,
+                            "html": html_body
+                        })
+                        logging.info(f"Sent fallback payment reminder email to {creator_email} for brand {brand_name}")
+                    else:
+                        raise resend_err
+                
+            # Update milestone row reminder_sent_at
+            sb.table("deal_payment_milestones").update({"reminder_sent_at": now.isoformat()}).eq("id", m["id"]).execute()
+            emails_sent += 1
+        except Exception as resend_err:
+            logging.error(f"Failed to send/log reminder for milestone {m['id']}: {resend_err}")
+            
+    logging.info(f"Payment milestone reminders check complete. Sent: {emails_sent}")
+    return emails_sent
+
+
 if __name__ == "__main__":
     logging.info("Trendrop cron job initialized. Running pipeline immediately on startup...")
     try:
@@ -347,6 +524,12 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup audio counts check failed: {e}", exc_info=True)
 
+    # Run milestone reminders check immediately on startup
+    try:
+        check_and_send_milestone_reminders()
+    except Exception as e:
+        logging.error(f"Startup milestone reminders check failed: {e}", exc_info=True)
+
     # Schedule every 3 hours
     logging.info("Scheduling pipeline to run every 3 hours...")
     schedule.every(3).hours.do(run_full_pipeline)
@@ -354,6 +537,10 @@ if __name__ == "__main__":
     # Schedule every 6 hours for audio counts check
     logging.info("Scheduling audio counts check to run every 6 hours...")
     schedule.every(6).hours.do(run_audio_count_check)
+
+    # Schedule every 12 hours for milestone reminders check
+    logging.info("Scheduling milestone reminders check to run every 12 hours...")
+    schedule.every(12).hours.do(check_and_send_milestone_reminders)
 
     # Schedule daily creator sync job
     logging.info("Scheduling daily creator sync job...")
@@ -369,3 +556,4 @@ if __name__ == "__main__":
             time.sleep(60)
     except KeyboardInterrupt:
         logging.info("Cron job stopped by user (KeyboardInterrupt).")
+

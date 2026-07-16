@@ -737,4 +737,26 @@ export async function fetchCreatorNicheHealth(email: string): Promise<NicheHealt
   return http<NicheHealthData>(`/api/creator/niche-health?email=${encodeURIComponent(email)}`);
 }
 
+export async function logAnalyticsEvent(eventName: string): Promise<{ success: boolean }> {
+  try {
+    return await http<{ success: boolean }>("/api/analytics/log", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_name: eventName })
+    });
+  } catch (err) {
+    console.error("Failed to log analytics: ", err);
+    return { success: false };
+  }
+}
+
+export async function submitCreatorFeedback(dealId: number, rating: string, comment: string): Promise<{ success: boolean }> {
+  return http<{ success: boolean }>("/api/creator/feedback", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ deal_id: dealId, rating, comment })
+  });
+}
+
+
 

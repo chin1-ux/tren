@@ -1,5 +1,5 @@
 import { Link, useRouterState } from "@tanstack/react-router";
-import { Sparkles, Lightbulb, Building2, User, Flame, Settings } from "lucide-react";
+import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
 import { motion } from "framer-motion";
@@ -21,7 +21,7 @@ export function BottomTabBar() {
     { to: "/", label: "Trends", Icon: Flame },
     { to: "/generate", label: "Generate", Icon: Sparkles },
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
-    { to: "/marketplace", label: "Marketplace", Icon: Building2 },
+    { to: "/deals", label: "Deals", Icon: Handshake },
     { to: "/profile", label: "Profile", Icon: User },
     { to: "/stats", label: "Stats", Icon: Settings },
   ] as const;

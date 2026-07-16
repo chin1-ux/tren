@@ -158,16 +158,17 @@ class TrendEngine:
         new_trend_ids = []
 
         try:
-            # Check for scraper outage: skip if <5 reels scraped in last 3.5h
-            time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat()
+            # Check for scraper outage: skip only if 0 reels scraped in the last 6h.
+            # Window extended from 3.5h to 6h to match the scheduled pipeline interval.
+            time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
             new_reels_count_res = self.supabase.table("reels") \
                 .select("reel_id", count="exact") \
                 .gte("scraped_at", time_threshold_3h) \
                 .execute()
             
             new_reels_scraped = new_reels_count_res.count or 0
-            if new_reels_scraped < 5:
-                logging.warning(f"Possible scraper outage detected (only {new_reels_scraped} reels scraped in the last 3.5h). Skipping trend detection entirely.")
+            if new_reels_scraped < 1:
+                logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Skipping trend detection entirely.")
                 return []
 
             # ── STEP 1: Load recent high-velocity reels (last 48h) ─────────────

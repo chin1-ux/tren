@@ -98,6 +98,39 @@ function SettingsPage() {
     setCustomNiche(savedNiche === "all" ? "" : savedNiche);
   }, []);
 
+  // Detect Instagram OAuth redirect result
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const igSuccess = params.get("ig_success");
+    const igError = params.get("ig_error");
+    const igUsername = params.get("ig_username");
+
+    if (igSuccess === "1") {
+      const handle = igUsername ? `@${igUsername}` : "your account";
+      toast.success(`✅ Instagram connected! ${handle} is now linked to Trendrop.`);
+      if (igUsername) {
+        setInstagramHandle(igUsername);
+        localStorage.setItem("trendrop_instagram_handle", igUsername);
+      }
+    } else if (igError) {
+      const errorMessages: Record<string, string> = {
+        no_code: "No authorization code received from Instagram.",
+        no_ig_account: "No Instagram Business/Creator account found. Make sure your Instagram is linked to a Facebook Page.",
+        store_failed: "Failed to save your Instagram connection. Please try again.",
+        server_error: "Something went wrong. Please try again.",
+        not_configured: "Instagram OAuth is not configured on the server.",
+      };
+      toast.error(`❌ Instagram connection failed: ${errorMessages[igError] ?? igError}`);
+    }
+
+    // Clean up query params from URL without reload
+    if (igSuccess || igError) {
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, "", cleanUrl);
+    }
+  }, []);
+
+
   // Theme change
   const toggleTheme = () => {
     const next = theme === "light" ? "dark" : "light";

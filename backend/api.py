@@ -2294,6 +2294,236 @@ def get_brand_deals(request: Request, current_user_email: str = Depends(get_curr
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+# ── Brand Deals Contract & Payment Tracker Endpoints ───────────────────
+import base64
+from fastapi.responses import Response
+
+def get_user_supabase_client(authorization: Optional[str] = Header(None)) -> Client:
+    """
+    Creates a new Supabase client configured with the requesting user's JWT.
+    Enforces RLS policies at the database layer. Falls back to service role key for custom tokens.
+    """
+    url = os.getenv("SUPABASE_URL")
+    anon_key = os.getenv("SUPABASE_KEY")
+    service_role_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
+    
+    if not authorization or not authorization.startswith("Bearer "):
+        return create_client(url, anon_key or service_role_key)
+        
+    token = authorization.split("Bearer ")[1].strip()
+    is_jwt = len(token.split(".")) == 3
+    
+    if is_jwt:
+        client = create_client(url, anon_key or service_role_key)
+        client.postgrest.auth(token)
+        return client
+    else:
+        # Fallback to service role client for custom tokens (filtered at API layer)
+        return create_client(url, service_role_key or anon_key)
+
+class MilestoneInput(BaseModel):
+    milestone_name: str
+    amount: float
+    due_date: str # ISO string
+
+class CreateDealRequest(BaseModel):
+    brand_name: str
+    deliverables: str
+    rate_amount: float
+    currency: str = "INR"
+    usage_rights: str = ""
+    exclusivity_clause: str = ""
+    timeline_start: str = ""
+    timeline_end: str = ""
+    cover_note_type: str = "english"
+    milestones: List[MilestoneInput]
+
+@app.post("/api/deals")
+@limiter.limit("15/minute")
+def create_creator_deal(
+    request: Request, 
+    req: CreateDealRequest, 
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        from contract_generator import generate_contract_pdf
+        user_sb = get_user_supabase_client(authorization)
+        
+        # 1. Insert brand deal (without PDF first)
+        deal_data = {
+            "creator_id": current_user_email,
+            "brand_name": req.brand_name,
+            "deliverables": req.deliverables,
+            "rate_amount": req.rate_amount,
+            "currency": req.currency,
+            "usage_rights": req.usage_rights,
+            "exclusivity_clause": req.exclusivity_clause,
+            "timeline_start": req.timeline_start or None,
+            "timeline_end": req.timeline_end or None,
+            "cover_note_type": req.cover_note_type,
+            "status": "active"
+        }
+        res_deal = user_sb.table("brand_deals").insert(deal_data).execute()
+        if not res_deal.data:
+            raise HTTPException(status_code=500, detail="Failed to create brand deal in database")
+            
+        deal = res_deal.data[0]
+        deal_id = deal["id"]
+        
+        # 2. Insert milestones
+        inserted_milestones = []
+        for m in req.milestones:
+            m_data = {
+                "deal_id": deal_id,
+                "milestone_name": m.milestone_name,
+                "amount": m.amount,
+                "due_date": m.due_date,
+                "paid_status": "unpaid"
+            }
+            res_m = user_sb.table("deal_payment_milestones").insert(m_data).execute()
+            if res_m.data:
+                inserted_milestones.append(res_m.data[0])
+                
+        # 3. Generate Contract PDF base64
+        try:
+            b64_pdf = generate_contract_pdf(
+                creator_email=current_user_email,
+                brand_name=req.brand_name,
+                deliverables=req.deliverables,
+                rate_amount=req.rate_amount,
+                currency=req.currency,
+                usage_rights=req.usage_rights,
+                exclusivity_clause=req.exclusivity_clause,
+                timeline_start=req.timeline_start,
+                timeline_end=req.timeline_end,
+                milestones=inserted_milestones,
+                cover_note_type=req.cover_note_type
+            )
+            
+            # 4. Update brand deal with PDF content
+            user_sb.table("brand_deals").update({"contract_pdf": b64_pdf}).eq("id", deal_id).execute()
+            deal["contract_pdf"] = b64_pdf
+        except Exception as pdf_err:
+            logger.error(f"Error generating contract PDF: {pdf_err}", exc_info=True)
+            deal["contract_pdf"] = None
+            
+        deal["milestones"] = inserted_milestones
+        return deal
+    except Exception as e:
+        logger.error(f"Error creating creator brand deal: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/deals")
+@limiter.limit("30/minute")
+def get_creator_deals(
+    request: Request, 
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        user_sb = get_user_supabase_client(authorization)
+        # Apply filter at API layer in addition to database RLS
+        res_deals = user_sb.table("brand_deals").select("*").eq("creator_id", current_user_email).order("created_at", desc=True).execute()
+        deals = res_deals.data or []
+        
+        for deal in deals:
+            res_m = user_sb.table("deal_payment_milestones").select("*").eq("deal_id", deal["id"]).order("due_date", desc=False).execute()
+            deal["milestones"] = res_m.data or []
+            
+        return deals
+    except Exception as e:
+        logger.error(f"Error getting creator brand deals: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.get("/api/deals/{deal_id}/download")
+@limiter.limit("20/minute")
+def download_deal_contract(
+    deal_id: int, 
+    request: Request, 
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        user_sb = get_user_supabase_client(authorization)
+        res_deal = user_sb.table("brand_deals").select("contract_pdf, brand_name, creator_id").eq("id", deal_id).execute()
+        if not res_deal.data:
+            raise HTTPException(status_code=404, detail="Deal not found")
+        
+        deal = res_deal.data[0]
+        # Though DB-level RLS handles it, double check in API layer
+        if deal["creator_id"] != current_user_email:
+            raise HTTPException(status_code=403, detail="Forbidden: You do not own this deal")
+            
+        b64_pdf = deal.get("contract_pdf")
+        if not b64_pdf:
+            raise HTTPException(status_code=404, detail="Contract PDF not found for this deal")
+            
+        pdf_bytes = base64.b64decode(b64_pdf)
+        filename = f"Contract_{deal['brand_name'].replace(' ', '_')}.pdf"
+        
+        return Response(
+            content=pdf_bytes,
+            media_type="application/pdf",
+            headers={
+                "Content-Disposition": f'attachment; filename="{filename}"'
+            }
+        )
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error downloading deal contract: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/deals/{deal_id}/pay-milestone/{milestone_id}")
+@limiter.limit("30/minute")
+def pay_deal_milestone(
+    deal_id: int, 
+    milestone_id: int, 
+    request: Request, 
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        user_sb = get_user_supabase_client(authorization)
+        
+        # Confirm that current user owns the deal via user_sb client
+        res_deal = user_sb.table("brand_deals").select("creator_id").eq("id", deal_id).execute()
+        if not res_deal.data or res_deal.data[0]["creator_id"] != current_user_email:
+            raise HTTPException(status_code=403, detail="Forbidden: You do not own this deal")
+            
+        res_m = user_sb.table("deal_payment_milestones").update({"paid_status": "paid"}).eq("id", milestone_id).eq("deal_id", deal_id).execute()
+        return res_m.data[0] if res_m.data else {}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error marking milestone as paid: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+@app.post("/api/deals/run-reminders")
+def run_milestone_reminders_manual(
+    request: Request, 
+    current_user_email: str = Depends(get_current_user)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        from cron_job import check_and_send_milestone_reminders
+        emails_sent = check_and_send_milestone_reminders()
+        return {"success": True, "emails_sent": emails_sent}
+    except Exception as e:
+        logger.error(f"Error running reminders manual job: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 # ── New Marketplace API Endpoints ───────────────────────────────────────────────
 
 class ApplyDealRequest(BaseModel):
@@ -2786,5 +3016,72 @@ def disconnect_instagram(request: Request, current_user_email: str = Depends(get
     except Exception as e:
         logger.error(f"Error disconnecting Instagram account: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Failed to disconnect Instagram account")
+
+
+# ── Analytics & Feedback Endpoints ──────────────────────────────────────────
+
+class LogEventRequest(BaseModel):
+    event_name: str
+
+@app.post("/api/analytics/log")
+def log_analytics_event(
+    req: LogEventRequest,
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    try:
+        user_sb = get_user_supabase_client(authorization)
+        user_sb.table("analytics_events").insert({
+            "user_id": current_user_email if current_user_email != "guest@trendrop.app" else None,
+            "event_name": req.event_name
+        }).execute()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error logging event {req.event_name}: {e}")
+        return {"success": True}
+
+@app.get("/api/admin/analytics-summary")
+def get_analytics_summary(current_user_email: str = Depends(get_current_user)):
+    if current_user_email not in ["chinmay.feb03@gmail.com"]:
+        raise HTTPException(status_code=403, detail="Forbidden: Admin access only")
+        
+    try:
+        res = supabase.table("analytics_events").select("event_name").execute()
+        events = res.data or []
+        summary = {}
+        for ev in events:
+            name = ev["event_name"]
+            summary[name] = summary.get(name, 0) + 1
+        return {"success": True, "event_counts": summary}
+    except Exception as e:
+        logger.error(f"Error getting analytics summary: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+class FeedbackRequest(BaseModel):
+    deal_id: int
+    rating: str
+    comment: str
+
+@app.post("/api/creator/feedback")
+def submit_creator_feedback(
+    req: FeedbackRequest,
+    current_user_email: str = Depends(get_current_user),
+    authorization: Optional[str] = Header(None)
+):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    try:
+        user_sb = get_user_supabase_client(authorization)
+        user_sb.table("creator_feedback").insert({
+            "creator_id": current_user_email,
+            "deal_id": req.deal_id,
+            "rating": req.rating,
+            "comment": req.comment
+        }).execute()
+        return {"success": True}
+    except Exception as e:
+        logger.error(f"Error submitting creator feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 
 

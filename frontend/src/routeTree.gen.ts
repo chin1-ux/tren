@@ -18,9 +18,12 @@ import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as GenerateRouteImport } from './routes/generate'
+import { Route as DealsRouteImport } from './routes/deals'
 import { Route as DataRightsRouteImport } from './routes/data-rights'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as TrendIdRouteImport } from './routes/trend.$id'
+import { Route as DealsNewRouteImport } from './routes/deals.new'
+import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 
 const TermsRoute = TermsRouteImport.update({
   id: '/terms',
@@ -67,6 +70,11 @@ const GenerateRoute = GenerateRouteImport.update({
   path: '/generate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DealsRoute = DealsRouteImport.update({
+  id: '/deals',
+  path: '/deals',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DataRightsRoute = DataRightsRouteImport.update({
   id: '/data-rights',
   path: '/data-rights',
@@ -82,10 +90,21 @@ const TrendIdRoute = TrendIdRouteImport.update({
   path: '/trend/$id',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DealsNewRoute = DealsNewRouteImport.update({
+  id: '/new',
+  path: '/new',
+  getParentRoute: () => DealsRoute,
+} as any)
+const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
+  id: '/admin/analytics',
+  path: '/admin/analytics',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/data-rights': typeof DataRightsRoute
+  '/deals': typeof DealsRouteWithChildren
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/marketplace': typeof MarketplaceRoute
@@ -95,11 +114,14 @@ export interface FileRoutesByFullPath {
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/data-rights': typeof DataRightsRoute
+  '/deals': typeof DealsRouteWithChildren
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/marketplace': typeof MarketplaceRoute
@@ -109,12 +131,15 @@ export interface FileRoutesByTo {
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
   '/data-rights': typeof DataRightsRoute
+  '/deals': typeof DealsRouteWithChildren
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/marketplace': typeof MarketplaceRoute
@@ -124,6 +149,8 @@ export interface FileRoutesById {
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
+  '/admin/analytics': typeof AdminAnalyticsRoute
+  '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
 }
 export interface FileRouteTypes {
@@ -131,6 +158,7 @@ export interface FileRouteTypes {
   fullPaths:
     | '/'
     | '/data-rights'
+    | '/deals'
     | '/generate'
     | '/ideas'
     | '/marketplace'
@@ -140,11 +168,14 @@ export interface FileRouteTypes {
     | '/stats'
     | '/studio'
     | '/terms'
+    | '/admin/analytics'
+    | '/deals/new'
     | '/trend/$id'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
     | '/data-rights'
+    | '/deals'
     | '/generate'
     | '/ideas'
     | '/marketplace'
@@ -154,11 +185,14 @@ export interface FileRouteTypes {
     | '/stats'
     | '/studio'
     | '/terms'
+    | '/admin/analytics'
+    | '/deals/new'
     | '/trend/$id'
   id:
     | '__root__'
     | '/'
     | '/data-rights'
+    | '/deals'
     | '/generate'
     | '/ideas'
     | '/marketplace'
@@ -168,12 +202,15 @@ export interface FileRouteTypes {
     | '/stats'
     | '/studio'
     | '/terms'
+    | '/admin/analytics'
+    | '/deals/new'
     | '/trend/$id'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DataRightsRoute: typeof DataRightsRoute
+  DealsRoute: typeof DealsRouteWithChildren
   GenerateRoute: typeof GenerateRoute
   IdeasRoute: typeof IdeasRoute
   MarketplaceRoute: typeof MarketplaceRoute
@@ -183,6 +220,7 @@ export interface RootRouteChildren {
   StatsRoute: typeof StatsRoute
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
+  AdminAnalyticsRoute: typeof AdminAnalyticsRoute
   TrendIdRoute: typeof TrendIdRoute
 }
 
@@ -251,6 +289,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deals': {
+      id: '/deals'
+      path: '/deals'
+      fullPath: '/deals'
+      preLoaderRoute: typeof DealsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/data-rights': {
       id: '/data-rights'
       path: '/data-rights'
@@ -272,12 +317,37 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TrendIdRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deals/new': {
+      id: '/deals/new'
+      path: '/new'
+      fullPath: '/deals/new'
+      preLoaderRoute: typeof DealsNewRouteImport
+      parentRoute: typeof DealsRoute
+    }
+    '/admin/analytics': {
+      id: '/admin/analytics'
+      path: '/admin/analytics'
+      fullPath: '/admin/analytics'
+      preLoaderRoute: typeof AdminAnalyticsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
+
+interface DealsRouteChildren {
+  DealsNewRoute: typeof DealsNewRoute
+}
+
+const DealsRouteChildren: DealsRouteChildren = {
+  DealsNewRoute: DealsNewRoute,
+}
+
+const DealsRouteWithChildren = DealsRoute._addFileChildren(DealsRouteChildren)
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DataRightsRoute: DataRightsRoute,
+  DealsRoute: DealsRouteWithChildren,
   GenerateRoute: GenerateRoute,
   IdeasRoute: IdeasRoute,
   MarketplaceRoute: MarketplaceRoute,
@@ -287,6 +357,7 @@ const rootRouteChildren: RootRouteChildren = {
   StatsRoute: StatsRoute,
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
+  AdminAnalyticsRoute: AdminAnalyticsRoute,
   TrendIdRoute: TrendIdRoute,
 }
 export const routeTree = rootRouteImport
