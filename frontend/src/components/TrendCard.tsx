@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useCallback } from "react";
+import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTrendReels } from "@/lib/api";
 import { toast } from "sonner";
@@ -189,16 +189,19 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showReels, setShowReels] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isSaved, setIsSaved] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
 
-  // Saved trend tracking
-  const [isSaved, setIsSaved] = useState(() => {
-    if (typeof window === "undefined") return false;
+  // Saved trend tracking is hydrated after mount to avoid SSR/client text mismatch.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
     try {
       const arr = JSON.parse(localStorage.getItem("saved_trends") || "[]");
-      return Array.isArray(arr) && arr.includes(String(trend.id));
-    } catch { return false; }
-  });
+      setIsSaved(Array.isArray(arr) && arr.includes(String(trend.id)));
+    } catch {
+      setIsSaved(false);
+    }
+  }, [trend.id]);
 
   const toggleSave = (e: React.MouseEvent) => {
     e.stopPropagation();

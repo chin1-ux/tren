@@ -61,7 +61,7 @@ function TrendsFeed() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-  const [, setNow] = useState(Date.now());
+  const [now, setNow] = useState(0);
   const prevCountRef = useRef<number>(0);
 
   // Niche filter — read from preferences
@@ -159,8 +159,8 @@ function TrendsFeed() {
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
-    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
-  }), []);
+    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
+  }), [now]);
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
