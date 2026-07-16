@@ -61,7 +61,7 @@ function TrendsFeed() {
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [showTutorial, setShowTutorial] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-  const [now, setNow] = useState(0);
+  const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
 
   // Niche filter — read from preferences
@@ -159,8 +159,8 @@ function TrendsFeed() {
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
-    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
-  }), [now]);
+    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
+  }), []);
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
@@ -173,7 +173,63 @@ function TrendsFeed() {
 
   return (
     <div className="flex flex-col gap-0 pb-24">
-      {/* Global discovery rail */}
+      {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
+      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
+        <ParticleBackground />
+
+        {/* Header Row */}
+        <div className="relative flex items-center justify-between mb-4">
+          {/* Logo */}
+          <TrenddropLogo size={34} />
+
+          <div className="flex items-center gap-2">
+            {/* Notification bell — switches to Emerging tab when tapped */}
+            <button
+              id="notification-bell"
+              onClick={() => {
+                setFeedTab("emerging");
+                toast("⚡ Switched to Emerging feed", {
+                  description: emergingCount > 0
+                    ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} detected right now`
+                    : "No new emerging trends yet — check back soon!",
+                });
+              }}
+              className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10 active:scale-95"
+              aria-label={`Notifications${emergingCount > 0 ? ` — ${emergingCount} emerging trends` : ""}`}
+            >
+              <Bell className="h-4 w-4" />
+              {emergingCount > 0 && (
+                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white animate-pulse">
+                  {emergingCount}
+                </span>
+              )}
+            </button>
+
+            {/* Theme Toggle */}
+            <ThemeToggle />
+
+            {/* User avatar */}
+            <button
+              onClick={() => navigate({ to: "/profile" })}
+              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
+              aria-label="Profile"
+            >
+              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white">
+                U
+              </div>
+            </button>
+          </div>
+        </div>
+
+        {/* Simplified Stats */}
+        <div className="relative z-10 text-center mt-2">
+          <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
+            {totalActive.toLocaleString()} active trends tracked • {avgLeadTime}h avg. lead time
+          </p>
+        </div>
+      </div>
+
+      {/* Global-first discovery rail */}
       <div className="mx-4 mt-6 overflow-hidden rounded-[1.75rem] border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background shadow-[0_24px_80px_rgba(230,57,70,0.08)]">
         <div className="flex items-center justify-between gap-4 border-b border-border/30 px-4 py-4">
           <div className="flex items-center gap-3">
@@ -197,12 +253,12 @@ function TrendsFeed() {
         {crossCulturalLoading ? (
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-4">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="shrink-0 w-64 rounded-[1.5rem] border border-border/30 bg-muted/30 p-4">
-                <div className="h-4 w-20 rounded-full bg-white/5 animate-pulse" />
-                <div className="mt-4 h-4 w-40 rounded-full bg-white/5 animate-pulse" />
-                <div className="mt-2 h-3 w-28 rounded-full bg-white/5 animate-pulse" />
-                <div className="mt-5 h-2 w-full rounded-full bg-white/5 animate-pulse" />
-                <div className="mt-4 h-8 w-full rounded-xl bg-white/5 animate-pulse" />
+              <div key={i} className="shrink-0 w-64 rounded-[1.5rem] border border-border/30 bg-muted/30 p-4 animate-pulse">
+                <div className="h-4 w-20 rounded-full bg-foreground/10" />
+                <div className="mt-4 h-4 w-40 rounded-full bg-foreground/10" />
+                <div className="mt-2 h-3 w-28 rounded-full bg-foreground/10" />
+                <div className="mt-5 h-2 w-full rounded-full bg-foreground/10" />
+                <div className="mt-4 h-8 w-full rounded-xl bg-foreground/10" />
               </div>
             ))}
           </div>
@@ -215,10 +271,10 @@ function TrendsFeed() {
             {(crossCulturalData as any[]).map((reel: any) => {
               const indiaPct = reel.india_saturation_pct ?? 0;
               const originFlag: Record<string, string> = {
-                US: "US", BR: "BR", RU: "RU", KR: "KR", GB: "GB",
-                DE: "DE", FR: "FR", MX: "MX",
+                US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
+                DE: "🇩🇪", FR: "🇫🇷", MX: "🇲🇽",
               };
-              const flag = originFlag[reel.trend_origin] ?? "Global";
+              const flag = originFlag[reel.trend_origin] ?? "🌍";
               const audioUrl = reel.audio_id
                 ? `https://www.instagram.com/reels/audio/${reel.audio_id}/`
                 : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.audio_title || "")}/`;
@@ -234,8 +290,8 @@ function TrendsFeed() {
                   className={`shrink-0 w-64 rounded-[1.5rem] p-4 space-y-3 transition-all ${borderClass}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-muted-foreground">
-                      {flag} ? ????
+                    <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
+                      {flag} → 🇮🇳
                     </span>
                     {windowH > 0 && (
                       <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
@@ -255,7 +311,7 @@ function TrendsFeed() {
 
                   <div className="space-y-1.5">
                     <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-muted-foreground">???? India saturation</span>
+                      <span className="text-muted-foreground">🇮🇳 India saturation</span>
                       <span className="font-bold text-foreground">{Math.round(indiaPct)}%</span>
                     </div>
                     <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
@@ -269,7 +325,7 @@ function TrendsFeed() {
                     </div>
                     {indiaPct < 30 ? (
                       <span className="text-[9px] font-bold text-emerald-400">
-                        ???? Opportunity window open
+                        🚀 Opportunity window open
                       </span>
                     ) : (
                       <span className="text-[9px] font-medium text-muted-foreground">
@@ -284,7 +340,7 @@ function TrendsFeed() {
                     rel="noopener noreferrer"
                     className="flex w-full items-center justify-center gap-1 rounded-xl bg-primary/12 border border-primary/20 text-primary text-[10px] font-bold px-2 py-2 hover:bg-primary/20 transition-all"
                   >
-                    ?? Save Audio ?
+                    🎵 Save Audio
                   </a>
                 </div>
               );
@@ -292,6 +348,94 @@ function TrendsFeed() {
           </div>
         )}
       </div>
+
+      {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
+      <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
+        <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
+          <TabButton
+            active={feedTab === "rising"}
+            onClick={() => setFeedTab("rising")}
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="Rising"
+            count={risingData?.length}
+          />
+          <TabButton
+            active={feedTab === "emerging"}
+            onClick={() => setFeedTab("emerging")}
+            icon={<Zap className="h-3.5 w-3.5" />}
+            label="Emerging"
+            count={emergingCount}
+            urgent
+          />
+        </div>
+
+        {/* Search */}
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <input
+            id="search-query"
+            name="searchQuery"
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Search song or artist..."
+            className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          />
+          {searchQuery && (
+            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+              <X className="h-4 w-4 text-muted-foreground" />
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* ── Feed ──────────────────────────────────────────────────────────────── */}
+      <div className="space-y-4 px-4 pt-4">
+        {feedTab === "emerging" && (
+          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
+            <p className="text-xs text-[#ff006e] font-semibold">
+              ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
+            </p>
+          </div>
+        )}
+
+        {isError && (
+          <div className="space-y-2">
+            <ApiErrorBanner message={(risingError as any)?.message || (emergingError as any)?.message || "Service temporarily unavailable"} />
+            <button onClick={() => refetch()} className="text-xs font-semibold text-primary underline">
+              Try again
+            </button>
+          </div>
+        )}
+
+        {isLoading ? (
+          <>
+            <SkeletonCard />
+            <SkeletonCard />
+            <SkeletonCard />
+          </>
+        ) : !isError && trends.length === 0 ? (
+          <div className="glass-card p-12 text-center">
+            <p className="text-4xl mb-3">🎵</p>
+            <p className="text-base font-semibold">No trends right now</p>
+            <p className="mt-1 text-sm text-muted-foreground">
+              {feedTab === "emerging"
+                ? "No emerging trends detected yet. Check back in an hour!"
+                : "Our scrapers are working. New trends will appear soon."}
+            </p>
+          </div>
+        ) : (
+          trends.map((t) => (
+            <TrendCard
+              key={t.id}
+              trend={withCountdown(t)}
+              onDanceTap={setDanceTrend}
+            />
+          ))
+        )}
+      </div>
+
+
+
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
       {showOnboarding && (
         <OnboardingFlow
@@ -339,4 +483,3 @@ function TabButton({
     </button>
   );
 }
-

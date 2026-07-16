@@ -1232,8 +1232,12 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
             .eq("is_original_audio", False) \
             .not_.is_("audio_title", "null") \
             .neq("audio_title", "Original audio") \
-            .in_("caption_language", ["en", "hi", "english", "hindi"]) \
+            .in_("caption_language", ["en", "english"]) \
             .neq("trend_origin", "IN") \
+            .neq("trend_origin", "in") \
+            .neq("trend_origin", "unknown") \
+            .neq("trend_origin", "UNKNOWN") \
+            .not_.is_("trend_origin", "null") \
             .lt("india_saturation_pct", 40) \
             .order("scraped_at", desc=True) \
             .limit(10)
