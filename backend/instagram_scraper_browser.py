@@ -280,7 +280,7 @@ class InstagramScraper:
             logger.warning(f"Error extracting audio info: {e}")
         return None, None, None, False
 
-    def _extract_audio_use_count(self, media: dict) -> int:
+    def _extract_audio_use_count(self, media: dict, audio_id: str | None = None) -> int:
         if not media:
             return 0
         try:
@@ -317,6 +317,23 @@ class InstagramScraper:
                     return int(o_cons[key])
         except Exception:
             pass
+        
+        # 5. DB fallback: Instagram removed use_count from their API circa mid-2025.
+        #    If we've already fetched the official count for this audio via
+        #    scrape_official_audio_counts, use that as the best available proxy.
+        if audio_id:
+            try:
+                res = self.supabase.table("audio_official_counts") \
+                    .select("official_use_count") \
+                    .eq("audio_id", audio_id) \
+                    .order("checked_at", desc=True) \
+                    .limit(1) \
+                    .execute()
+                if res.data and res.data[0].get("official_use_count") is not None:
+                    return int(res.data[0]["official_use_count"])
+            except Exception:
+                pass
+        
         return 0
 
     def _load_instagram_cookie_headers(self) -> tuple[dict, dict]:
@@ -590,13 +607,18 @@ class InstagramScraper:
             "Return this exact JSON structure:\n"
             '{\n'
             '  "caption_language": "english" | "hindi" | "other",\n'
-            '  "audio_language": "english" | "hindi" | "russian" | "portuguese" | "spanish" | "korean" | "other",\n'
+            '  "audio_language": "english" | "hindi" | "tamil" | "telugu" | "punjabi" | "marathi" | "bengali" | "gujarati" | "kannada" | "malayalam" | "urdu" | "russian" | "portuguese" | "spanish" | "korean" | "other",\n'
             '  "trend_origin": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
             '  "creator_country": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
             '  "is_cross_cultural": true | false,\n'
             '  "confidence": 0.0 to 1.0\n'
             '}\n\n'
-            "Only return the JSON, nothing else."
+            "Rules:\n"
+            "- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From \"MovieName\")', you MUST tag trend_origin and creator_country as \"IN\" and audio_language as \"hindi\" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.\n"
+            "- is_cross_cultural should be true ONLY if the trend_origin is clearly from a different culture/country than the target consumer base (e.g., Russian, Korean, Spanish, or Brazilian audio being used by Indian creators). If the audio is Indian (IN origin) and caption is English (with English hashtags), is_cross_cultural MUST be false (since English is extremely common in Indian reels).\n"
+            "- If caption is in Devanagari script -> caption_language = \"hindi\"\n"
+            "- If caption is in Latin script and English -> caption_language = \"english\"\n"
+            "- Only return the JSON, nothing else."
         )
         
         try:
@@ -860,7 +882,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                         # Extract audio using the raw media dictionary
                         media_dict = item.get("media_dict")
                         audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
-                        audio_use = self._extract_audio_use_count(media_dict)
+                        audio_use = self._extract_audio_use_count(media_dict, audio_id=audio_id)
                         
                         # Secondary database-level safeguard:
                         # If another creator has already used this audio_id, treat it as non-original.
@@ -1072,6 +1094,9 @@ Return ONLY valid JSON, no markdown, no explanation:
     def scrape_trending_reels(self) -> int:
         return asyncio.run(self.scrape_trending_reels_async())
 
+    def scrape_official_audio_counts(self, limit: int = 30) -> None:
+        return asyncio.run(self.scrape_official_audio_counts_async(limit=limit))
+
     async def scrape_official_audio_counts_async(self, limit: int = 30) -> None:
         try:
             logger.info("Starting scrape of official audio counts...")
@@ -1153,26 +1178,42 @@ Return ONLY valid JSON, no markdown, no explanation:
         ]
 
         logger.info("Launching Camoufox stealth browser for audio count scraping...")
-        with CamoufoxBrowser(headless=True, geoip=True) as browser:
+        async with CamoufoxBrowser(headless=True, geoip=True) as browser:
             context = await browser.new_context(no_viewport=True)
             await context.add_cookies(formatted_cookies)
             page = await context.new_page()
 
             # Warm up session with home page before hitting audio pages
-            await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
-            await page.wait_for_timeout(2000)
+            try:
+                await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+                await page.wait_for_timeout(2000)
+            except Exception as warm_err:
+                logger.warning(f"Warm-up navigation failed (non-fatal): {warm_err}")
+
+            consecutive_failures = 0
+            MAX_CONSECUTIVE_FAILURES = 3  # Abort if driver keeps crashing
 
             for aid in audio_ids:
+                if consecutive_failures >= MAX_CONSECUTIVE_FAILURES:
+                    logger.error(f"Too many consecutive driver failures ({consecutive_failures}). Aborting audio count scrape.")
+                    for remaining_aid in audio_ids:
+                        if remaining_aid not in results:
+                            results[remaining_aid] = "Skipped: browser driver crashed"
+                    break
+
                 url = f"https://www.instagram.com/reels/audio/{aid}/"
                 logger.info(f"Checking official count for audio_id {aid} via {url}...")
                 try:
-                    await page.goto(url, wait_until="networkidle", timeout=20000)
-                    await page.wait_for_timeout(3000)  # allow client-side JS rendering
+                    # Use domcontentloaded (not networkidle) — networkidle hangs on Instagram's
+                    # heavy SPA and eventually kills the Playwright driver process.
+                    await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                    await page.wait_for_timeout(4000)  # let React render the count
 
                     current_url = page.url
                     if "/accounts/login/" in current_url or "/challenge/" in current_url:
                         logger.error(f"[INSTAGRAM_FRICTION] Redirected to login/challenge page: {current_url}")
                         results[aid] = f"Redirected to login/challenge page: {current_url}"
+                        consecutive_failures = 0  # Login redirect is not a driver crash
                         continue
 
                     body_text = await page.inner_text("body", timeout=15000)
@@ -1188,6 +1229,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                     if friction_detected:
                         logger.error(f"[INSTAGRAM_FRICTION] Found friction keyword '{friction_detected}' in body of {url}")
                         results[aid] = f"Friction keyword found: '{friction_detected}'"
+                        consecutive_failures = 0
                         continue
 
                     # Parse count
@@ -1196,13 +1238,22 @@ Return ONLY valid JSON, no markdown, no explanation:
                         logger.info(f"Successfully scraped count for {aid}: {count} (precision: {precision_bucket})")
                         self._save_official_count(aid, count, precision_bucket)
                         results[aid] = "SUCCESS"
+                        consecutive_failures = 0
                     else:
                         logger.warning(f"Could not find Reels count text in page body for {aid}")
                         results[aid] = "Could not find Reels count text in page body"
+                        consecutive_failures = 0
 
                 except Exception as ex:
+                    err_str = str(ex)
                     logger.error(f"Error scraping audio {aid}: {ex}")
-                    results[aid] = str(ex)
+                    results[aid] = err_str
+                    # Driver-level errors (connection closed, socket errors) count as failures
+                    if "connection closed" in err_str.lower() or "socket" in err_str.lower():
+                        consecutive_failures += 1
+                        logger.warning(f"Driver-level failure #{consecutive_failures} for {aid}")
+                    else:
+                        consecutive_failures = 0
 
                 # Multi-second delay between requests to avoid rate limits
                 time.sleep(5)

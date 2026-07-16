@@ -81,7 +81,7 @@ def run_full_pipeline():
 
     # ── 3. Trend Engine: detect new trends ───────────────────────────────────
     trend_ids = []
-    if new_reels_count >= 5:
+    if new_reels_count > 0:  # Run trend detection even for small batches; TrendEngine has its own guard
         # Data-quality warning: check proportion of null audio titles in recent scrape
         try:
             sb = _get_supabase()
