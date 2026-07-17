@@ -799,7 +799,7 @@ def get_trends(
             q = q.eq("language", language)
 
         if niche and niche != "all":
-            q = q.eq("niche_tag", niche)
+            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)

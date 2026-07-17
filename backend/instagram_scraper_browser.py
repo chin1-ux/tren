@@ -97,6 +97,189 @@ class InstagramScraper:
             if custom_tags:
                 self.hashtag_groups = {"CUSTOM": custom_tags}
 
+    def _classify_caption_niches(self, caption: str) -> list[str]:
+        niches = []
+        text = (caption or "").lower()
+        if any(kw in text for kw in ["food", "recipe", "kitchen", "cook", "chef", "eat", "diet", "dinner", "lunch", "breakfast", "healthyfood", "high protein"]):
+            niches.append("food")
+        if any(kw in text for kw in ["gym", "fit", "workout", "fitness", "motivation", "cardio", "healthy", "abs", "legs", "exercise", "weight loss", "fat loss", "protein"]):
+            niches.append("fitness")
+        if any(kw in text for kw in ["travel", "trip", "vlog", "wanderlust", "mountains", "beach", "nature", "explore", "roadtrip", "safarnama"]):
+            niches.append("travel")
+        if any(kw in text for kw in ["fashion", "look", "style", "wear", "dress", "ootd", "outfit", "aesthetic", "wardrobe"]):
+            niches.append("fashion")
+        if any(kw in text for kw in ["comedy", "funny", "joke", "laugh", "meme", "roast", "fun"]):
+            niches.append("comedy")
+        if not niches:
+            niches.append("general")
+        return niches
+
+    async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
+        """Helper to navigate to creator profile using Playwright and intercept XHR response."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("Failed to initialize browser session for creator profile scrape.")
+                return None
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            await ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.instagram.com/",
+            })
+
+            captured_data = {
+                "profile": None,
+                "feed": None
+            }
+
+            async def handle_response(response):
+                url = response.url
+                if "api/v1/users/web_profile_info" in url:
+                    try:
+                        captured_data["profile"] = await response.json()
+                    except Exception:
+                        pass
+                elif "graphql/query" in url:
+                    try:
+                        res_json = await response.json()
+                        if "xdt_api__v1__clips__user__connection_v2" in str(res_json):
+                            captured_data["feed"] = res_json
+                    except Exception:
+                        pass
+
+            page = await ctx.new_page()
+            page.on("response", handle_response)
+
+            url = f"https://www.instagram.com/{username}/reels/"
+            logger.info(f"Navigating Camoufox to profile reels page: {url}...")
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(6000)
+            except Exception as e:
+                logger.warning(f"Navigation issue for @{username} profile reels: {e}")
+
+            if not captured_data["profile"]:
+                logger.warning(f"XHR profile not captured for @{username} — trying direct API endpoint inside page context...")
+                try:
+                    direct_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+                    await page.goto(direct_url, wait_until="domcontentloaded", timeout=15000)
+                    body_text = await page.inner_text("body")
+                    if body_text.startswith("for (;;);"):
+                        body_text = body_text[9:]
+                    captured_data["profile"] = json.loads(body_text)
+                except Exception as e:
+                    logger.error(f"Direct API fetch in page context failed for @{username}: {e}")
+
+            return captured_data
+
+        except Exception as e:
+            logger.error(f"Error scraping profile for @{username} in Playwright: {e}", exc_info=True)
+            return None
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+
+    async def scrape_creator_baseline(self, username: str) -> dict | None:
+        """Fetch a creator's profile page and extract their last 12 reels,
+        computing the median views/likes/comments and caching them in creator_baselines."""
+        logger.info(f"Scraping creator baseline for @{username}...")
+        try:
+            captured = await self._scrape_creator_profile_playwright_async(username)
+            if not captured or not captured.get("profile"):
+                logger.warning(f"Failed to scrape profile json for @{username}")
+                return None
+            
+            user_data = captured["profile"].get("data", {}).get("user") or {}
+            followers = user_data.get("edge_followed_by", {}).get("count") or 0
+            
+            media_edges = []
+            feed_data = captured.get("feed") or {}
+            feed_conn = feed_data.get("data", {}).get("xdt_api__v1__clips__user__connection_v2", {})
+            if feed_conn.get("edges"):
+                media_edges = feed_conn["edges"]
+                logger.info(f"Using modern GraphQL clips connection query for @{username} reels (edges={len(media_edges)})")
+            else:
+                media_edges = user_data.get("edge_owner_to_timeline_media", {}).get("edges") or []
+                logger.info(f"Using legacy timeline_media fallback for @{username} reels (edges={len(media_edges)})")
+                
+            posts = []
+            for edge in media_edges:
+                node = edge.get("node") or {}
+                # In modern clips query, node has a "media" nested dict containing the stats
+                media = node.get("media") if "media" in node else node
+                if media.get("is_video") or media.get("media_type") == 2 or media.get("view_count") is not None or media.get("play_count") is not None or media.get("video_view_count") is not None:
+                    views = media.get("play_count") or media.get("view_count") or media.get("video_view_count") or 0
+                    likes = media.get("like_count") or media.get("edge_media_preview_like", {}).get("count") or media.get("edge_liked_by", {}).get("count") or 0
+                    comments = media.get("comment_count") or media.get("edge_media_to_comment", {}).get("count") or 0
+                    posts.append({
+                        "views": views,
+                        "likes": likes,
+                        "comments": comments
+                    })
+            
+            post_count = len(posts)
+            logger.info(f"Found {post_count} video posts for @{username}")
+            
+            def get_median(lst):
+                if not lst:
+                    return 0.0
+                sorted_lst = sorted(lst)
+                n = len(sorted_lst)
+                if n % 2 == 1:
+                    return float(sorted_lst[n // 2])
+                else:
+                    return float(sorted_lst[n // 2 - 1] + sorted_lst[n // 2]) / 2.0
+
+            median_views = get_median([p["views"] for p in posts])
+            median_likes = get_median([p["likes"] for p in posts])
+            median_comments = get_median([p["comments"] for p in posts])
+            
+            baseline = {
+                "username": username,
+                "follower_count": followers,
+                "median_views": median_views,
+                "median_likes": median_likes,
+                "median_comments": median_comments,
+                "post_count": post_count,
+                "last_scraped_at": datetime.now(timezone.utc).isoformat()
+            }
+            
+            self.supabase.table("creator_baselines").upsert(baseline).execute()
+            logger.info(f"Successfully cached baseline for @{username}: median_views={median_views}, followers={followers}, post_count={post_count}")
+            return baseline
+        except Exception as e:
+            logger.error(f"Failed to scrape baseline for @{username}: {e}", exc_info=True)
+            return None
+
     async def _init_browser_async(self) -> bool:
         """Launch a Camoufox stealth Firefox browser and verify cookies."""
         import sys
@@ -153,7 +336,7 @@ class InstagramScraper:
             ]
 
             # Launch Camoufox browser
-            self._camoufox_cm = CamoufoxBrowser(headless=True, geoip=True)
+            self._camoufox_cm = CamoufoxBrowser(headless=True, geoip=False)
             self._camoufox_browser = await self._camoufox_cm.__aenter__()
 
             # Verify cookies by creating a temporary validation context
@@ -739,6 +922,7 @@ Return ONLY valid JSON, no markdown, no explanation:
             return 0
 
         total_scraped = 0
+        baseline_fetches_this_cycle = 0
         saved_count = 0
         high_velocity = []
         scrape_stats = {
@@ -970,11 +1154,53 @@ Return ONLY valid JSON, no markdown, no explanation:
                         else:
                             reel["video_storage_status"] = "pending"
                         
+                        # Classify semantic niches
+                        reel["semantic_niches"] = self._classify_caption_niches(caption)
+
+                        # Creator baseline caching and outlier tagging
+                        multiplier = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
+                        is_outlier = None
+                        
+                        try:
+                            cached_res = self.supabase.table("creator_baselines").select("*").eq("username", owner).execute()
+                            cached_data = cached_res.data
+                        except Exception as ex:
+                            logger.warning(f"Error querying creator baseline for @{owner}: {ex}")
+                            cached_data = []
+
+                        baseline = None
+                        if cached_data:
+                            baseline = cached_data[0]
+                            last_scraped_str = baseline.get("last_scraped_at")
+                            if last_scraped_str:
+                                last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
+                                if (datetime.now(timezone.utc) - last_scraped).days >= 7:
+                                    baseline = None
+
+                        if not baseline and view > 30000 and baseline_fetches_this_cycle < 5:
+                            new_baseline = await self.scrape_creator_baseline(owner)
+                            if new_baseline:
+                                baseline = new_baseline
+                                baseline_fetches_this_cycle += 1
+
+                        if baseline:
+                            post_count = baseline.get("post_count") or 0
+                            if post_count < 6:
+                                is_outlier = None
+                            else:
+                                median_v = baseline.get("median_views") or 0.0
+                                if view > multiplier * median_v:
+                                    is_outlier = True
+                                else:
+                                    is_outlier = False
+
+                        reel["is_creator_outlier"] = is_outlier
+
                         # Insert to DB
                         logger.info(f"Inserting reel {reel_id} for @{owner} into Supabase...")
                         scrape_stats["insert_attempts"] += 1
                         self.supabase.table("reels").insert(reel).execute()
-                        logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, origin={meta.get('trend_origin')})")
+                        logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, outlier={is_outlier})")
                         scrape_stats["insert_saved"] += 1
 
                         # Track audio if it is a real (non-original) audio

@@ -51,4 +51,4 @@ jobs:
           INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
         run: |
           python backend/manual_run_and_check.py
-          python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+          PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"

@@ -252,7 +252,12 @@ class TrendEngine:
                 recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
                 recency_bonus = max(0.5, 1.5 - (oldest_age_hours / 48)) if oldest_age_hours else 1.0
                 creator_bonus = 1.0 + min(0.6, creator_count * 0.08)
-                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus
+                
+                # Creator Outlier Boost: 20% boost per creator outlier breakout, capped at 1.5x
+                outlier_count = sum(1 for r in group_reels if r.get("is_creator_outlier") is True)
+                outlier_boost = min(1.5, 1.0 + (outlier_count * 0.20))
+                
+                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus * outlier_boost
 
                 # Creator fit looks at what the trend is actually good for, not just raw momentum.
                 creator_fit_score = self._calculate_creator_fit_score(
@@ -549,6 +554,16 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 trend_origin = max(set(origins), key=origins.count) if origins else "unknown"
                 is_cross_cultural = any(r.get("is_cross_cultural") for r in group_reels)
 
+                # Aggregate semantic niches from linked reels
+                niche_counts = {}
+                for r in group_reels:
+                    r_niches = r.get("semantic_niches") or []
+                    for n in r_niches:
+                        niche_counts[n] = niche_counts.get(n, 0) + 1
+                sorted_niches = [k for k, v in sorted(niche_counts.items(), key=lambda x: x[1], reverse=True) if k != "general"]
+                if not sorted_niches:
+                    sorted_niches = ["general"]
+
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],
@@ -556,6 +571,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "audio_use_count": audio_use_count,
                     "platform": "instagram",
                     "trend_type": trend.get("trend_type", "trend"),
+                    "semantic_niches": sorted_niches,
                     "velocity_avg": trend["avg_velocity"],
                     "peak_velocity": trend["max_velocity"],
                     "reel_count": trend["count"],

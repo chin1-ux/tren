@@ -61,10 +61,42 @@ def _get_supabase():
     return create_client(url, key)
 
 
+def verify_database_schema(sb):
+    """
+    Lightweight schema validation to verify that the required columns
+    exist in the database tables before running the pipeline.
+    Fails loudly and immediately on mismatch.
+    """
+    logging.info("Validating database schema...")
+    try:
+        # Check 'trends' table for 'discovery_source' and 'semantic_niches'
+        sb.table("trends").select("discovery_source, semantic_niches").limit(0).execute()
+        
+        # Check 'reels' table for 'is_creator_outlier' and 'semantic_niches'
+        sb.table("reels").select("is_creator_outlier, semantic_niches").limit(0).execute()
+        
+        # Check 'creator_baselines' table exists and has post_count
+        sb.table("creator_baselines").select("username, post_count").limit(0).execute()
+        
+        logging.info("Database schema validation successful.")
+    except Exception as e:
+        error_msg = f"DATABASE SCHEMA VALIDATION FAILED: {e}. Please run migrations."
+        logging.critical(error_msg)
+        raise RuntimeError(error_msg)
+
+
 def run_full_pipeline():
     start = datetime.now()
     run_label = f"PIPELINE RUN @ {start.strftime('%Y-%m-%d %H:%M IST')}"
     logging.info(f"=== {run_label} STARTING ===")
+
+    # ── 0. Schema Validation ───────────────────────────────────────────────────
+    try:
+        sb = _get_supabase()
+        verify_database_schema(sb)
+    except Exception as e:
+        logging.critical(f"Pipeline startup aborted due to schema mismatch: {e}")
+        raise e
 
     # ── 1. Instagram Scraper ───────────────────────────────────────────────────
     new_reels_count = 0
