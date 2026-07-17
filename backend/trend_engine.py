@@ -971,8 +971,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     classification = call_llm(system_prompt, user_prompt, timeout=8)
                     
                     # Update database with completed classification
+                    niche_tag = classification.get("niche_tag") or classification.get("content_type") or "general"
                     update_data = {
                         **classification,
+                        "niche_tag": niche_tag,
                         "llm_classification_status": "completed",
                         "llm_retry_count": new_retry_count
                     }
