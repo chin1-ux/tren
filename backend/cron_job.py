@@ -70,7 +70,7 @@ def verify_database_schema(sb):
     logging.info("Validating database schema...")
     try:
         # Check 'trends' table for 'discovery_source', 'semantic_niches', 'llm_classification_status', 'llm_retry_count'
-        sb.table("trends").select("discovery_source, semantic_niches, llm_classification_status, llm_retry_count").limit(0).execute()
+        sb.table("trends").select("discovery_source, semantic_niches, llm_classification_status, llm_retry_count, has_creator_outlier").limit(0).execute()
         
         # Check 'reels' table for 'is_creator_outlier' and 'semantic_niches'
         sb.table("reels").select("is_creator_outlier, semantic_niches").limit(0).execute()

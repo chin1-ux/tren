@@ -50,6 +50,8 @@ function TrendDetailPage() {
     enabled: !!trend,
   });
 
+  const hasCreatorBreakout = reels?.some((r) => r.is_creator_outlier) || false;
+
   const { data: decision } = useQuery({
     queryKey: ["trend-decision", id],
     queryFn: () => fetchTrendDecision(id),
@@ -125,10 +127,20 @@ function TrendDetailPage() {
       {/* Hero */}
       <div className="glass-card p-5 space-y-4">
         <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="inline-flex items-center gap-1 rounded-full bg-primary/15 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-primary">
               <Flame className="h-3 w-3" /> {trend.isEmerging ? "Emerging" : "Trending"}
             </span>
+            {trend.discoverySource === "unexpected_candidate" && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-blue-400">
+                <Zap className="h-3 w-3" /> Under Radar
+              </span>
+            )}
+            {hasCreatorBreakout && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-emerald-400">
+                🚀 Creator Breakout
+              </span>
+            )}
             {trend.languageEmoji && (
               <span className="text-sm">{trend.languageEmoji} {trend.languageLabel}</span>
             )}
@@ -157,6 +169,17 @@ function TrendDetailPage() {
           <StatPill label="Reels" value={`${trend.reelCount ?? "–"}`} />
           <StatPill label="Category" value={`${trend.contentTypeEmoji} ${trend.contentType}`} />
         </div>
+
+        {/* Semantic Niches */}
+        {trend.semanticNiches && trend.semanticNiches.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {trend.semanticNiches.map((n) => (
+              <span key={n} className="inline-flex items-center gap-1 rounded-full bg-secondary/15 text-secondary border border-secondary/20 px-2.5 py-0.5 text-xs font-semibold">
+                # {n}
+              </span>
+            ))}
+          </div>
+        )}
 
         {trend.whyThisWorks && (
           <p className="text-xs text-muted-foreground rounded-xl bg-white/[0.03] p-3 border border-border italic">
@@ -363,7 +386,14 @@ function TrendDetailPage() {
                   className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5 border border-transparent"
                 >
                   <div>
-                    <p className="text-xs font-bold text-foreground">@{reel.owner_username}</p>
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-xs font-bold text-foreground">@{reel.owner_username}</p>
+                      {reel.is_creator_outlier && (
+                        <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-1.5 py-0.5">
+                          🎯 Breakout
+                        </span>
+                      )}
+                    </div>
                     {reel.caption && (
                       <p className="text-xs text-muted-foreground line-clamp-1 italic mt-0.5">"{reel.caption}"</p>
                     )}

@@ -64,6 +64,9 @@ export interface ApiTrend {
   preview_url?: string | null;
   video_storage_status?: string;
   video_stored_at?: string;
+  semantic_niches?: string[];
+  discovery_source?: string;
+  has_creator_outlier?: boolean;
 }
 
 export interface ApiCaptionKit {
@@ -204,6 +207,9 @@ export interface UiTrend {
   preview_url?: string | null;
   video_storage_status?: string;
   video_stored_at?: string;
+  semanticNiches?: string[];
+  discoverySource?: string;
+  hasCreatorOutlier?: boolean;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -258,6 +264,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     preview_url: t.preview_url ?? null,
     video_storage_status: t.video_storage_status ?? 'pending',
     video_stored_at: t.video_stored_at,
+    semanticNiches: t.semantic_niches ?? [],
+    discoverySource: t.discovery_source,
+    hasCreatorOutlier: t.has_creator_outlier ?? false,
   };
 }
 
@@ -630,6 +639,7 @@ export interface ApiReel {
   is_cross_cultural?: boolean;
   trend_origin?: string;
   scraped_at?: string;
+  is_creator_outlier?: boolean;
 }
 
 // ── Marketplace APIs ──────────────────────────────────────────────────────────

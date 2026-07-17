@@ -328,6 +328,7 @@ def main():
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS saturation_penalty float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS has_creator_outlier boolean DEFAULT false;")
             cursor.execute("ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS requirements text;")
             cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_token text;")
             

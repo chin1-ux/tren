@@ -62,6 +62,7 @@ MIGRATIONS = [
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS avg_reel_length_seconds INTEGER DEFAULT 0;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS is_cross_cultural BOOLEAN DEFAULT false;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS trend_origin TEXT;",
+    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS has_creator_outlier BOOLEAN DEFAULT false;",
 
     # Indexes for new columns used in filtering/ordering
     "CREATE INDEX IF NOT EXISTS idx_reels_audio_id ON reels (audio_id);",

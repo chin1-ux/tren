@@ -612,6 +612,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "composite_score": trend.get("composite_score"),
                     "llm_classification_status": trend.get("llm_classification_status", "pending"),
                     "llm_retry_count": trend.get("llm_retry_count", 0),
+                    "has_creator_outlier": any(r.get("is_creator_outlier") is True for r in group_reels),
                 }
 
                 try:

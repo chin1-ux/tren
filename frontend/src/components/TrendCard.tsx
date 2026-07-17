@@ -18,6 +18,7 @@ import { TrendPreviewModal } from "./TrendPreviewModal";
 interface Props {
   trend: UiTrend;
   onDanceTap: (trend: UiTrend) => void;
+  selectedNiche?: string;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -183,7 +184,7 @@ function buildAudioUrl(audioId?: string | null, audioName?: string): string {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export function TrendCard({ trend, onDanceTap }: Props) {
+export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -244,12 +245,32 @@ export function TrendCard({ trend, onDanceTap }: Props) {
   const audioId = trend.audioId;
   const audioUrl = buildAudioUrl(audioId, trend.song);
 
+  const allNiches = Array.from(new Set([
+    ...(nicheTag && nicheTag !== "general" ? [nicheTag] : []),
+    ...(trend.semanticNiches ?? [])
+  ].filter(n => n && n !== "general")));
+
+  let nichesToDisplay = [...allNiches];
+  const matchedIndex = selectedNiche && selectedNiche !== "all"
+    ? nichesToDisplay.findIndex(n => n.toLowerCase() === selectedNiche.toLowerCase())
+    : -1;
+
+  if (matchedIndex > 0) {
+    const [matchedNiche] = nichesToDisplay.splice(matchedIndex, 1);
+    nichesToDisplay.unshift(matchedNiche);
+  }
+
+  const displayNiches = nichesToDisplay.slice(0, 2);
+  const remainingCount = nichesToDisplay.length - displayNiches.length;
+
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
     queryFn: () => fetchTrendReels(trend.id),
     enabled: showReels,
     staleTime: 5 * 60_000,
   });
+
+  const hasCreatorBreakout = trend.hasCreatorOutlier || reels?.some((r) => r.is_creator_outlier) || false;
 
   // 3D tilt
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
@@ -307,6 +328,16 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         {isMegaTrend && (
           <span className="inline-flex items-center gap-1 rounded-b-lg bg-gradient-to-r from-purple to-pink-500 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
             <Flame className="h-2.5 w-2.5 animate-bounce" /> MEGA TREND
+          </span>
+        )}
+        {trend.discoverySource === "unexpected_candidate" && (
+          <span className="inline-flex items-center gap-1 rounded-b-lg bg-[#2563eb] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
+            <Zap className="h-2.5 w-2.5" /> UNDER RADAR
+          </span>
+        )}
+        {hasCreatorBreakout && (
+          <span className="inline-flex items-center gap-1 rounded-b-lg bg-emerald-500 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
+            🚀 BREAKOUT
           </span>
         )}
       </div>
@@ -373,10 +404,25 @@ export function TrendCard({ trend, onDanceTap }: Props) {
         )}
         {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
         {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
-        {/* Niche tag pill */}
-        {nicheTag && nicheTag !== "general" && (
-          <Chip className="bg-secondary/15 text-secondary border border-secondary/20">
-            # {nicheTag}
+        {/* Niche tag pills */}
+        {displayNiches.map((n) => {
+          const isMatched = selectedNiche && selectedNiche !== "all" && n.toLowerCase() === selectedNiche.toLowerCase();
+          return (
+            <Chip
+              key={n}
+              className={
+                isMatched
+                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold shadow-[0_0_8px_rgba(16,185,129,0.2)]"
+                  : "bg-secondary/15 text-secondary border border-secondary/20"
+              }
+            >
+              # {n}
+            </Chip>
+          );
+        })}
+        {remainingCount > 0 && (
+          <Chip className="bg-white/5 text-muted-foreground cursor-help" title={nichesToDisplay.slice(2).join(", ")}>
+            +{remainingCount} more
           </Chip>
         )}
         {trend.reelCount !== undefined && (
@@ -581,9 +627,16 @@ export function TrendCard({ trend, onDanceTap }: Props) {
                               )}
                             </div>
                           </div>
-                          <span className="shrink-0 text-[9px] font-semibold text-muted-foreground bg-white/5 rounded-full px-2 py-0.5">
-                            ◎ Instagram
-                          </span>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            {reel.is_creator_outlier && (
+                              <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-2 py-0.5">
+                                🎯 Breakout
+                              </span>
+                            )}
+                            <span className="text-[9px] font-semibold text-muted-foreground bg-white/5 rounded-full px-2 py-0.5">
+                              ◎ Instagram
+                            </span>
+                          </div>
                         </div>
 
                         {/* Stats row */}

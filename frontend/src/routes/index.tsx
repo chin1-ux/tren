@@ -429,6 +429,7 @@ function TrendsFeed() {
               key={t.id}
               trend={withCountdown(t)}
               onDanceTap={setDanceTrend}
+              selectedNiche={selectedNiche}
             />
           ))
         )}
