@@ -477,6 +477,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     logging.warning(f"LLM classification failed for '{trend['audio_title']}'. Applying local fallback.")
                     fallback = generate_local_fallback(trend)
                     trend.update(fallback)
+                    trend["llm_classification_status"] = "pending"
+                else:
+                    trend["llm_classification_status"] = "completed"
 
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
             for idx, trend in enumerate(confirmed):
@@ -607,6 +610,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "saturation_penalty": trend.get("saturation_penalty"),
                     "hook_retention_score": trend.get("hook_retention_score"),
                     "composite_score": trend.get("composite_score"),
+                    "llm_classification_status": trend.get("llm_classification_status", "pending"),
+                    "llm_retry_count": trend.get("llm_retry_count", 0),
                 }
 
                 try:
@@ -869,6 +874,133 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 
         except Exception as e:
             logging.error(f"Critical error in calculate_audio_trend_scores: {e}", exc_info=True)
+
+    def retry_pending_classifications(self) -> int:
+        """
+        Retries LLM classification for trends with 'pending' status.
+        Increments retry count, caps at 3 retries or 48 hours.
+        """
+        logging.info("=== TrendEngine.retry_pending_classifications() starting ===")
+        
+        try:
+            # 1. Fetch pending trends created in last 48 hours with retry_count < 3
+            time_limit = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+            res = self.supabase.table("trends") \
+                .select("*") \
+                .eq("llm_classification_status", "pending") \
+                .lt("llm_retry_count", 3) \
+                .gte("first_detected_at", time_limit) \
+                .execute()
+                
+            pending_trends = res.data or []
+            logging.info(f"Found {len(pending_trends)} pending trends for LLM re-classification retry.")
+            
+            if not pending_trends:
+                return 0
+                
+            try:
+                from llm import call_llm
+            except ImportError:
+                try:
+                    from backend.llm import call_llm
+                except ImportError:
+                    from .llm import call_llm
+
+            success_count = 0
+            
+            for idx, trend in enumerate(pending_trends):
+                tid = trend.get("id")
+                title = trend.get("audio_title")
+                artist = trend.get("audio_artist")
+                retry_count = trend.get("llm_retry_count") or 0
+                new_retry_count = retry_count + 1
+                
+                logging.info(f"[{idx+1}/{len(pending_trends)}] Retrying trend '{title}' (attempt {new_retry_count})")
+                
+                # Fetch linked reels to build context
+                reels_res = self.supabase.table("reels") \
+                    .select("caption, hashtags") \
+                    .eq("audio_title", title) \
+                    .eq("audio_artist", artist) \
+                    .limit(10) \
+                    .execute()
+                linked_reels = reels_res.data or []
+                
+                captions = [r.get("caption") for r in linked_reels if r.get("caption")]
+                sample_captions = " | ".join(captions[:5])
+                all_hashtags = set()
+                for r in linked_reels:
+                    tags = r.get("hashtags")
+                    if isinstance(tags, list):
+                        all_hashtags.update(tags)
+                unique_hashtags = ", ".join(list(all_hashtags)[:30])
+                
+                system_prompt = "You are a social media trend analyst. Return ONLY valid JSON. No markdown."
+                user_prompt = f"""
+Classify this REAL social media trend and enrich it with creator intelligence.
+
+Audio: "{title}" by {artist}
+Sample captions from creators: {sample_captions}
+Hashtags found: {unique_hashtags}
+
+Return ONLY a valid JSON object with EXACTLY these fields:
+{{
+  "content_type": "one of: dance, scenic, fashion, travel, food, narrative_edit, text_overlay, comedy, devotional, festival, motivation, fitness, study, other",
+  "is_dance": true or false,
+  "needs_filming": true if creator must film themselves live,
+  "edit_style": "one of: fast_cuts, slow_dissolve, zoom_pulse, smooth_transition, color_flash",
+  "narrative_structure": "one of: before_after, transformation, reveal, countdown, none",
+  "text_overlay_template": "exact text pattern creators use like 'POV: you finally did it' OR null",
+  "language": "one of: en, hi, kn, ta, te, bn, mr, other",
+  "cultural_context": "one of: festival, celebration, everyday, none",
+  "ideal_content_description": "one sentence on what photos/clips work best for this trend",
+  "camera_style": "one of: selfie, wide_shot, close_up, aerial, handheld, static",
+  "window_hours_remaining": "integer estimate 6–72 before oversaturation",
+  "confidence": "float 0.0–1.0",
+  "saturation_score": "float 0.0–1.0 where 0=very early 1=oversaturated",
+  "optimal_post_hour_ist": "best hour 0-23 IST to post for maximum reach",
+  "best_platform_first": "instagram or youtube_shorts",
+  "why_this_works": "one sentence explaining the viral psychology behind this trend",
+  "audio_cue_second": "integer — which second in the song to start filming (e.g. 7 for a beat drop at 0:07)",
+  "format_transferable": true or false,
+  "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
+}}
+"""
+                try:
+                    # Single attempt with short timeout to not block pipeline
+                    classification = call_llm(system_prompt, user_prompt, timeout=8)
+                    
+                    # Update database with completed classification
+                    update_data = {
+                        **classification,
+                        "llm_classification_status": "completed",
+                        "llm_retry_count": new_retry_count
+                    }
+                    self.supabase.table("trends").update(update_data).eq("id", tid).execute()
+                    logging.info(f"Successfully re-classified trend '{title}' (id={tid}) via LLM.")
+                    success_count += 1
+                except Exception as err:
+                    logging.warning(f"Re-classification attempt {new_retry_count} failed for '{title}': {err}")
+                    
+                    # Increment retry count and mark skipped if ceiling hit
+                    status = "pending"
+                    if new_retry_count >= 3:
+                        status = "skipped_local_fallback"
+                        logging.warning(f"Trend '{title}' (id={tid}) hit the LLM retry cap. Skipping future retries.")
+                        
+                    self.supabase.table("trends").update({
+                        "llm_classification_status": status,
+                        "llm_retry_count": new_retry_count
+                    }).eq("id", tid).execute()
+                    
+                # Small stagger delay between retries
+                time.sleep(1.0)
+                
+            return success_count
+            
+        except Exception as e:
+            logging.error(f"Error in retry_pending_classifications: {e}", exc_info=True)
+            return 0
 
 
 if __name__ == "__main__":

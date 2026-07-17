@@ -69,8 +69,8 @@ def verify_database_schema(sb):
     """
     logging.info("Validating database schema...")
     try:
-        # Check 'trends' table for 'discovery_source' and 'semantic_niches'
-        sb.table("trends").select("discovery_source, semantic_niches").limit(0).execute()
+        # Check 'trends' table for 'discovery_source', 'semantic_niches', 'llm_classification_status', 'llm_retry_count'
+        sb.table("trends").select("discovery_source, semantic_niches, llm_classification_status, llm_retry_count").limit(0).execute()
         
         # Check 'reels' table for 'is_creator_outlier' and 'semantic_niches'
         sb.table("reels").select("is_creator_outlier, semantic_niches").limit(0).execute()
@@ -135,6 +135,14 @@ def run_full_pipeline():
         try:
             logging.info("Step 3/5: Running TrendEngine to detect new trends...")
             engine = TrendEngine()
+            
+            # Retry pending/failed LLM classifications first
+            try:
+                retried_count = engine.retry_pending_classifications()
+                logging.info(f"LLM Re-classification retry completed. Successfully re-classified {retried_count} trends.")
+            except Exception as retry_err:
+                logging.error(f"LLM Re-classification retry failed: {retry_err}", exc_info=True)
+                
             trend_ids = engine.detect_trends()
             logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
         except Exception as e:
