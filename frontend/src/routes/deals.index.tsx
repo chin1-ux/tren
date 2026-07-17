@@ -21,7 +21,7 @@ import { toast } from "sonner";
 import { apiFetch, logAnalyticsEvent, submitCreatorFeedback } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 
-export const Route = createFileRoute("/deals")({
+export const Route = createFileRoute("/deals/")({
   head: () => ({
     meta: [
       { title: "Brand Deals Dashboard — Trendrop" },
