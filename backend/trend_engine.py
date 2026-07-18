@@ -451,7 +451,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
   "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
 }}
 """
-                max_attempts = int(os.getenv("TREND_CLASSIFICATION_MAX_ATTEMPTS", "4"))
+                # GROQ TPM MATH (2 keys × 12,000 TPM each):
+                # max_attempts=2: 7 trends × 2 attempts × ~800 tokens = 11,200 total / 2 keys = 5,600 TPM/key (47%)
+                # max_attempts=4: 7 trends × 4 attempts × ~800 tokens = 22,400 total / 2 keys = 11,200 TPM/key (93%) ← old, too close to limit
+                max_attempts = int(os.getenv("TREND_CLASSIFICATION_MAX_ATTEMPTS", "2"))
                 base_delay = float(os.getenv("TREND_CLASSIFICATION_BASE_DELAY", "2.0"))
                 max_delay = float(os.getenv("TREND_CLASSIFICATION_MAX_DELAY", "24.0"))
                 success = False
@@ -480,14 +483,29 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     trend["llm_classification_status"] = "pending"
                 else:
                     trend["llm_classification_status"] = "completed"
+                return success
 
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
+            llm_classification_failures = 0
             for idx, trend in enumerate(confirmed):
                 if idx > 0:
-                    stagger_delay = float(os.getenv("TREND_CLASSIFICATION_STAGGER_DELAY", "10.0"))
+                    # 12s stagger: at 800 TPM/call and 2 keys, this gives token buckets more reset time
+                    stagger_delay = float(os.getenv("TREND_CLASSIFICATION_STAGGER_DELAY", "12.0"))
                     logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq classification...")
                     time.sleep(stagger_delay)
-                classify_single_trend(trend)
+                success = classify_single_trend(trend)
+                if not success:
+                    llm_classification_failures += 1
+
+            if llm_classification_failures > 0:
+                logging.warning(
+                    f"CLASSIFICATION_FAILURES: {llm_classification_failures}/{len(confirmed)} trends in this run "
+                    f"had NO successful LLM classification from any provider (Groq or Gemini). "
+                    f"They were saved with local fallback metadata (llm_classification_status='pending') "
+                    f"and will be retried in the next pipeline run."
+                )
+            else:
+                logging.info(f"CLASSIFICATION_SUCCESSES: All {len(confirmed)} trends classified successfully by LLM.")
 
             # ── STEP 7: Save to Supabase ───────────────────────────────────────
             for trend in confirmed:

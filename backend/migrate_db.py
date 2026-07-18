@@ -63,6 +63,11 @@ MIGRATIONS = [
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS is_cross_cultural BOOLEAN DEFAULT false;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS trend_origin TEXT;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS has_creator_outlier BOOLEAN DEFAULT false;",
+    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS high_confidence BOOLEAN DEFAULT false;",
+    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS promotion_reason TEXT;",
+    "CREATE TABLE IF NOT EXISTS trend_snapshots (id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY, trend_id bigint REFERENCES trends(id) ON DELETE CASCADE, velocity_avg FLOAT, creator_count INTEGER, captured_at TIMESTAMP DEFAULT now());",
+    "CREATE INDEX IF NOT EXISTS idx_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at DESC);",
+    "CREATE UNIQUE INDEX IF NOT EXISTS uq_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at);",
 
     # Indexes for new columns used in filtering/ordering
     "CREATE INDEX IF NOT EXISTS idx_reels_audio_id ON reels (audio_id);",

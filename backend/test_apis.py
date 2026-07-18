@@ -1,7 +1,13 @@
 import os
+import os
 import sys
 import requests
 from dotenv import load_dotenv
+
+try:
+    from llm import _collect_env_keys
+except ImportError:
+    from backend.llm import _collect_env_keys
 
 # Ensure we read environment variables
 load_dotenv()
@@ -26,12 +32,11 @@ def test_supabase():
 
 def test_groq():
     print("\n--- Testing Groq API Keys ---")
-    raw_keys = os.getenv("GROQ_API_KEY") or os.getenv("LLM_API_KEY")
-    if not raw_keys:
-        print("FAIL: GROQ_API_KEY not configured.")
+    keys = _collect_env_keys(("GROQ_API_KEY", "LLM_API_KEY"))
+    if not keys:
+        print("FAIL: No Groq/LLM keys configured.")
         return False
-    
-    keys = [k.strip() for k in raw_keys.split(",") if k.strip()]
+
     print(f"Found {len(keys)} Groq key(s) in configuration.")
     
     payload = {
@@ -45,8 +50,7 @@ def test_groq():
     
     all_ok = True
     for idx, key in enumerate(keys, start=1):
-        masked = key[:6] + "..." + key[-4:] if len(key) > 10 else "invalid"
-        print(f"Testing key #{idx} ({masked})...")
+        print(f"Testing Groq key #{idx}...")
         try:
             res = requests.post(
                 "https://api.groq.com/openai/v1/chat/completions",
@@ -61,6 +65,37 @@ def test_groq():
             print(f"  FAIL: Key #{idx} failed: {e}")
             all_ok = False
             
+    return all_ok
+
+def test_gemini():
+    print("\n--- Testing Gemini API Keys ---")
+    keys = _collect_env_keys(("GEMINI_API_KEY",))
+    if not keys:
+        print("FAIL: No Gemini keys configured.")
+        return False
+
+    print(f"Found {len(keys)} Gemini key(s) in configuration.")
+    payload = {
+        "contents": [{"parts": [{"text": "Hello. Answer in one word: OK"}]}],
+        "systemInstruction": {"parts": [{"text": "You are a health check assistant."}]},
+        "generationConfig": {"responseMimeType": "application/json"}
+    }
+    all_ok = True
+    for idx, key in enumerate(keys, start=1):
+        print(f"Testing Gemini key #{idx}...")
+        try:
+            res = requests.post(
+                "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent",
+                params={"key": key},
+                headers={"Content-Type": "application/json"},
+                json=payload,
+                timeout=10
+            )
+            res.raise_for_status()
+            print("  SUCCESS: Gemini request completed.")
+        except Exception as e:
+            print(f"  FAIL: Gemini key #{idx} failed: {e}")
+            all_ok = False
     return all_ok
 
 def test_apify():
@@ -106,13 +141,15 @@ def test_apify():
 if __name__ == "__main__":
     sb = test_supabase()
     gq = test_groq()
+    gm = test_gemini()
     ap = test_apify()
     
     print("\n--- Diagnostic Summary ---")
     print(f"Supabase Status: {'PASS' if sb else 'FAIL'}")
     print(f"Groq API Status: {'PASS' if gq else 'SOME/ALL KEYS FAILED'}")
+    print(f"Gemini API Status: {'PASS' if gm else 'SOME/ALL KEYS FAILED'}")
     print(f"Apify API Status: {'PASS' if ap else 'SOME/ALL TOKENS FAILED'}")
     
-    if not (sb and gq and ap):
+    if not (sb and gq and gm and ap):
         sys.exit(1)
     sys.exit(0)

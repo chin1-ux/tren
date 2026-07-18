@@ -3,6 +3,7 @@ import json
 import random
 import logging
 import requests
+from dotenv import load_dotenv
 try:
     from llm import call_llm
 except ImportError:
@@ -10,7 +11,11 @@ except ImportError:
         from backend.llm import call_llm
     except ImportError:
         from .llm import call_llm
-from dotenv import load_dotenv
+
+try:
+    from .llm import _collect_env_keys
+except ImportError:
+    from llm import _collect_env_keys
 
 try:
     logging.basicConfig(
@@ -44,8 +49,8 @@ class CreatorTools:
         # Remove Gemini key; rely on Groq or generic LLM API keys
         self.gemini_key = None
 
-        if not os.getenv("GROQ_API_KEY") and not os.getenv("LLM_API_KEY"):
-            logger.warning("No LLM API keys configured (GROQ_API_KEY or LLM_API_KEY must be set). LLM features disabled.")
+        if not _collect_env_keys(("GROQ_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY")):
+            logger.warning("No LLM API keys configured (GROQ_API_KEY*, GEMINI_API_KEY*, or LLM_API_KEY* must be set). LLM features disabled.")
             self.gemini_key = None
 
 
@@ -398,4 +403,3 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
         except Exception as e:
             logger.error(f"Error in run_niche_health_audit: {e}")
             return {"status": "error", "message": str(e)}
-

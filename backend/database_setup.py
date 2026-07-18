@@ -329,13 +329,18 @@ def main():
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS hook_retention_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS composite_score float;")
             cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS has_creator_outlier boolean DEFAULT false;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS high_confidence boolean DEFAULT false;")
+            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS promotion_reason text;")
             cursor.execute("ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS requirements text;")
             cursor.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_token text;")
+            cursor.execute("CREATE TABLE IF NOT EXISTS trend_snapshots (id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY, trend_id bigint REFERENCES trends(id) ON DELETE CASCADE, velocity_avg float, creator_count int, captured_at timestamp DEFAULT now());")
+            cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS uq_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at);")
             
             # 2.1 DATABASE OPTIMISATION: INDEXES
             print("Creating database indexes...")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_reels_vel_type_lang_posted_audio ON reels (velocity_score, content_type, language, posted_at, audio_title);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_trends_status_vel_type_lang_first ON trends (status, velocity_avg, content_type, language, first_detected_at);")
+            cursor.execute("CREATE INDEX IF NOT EXISTS idx_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at DESC);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_jobs_status_email_created ON jobs (status, user_email, created_at);")
             cursor.execute("CREATE INDEX IF NOT EXISTS idx_users_email_niche_lang ON users (email, niche, language_preference);")
             

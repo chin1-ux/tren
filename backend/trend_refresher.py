@@ -1,6 +1,9 @@
-import os
 import logging
+import logging
+import os
+import statistics
 from datetime import datetime, timezone, timedelta
+
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -8,23 +11,24 @@ try:
     logging.basicConfig(
         filename="trend_refresher.log",
         level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s"
+        format="%(asctime)s - %(levelname)s - %(message)s",
     )
 except Exception:
     pass
+
 logger = logging.getLogger(__name__)
 
 
 class TrendRefresher:
     """
     Periodically refreshes the lifecycle status of all active trends in Supabase.
-    
+
     Lifecycle:
-      emerging  → velocity spike detected, <6h old, <5 creators adopted
-      rising    → 5+ creators, high velocity, actively trending
-      peaked    → velocity dropped >40% from its peak
-      expired   → older than 72 hours OR velocity near zero
-    
+      emerging  -> velocity spike detected, <5 creators adopted, not yet promoted
+      rising    -> creator OR velocity gate passes with persistence filters
+      peaked    -> velocity dropped >40% from its peak
+      expired   -> older than 72 hours OR velocity near zero
+
     Also decrements `window_hours_remaining` for all active trends.
     """
 
@@ -48,9 +52,9 @@ class TrendRefresher:
         logger.info("=== TrendRefresher starting refresh_all ===")
         now = datetime.now(timezone.utc)
         summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0}
+        rising_baseline = self._get_rising_baseline()
 
         try:
-            # Fetch all trends that are not yet expired
             res = self.supabase.table("trends") \
                 .select("*") \
                 .in_("status", ["emerging", "rising"]) \
@@ -65,13 +69,12 @@ class TrendRefresher:
             try:
                 trend_id = trend["id"]
                 audio_title = trend.get("audio_title", "?")
-                created_at_str = trend.get("created_at")
+                created_at_str = trend.get("first_detected_at")
                 current_status = trend.get("status", "rising")
                 current_velocity = trend.get("velocity_avg", 0.0)
                 peak_velocity = trend.get("peak_velocity") or current_velocity
                 window_hours = trend.get("window_hours_remaining", 24)
 
-                # Parse created_at
                 if created_at_str:
                     if created_at_str.endswith("Z"):
                         created_at_str = created_at_str[:-1] + "+00:00"
@@ -83,7 +86,6 @@ class TrendRefresher:
 
                 age_hours = (now - created_at).total_seconds() / 3600
 
-                # ── Recalculate total reels count from reels table ──────────────
                 try:
                     res_total = self.supabase.table("reels") \
                         .select("reel_id", count="exact") \
@@ -95,23 +97,22 @@ class TrendRefresher:
                     logger.warning(f"Failed to check total reels count for '{audio_title}': {e}")
                     total_reels_count = trend.get("reel_count") or 0
 
-                # ── EXPIRY: older than the visibility floor or window exhausted ──
                 min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(15 * 24)))
                 if age_hours >= min_visible_hours or window_hours <= 0:
                     self._update_status(trend_id, "expired", {
                         "window_hours_remaining": 0,
-                        "reel_count": total_reels_count
+                        "reel_count": total_reels_count,
+                        "high_confidence": bool(trend.get("high_confidence", False)),
+                        "promotion_reason": trend.get("promotion_reason"),
                     })
                     logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
                     summary["expired"] += 1
                     continue
 
-                # ── Recalculate current live velocity from reels table ──────────
                 live_velocity = self._calc_live_velocity(
                     trend.get("audio_title"), trend.get("audio_artist"), now
                 )
 
-                # Check if we scraped any new reels matching this audio in the last 6 hours
                 try:
                     res_count = self.supabase.table("reels") \
                         .select("reel_id", count="exact") \
@@ -124,55 +125,93 @@ class TrendRefresher:
                     logger.warning(f"Failed to check new reels count for '{audio_title}': {e}")
                     new_reels_count = 0
 
-                # Extend or decay window_hours_remaining
                 if new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
                 else:
-                    new_window = max(0, window_hours - 3)  # called every 3h
+                    new_window = max(0, window_hours - 3)
 
-                # ── PEAKED: velocity dropped >40% from peak ─────────────────────
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     self._update_status(trend_id, "peaked", {
                         "window_hours_remaining": new_window,
                         "velocity_avg": velocity_for_check,
-                        "reel_count": total_reels_count
+                        "reel_count": total_reels_count,
+                        "high_confidence": bool(trend.get("high_confidence", False)),
+                        "promotion_reason": trend.get("promotion_reason"),
                     })
                     logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
                     summary["peaked"] += 1
                     continue
 
-                # ── RISING: if emerging and now has 5+ creators ─────────────────
                 if current_status == "emerging":
                     creator_count = self._count_unique_creators(
                         trend.get("audio_title"), trend.get("audio_artist"), now
                     )
-                    if creator_count >= 5:
+                    high_confidence = creator_count >= 5
+                    qualifies_by_creator = creator_count >= 3
+                    velocity_snapshot_ok, snapshot_reason = self._velocity_promotion_allowed(
+                        trend_id=trend_id,
+                        current_velocity=velocity_for_check,
+                        baseline=rising_baseline,
+                    )
+                    persisted_enough = age_hours >= 12
+                    velocity_only_persisted = age_hours >= 18
+                    should_rise = False
+                    promotion_reason = trend.get("promotion_reason")
+                    if persisted_enough and qualifies_by_creator:
+                        should_rise = True
+                        promotion_reason = "creator_adoption"
+                    elif velocity_only_persisted and creator_count < 3 and velocity_snapshot_ok:
+                        should_rise = True
+                        promotion_reason = "velocity_outlier"
+                    elif persisted_enough and qualifies_by_creator and velocity_snapshot_ok:
+                        should_rise = True
+                        promotion_reason = "both"
+
+                    if should_rise:
                         self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
-                            "velocity_avg": live_velocity or current_velocity,
-                            "peak_velocity": max(live_velocity or 0, peak_velocity),
-                            "reel_count": total_reels_count
+                            "velocity_avg": velocity_for_check,
+                            "peak_velocity": max(velocity_for_check, peak_velocity),
+                            "reel_count": total_reels_count,
+                            "high_confidence": high_confidence,
+                            "promotion_reason": promotion_reason,
                         })
-                        logger.info(f"[RISEN] '{audio_title}' ({creator_count} creators)")
+                        logger.info(
+                            f"[RISEN] '{audio_title}' ({creator_count} creators, "
+                            f"velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, "
+                            f"snapshot_check={snapshot_reason})"
+                        )
                         summary["risen"] += 1
                     else:
-                        # Still emerging — just update window and reel count
                         self._update_status(trend_id, "emerging", {
                             "window_hours_remaining": new_window,
-                            "velocity_avg": live_velocity or current_velocity,
-                            "reel_count": total_reels_count
+                            "velocity_avg": velocity_for_check,
+                            "reel_count": total_reels_count,
+                            "high_confidence": high_confidence,
+                            "promotion_reason": trend.get("promotion_reason"),
                         })
                         summary["emerged"] += 1
                 else:
-                    # Still rising — update velocity, window, and reel count
-                    new_peak = max(live_velocity or 0, peak_velocity)
+                    creator_count = self._count_unique_creators(
+                        trend.get("audio_title"), trend.get("audio_artist"), now
+                    )
+                    velocity_snapshot_ok, _ = self._velocity_promotion_allowed(
+                        trend_id=trend_id,
+                        current_velocity=velocity_for_check,
+                        baseline=rising_baseline,
+                    )
+                    promotion_reason = "both" if (creator_count >= 3 and velocity_snapshot_ok) else (
+                        "creator_adoption" if creator_count >= 3 else "velocity_outlier"
+                    )
                     self._update_status(trend_id, "rising", {
                         "window_hours_remaining": new_window,
-                        "velocity_avg": live_velocity or current_velocity,
-                        "peak_velocity": new_peak,
-                        "reel_count": total_reels_count
+                        "velocity_avg": velocity_for_check,
+                        "peak_velocity": max(velocity_for_check, peak_velocity),
+                        "reel_count": total_reels_count,
+                        "high_confidence": creator_count >= 5,
+                        "promotion_reason": promotion_reason,
                     })
 
             except Exception as e:
@@ -219,6 +258,86 @@ class TrendRefresher:
         except Exception as e:
             logger.warning(f"Could not count creators for '{audio_title}': {e}")
             return 0
+
+    def _get_rising_baseline(self) -> float:
+        """
+        7-day rolling median over all trends detected in the last 7 days.
+        This is broader than the active-only median and less sensitive to tiny samples.
+        """
+        try:
+            res = self.supabase.table("trends") \
+                .select("velocity_avg") \
+                .gte("first_detected_at", (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()) \
+                .execute()
+            velocities = [
+                float(r.get("velocity_avg"))
+                for r in (res.data or [])
+                if isinstance(r.get("velocity_avg"), (int, float))
+            ]
+            return float(statistics.median(velocities)) if velocities else 0.0
+        except Exception as e:
+            logger.warning(f"Could not compute rising baseline: {e}")
+            return 0.0
+
+    def _velocity_promotion_allowed(self, trend_id: int, current_velocity: float, baseline: float):
+        """
+        Velocity-only promotion requires three real snapshot rows with non-decreasing
+        velocity across the window, plus the latest snapshot above threshold.
+        A tiny 3% tolerance absorbs measurement noise.
+        """
+        try:
+            res = self.supabase.table("trend_snapshots") \
+                .select("velocity_avg,captured_at") \
+                .eq("trend_id", trend_id) \
+                .order("captured_at", desc=True) \
+                .limit(3) \
+                .execute()
+            snaps = list(reversed(res.data or []))
+            if len(snaps) < 3:
+                return False, f"insufficient_history({len(snaps)})"
+            velocities = [float(s.get("velocity_avg") or 0.0) for s in snaps]
+            tolerance = 0.03
+            nondecreasing = True
+            for prev, nxt in zip(velocities, velocities[1:]):
+                if nxt + (abs(prev) * tolerance) < prev:
+                    nondecreasing = False
+                    break
+            if not nondecreasing:
+                return False, "decreasing_history"
+            threshold = baseline * 1.5 if baseline > 0 else 0.0
+            if velocities[-1] < threshold:
+                return False, "below_threshold"
+            return True, "ok"
+        except Exception as e:
+            logger.warning(f"Could not evaluate velocity promotion for trend_id={trend_id}: {e}")
+            return False, f"error:{type(e).__name__}"
+
+    def get_snapshot_rows(self, trend_ids=None, captured_at=None):
+        """
+        Build append-only snapshot rows for the current run.
+        The pipeline should call this once per run after trend refresh completes.
+        """
+        try:
+            query = self.supabase.table("trends").select("id,audio_title,audio_artist,velocity_avg")
+            if trend_ids:
+                query = query.in_("id", list(trend_ids))
+            trends = query.execute().data or []
+            rows = []
+            now_iso = (captured_at or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
+            for trend in trends:
+                creator_count = self._count_unique_creators(
+                    trend.get("audio_title"), trend.get("audio_artist"), datetime.now(timezone.utc)
+                )
+                rows.append({
+                    "trend_id": trend["id"],
+                    "velocity_avg": trend.get("velocity_avg"),
+                    "creator_count": creator_count,
+                    "captured_at": now_iso,
+                })
+            return rows
+        except Exception as e:
+            logger.warning(f"Could not build trend snapshot rows: {e}")
+            return []
 
 
 if __name__ == "__main__":

@@ -51,6 +51,39 @@ else:
     from instagram_scraper import InstagramScraper as InstagramScraper
 
 
+def _invalidate_trends_cache():
+    """
+    Invalidate Redis trend cache keys after a pipeline write so the next
+    API request fetches fresh data from Supabase instead of serving stale
+    cache for up to CACHE_TTL (300s) after new trends are written.
+    
+    Pipeline runs every 3h. Cache TTL is 5min. Without this, after a run
+    completes, the frontend can still see the old list for up to 5 more
+    minutes if the cache was warm when the pipeline started writing.
+    """
+    try:
+        import redis as _redis
+        upstash_url = os.getenv('UPSTASH_REDIS_URL')
+        if not upstash_url:
+            logging.info('Cache invalidation skipped: UPSTASH_REDIS_URL not set.')
+            return
+        rc = _redis.from_url(upstash_url)
+        # Pattern: all keys matching trends:* (language/sort variants)
+        # Use SCAN to avoid blocking on large keyspaces
+        deleted = 0
+        cursor = 0
+        while True:
+            cursor, keys = rc.scan(cursor, match='trends:*', count=50)
+            if keys:
+                rc.delete(*keys)
+                deleted += len(keys)
+            if cursor == 0:
+                break
+        logging.info(f'Trends cache invalidated: {deleted} key(s) deleted from Redis.')
+    except Exception as cache_err:
+        logging.error(f'Cache invalidation failed (non-fatal): {cache_err}')
+
+
 def _get_supabase():
     load_dotenv()
     if not os.getenv("SUPABASE_URL"):
@@ -62,6 +95,7 @@ def _get_supabase():
 
 
 def verify_database_schema(sb):
+
     """
     Lightweight schema validation to verify that the required columns
     exist in the database tables before running the pipeline.
@@ -159,6 +193,19 @@ def run_full_pipeline():
     except Exception as e:
         logging.error(f"Step 4/5 FAILED (TrendRefresher): {e}", exc_info=True)
 
+    # Append one snapshot per trend for this pipeline run so velocity persistence
+    # can be evaluated against real historical data on future runs.
+    try:
+        sb = _get_supabase()
+        snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
+        if snapshot_rows:
+            sb.table("trend_snapshots").insert(snapshot_rows).execute()
+            logging.info(f"Step 4/5: Recorded {len(snapshot_rows)} trend snapshot rows.")
+        else:
+            logging.info("Step 4/5: No trend snapshot rows to record.")
+    except Exception as e:
+        logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
+
     # ── 5. Alert System: notify users of new rising trends ───────────────────
     if trend_ids:
         try:
@@ -186,6 +233,9 @@ def run_full_pipeline():
 
     elapsed = (datetime.now() - start).seconds
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {elapsed}s ===")
+    # Immediately purge the Redis trends cache so the next API request
+    # serves the freshly-written data, not a stale 5-minute window.
+    _invalidate_trends_cache()
 
 
 from datetime import timedelta

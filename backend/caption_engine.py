@@ -20,6 +20,11 @@ try:
 except ImportError:
     from llm import call_llm
 
+try:
+    from .llm import _collect_env_keys
+except ImportError:
+    from llm import _collect_env_keys
+
 
 class CaptionEngine:
     """
@@ -40,8 +45,8 @@ class CaptionEngine:
 
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
-        if not os.getenv("GROQ_API_KEY") and not os.getenv("LLM_API_KEY"):
-            raise ValueError("No LLM API keys configured (GROQ_API_KEY or LLM_API_KEY must be set)")
+        if not _collect_env_keys(("GROQ_API_KEY", "GEMINI_API_KEY", "LLM_API_KEY")):
+            raise ValueError("No LLM API keys configured (GROQ_API_KEY*, GEMINI_API_KEY*, or LLM_API_KEY* must be set)")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 

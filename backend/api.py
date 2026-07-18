@@ -126,13 +126,18 @@ if not os.getenv("SUPABASE_URL"):
 required_env_vars = [
     "SUPABASE_URL",
     "SUPABASE_KEY",
-    "GROQ_API_KEY",
     "APIFY_API_TOKEN",
     "YOUTUBE_API_KEY",
     "RESEND_API_KEY",
     "SUPABASE_DB_URL"
 ]
 missing_env_vars = [var for var in required_env_vars if not os.getenv(var)]
+if not any(
+    os.getenv(name).strip()
+    for name in os.environ
+    if name.startswith("GROQ_API_KEY") or name.startswith("GEMINI_API_KEY") or name.startswith("LLM_API_KEY")
+):
+    missing_env_vars.append("LLM_API_KEYS")
 if missing_env_vars:
         logger.warning(f"Startup warning: Missing optional environment variables: {', '.join(missing_env_vars)}")
 
