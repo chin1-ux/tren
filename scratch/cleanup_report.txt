@@ -1,0 +1,27 @@
+=== BEFORE CLEANUP ===
+Found 7 rows to clean up:
+ID: 2900 | Title: Vaaroon (feat. Romy, Ginny Diwan) | Origin: US | Lang: hindi | Cross: True
+ID: 3142 | Title: Gojo Satoru death (Hindi Rap) | Origin: unknown | Lang: hindi | Cross: True
+ID: 3181 | Title: Itni Si Baat Hain | Origin: unknown | Lang: hindi | Cross: True
+ID: 3319 | Title: भ्रम और कर्म | Origin: unknown | Lang: hindi | Cross: True
+ID: 3508 | Title: Agar Tum Saath Ho | Origin: KR | Lang: hindi | Cross: True
+ID: 2315 | Title: Mere Tann Mein Bhi Shiv Mere Mann Mein Bhi Shiv | Origin: unknown | Lang: hindi | Cross: True
+ID: 3706 | Title: Sitaare (From "Ikkis") | Origin: KR | Lang: hindi | Cross: True
+
+=== RUNNING CLEANUP ===
+Updating row ID 2900...
+Updating row ID 3142...
+Updating row ID 3181...
+Updating row ID 3319...
+Updating row ID 3508...
+Updating row ID 2315...
+Updating row ID 3706...
+
+=== AFTER CLEANUP ===
+ID: 2315 | Title: Mere Tann Mein Bhi Shiv Mere Mann Mein Bhi Shiv | Origin: IN | Lang: hindi | Cross: False
+ID: 2900 | Title: Vaaroon (feat. Romy, Ginny Diwan) | Origin: IN | Lang: hindi | Cross: False
+ID: 3142 | Title: Gojo Satoru death (Hindi Rap) | Origin: IN | Lang: hindi | Cross: False
+ID: 3181 | Title: Itni Si Baat Hain | Origin: IN | Lang: hindi | Cross: False
+ID: 3319 | Title: भ्रम और कर्म | Origin: IN | Lang: hindi | Cross: False
+ID: 3508 | Title: Agar Tum Saath Ho | Origin: IN | Lang: hindi | Cross: False
+ID: 3706 | Title: Sitaare (From "Ikkis") | Origin: IN | Lang: hindi | Cross: False

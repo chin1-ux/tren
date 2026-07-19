@@ -363,7 +363,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <TrendCardVideo
           reel={{
             id: String(trend.id),
-            preview_url: trend.preview_url,
+            thumbnail_url: (reels?.[0] as any)?.thumbnail_url ?? null,
             reel_id: trend.audioId || undefined,
           }}
         />
@@ -399,7 +399,12 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       {/* ── 3. Window badge (shown in top row above) ─ also a chips row ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
         <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
-        {trend.languageEmoji && trend.language && (
+        {!trend.isClassificationVerified && (
+          <Chip className="bg-amber-500/15 text-amber-300 border border-amber-500/20">
+            ⏳ Classifying
+          </Chip>
+        )}
+        {trend.isClassificationVerified && trend.languageEmoji && trend.language && (
           <Chip>{trend.languageEmoji} {trend.language}</Chip>
         )}
         {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}

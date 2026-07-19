@@ -52,7 +52,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
     try {
       const { data, error } = await supabase
         .from("reels")
-        .select("preview_url")
+        .select("reel_id, thumbnail_url")
         .eq("audio_id", trend.audioId)
         .eq("video_storage_status", "stored")
         .order("view_count", { ascending: false })
@@ -61,21 +61,25 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
       if (error) throw error;
 
       const validUrls = (data || [])
-        .map((r: any) => r.preview_url)
-        .filter(Boolean) as string[];
+        .map((r: any) => r.reel_id)
+        .filter(Boolean)
+        .map((reelId: string) => /^\d+$/.test(reelId)
+          ? `https://www.instagram.com/reels/audio/${reelId}/`
+          : `https://www.instagram.com/reel/${reelId}/`) as string[];
 
       if (validUrls.length === 0) {
-        toast.error("No preview videos are currently stored for this audio trend yet.");
+        toast.error("No Instagram deep-links are currently available for this audio trend yet.");
         return;
       }
 
       setPlaylist(validUrls);
       setPlaylistIndex(0);
       setIsPlayingPlaylist(true);
-      toast.success(`Playing top ${validUrls.length} reels back-to-back! 🎬`);
+      window.open(validUrls[0], "_blank", "noopener,noreferrer");
+      toast.success(`Opened the top ${validUrls.length} reel deep-link(s) on Instagram.`);
     } catch (err) {
       console.error("Failed to load playlist reels:", err);
-      toast.error("Failed to fetch top reels for playback.");
+      toast.error("Failed to fetch Instagram deep-links.");
     } finally {
       setPlaylistLoading(false);
     }
@@ -97,33 +101,13 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
           {/* Left Column: Video Preview / Playlist Autoplay */}
           <div className="space-y-4">
             <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-black/60 border border-zinc-800 flex items-center justify-center">
-              {isPlayingPlaylist && playlist.length > 0 ? (
-                <video
-                  key={playlist[playlistIndex]}
-                  src={playlist[playlistIndex]}
-                  autoPlay
-                  muted
-                  controls
-                  playsInline
-                  onEnded={() => {
-                    if (playlistIndex < playlist.length - 1) {
-                      setPlaylistIndex(playlistIndex + 1);
-                    } else {
-                      setIsPlayingPlaylist(false);
-                      toast.info("Playlist completed! ✨");
-                    }
-                  }}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <TrendCardVideo
-                  reel={{
-                    id: trend.id,
-                    preview_url: trend.id ? null : undefined, // Force component to render internal fetch buttons
-                    reel_id: trend.audioId || undefined,
-                  }}
-                />
-              )}
+              <TrendCardVideo
+                reel={{
+                  id: trend.id,
+                  thumbnail_url: undefined,
+                  reel_id: trend.audioId || undefined,
+                }}
+              />
             </div>
 
             {trend.audioId && (
@@ -132,7 +116,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
                 disabled={playlistLoading}
                 className="w-full bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold py-2.5 rounded-xl shadow-lg transition-all"
               >
-                {playlistLoading ? "⏳ Loading Top Reels..." : "▶ Play Top 3 Reels Sequence"}
+                {playlistLoading ? "⏳ Loading Instagram links..." : "Open Top Reel on Instagram"}
               </Button>
             )}
           </div>
@@ -144,6 +128,11 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
               <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
                 <Clock className="w-3.5 h-3.5" /> {trend.hoursLeft}h remaining
               </span>
+              {!trend.isClassificationVerified && (
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300">
+                  ⏳ Classifying
+                </span>
+              )}
               {nicheTag && nicheTag !== "general" && (
                 <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 text-xs font-bold text-blue-400">
                   #{nicheTag}

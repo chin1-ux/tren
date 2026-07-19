@@ -45,6 +45,9 @@ export interface ApiTrend {
   created_at?: string;
   format_transferable?: boolean;
   transfer_instructions?: string | null;
+  llm_classification_status?: string;
+  raw_llm_response?: unknown;
+  llm_classified_at?: string | null;
   // v2 new fields
   global_saturation_pct?: number;
   india_saturation_pct?: number;
@@ -185,6 +188,10 @@ export interface UiTrend {
   isEmerging?: boolean;
   formatTransferable?: boolean;
   transferInstructions?: string | null;
+  llmClassificationStatus?: string;
+  isClassificationVerified?: boolean;
+  rawLlmResponse?: unknown;
+  llmClassifiedAt?: string | null;
 
   // v2 new fields
   audioId?: string | null;
@@ -217,6 +224,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
   const meta = CATEGORY_EMOJI[key] ?? { emoji: "🔥", category: "Viral" as TrendCategory };
   const hours = Math.max(0, Number(t.window_hours_remaining) || 0);
   const langInfo = LANGUAGE_INFO[(t.language ?? "").toLowerCase()] ?? null;
+  const classificationStatus = (t.llm_classification_status || "pending").toLowerCase();
+  const isVerified = classificationStatus === "completed";
+  const isUnverified = !isVerified;
 
   return {
     id: String(t.id),
@@ -225,12 +235,12 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     hoursLeft: Math.round(hours),
     expiresAt: Date.now() + hours * 3600 * 1000,
     viralMultiplier: Math.round((Number(t.velocity_avg) || 0) * 10) / 10,
-    contentType: meta.category,
-    contentTypeEmoji: meta.emoji,
-    category: meta.category,
-    language: langInfo?.label ?? t.language ?? undefined,
-    languageEmoji: langInfo?.emoji ?? (t.language ? "🌍" : undefined),
-    languageLabel: langInfo?.label,
+    contentType: isUnverified ? "Classifying..." : meta.category,
+    contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
+    category: isUnverified ? "Classifying..." : meta.category,
+    language: isVerified ? (langInfo?.label ?? t.language ?? undefined) : undefined,
+    languageEmoji: isVerified ? (langInfo?.emoji ?? (t.language ? "🌍" : undefined)) : undefined,
+    languageLabel: isVerified ? langInfo?.label : undefined,
     isDance: !!t.is_dance,
     isNarrativeEdit: !!t.narrative_edit,
     idealContentDescription: t.ideal_content_description ?? "",
@@ -251,6 +261,10 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     isEmerging: t.status === "emerging",
     formatTransferable: t.format_transferable,
     transferInstructions: t.transfer_instructions,
+    llmClassificationStatus: classificationStatus,
+    isClassificationVerified: isVerified,
+    rawLlmResponse: t.raw_llm_response,
+    llmClassifiedAt: t.llm_classified_at ?? null,
     // v2 new fields
     audioId: t.audio_id ?? null,
     audioUseCount: t.audio_use_count ?? 0,

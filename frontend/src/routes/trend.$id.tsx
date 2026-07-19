@@ -141,9 +141,13 @@ function TrendDetailPage() {
                 🚀 Creator Breakout
               </span>
             )}
-            {trend.languageEmoji && (
+            {!trend.isClassificationVerified ? (
+              <span className="text-sm rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-amber-300">
+                ⏳ Classifying
+              </span>
+            ) : trend.languageEmoji ? (
               <span className="text-sm">{trend.languageEmoji} {trend.languageLabel}</span>
-            )}
+            ) : null}
           </div>
           <span className="flex items-center gap-1 text-xs font-semibold text-muted-foreground">
             <Clock className="h-3.5 w-3.5" /> {trend.hoursLeft}h left

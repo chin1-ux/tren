@@ -74,6 +74,8 @@ TABLES_SQL = {
             content_type text,
             format_transferable boolean DEFAULT false,
             transfer_instructions text,
+            raw_llm_response jsonb,
+            llm_classified_at timestamptz,
             first_detected_at timestamp DEFAULT now()
         );
     """,
