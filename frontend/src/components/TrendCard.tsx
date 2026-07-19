@@ -37,7 +37,7 @@ function getPlatformMeta(platform: string): { label: string; icon: string } {
 
 /** 2026-algo: optimal reel length in seconds by content type */
 function getOptimalLength(category: string): string {
-  const c = category.toLowerCase();
+  const c = (category ?? "").toLowerCase();
   if (c === "dance") return "15–20s";
   if (c === "scenic" || c === "travel") return "20–25s";
   if (c === "fitness" || c === "motivation") return "30–45s";
@@ -49,7 +49,7 @@ function getOptimalLength(category: string): string {
 
 /** 2026-algo: save-bait tip by content type */
 function getSaveBaitTip(category: string): string {
-  const c = category.toLowerCase();
+  const c = (category ?? "").toLowerCase();
   if (c === "travel") return "Add '3 must-pack items for this trip' as text overlay";
   if (c === "fitness") return "Show the exact rep/set breakdown in text on-screen";
   if (c === "food") return "List the 2–3 key ingredients as a text overlay";
@@ -252,7 +252,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
   let nichesToDisplay = [...allNiches];
   const matchedIndex = selectedNiche && selectedNiche !== "all"
-    ? nichesToDisplay.findIndex(n => n.toLowerCase() === selectedNiche.toLowerCase())
+    ? nichesToDisplay.findIndex(n => (n ?? "").toLowerCase() === (selectedNiche ?? "all").toLowerCase())
     : -1;
 
   if (matchedIndex > 0) {
@@ -288,7 +288,8 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
   const copyCaption = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const text = `${trend.idealContentDescription || trend.song} 🔥 #trending #reels #${trend.contentType?.toLowerCase().replace(/\s+/g, "")}`;
+    const contentSlug = (trend.contentType || "viral").toLowerCase().replace(/\s+/g, "");
+    const text = `${trend.idealContentDescription || trend.song} 🔥 #trending #reels #${contentSlug}`;
     navigator.clipboard.writeText(text).then(() => {
       setCopied(true);
       toast.success("Caption copied! 📋");
@@ -301,7 +302,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       return "border border-amber/40 shadow-[0_0_12px_rgba(239,159,39,0.08)] bg-gradient-to-b from-[rgba(239,159,39,0.05)] to-transparent hover:border-amber/80";
     if (trend.isNarrativeEdit || trend.category === "Narrative")
       return "border border-purple/40 shadow-[0_0_12px_rgba(127,119,221,0.08)] bg-gradient-to-b from-[rgba(127,119,221,0.05)] to-transparent hover:border-purple/80";
-    if (trend.category?.toLowerCase() === "faceless")
+    if ((trend.category || "").toLowerCase() === "faceless")
       return "border border-teal/40 shadow-[0_0_12px_rgba(29,158,117,0.08)] bg-gradient-to-b from-[rgba(29,158,117,0.05)] to-transparent hover:border-teal/80";
     return "border border-primary/40 shadow-[0_0_12px_rgba(230,57,70,0.08)] bg-gradient-to-b from-[rgba(230,57,70,0.05)] to-transparent hover:border-primary/80";
   };
@@ -411,7 +412,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
         {/* Niche tag pills */}
         {displayNiches.map((n) => {
-          const isMatched = selectedNiche && selectedNiche !== "all" && n.toLowerCase() === selectedNiche.toLowerCase();
+          const isMatched = selectedNiche && selectedNiche !== "all" && (n || "").toLowerCase() === selectedNiche.toLowerCase();
           return (
             <Chip
               key={n}

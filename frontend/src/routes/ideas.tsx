@@ -197,7 +197,7 @@ function IdeasPage() {
 
   // Difficulty styling
   const getDifficultyBadge = (difficulty: string) => {
-    switch (difficulty?.toLowerCase()) {
+    switch ((difficulty ?? "").toLowerCase()) {
       case "easy":
         return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       case "medium":

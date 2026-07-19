@@ -191,7 +191,7 @@ function SettingsPage() {
 
   // Filter languages and niches based on search
   const filteredLanguages = ALL_LANGUAGES.filter(l => 
-    l.label.toLowerCase().includes(langSearch.toLowerCase())
+    (l.label ?? "").toLowerCase().includes(langSearch.toLowerCase())
   );
 
   const activeLangObj = ALL_LANGUAGES.find(l => l.code === selectedLanguage);

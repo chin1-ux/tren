@@ -151,9 +151,9 @@ function TrendsFeed() {
     const q = searchQuery.toLowerCase();
     return list.filter(
       (t) =>
-        t.song?.toLowerCase().includes(q) ||
-        t.artist?.toLowerCase().includes(q) ||
-        t.contentType?.toLowerCase().includes(q)
+        (t.song ?? "").toLowerCase().includes(q) ||
+        (t.artist ?? "").toLowerCase().includes(q) ||
+        (t.contentType ?? "").toLowerCase().includes(q)
     );
   }, [activeData, searchQuery]);
 
@@ -274,7 +274,7 @@ function TrendsFeed() {
                 US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
                 DE: "🇩🇪", FR: "🇫🇷", MX: "🇲🇽",
               };
-              const flag = originFlag[reel.trend_origin] ?? "🌍";
+              const flag = originFlag[(reel.trend_origin ?? "").toUpperCase()] ?? "🌍";
               const audioUrl = reel.audio_id
                 ? `https://www.instagram.com/reels/audio/${reel.audio_id}/`
                 : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.audio_title || "")}/`;

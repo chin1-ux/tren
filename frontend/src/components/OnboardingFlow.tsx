@@ -157,7 +157,7 @@ export function OnboardingFlow({ onComplete }: Props) {
               />
             </div>
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar">
-              {NICHES.filter(n => n.label.toLowerCase().includes(nicheSearch.toLowerCase())).map((n) => (
+              {NICHES.filter(n => (n.label ?? "").toLowerCase().includes(nicheSearch.toLowerCase())).map((n) => (
                 <button
                   key={n.id}
                   onClick={() => setNiche(n.id)}
@@ -201,7 +201,7 @@ export function OnboardingFlow({ onComplete }: Props) {
               />
             </div>
             <div className="grid grid-cols-2 gap-2 max-h-48 overflow-y-auto no-scrollbar">
-              {LANGUAGES.filter(l => l.label.toLowerCase().includes(langSearch.toLowerCase())).map((l) => (
+              {LANGUAGES.filter(l => (l.label ?? "").toLowerCase().includes(langSearch.toLowerCase())).map((l) => (
                 <button
                   key={l.code}
                   onClick={() => setLanguage(l.code)}
