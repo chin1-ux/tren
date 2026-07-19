@@ -13,9 +13,13 @@ CREATE_TABLE_SQL = """
 CREATE TABLE IF NOT EXISTS cron_runs (
     id BIGSERIAL PRIMARY KEY,
     run_at TIMESTAMPTZ NOT NULL,
+    completed_at TIMESTAMPTZ,
+    duration_seconds NUMERIC,
     new_trends_found INTEGER NOT NULL,
     trend_ids JSONB,
-    status TEXT NOT NULL
+    status TEXT NOT NULL,
+    stage TEXT,
+    cutoff_reason TEXT
 );
 """
 

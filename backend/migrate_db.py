@@ -29,6 +29,11 @@ logger = logging.getLogger("migrate_db")
 
 # ─── All ALTER statements ────────────────────────────────────────────────────
 MIGRATIONS = [
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;",
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS duration_seconds NUMERIC;",
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS stage TEXT;",
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS cutoff_reason TEXT;",
+
     # reels table – new columns
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS audio_id TEXT;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS audio_use_count INTEGER DEFAULT 0;",
@@ -65,6 +70,8 @@ MIGRATIONS = [
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS has_creator_outlier BOOLEAN DEFAULT false;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS high_confidence BOOLEAN DEFAULT false;",
     "ALTER TABLE trends ADD COLUMN IF NOT EXISTS promotion_reason TEXT;",
+    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS raw_llm_response JSONB;",
+    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS llm_classified_at TIMESTAMPTZ;",
     "CREATE TABLE IF NOT EXISTS trend_snapshots (id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY, trend_id bigint REFERENCES trends(id) ON DELETE CASCADE, velocity_avg FLOAT, creator_count INTEGER, captured_at TIMESTAMP DEFAULT now());",
     "CREATE INDEX IF NOT EXISTS idx_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at DESC);",
     "CREATE UNIQUE INDEX IF NOT EXISTS uq_trend_snapshots_trend_captured ON trend_snapshots (trend_id, captured_at);",

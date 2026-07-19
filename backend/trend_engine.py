@@ -4,6 +4,7 @@ import json
 import time
 import logging
 import concurrent.futures
+from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from dotenv import load_dotenv
@@ -79,6 +80,39 @@ def _trend_discovery_source(trend: dict) -> str:
     if (trend.get("max_velocity") or 0) >= 3.0 or (trend.get("avg_velocity") or 0) >= 1.5:
         return "unexpected_candidate"
     return "regional"
+
+
+def _select_trend_origin(reels: list[dict]) -> str:
+    origins = [
+        (r.get("trend_origin") or "").upper()
+        for r in reels
+        if (r.get("trend_origin") or "").strip()
+    ]
+    if not origins:
+        return "unknown"
+
+    counts: dict[str, int] = {}
+    for origin in origins:
+        if origin in {"", "UNKNOWN"}:
+            continue
+        counts[origin] = counts.get(origin, 0) + 1
+
+    if not counts:
+        return "unknown"
+
+    ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
+    top_origin, top_count = ranked[0]
+    if len(ranked) > 1 and ranked[1][1] == top_count:
+        if "IN" in counts:
+            return "IN"
+        return "unknown"
+    return top_origin
+
+
+@dataclass
+class StageBudgetState:
+    stage: str = "initializing"
+    cutoff_reason: str | None = None
 
 
 
@@ -572,9 +606,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     (r.get("format_patterns") for r in group_reels if r.get("format_patterns")),
                     []
                 )
-                # trend_origin – most common among reels
-                origins = [r.get("trend_origin", "unknown") for r in group_reels if r.get("trend_origin")]
-                trend_origin = max(set(origins), key=origins.count) if origins else "unknown"
+                # trend_origin – majority vote across reels, with ties falling back to IN or unknown
+                trend_origin = _select_trend_origin(group_reels)
                 is_cross_cultural = any(r.get("is_cross_cultural") for r in group_reels)
 
                 # Aggregate semantic niches from linked reels
@@ -798,13 +831,15 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             }
         }
 
-    def calculate_audio_trend_scores(self):
+    def calculate_audio_trend_scores(self, budget_state: StageBudgetState | None = None):
         logging.info("=== Running calculate_audio_trend_scores ===")
         try:
             import math
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             started_at = time.monotonic()
             max_seconds = float(os.getenv("AUDIO_TREND_SCORE_MAX_SECONDS", "180.0"))
+            if budget_state is None:
+                budget_state = StageBudgetState(stage="audio_scoring")
             
             # Check for scraper outage
             time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat()
@@ -861,6 +896,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             scrape_cycle_at = datetime.now(timezone.utc).isoformat()
             for aid, group in audio_groups.items():
                 if time.monotonic() - started_at >= max_seconds:
+                    budget_state.cutoff_reason = f"audio scoring stopped at {max_seconds:.0f}s cutoff"
+                    logging.warning(
+                        f"Audio trend scoring stopped early at {max_seconds:.0f}s cutoff."
+                    )
                     logging.warning(
                         "Stopping audio trend scoring early to stay within the pipeline time budget."
                     )
@@ -905,7 +944,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
         except Exception as e:
             logging.error(f"Critical error in calculate_audio_trend_scores: {e}", exc_info=True)
 
-    def retry_pending_classifications(self, *, limit: int = 5, max_seconds: float = 180.0) -> int:
+    def retry_pending_classifications(self, *, limit: int = 5, max_seconds: float = 180.0, budget_state: StageBudgetState | None = None) -> int:
         """
         Retries LLM classification for trends with 'pending' status.
         Increments retry count, caps at 3 retries or 48 hours.
@@ -914,6 +953,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
         """
         logging.info("=== TrendEngine.retry_pending_classifications() starting ===")
         started_at = time.monotonic()
+        if budget_state is None:
+            budget_state = StageBudgetState(stage="llm_backfill")
         
         try:
             # 1. Fetch pending trends created in last 48 hours with retry_count < 3
@@ -945,6 +986,10 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             
             for idx, trend in enumerate(pending_trends):
                 if time.monotonic() - started_at >= max_seconds:
+                    budget_state.cutoff_reason = f"backfill stopped at {max_seconds:.0f}s cutoff"
+                    logging.warning(
+                        f"Pending classification backfill stopped early at {max_seconds:.0f}s cutoff."
+                    )
                     logging.warning(
                         "Stopping pending classification backfill early after "
                         f"{idx} trend(s) to stay within the pipeline time budget."

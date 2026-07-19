@@ -50,6 +50,37 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
         return 24
     return 4
 
+
+_INDIAN_ORIGIN_HINTS = (
+    "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
+    "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
+    "neh", "ap dhillon", "from \"", "(from ", "from the movie", "original audio"
+)
+
+
+def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
+    text = f"{title or ''} {artist or ''} {caption or ''}".lower()
+    return any(hint in text for hint in _INDIAN_ORIGIN_HINTS)
+
+
+def _normalize_trend_origin(meta: dict, reel: dict) -> dict:
+    title = reel.get("audio_title") or reel.get("audio_name") or ""
+    artist = reel.get("audio_artist") or ""
+    caption = reel.get("caption") or ""
+    caption_text = caption.lower()
+    audio_text = f"{title} {artist}".lower()
+
+    if _looks_indian_audio(title, artist, caption):
+        meta["trend_origin"] = "IN"
+        meta["creator_country"] = "IN"
+        if "hindi" in caption_text or "देवनागरी" in caption_text:
+            meta["audio_language"] = "hindi"
+    elif meta.get("trend_origin") in {"KR", "BR", "RU", "US", "GB"} and "original audio" in audio_text:
+        meta["trend_origin"] = "unknown"
+        if meta.get("creator_country") == "unknown":
+            meta["creator_country"] = "unknown"
+    return meta
+
 class InstagramScraper:
     def __init__(self):
         load_dotenv()
@@ -805,15 +836,18 @@ class InstagramScraper:
         )
         
         try:
-            return call_llm(
+            meta = call_llm(
                 system_prompt="You are a metadata tagger for Instagram Reels.",
                 user_prompt=prompt,
                 response_mime_type="application/json",
                 timeout=15
             )
+            if isinstance(meta, dict):
+                meta = _normalize_trend_origin(meta, reel)
+            return meta
         except Exception as e:
             logger.error(f"Error in detect_reel_metadata: {e}")
-            return {
+            meta = {
                 "caption_language": "unknown",
                 "audio_language": "unknown",
                 "trend_origin": "unknown",
@@ -821,6 +855,7 @@ class InstagramScraper:
                 "is_cross_cultural": False,
                 "confidence": 0.0
             }
+            return _normalize_trend_origin(meta, reel)
 
     def _run_hook_analysis(self, audio_title: str, reels_batch: list[dict]) -> dict:
         lines = []

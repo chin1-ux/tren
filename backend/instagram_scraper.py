@@ -56,6 +56,37 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
     return 4
 
 
+_INDIAN_ORIGIN_HINTS = (
+    "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
+    "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
+    "ap dhillon", "from \"", "(from ", "from the movie", "original audio"
+)
+
+
+def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
+    text = f"{title or ''} {artist or ''} {caption or ''}".lower()
+    return any(hint in text for hint in _INDIAN_ORIGIN_HINTS)
+
+
+def _normalize_trend_origin(metadata: dict, reel: dict) -> dict:
+    title = reel.get("audio_title") or reel.get("audio_name") or ""
+    artist = reel.get("audio_artist") or ""
+    caption = reel.get("caption") or ""
+    caption_text = caption.lower()
+    audio_text = f"{title} {artist}".lower()
+
+    if _looks_indian_audio(title, artist, caption):
+        metadata["trend_origin"] = "IN"
+        metadata["creator_country"] = "IN"
+        if "hindi" in caption_text:
+            metadata["audio_language"] = "hindi"
+    elif metadata.get("trend_origin") in {"KR", "BR", "RU", "US", "GB"} and "original audio" in audio_text:
+        metadata["trend_origin"] = "unknown"
+        if metadata.get("creator_country") == "unknown":
+            metadata["creator_country"] = "unknown"
+    return metadata
+
+
 class InstagramScraper:
     def __init__(self):
         load_dotenv()
@@ -373,15 +404,18 @@ Rules:
 - Only return the JSON, nothing else
 """
         try:
-            return call_llm(
+            metadata = call_llm(
                 system_prompt="You are a metadata tagger for Instagram Reels.",
                 user_prompt=prompt,
                 response_mime_type="application/json",
                 timeout=15
             )
+            if isinstance(metadata, dict):
+                metadata = _normalize_trend_origin(metadata, reel)
+            return metadata
         except Exception as e:
             logging.error(f"Error in detect_reel_metadata: {e}")
-            return {
+            metadata = {
                 "caption_language": "unknown",
                 "audio_language": "unknown",
                 "trend_origin": "unknown",
@@ -389,6 +423,7 @@ Rules:
                 "is_cross_cultural": False,
                 "confidence": 0.0
             }
+            return _normalize_trend_origin(metadata, reel)
 
     def _update_trend_lifecycle(self, audio_title: str, creator_country: str, scraped_at: str):
         """Update trend lifecycle spread timeline and saturation counts."""

@@ -1,7 +1,7 @@
 import os
 import sys
 import logging
-from datetime import datetime
+from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -120,26 +120,36 @@ def verify_database_schema(sb):
 
 
 def run_full_pipeline():
-    start = datetime.now()
+    start = datetime.now(timezone.utc)
+    run_state = {
+        "stage": "initializing",
+        "cutoff_reason": None,
+    }
     run_label = f"PIPELINE RUN @ {start.strftime('%Y-%m-%d %H:%M IST')}"
     logging.info(f"=== {run_label} STARTING ===")
 
     # ── 0. Schema Validation ───────────────────────────────────────────────────
     try:
+        run_state["stage"] = "schema_validation"
         sb = _get_supabase()
         verify_database_schema(sb)
     except Exception as e:
+        run_state["stage"] = "schema_validation_failed"
+        run_state["cutoff_reason"] = f"schema validation failed: {e}"
         logging.critical(f"Pipeline startup aborted due to schema mismatch: {e}")
         raise e
 
     # ── 1. Instagram Scraper ───────────────────────────────────────────────────
     new_reels_count = 0
     try:
+        run_state["stage"] = "instagram_scrape"
         logging.info("Step 1/5: Scraping Instagram trending reels...")
         insta = InstagramScraper()
         new_reels_count = insta.scrape_trending_reels()
         logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
     except Exception as e:
+        run_state["stage"] = "instagram_scrape_failed"
+        run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
         logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
     # ── 2. YouTube Scraper (Bypassed) ─────────────────────────────────────────
@@ -167,35 +177,49 @@ def run_full_pipeline():
             logging.warning(f"Failed to perform data-quality check: {dq_err}")
 
         try:
+            run_state["stage"] = "trend_engine"
             logging.info("Step 3/5: Running TrendEngine to detect new trends...")
             engine = TrendEngine()
             
             # Retry pending/failed LLM classifications first
             try:
+                run_state["stage"] = "llm_backfill"
                 retried_count = engine.retry_pending_classifications(limit=3, max_seconds=90.0)
                 logging.info(f"LLM Re-classification retry completed. Successfully re-classified {retried_count} trends.")
+                if retried_count < 3:
+                    logging.info(
+                        "LLM backfill finished within budget; fewer than the max batch size were retried."
+                    )
             except Exception as retry_err:
+                run_state["stage"] = "llm_backfill_failed"
+                run_state["cutoff_reason"] = f"llm backfill failed: {retry_err}"
                 logging.error(f"LLM Re-classification retry failed: {retry_err}", exc_info=True)
                 
             trend_ids = engine.detect_trends()
             logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
         except Exception as e:
+            run_state["stage"] = "trend_engine_failed"
+            run_state["cutoff_reason"] = f"trend engine failed: {e}"
             logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
     else:
         logging.warning(f"Skipping trend detection — only {new_reels_count} new reels scraped this cycle, likely scraper failure.")
 
     # ── 4. Trend Refresher: update lifecycle of existing trends ──────────────
     try:
+        run_state["stage"] = "trend_refresher"
         logging.info("Step 4/5: Running TrendRefresher to update trend statuses...")
         refresher = TrendRefresher()
         refresh_summary = refresher.refresh_all()
         logging.info(f"Step 4/5: Refresh complete: {refresh_summary}")
     except Exception as e:
+        run_state["stage"] = "trend_refresher_failed"
+        run_state["cutoff_reason"] = f"trend refresher failed: {e}"
         logging.error(f"Step 4/5 FAILED (TrendRefresher): {e}", exc_info=True)
 
     # Append one snapshot per trend for this pipeline run so velocity persistence
     # can be evaluated against real historical data on future runs.
     try:
+        run_state["stage"] = "snapshot_write"
         sb = _get_supabase()
         snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
         if snapshot_rows:
@@ -209,30 +233,41 @@ def run_full_pipeline():
     # ── 5. Alert System: notify users of new rising trends ───────────────────
     if trend_ids:
         try:
+            run_state["stage"] = "alerts"
             logging.info(f"Step 5/5: Sending alerts for {len(trend_ids)} new trend(s)...")
             alert = AlertSystem()
             alert.send_trend_alerts(trend_ids)
             logging.info("Step 5/5: Alerts sent.")
         except Exception as e:
+            run_state["stage"] = "alerts_failed"
+            run_state["cutoff_reason"] = f"alert system failed: {e}"
             logging.error(f"Step 5/5 FAILED (AlertSystem): {e}", exc_info=True)
     else:
         logging.info("Step 5/5: No new trends — skipping alerts.")
 
     # ── Log run record to Supabase ────────────────────────────────────────────
+    elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+    completed_at = datetime.now(timezone.utc)
+    status = "success" if not run_state.get("cutoff_reason") else "partial"
     try:
         sb = _get_supabase()
         sb.table("cron_runs").insert({
             "run_at": start.isoformat(),
+            "completed_at": completed_at.isoformat(),
+            "duration_seconds": round(elapsed, 3),
             "new_reels_count": new_reels_count,
             "new_trends_found": len(trend_ids),
             "trend_ids": trend_ids,
-            "status": "success"
+            "status": status,
+            "stage": run_state.get("stage"),
+            "cutoff_reason": run_state.get("cutoff_reason"),
         }).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")
 
-    elapsed = (datetime.now() - start).seconds
-    logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {elapsed}s ===")
+    logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
+    if run_state.get("cutoff_reason"):
+        logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
     # Immediately purge the Redis trends cache so the next API request
     # serves the freshly-written data, not a stale 5-minute window.
     _invalidate_trends_cache()
