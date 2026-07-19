@@ -148,10 +148,22 @@ class InstagramScraper:
             return None
         try:
             import requests
+            max_bytes = int(os.getenv("REEL_PREVIEW_MAX_BYTES", "5000000"))
             headers = {'User-Agent': 'Mozilla/5.0'}
             response = requests.get(video_url, headers=headers, timeout=20)
             if not response.ok:
                 logging.error(f"Download failed for video {video_url} with status {response.status_code}")
+                return None
+            content_length = response.headers.get("Content-Length")
+            if content_length and int(content_length) > max_bytes:
+                logging.warning(
+                    f"Skipping video upload for reel {reel_id}: content-length {content_length} exceeds {max_bytes} bytes"
+                )
+                return None
+            if len(response.content) > max_bytes:
+                logging.warning(
+                    f"Skipping video upload for reel {reel_id}: downloaded {len(response.content)} bytes exceeds {max_bytes}"
+                )
                 return None
             
             safe_audio_id = audio_id or "no_audio"

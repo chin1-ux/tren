@@ -128,10 +128,14 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         if not keys:
             raise ValueError("GROQ_API_KEY or LLM_API_KEY must be configured.")
 
-        max_keys = int(os.getenv("LLM_MAX_KEYS_PER_REQUEST", "2"))
-        if max_keys > 0 and len(keys) > max_keys:
-            logger.info(f"Limiting Groq key rotation to the first {max_keys} key(s) this request.")
-            keys = keys[:max_keys]
+        max_keys_raw = os.getenv("LLM_MAX_KEYS_PER_REQUEST")
+        if max_keys_raw is not None and max_keys_raw.strip():
+            max_keys = int(max_keys_raw)
+            if max_keys > 0 and len(keys) > max_keys:
+                logger.info(f"Limiting Groq key rotation to the first {max_keys} key(s) this request.")
+                keys = keys[:max_keys]
+        else:
+            logger.info(f"Using all {len(keys)} configured Groq key(s) for this request.")
 
         # Apply cost optimisation defaults
         payload = {
