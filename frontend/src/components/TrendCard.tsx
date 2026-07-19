@@ -365,7 +365,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           reel={{
             id: String(trend.id),
             thumbnail_url: (reels?.[0] as any)?.thumbnail_url ?? null,
-            reel_id: trend.audioId || undefined,
+            reel_id: (reels?.[0] as any)?.reel_id ?? undefined,
           }}
         />
       </div>

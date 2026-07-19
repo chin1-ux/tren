@@ -166,7 +166,7 @@ function TrendsFeed() {
 
   const avgLeadTime = useMemo(() => {
     const list = activeData ?? [];
-    if (list.length === 0) return "14";
+    if (list.length === 0) return "N/A";
     const sum = list.reduce((acc, t) => acc + (t.hoursLeft || 0), 0);
     return (sum / list.length).toFixed(1);
   }, [activeData]);
