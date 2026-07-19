@@ -172,7 +172,7 @@ def run_full_pipeline():
             
             # Retry pending/failed LLM classifications first
             try:
-                retried_count = engine.retry_pending_classifications()
+                retried_count = engine.retry_pending_classifications(limit=3, max_seconds=90.0)
                 logging.info(f"LLM Re-classification retry completed. Successfully re-classified {retried_count} trends.")
             except Exception as retry_err:
                 logging.error(f"LLM Re-classification retry failed: {retry_err}", exc_info=True)

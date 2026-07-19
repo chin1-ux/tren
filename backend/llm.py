@@ -114,7 +114,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         return {"text": text}
         
     elif provider == "groq":
-        # Primary‑fallback: try each key until a request succeeds
+        # Primary-fallback: try each key until a request succeeds
         # Collect all keys from any env vars starting with GROQ_API_KEY or LLM_API_KEY
         keys = []
         for env_name, env_val in os.environ.items():
@@ -124,9 +124,15 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
                     clean_part = part.strip()
                     if clean_part and clean_part not in keys:
                         keys.append(clean_part)
-        
+
         if not keys:
             raise ValueError("GROQ_API_KEY or LLM_API_KEY must be configured.")
+
+        max_keys = int(os.getenv("LLM_MAX_KEYS_PER_REQUEST", "2"))
+        if max_keys > 0 and len(keys) > max_keys:
+            logger.info(f"Limiting Groq key rotation to the first {max_keys} key(s) this request.")
+            keys = keys[:max_keys]
+
         # Apply cost optimisation defaults
         payload = {
             "model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),

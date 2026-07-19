@@ -34,29 +34,18 @@ logging.basicConfig(
 def generate_local_fallback(trend):
     title = (trend.get("audio_title") or "Unknown Song").lower()
     is_dance = any(word in title for word in ["dance", "nach", "step", "groove", "taal", "bhangra", "dancecover"])
-    content_type = "dance" if is_dance else "viral"
-    
-    # Simple keyword heuristics
-    if any(word in title for word in ["travel", "safarnama", "road", "trip", "mountains", "vlog"]):
-        content_type = "travel"
-    elif any(word in title for word in ["fashion", "look", "style", "wear", "dress", "ootd"]):
-        content_type = "fashion"
-    elif any(word in title for word in ["food", "recipe", "kitchen", "cook", "chef"]):
-        content_type = "food"
-    elif any(word in title for word in ["comedy", "funny", "joke", "laugh", "meme"]):
-        content_type = "comedy"
-    elif any(word in title for word in ["motivation", "gym", "fitness", "workout", "fit"]):
-        content_type = "motivation"
         
     return {
-        "content_type": content_type,
+        "content_type": None,
         "is_dance": is_dance,
-        "niche_tag": content_type if content_type != "viral" else "general",
+        "niche_tag": "general",
         "needs_filming": is_dance,
         "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
         "narrative_structure": "transformation" if is_dance else "none",
         "text_overlay_template": f"POV: Listening to {trend.get('audio_title') or 'this track'}",
-        "language": trend.get("language") or "en",
+        # Leave unverified fields empty so the UI can show "Classifying..." instead
+        # of presenting a fabricated language/category as if the LLM had confirmed it.
+        "language": None,
         "cultural_context": "celebration" if is_dance else "everyday",
         "ideal_content_description": f"Post aesthetic clips or photos matching the vibe of {trend.get('audio_title') or 'the song'}.",
         "camera_style": "static" if is_dance else "handheld",
@@ -73,6 +62,15 @@ def generate_local_fallback(trend):
         "saturation_penalty": 0.35,
         "hook_retention_score": 0.58,
     }
+
+
+def _serialize_llm_response(payload: dict | None) -> str | None:
+    if payload is None:
+        return None
+    try:
+        return json.dumps(payload, ensure_ascii=False)
+    except Exception:
+        return None
 
 
 def _trend_discovery_source(trend: dict) -> str:
@@ -481,8 +479,12 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     fallback = generate_local_fallback(trend)
                     trend.update(fallback)
                     trend["llm_classification_status"] = "pending"
+                    trend["raw_llm_response"] = None
+                    trend["llm_classified_at"] = None
                 else:
                     trend["llm_classification_status"] = "completed"
+                    trend["raw_llm_response"] = _serialize_llm_response(classification)
+                    trend["llm_classified_at"] = datetime.now(timezone.utc).isoformat()
                 return success
 
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
@@ -629,6 +631,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "hook_retention_score": trend.get("hook_retention_score"),
                     "composite_score": trend.get("composite_score"),
                     "llm_classification_status": trend.get("llm_classification_status", "pending"),
+                    "raw_llm_response": trend.get("raw_llm_response"),
+                    "llm_classified_at": trend.get("llm_classified_at"),
                     "llm_retry_count": trend.get("llm_retry_count", 0),
                     "has_creator_outlier": any(r.get("is_creator_outlier") is True for r in group_reels),
                 }
@@ -799,6 +803,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
         try:
             import math
             now = datetime.now(timezone.utc).replace(tzinfo=None)
+            started_at = time.monotonic()
+            max_seconds = float(os.getenv("AUDIO_TREND_SCORE_MAX_SECONDS", "180.0"))
             
             # Check for scraper outage
             time_threshold_3h = (datetime.now(timezone.utc) - timedelta(hours=3, minutes=30)).isoformat()
@@ -854,6 +860,11 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             
             scrape_cycle_at = datetime.now(timezone.utc).isoformat()
             for aid, group in audio_groups.items():
+                if time.monotonic() - started_at >= max_seconds:
+                    logging.warning(
+                        "Stopping audio trend scoring early to stay within the pipeline time budget."
+                    )
+                    break
                 try:
                     res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80)
                     
@@ -894,12 +905,15 @@ Return ONLY a valid JSON object with EXACTLY these fields:
         except Exception as e:
             logging.error(f"Critical error in calculate_audio_trend_scores: {e}", exc_info=True)
 
-    def retry_pending_classifications(self) -> int:
+    def retry_pending_classifications(self, *, limit: int = 5, max_seconds: float = 180.0) -> int:
         """
         Retries LLM classification for trends with 'pending' status.
         Increments retry count, caps at 3 retries or 48 hours.
+        The work is intentionally budgeted so a single pipeline run cannot spend
+        unbounded time reprocessing a large backlog of failed classifications.
         """
         logging.info("=== TrendEngine.retry_pending_classifications() starting ===")
+        started_at = time.monotonic()
         
         try:
             # 1. Fetch pending trends created in last 48 hours with retry_count < 3
@@ -909,6 +923,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 .eq("llm_classification_status", "pending") \
                 .lt("llm_retry_count", 3) \
                 .gte("first_detected_at", time_limit) \
+                .order("first_detected_at", desc=False) \
+                .limit(limit) \
                 .execute()
                 
             pending_trends = res.data or []
@@ -928,6 +944,13 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             success_count = 0
             
             for idx, trend in enumerate(pending_trends):
+                if time.monotonic() - started_at >= max_seconds:
+                    logging.warning(
+                        "Stopping pending classification backfill early after "
+                        f"{idx} trend(s) to stay within the pipeline time budget."
+                    )
+                    break
+
                 tid = trend.get("id")
                 title = trend.get("audio_title")
                 artist = trend.get("audio_artist")
@@ -995,6 +1018,8 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                         **classification,
                         "niche_tag": niche_tag,
                         "llm_classification_status": "completed",
+                        "raw_llm_response": _serialize_llm_response(classification),
+                        "llm_classified_at": datetime.now(timezone.utc).isoformat(),
                         "llm_retry_count": new_retry_count
                     }
                     self.supabase.table("trends").update(update_data).eq("id", tid).execute()
@@ -1011,11 +1036,14 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                         
                     self.supabase.table("trends").update({
                         "llm_classification_status": status,
+                        "raw_llm_response": None if status != "completed" else _serialize_llm_response(classification),
+                        "llm_classified_at": None,
                         "llm_retry_count": new_retry_count
                     }).eq("id", tid).execute()
                     
-                # Small stagger delay between retries
-                time.sleep(1.0)
+                # Small stagger delay between retries, but only when we still have budget.
+                if time.monotonic() - started_at < max_seconds:
+                    time.sleep(0.5)
                 
             return success_count
             
