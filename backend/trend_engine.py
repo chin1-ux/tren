@@ -127,13 +127,18 @@ class TrendEngine:
 
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        # Gemini removed – Groq is the sole LLM provider
+        # Gemini removed - Groq is the sole LLM provider
         self.groq_key = os.getenv("GROQ_API_KEY")
 
         if not self.groq_key:
             raise ValueError("GROQ_API_KEY not configured in environment")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self.last_run_stats = {
+            "classification_success": 0,
+            "classification_failed_429": 0,
+            "pending_backfilled": 0,
+        }
 
     def _calculate_creator_fit_score(self, title: str, artist: str, creator_count: int, avg_velocity: float, recent_6h_avg: float, recent_24h_avg: float, oldest_age_hours: float) -> float:
         text = f"{title} {artist}".lower()
@@ -188,6 +193,8 @@ class TrendEngine:
         """
         logging.info("=== TrendEngine.detect_trends() starting ===")
         new_trend_ids = []
+        self.last_run_stats["classification_success"] = 0
+        self.last_run_stats["classification_failed_429"] = 0
 
         try:
             # Check for scraper outage: skip only if 0 reels scraped in the last 6h.
@@ -203,7 +210,7 @@ class TrendEngine:
                 logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Skipping trend detection entirely.")
                 return []
 
-            # ── STEP 1: Load recent high-velocity reels (last 48h) ─────────────
+            # STEP 1: Load recent high-velocity reels (last 48h)
             time_threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
             time_threshold_6h = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
 
@@ -215,7 +222,7 @@ class TrendEngine:
             reels = reels_res.data or []
             logging.info(f"Loaded {len(reels)} reels for evaluation")
 
-            # ── STEP 2: Group by audio ─────────────────────────────────────────
+            # STEP 2: Group by audio
             audio_groups = {}
             excluded_original_audio = 0
             proceeded_to_grouping = 0
@@ -234,7 +241,7 @@ class TrendEngine:
                 audio_groups[key].append(reel)
             logging.info(f"Audio grouping: excluded {excluded_original_audio} original-audio reels. {proceeded_to_grouping} reels proceeded to grouping. Grouped into {len(audio_groups)} unique audio combinations.")
 
-            # ── STEP 3: Skip already-known trends ─────────────────────────────
+            # STEP 3: Skip already-known trends
             existing_res = self.supabase.table("trends") \
                 .select("audio_title, audio_artist") \
                 .execute()
@@ -244,7 +251,7 @@ class TrendEngine:
                 if t.get("audio_title")
             }
 
-            # ── STEP 4: Evaluate each audio group ─────────────────────────────
+            # STEP 4: Evaluate each audio group
             confirmed = []
             for (title, artist), group_reels in audio_groups.items():
                 if (title, artist) in existing:
@@ -496,9 +503,12 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                         classification = call_llm(system_prompt, user_prompt, timeout=10)
                         trend.update(classification)
                         success = True
+                        self.last_run_stats["classification_success"] += 1
                         break
                     except Exception as e:
                         logging.warning(f"LLM attempt {attempt} failed: {e}")
+                        if "429" in str(e):
+                            self.last_run_stats["classification_failed_429"] += 1
                         if attempt < max_attempts:
                             delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
                             if "429" in str(e):
@@ -953,6 +963,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
         """
         logging.info("=== TrendEngine.retry_pending_classifications() starting ===")
         started_at = time.monotonic()
+        self.last_run_stats["pending_backfilled"] = 0
         if budget_state is None:
             budget_state = StageBudgetState(stage="llm_backfill")
         
@@ -1070,6 +1081,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     self.supabase.table("trends").update(update_data).eq("id", tid).execute()
                     logging.info(f"Successfully re-classified trend '{title}' (id={tid}) via LLM.")
                     success_count += 1
+                    self.last_run_stats["pending_backfilled"] = success_count
                 except Exception as err:
                     logging.warning(f"Re-classification attempt {new_retry_count} failed for '{title}': {err}")
                     
@@ -1094,6 +1106,7 @@ Return ONLY a valid JSON object with EXACTLY these fields:
             
         except Exception as e:
             logging.error(f"Error in retry_pending_classifications: {e}", exc_info=True)
+            self.last_run_stats["pending_backfilled"] = success_count if 'success_count' in locals() else 0
             return 0
 
 

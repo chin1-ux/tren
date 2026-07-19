@@ -126,6 +126,14 @@ def run_full_pipeline():
         "stage": "initializing",
         "cutoff_reason": None,
     }
+    groq_keys_detected = sum(1 for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3") if os.getenv(key))
+    gemini_keys_detected = sum(1 for key in ("GEMINI_API_KEY", "GEMINI_API_KEY_2") if os.getenv(key))
+    reels_scraped = 0
+    reels_skipped_low_engagement = 0
+    classification_success = 0
+    classification_failed_429 = 0
+    uploads_skipped_oversized = 0
+    pending_backfilled = 0
     run_label = f"PIPELINE RUN @ {start.strftime('%Y-%m-%d %H:%M IST')}"
     logging.info(f"=== {run_label} STARTING ===")
 
@@ -138,7 +146,7 @@ def run_full_pipeline():
     os.environ["SCRAPER_MODE"] = scrape_mode
     logging.info(f"Selected scraper mode for this run: {scrape_mode} (cron run count={run_count})")
 
-    # ── 0. Schema Validation ───────────────────────────────────────────────────
+    # 0. Schema Validation
     try:
         run_state["stage"] = "schema_validation"
         sb = _get_supabase()
@@ -149,23 +157,27 @@ def run_full_pipeline():
         logging.critical(f"Pipeline startup aborted due to schema mismatch: {e}")
         raise e
 
-    # ── 1. Instagram Scraper ───────────────────────────────────────────────────
+    # 1. Instagram Scraper
     new_reels_count = 0
     try:
         run_state["stage"] = "instagram_scrape"
         logging.info("Step 1/5: Scraping Instagram trending reels...")
         insta = InstagramScraper()
         new_reels_count = insta.scrape_trending_reels()
+        reels_scraped = new_reels_count
+        scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}
+        reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
+        uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
         logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
     except Exception as e:
         run_state["stage"] = "instagram_scrape_failed"
         run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
         logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
-    # ── 2. YouTube Scraper (Bypassed) ─────────────────────────────────────────
+    # 2. YouTube Scraper (Bypassed)
     logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
 
-    # ── 3. Trend Engine: detect new trends ───────────────────────────────────
+    # 3. Trend Engine: detect new trends
     trend_ids = []
     if new_reels_count > 0:  # Run trend detection even for small batches; TrendEngine has its own guard
         # Data-quality warning: check proportion of null audio titles in recent scrape
@@ -195,6 +207,7 @@ def run_full_pipeline():
             try:
                 run_state["stage"] = "llm_backfill"
                 retried_count = engine.retry_pending_classifications(limit=3, max_seconds=90.0)
+                pending_backfilled = int(retried_count or 0)
                 logging.info(f"LLM Re-classification retry completed. Successfully re-classified {retried_count} trends.")
                 if retried_count < 3:
                     logging.info(
@@ -206,6 +219,8 @@ def run_full_pipeline():
                 logging.error(f"LLM Re-classification retry failed: {retry_err}", exc_info=True)
                 
             trend_ids = engine.detect_trends()
+            classification_success = int(engine.last_run_stats.get("classification_success", 0) or 0)
+            classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
             logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
         except Exception as e:
             run_state["stage"] = "trend_engine_failed"
@@ -214,7 +229,7 @@ def run_full_pipeline():
     else:
         logging.warning(f"Skipping trend detection — only {new_reels_count} new reels scraped this cycle, likely scraper failure.")
 
-    # ── 4. Trend Refresher: update lifecycle of existing trends ──────────────
+    # 4. Trend Refresher: update lifecycle of existing trends
     try:
         run_state["stage"] = "trend_refresher"
         logging.info("Step 4/5: Running TrendRefresher to update trend statuses...")
@@ -240,7 +255,7 @@ def run_full_pipeline():
     except Exception as e:
         logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
 
-    # ── 5. Alert System: notify users of new rising trends ───────────────────
+    # 5. Alert System: notify users of new rising trends
     if trend_ids:
         try:
             run_state["stage"] = "alerts"
@@ -255,7 +270,7 @@ def run_full_pipeline():
     else:
         logging.info("Step 5/5: No new trends — skipping alerts.")
 
-    # ── Log run record to Supabase ────────────────────────────────────────────
+    # Log run record to Supabase
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     completed_at = datetime.now(timezone.utc)
     status = "success" if not run_state.get("cutoff_reason") else "partial"
@@ -272,10 +287,31 @@ def run_full_pipeline():
             "stage": run_state.get("stage"),
             "cutoff_reason": run_state.get("cutoff_reason"),
             "scrape_mode": scrape_mode,
+            "groq_keys_detected": groq_keys_detected,
+            "gemini_keys_detected": gemini_keys_detected,
+            "reels_scraped": reels_scraped,
+            "reels_skipped_low_engagement": reels_skipped_low_engagement,
+            "classification_success": classification_success,
+            "classification_failed_429": classification_failed_429,
+            "uploads_skipped_oversized": uploads_skipped_oversized,
+            "pending_backfilled": pending_backfilled,
         }).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")
 
+    logging.info(
+        "RUN SUMMARY: "
+        f"mode={scrape_mode} | "
+        f"groq_keys_detected={groq_keys_detected} | "
+        f"gemini_keys_detected={gemini_keys_detected} | "
+        f"reels_scraped={reels_scraped} | "
+        f"reels_skipped_low_engagement={reels_skipped_low_engagement} | "
+        f"classification_success={classification_success} | "
+        f"classification_failed_429={classification_failed_429} | "
+        f"uploads_skipped_oversized={uploads_skipped_oversized} | "
+        f"duration={int(elapsed)}s | "
+        f"pending_backfilled={pending_backfilled}"
+    )
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")

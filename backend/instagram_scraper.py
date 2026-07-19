@@ -485,6 +485,18 @@ Rules:
         total_scraped = 0
         saved_count = 0
         high_velocity_reels = []
+        scrape_stats = {
+            "missing_reel_id": 0,
+            "missing_timestamp": 0,
+            "low_engagement": 0,
+            "velocity_failed": 0,
+            "duplicate": 0,
+            "insert_attempts": 0,
+            "insert_saved": 0,
+            "item_errors": 0,
+            "stored_videos": 0,
+            "failed_video_stores": 0,
+        }
 
         scrape_mode = os.getenv("SCRAPER_MODE", "india").strip().lower()
         if "CUSTOM" in self.hashtag_groups:
@@ -520,6 +532,7 @@ Rules:
                     try:
                         reel_id = item.get("shortCode")
                         if not reel_id:
+                            scrape_stats["missing_reel_id"] += 1
                             continue
 
                         view_count = int(item.get("videoViewCount") or 0)
@@ -529,6 +542,7 @@ Rules:
 
                         timestamp_str = item.get("timestamp")
                         if not timestamp_str:
+                            scrape_stats["missing_timestamp"] += 1
                             continue
                         if timestamp_str.endswith("Z"):
                             timestamp_str = timestamp_str[:-1] + "+00:00"
@@ -541,16 +555,19 @@ Rules:
                         velocity_score = (engagement_2026 / hours_live / normalized_followers) * 100
 
                         if view_count < 10000 and like_count < 200:
+                            scrape_stats["low_engagement"] += 1
                             continue
 
                         passes_velocity = velocity_score > 0.3
                         passes_raw = view_count > 15000 and hours_live < 6
                         if not (passes_velocity or passes_raw):
+                            scrape_stats["velocity_failed"] += 1
                             continue
 
                         # Skip if already in DB
                         check = self.supabase.table("reels").select("reel_id").eq("reel_id", reel_id).execute()
                         if check.data:
+                            scrape_stats["duplicate"] += 1
                             continue
 
                         owner_username = item.get("ownerUsername")
@@ -645,15 +662,19 @@ Rules:
                                 reel_data["preview_url"] = stored_url
                                 reel_data["video_storage_status"] = "stored"
                                 reel_data["video_stored_at"] = datetime.now(timezone.utc).isoformat()
+                                scrape_stats["stored_videos"] += 1
                             else:
                                 reel_data["preview_url"] = None
                                 reel_data["video_storage_status"] = "failed"
                                 reel_data["video_stored_at"] = None
+                                scrape_stats["failed_video_stores"] += 1
                         else:
                             reel_data["video_storage_status"] = "pending"
 
                         self.supabase.table("reels").insert(reel_data).execute()
+                        scrape_stats["insert_attempts"] += 1
                         logging.info(f"Saved reel {reel_id} by @{owner_username} (velocity={velocity_score:.3f})")
+                        scrape_stats["insert_saved"] += 1
 
                         # Update trend lifecycle
                         self._update_trend_lifecycle(
@@ -674,6 +695,7 @@ Rules:
 
                     except Exception as e:
                         logging.error(f"Error processing reel: {e}", exc_info=True)
+                        scrape_stats["item_errors"] += 1
 
             except Exception as e:
                 logging.error(f"Failed hashtag #{hashtag}: {e}", exc_info=True)
@@ -699,6 +721,7 @@ Rules:
                 except Exception as e:
                     logging.error(f"Hook analysis error for '{title}': {e}")
 
+        self._last_scrape_stats = scrape_stats
         return saved_count
 
 
