@@ -48,13 +48,13 @@ const NICHES = [
   { id: "beauty",   label: "💄 Beauty" },
 ];
 
-type FeedTab = "rising" | "emerging";
+type FeedTab = "global" | "india";
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<string>("all");
-  const [feedTab, setFeedTab] = useState<FeedTab>("rising");
+  const [feedTab, setFeedTab] = useState<FeedTab>("global");
   const [sortMode] = useState<any>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -140,10 +140,10 @@ function TrendsFeed() {
     prevCountRef.current = emergingCount;
   }, [emergingCount]);
 
-  const activeData = feedTab === "rising" ? risingData : emergingData;
-  const isLoading = feedTab === "rising" ? risingLoading : emergingLoading;
-  const isError = feedTab === "rising" ? risingError : emergingError;
-  const refetch = feedTab === "rising" ? refetchRising : refetchEmerging;
+  const activeData = feedTab === "global" ? crossCulturalData : risingData;
+  const isLoading = feedTab === "global" ? crossCulturalLoading : risingLoading;
+  const isError = feedTab === "global" ? false : risingError;
+  const refetch = feedTab === "global" ? refetchRising : refetchRising;
 
   const trends = useMemo(() => {
     const list = activeData ?? [];
@@ -184,11 +184,11 @@ function TrendsFeed() {
 
           <div className="flex items-center gap-2">
             {/* Notification bell — switches to Emerging tab when tapped */}
-            <button
+              <button
               id="notification-bell"
               onClick={() => {
-                setFeedTab("emerging");
-                toast("⚡ Switched to Emerging feed", {
+                setFeedTab("global");
+                toast("⚡ Switched to Global feed", {
                   description: emergingCount > 0
                     ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} detected right now`
                     : "No new emerging trends yet — check back soon!",
@@ -353,19 +353,18 @@ function TrendsFeed() {
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
           <TabButton
-            active={feedTab === "rising"}
-            onClick={() => setFeedTab("rising")}
-            icon={<TrendingUp className="h-3.5 w-3.5" />}
-            label="Rising"
-            count={risingData?.length}
+            active={feedTab === "global"}
+            onClick={() => setFeedTab("global")}
+            icon={<Globe className="h-3.5 w-3.5" />}
+            label="Global"
+            count={crossCulturalData?.length}
           />
           <TabButton
-            active={feedTab === "emerging"}
-            onClick={() => setFeedTab("emerging")}
-            icon={<Zap className="h-3.5 w-3.5" />}
-            label="Emerging"
-            count={emergingCount}
-            urgent
+            active={feedTab === "india"}
+            onClick={() => setFeedTab("india")}
+            icon={<TrendingUp className="h-3.5 w-3.5" />}
+            label="India"
+            count={risingData?.length}
           />
         </div>
 
@@ -390,7 +389,7 @@ function TrendsFeed() {
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
       <div className="space-y-4 px-4 pt-4">
-        {feedTab === "emerging" && (
+        {feedTab === "india" && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
               ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
@@ -418,9 +417,9 @@ function TrendsFeed() {
             <p className="text-4xl mb-3">🎵</p>
             <p className="text-base font-semibold">No trends right now</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {feedTab === "emerging"
-                ? "No emerging trends detected yet. Check back in an hour!"
-                : "Our scrapers are working. New trends will appear soon."}
+              {feedTab === "india"
+                ? "Our scrapers are working. New India trends will appear soon."
+                : "Our global-first rail is warming up. New cross-cultural trends will appear soon."}
             </p>
           </div>
         ) : (
