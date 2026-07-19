@@ -15,6 +15,7 @@ CREATE TABLE IF NOT EXISTS cron_runs (
     run_at TIMESTAMPTZ NOT NULL,
     completed_at TIMESTAMPTZ,
     duration_seconds NUMERIC,
+    scrape_mode TEXT,
     new_trends_found INTEGER NOT NULL,
     trend_ids JSONB,
     status TEXT NOT NULL,

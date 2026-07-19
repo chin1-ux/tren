@@ -31,6 +31,7 @@ logger = logging.getLogger("migrate_db")
 MIGRATIONS = [
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS completed_at TIMESTAMPTZ;",
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS duration_seconds NUMERIC;",
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS scrape_mode TEXT;",
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS stage TEXT;",
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS cutoff_reason TEXT;",
 

@@ -1,6 +1,7 @@
 import os
 import sys
 import logging
+import os
 from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -127,6 +128,15 @@ def run_full_pipeline():
     }
     run_label = f"PIPELINE RUN @ {start.strftime('%Y-%m-%d %H:%M IST')}"
     logging.info(f"=== {run_label} STARTING ===")
+
+    try:
+        sb = _get_supabase()
+        run_count = sb.table("cron_runs").select("id", count="exact").execute().count or 0
+    except Exception:
+        run_count = 0
+    scrape_mode = "india" if run_count % 2 == 0 else "global"
+    os.environ["SCRAPER_MODE"] = scrape_mode
+    logging.info(f"Selected scraper mode for this run: {scrape_mode} (cron run count={run_count})")
 
     # ── 0. Schema Validation ───────────────────────────────────────────────────
     try:
@@ -261,6 +271,7 @@ def run_full_pipeline():
             "status": status,
             "stage": run_state.get("stage"),
             "cutoff_reason": run_state.get("cutoff_reason"),
+            "scrape_mode": scrape_mode,
         }).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")

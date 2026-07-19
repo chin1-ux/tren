@@ -119,6 +119,12 @@ class InstagramScraper:
             "GLOBAL_NICHES": [
                 "fitnessreels", "foodreels", "comedyreels", "fashionreels",
                 "travelreels", "beautyreels", "artreels"
+            ],
+            "GLOBAL_DISCOVERY": [
+                "trending", "viral", "reels", "fyp",
+                "explore", "instareels", "viralreels", "reelsviral",
+                "tiktok", "aesthetic", "music", "travel",
+                "fashion", "beauty", "art"
             ]
         }
 
@@ -979,8 +985,11 @@ Return ONLY valid JSON, no markdown, no explanation:
             return 0
         
         try:
+            scrape_mode = os.getenv("SCRAPER_MODE", "india").strip().lower()
             if "CUSTOM" in self.hashtag_groups:
                 priority_pool = self.hashtag_groups["CUSTOM"]
+            elif scrape_mode == "global":
+                priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             else:
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]

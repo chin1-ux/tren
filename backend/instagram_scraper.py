@@ -121,6 +121,12 @@ class InstagramScraper:
             "GLOBAL_NICHES": [
                 "fitnessreels", "foodreels", "comedyreels", "fashionreels",
                 "travelreels", "beautyreels", "artreels"
+            ],
+            "GLOBAL_DISCOVERY": [
+                "trending", "viral", "reels", "fyp",
+                "explore", "instareels", "viralreels", "reelsviral",
+                "tiktok", "aesthetic", "music", "travel",
+                "fashion", "beauty", "art"
             ]
         }
 
@@ -468,8 +474,11 @@ Rules:
         saved_count = 0
         high_velocity_reels = []
 
+        scrape_mode = os.getenv("SCRAPER_MODE", "india").strip().lower()
         if "CUSTOM" in self.hashtag_groups:
             priority_pool = self.hashtag_groups["CUSTOM"]
+        elif scrape_mode == "global":
+            priority_pool = self.hashtag_groups["GLOBAL_DISCOVERY"][:15]
         else:
             priority_pool = (
                 self.hashtag_groups["INDIA_TRENDING"][:6] +
