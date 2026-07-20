@@ -408,53 +408,121 @@ def run_data_retention_job():
     except Exception as e:
         logging.error(f"Error deleting old consent records: {e}")
 
-    # 6. Cleanup stale reels preview videos (older than 30 days and not in top 50 by velocity)
+    # 6. Prune reels-preview Storage bucket — delete ALL files older than 3 days via REST API.
+    # Keeps the bucket well under the free-tier 1 GB storage quota.
     try:
-        logging.info("Cleaning up stale reels preview videos (older than 30 days and not in top 50)...")
-        import psycopg2
-        SUPABASE_DB_URL = os.getenv("SUPABASE_DB_URL")
-        if SUPABASE_DB_URL:
-            conn = psycopg2.connect(SUPABASE_DB_URL)
-            conn.autocommit = True
-            cursor = conn.cursor()
-            
-            # Fetch stale reels
-            cursor.execute("""
-                SELECT id, reel_id, preview_url, audio_id FROM reels
-                WHERE video_stored_at < NOW() - INTERVAL '30 days'
-                AND id NOT IN (
-                    SELECT id FROM reels
-                    ORDER BY (velocity_score) DESC
-                    LIMIT 50
+        logging.info("Pruning reels-preview Storage bucket (files > 3 days old)...")
+        import requests as _req
+        _supa_url = os.getenv("SUPABASE_URL")
+        _svc_key  = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+        if _supa_url and _svc_key:
+            _hdrs = {
+                "Authorization": f"Bearer {_svc_key}",
+                "apikey": _svc_key,
+                "Content-Type": "application/json",
+            }
+            _cutoff = (now_ts - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
+            _storage_base = f"{_supa_url}/storage/v1"
+            _total_del = 0
+            _offset = 0
+            while True:
+                _list_resp = _req.post(
+                    f"{_storage_base}/object/list/reels-preview",
+                    headers=_hdrs,
+                    json={"limit": 100, "offset": _offset, "prefix": ""},
+                    timeout=15,
                 )
-                AND video_storage_status = 'stored';
-            """)
-            stale_reels = cursor.fetchall()
-            
-            for rid, reel_id, preview_url, audio_id in stale_reels:
-                # Delete from Supabase Storage
-                safe_audio_id = audio_id or "no_audio"
-                path = f"reels/{safe_audio_id}/{reel_id}.mp4"
-                try:
-                    sb.storage.from_("reels-preview").remove([path])
-                    logging.info(f"Deleted stale video file from storage: {path}")
-                except Exception as st_err:
-                    logging.error(f"Error removing {path} from storage: {st_err}")
-                
-                # Update DB row status
-                cursor.execute("""
-                    UPDATE reels 
-                    SET video_storage_status = 'expired', preview_url = null
-                    WHERE id = %s;
-                """, (rid,))
-            
-            cursor.close()
-            conn.close()
-            logging.info(f"Stale reels video cleanup complete. Processed {len(stale_reels)} video(s).")
+                if _list_resp.status_code != 200:
+                    logging.warning(f"reels-preview list failed ({_list_resp.status_code}): {_list_resp.text[:200]}")
+                    break
+                _files = _list_resp.json()
+                if not _files:
+                    break
+                _old = [f["name"] for f in _files if f.get("created_at", "9999") < _cutoff]
+                if _old:
+                    _del_resp = _req.delete(
+                        f"{_storage_base}/object/reels-preview",
+                        headers=_hdrs,
+                        json={"prefixes": _old},
+                        timeout=30,
+                    )
+                    if _del_resp.status_code in (200, 204):
+                        _total_del += len(_old)
+                    else:
+                        logging.warning(f"reels-preview delete batch failed ({_del_resp.status_code}): {_del_resp.text[:200]}")
+                if len(_files) < 100:
+                    break
+                _offset += 100
+            logging.info(f"reels-preview Storage pruning complete: {_total_del} file(s) deleted.")
+        else:
+            logging.warning("reels-preview Storage pruning skipped: missing SUPABASE_URL or key.")
     except Exception as e:
-        logging.error(f"Error during reels video cleanup: {e}")
+        logging.error(f"Error during reels-preview Storage pruning: {e}")
+
+    # 6b. Prune raw scraped rows (reels, audio_trend_scores, youtube_shorts) older than 7 days.
+    # Trend intelligence only needs the last week of raw signals.
+    # Without this, these tables grow indefinitely and push the DB past the 500 MB free-tier limit.
+    try:
+        logging.info("Pruning old scraped DB rows (reels/audio_trend_scores/youtube_shorts > 7 days)...")
+        import psycopg2 as _pg2
+        _db_url2 = os.getenv("SUPABASE_DB_URL")
+        if _db_url2:
+            _pg_conn = _pg2.connect(_db_url2, connect_timeout=15)
+            _pg_conn.autocommit = True
+            _pg_cur = _pg_conn.cursor()
+            _pg_cur.execute("DELETE FROM audio_trend_scores WHERE created_at < NOW() - INTERVAL '7 days';")
+            _n_ats = _pg_cur.rowcount
+            _pg_cur.execute("DELETE FROM reels WHERE created_at < NOW() - INTERVAL '7 days';")
+            _n_reels = _pg_cur.rowcount
+            _pg_cur.execute("DELETE FROM youtube_shorts WHERE created_at < NOW() - INTERVAL '7 days';")
+            _n_yt = _pg_cur.rowcount
+            _pg_cur.close()
+            _pg_conn.close()
+            logging.info(
+                f"DB row pruning complete: "
+                f"audio_trend_scores={_n_ats}, reels={_n_reels}, youtube_shorts={_n_yt} deleted."
+            )
+        else:
+            logging.warning("DB row pruning skipped: SUPABASE_DB_URL not set.")
+    except Exception as e:
+        logging.error(f"Error during DB row pruning: {e}")
+
+    # 7. trend_snapshots retention: keep only last 14 snapshots per trend
+    # 14 x 6h intervals = 84h history, sufficient for the 3-snapshot velocity check.
+    # Without this: 42 trends x ~4 snapshots/day x 365 days ≈ 61k rows/year growing forever.
+    try:
+        logging.info("Running trend_snapshots retention (keep last 14 per trend)...")
+        import psycopg2 as _psycopg2
+        _db_url = os.getenv("SUPABASE_DB_URL")
+        if _db_url:
+            _conn = _psycopg2.connect(_db_url, connect_timeout=15)
+            _conn.autocommit = True
+            _cur = _conn.cursor()
+            _cur.execute("""
+                DELETE FROM trend_snapshots
+                WHERE id NOT IN (
+                    SELECT id FROM (
+                        SELECT id,
+                               ROW_NUMBER() OVER (
+                                   PARTITION BY trend_id
+                                   ORDER BY captured_at DESC
+                               ) AS rn
+                        FROM trend_snapshots
+                    ) ranked
+                    WHERE rn <= 14
+                );
+            """)
+            deleted_snaps = _cur.rowcount
+            _cur.close()
+            _conn.close()
+            logging.info(f"trend_snapshots retention: deleted {deleted_snaps} old snapshot(s).")
+        else:
+            logging.warning("trend_snapshots retention skipped: SUPABASE_DB_URL not set.")
+    except Exception as e:
+        logging.error(f"Error during trend_snapshots retention: {e}")
 
     logging.info("Daily Data Retention Cleanup Job Complete.")
+
 
 
 def run_creator_sync_job():
