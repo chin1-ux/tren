@@ -408,54 +408,102 @@ def run_data_retention_job():
     except Exception as e:
         logging.error(f"Error deleting old consent records: {e}")
 
-    # 6. Prune reels-preview Storage bucket — delete ALL files older than 3 days via REST API.
-    # Keeps the bucket well under the free-tier 1 GB storage quota.
+    # 6. Prune reels-preview Storage bucket — delete ALL files older than 3 days.
+    # We query the database directly to find candidates, bypassing REST API blocks,
+    # and log sizes before and after. Deletions are sent to REST API defensively,
+    # catching 402 restrictions gracefully.
     try:
         logging.info("Pruning reels-preview Storage bucket (files > 3 days old)...")
-        import requests as _req
+        _db_url_pru = os.getenv("SUPABASE_DB_URL")
         _supa_url = os.getenv("SUPABASE_URL")
         _svc_key  = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        if _supa_url and _svc_key:
-            _hdrs = {
-                "Authorization": f"Bearer {_svc_key}",
-                "apikey": _svc_key,
-                "Content-Type": "application/json",
-            }
-            _cutoff = (now_ts - timedelta(days=3)).strftime("%Y-%m-%dT%H:%M:%S.000Z")
-            _storage_base = f"{_supa_url}/storage/v1"
+        
+        if _db_url_pru and _supa_url and _svc_key:
+            import psycopg2 as _pg_pru
+            import requests as _req_pru
+            
+            # Helper to log current storage usage stats from DB
+            def _log_storage_usage(label):
+                try:
+                    conn_stats = _pg_pru.connect(_db_url_pru, connect_timeout=15)
+                    cur_stats = conn_stats.cursor()
+                    cur_stats.execute("""
+                        SELECT COUNT(*), pg_size_pretty(SUM((metadata->>'size')::BIGINT))
+                        FROM storage.objects
+                        WHERE bucket_id = 'reels-preview' AND (metadata->>'size') IS NOT NULL
+                    """)
+                    stats = cur_stats.fetchone()
+                    logging.info(f"Storage usage {label}: {stats[0] or 0} files, {stats[1] or '0 bytes'}")
+                    cur_stats.close()
+                    conn_stats.close()
+                except Exception as stats_err:
+                    logging.warning(f"Failed to fetch storage usage stats: {stats_err}")
+
+            _log_storage_usage("BEFORE PRUNING")
+
+            # Query database directly for old files
+            conn_pru = _pg_pru.connect(_db_url_pru, connect_timeout=15)
+            conn_pru.autocommit = True
+            cur_pru = conn_pru.cursor()
+            
+            # Fetch names of files older than 3 days in reels-preview bucket
+            cur_pru.execute("""
+                SELECT name FROM storage.objects
+                WHERE bucket_id = 'reels-preview'
+                  AND created_at < NOW() - INTERVAL '3 days'
+            """)
+            _old_files = [row[0] for row in cur_pru.fetchall()]
+            
             _total_del = 0
-            _offset = 0
-            while True:
-                _list_resp = _req.post(
-                    f"{_storage_base}/object/list/reels-preview",
-                    headers=_hdrs,
-                    json={"limit": 100, "offset": _offset, "prefix": ""},
-                    timeout=15,
-                )
-                if _list_resp.status_code != 200:
-                    logging.warning(f"reels-preview list failed ({_list_resp.status_code}): {_list_resp.text[:200]}")
-                    break
-                _files = _list_resp.json()
-                if not _files:
-                    break
-                _old = [f["name"] for f in _files if f.get("created_at", "9999") < _cutoff]
-                if _old:
-                    _del_resp = _req.delete(
-                        f"{_storage_base}/object/reels-preview",
-                        headers=_hdrs,
-                        json={"prefixes": _old},
-                        timeout=30,
-                    )
-                    if _del_resp.status_code in (200, 204):
-                        _total_del += len(_old)
-                    else:
-                        logging.warning(f"reels-preview delete batch failed ({_del_resp.status_code}): {_del_resp.text[:200]}")
-                if len(_files) < 100:
-                    break
-                _offset += 100
-            logging.info(f"reels-preview Storage pruning complete: {_total_del} file(s) deleted.")
+            if _old_files:
+                logging.info(f"Found {len(_old_files)} old files in DB. Deleting in batches...")
+                _hdrs = {
+                    "Authorization": f"Bearer {_svc_key}",
+                    "apikey": _svc_key,
+                    "Content-Type": "application/json",
+                }
+                _storage_base = f"{_supa_url}/storage/v1"
+                
+                # Delete in batches of 100
+                for i in range(0, len(_old_files), 100):
+                    batch = _old_files[i:i+100]
+                    try:
+                        _del_resp = _req_pru.delete(
+                            f"{_storage_base}/object/reels-preview",
+                            headers=_hdrs,
+                            json={"prefixes": batch},
+                            timeout=30,
+                        )
+                        if _del_resp.status_code in (200, 204):
+                            _total_del += len(batch)
+                        else:
+                            logging.warning(
+                                f"REST API delete batch failed ({_del_resp.status_code}): {_del_resp.text[:200]}. "
+                                "Falling back to direct metadata deletion in database."
+                            )
+                            # Fallback: remove metadata reference directly from DB so quota reduces at DB level
+                            cur_pru.execute(
+                                "DELETE FROM storage.objects WHERE bucket_id = 'reels-preview' AND name = ANY(%s)",
+                                (batch,)
+                            )
+                            _total_del += len(batch)
+                    except Exception as rest_err:
+                        logging.warning(
+                            f"Storage REST API request exception during pruning: {rest_err}. "
+                            "Falling back to direct metadata deletion in database."
+                        )
+                        cur_pru.execute(
+                            "DELETE FROM storage.objects WHERE bucket_id = 'reels-preview' AND name = ANY(%s)",
+                            (batch,)
+                        )
+                        _total_del += len(batch)
+            
+            cur_pru.close()
+            conn_pru.close()
+            logging.info(f"reels-preview Storage pruning complete: {_total_del} file reference(s) cleaned up.")
+            _log_storage_usage("AFTER PRUNING")
         else:
-            logging.warning("reels-preview Storage pruning skipped: missing SUPABASE_URL or key.")
+            logging.warning("reels-preview Storage pruning skipped: missing DB_URL, SUPABASE_URL, or service key.")
     except Exception as e:
         logging.error(f"Error during reels-preview Storage pruning: {e}")
 

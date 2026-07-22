@@ -189,8 +189,6 @@ class InstagramScraper:
         }
 
     def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
-
-    def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
         """Check if reel would be in the top 20 reels by view_count for this audio_id."""
         if not audio_id:
             return False
