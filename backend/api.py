@@ -389,41 +389,14 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     if not fresh_video_url or not is_safe_instagram_url(fresh_video_url):
         raise HTTPException(status_code=400, detail="Invalid or unsafe video URL retrieved")
         
-    # 3. Attempt to store in background
+    # 3. VIDEO STORAGE DISABLED — thumbnail-only policy.
+    # Background MP4 upload removed: no size guard was present here,
+    # contributing to the 16GB quota blowout. Return the live CDN URL directly.
     def background_store():
-        try:
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            dl_res = requests.get(fresh_video_url, headers=headers, timeout=30)
-            if dl_res.status_code == 200:
-                safe_audio_id = audio_id or "no_audio"
-                path = f"reels/{safe_audio_id}/{reel_id}.mp4"
-                
-                # Upload to storage
-                supabase.storage.from_("reels-preview").upload(
-                    path=path,
-                    file=dl_res.content,
-                    file_options={"content-type": "video/mp4", "x-upsert": "true"}
-                )
-                
-                # Public URL resolution
-                try:
-                    pub_obj = supabase.storage.from_("reels-preview").get_public_url(path)
-                    stored_url = str(pub_obj) if pub_obj else f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/reels-preview/{path}"
-                except Exception:
-                    stored_url = f"{os.getenv('SUPABASE_URL')}/storage/v1/object/public/reels-preview/{path}"
-                
-                from datetime import datetime, timezone
-                supabase.table("reels").update({
-                    "preview_url": stored_url,
-                    "video_url": fresh_video_url,
-                    "video_storage_status": "stored",
-                    "video_stored_at": datetime.now(timezone.utc).isoformat()
-                }).eq("id", reel_db_id).execute()
-                logging.info(f"Successfully background-stored video for reel ID {reel_db_id}")
-        except Exception as err:
-            logging.error(f"Failed background storing video for reel ID {reel_db_id}: {err}")
-            
+        logging.info(f"background_store skipped for reel {reel_db_id} — thumbnail-only storage policy active.")
+
     background_tasks.add_task(background_store)
+
     
     # 4. Return the fresh URL immediately along with correct reel details
     return {"videoUrl": fresh_video_url, "reel_id": reel_id, "id": reel_db_id}

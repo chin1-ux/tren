@@ -59,31 +59,89 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
 _INDIAN_ORIGIN_HINTS = (
     "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
     "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
-    "ap dhillon", "from \"", "(from ", "from the movie", "original audio"
+    "ap dhillon", "from \"", "(from ", "from the movie"
+)
+
+_INDIAN_ORIGIN_REGEXES = (
+    re.compile(r"\b(from\s+the\s+movie|from\s+\")", re.I),
+    re.compile(r"\b(arijit|alka|pritam|rahman|anirudh|diljit|shreya|armaan|badshah|ap dhillon)\b", re.I),
+)
+
+_NON_INDIAN_ORIGIN_HINTS = (
+    "piano fantasia",
+    "lana del rey",
+    "pixies",
+    "nacho gomez cao",
+    "young and beautiful",
+    "where is my mind",
+    "tu beso",
+    "korean",
+    "brazilian",
+    "russian",
+    "spanish",
 )
 
 
 def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
     text = f"{title or ''} {artist or ''} {caption or ''}".lower()
-    return any(hint in text for hint in _INDIAN_ORIGIN_HINTS)
+    return any(hint in text for hint in _INDIAN_ORIGIN_HINTS) or any(rx.search(text) for rx in _INDIAN_ORIGIN_REGEXES)
+
+
+def _looks_non_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> str | None:
+    text = f"{title or ''} {artist or ''} {caption or ''}".lower()
+    for hint in _NON_INDIAN_ORIGIN_HINTS:
+        if hint in text:
+            if hint in {"piano fantasia", "young and beautiful", "where is my mind", "tu beso", "lana del rey", "pixies", "nacho gomez cao"}:
+                if hint in {"piano fantasia"}:
+                    return "KR"
+                if hint in {"brazilian"}:
+                    return "BR"
+                if hint in {"russian"}:
+                    return "RU"
+                if hint in {"spanish", "tu beso", "nacho gomez cao"}:
+                    return "GB" if "british" in text else "US"
+                return "US"
+            if hint == "korean":
+                return "KR"
+            if hint == "brazilian":
+                return "BR"
+            if hint == "russian":
+                return "RU"
+    return None
 
 
 def _normalize_trend_origin(metadata: dict, reel: dict) -> dict:
     title = reel.get("audio_title") or reel.get("audio_name") or ""
     artist = reel.get("audio_artist") or ""
     caption = reel.get("caption") or ""
+    hashtags = reel.get("hashtags") or []
+    creator_username = reel.get("owner_username") or ""
     caption_text = caption.lower()
     audio_text = f"{title} {artist}".lower()
+    hashtag_text = " ".join(hashtags).lower() if isinstance(hashtags, list) else str(hashtags).lower()
+    all_text = f"{title} {artist} {caption} {hashtag_text} {creator_username}".lower()
 
-    if _looks_indian_audio(title, artist, caption):
+    if _looks_indian_audio(title, artist, caption) or any(tag in hashtag_text for tag in ("reelsindia", "trendingindia", "indiansong", "punjabisongs", "tamilreels", "telugureels", "hindireels")):
         metadata["trend_origin"] = "IN"
         metadata["creator_country"] = "IN"
         if "hindi" in caption_text:
             metadata["audio_language"] = "hindi"
-    elif metadata.get("trend_origin") in {"KR", "BR", "RU", "US", "GB"} and "original audio" in audio_text:
+    else:
+        forced_origin = _looks_non_indian_audio(title, artist, caption)
+        if forced_origin and metadata.get("trend_origin") in {"unknown", None, ""}:
+            metadata["trend_origin"] = forced_origin
+            if metadata.get("creator_country") in {"unknown", None, ""}:
+                metadata["creator_country"] = forced_origin
+
+    if metadata.get("trend_origin") in {"KR", "BR", "RU", "US", "GB"} and "original audio" in audio_text:
         metadata["trend_origin"] = "unknown"
         if metadata.get("creator_country") == "unknown":
             metadata["creator_country"] = "unknown"
+
+    if metadata.get("trend_origin") in {"unknown", None, ""}:
+        if any(tag in all_text for tag in ("reelsindia", "trendingindia", "reelkarofeelkaro", "hindireels", "punjabisongs", "tamilreels", "telugureels", "kannadareels", "bhojpurisong")):
+            metadata["trend_origin"] = "IN"
+            metadata["creator_country"] = "IN"
     return metadata
 
 
@@ -131,6 +189,8 @@ class InstagramScraper:
         }
 
     def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
+
+    def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
         """Check if reel would be in the top 20 reels by view_count for this audio_id."""
         if not audio_id:
             return False
@@ -143,55 +203,39 @@ class InstagramScraper:
             return True
 
     def _store_reel_video(self, reel_id: str, video_url: str, audio_id: str) -> str | None:
-        """Downloads MP4 from video_url and uploads to reels-preview bucket."""
-        if not video_url:
-            return None
-        try:
-            import requests
-            max_bytes = int(os.getenv("REEL_PREVIEW_MAX_BYTES", "5000000"))
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(video_url, headers=headers, timeout=20)
-            if not response.ok:
-                logging.error(f"Download failed for video {video_url} with status {response.status_code}")
-                return None
-            content_length = response.headers.get("Content-Length")
-            if content_length and int(content_length) > max_bytes:
-                logging.warning(
-                    f"Skipping video upload for reel {reel_id}: content-length {content_length} exceeds {max_bytes} bytes"
-                )
-                return None
-            if len(response.content) > max_bytes:
-                logging.warning(
-                    f"Skipping video upload for reel {reel_id}: downloaded {len(response.content)} bytes exceeds {max_bytes}"
-                )
-                return None
-            
-            safe_audio_id = audio_id or "no_audio"
-            path = f"reels/{safe_audio_id}/{reel_id}.mp4"
-            
-            self.supabase.storage.from_("reels-preview").upload(
-                path=path,
-                file=response.content,
-                file_options={"content-type": "video/mp4", "x-upsert": "true"}
-            )
-            
-            # Bulletproof public URL resolver
-            try:
-                public_url_obj = self.supabase.storage.from_("reels-preview").get_public_url(path)
-                if public_url_obj:
-                    url = str(public_url_obj)
-                else:
-                    url = f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
-            except Exception:
-                url = f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
-                
-            logging.info(f"Successfully stored reel video {reel_id} at {url}")
-            return url
-        except Exception as e:
-            logging.error(f"Video store failed for reel {reel_id}: {e}")
-            return None
+        # VIDEO UPLOADS PERMANENTLY DISABLED — thumbnail-only storage policy.
+        # Full MP4 uploads caused a 16GB quota blowout (2,625 videos up to 50MB each).
+        # Returning None here skips all video storage; thumbnail path is handled separately.
+        logging.debug(f"_store_reel_video skipped for {reel_id} — thumbnail-only policy active.")
+        return None
 
     # ── Audio helpers ─────────────────────────────────────────────────────────
+
+    def _extract_audio_id(self, music_info_dict: dict | None) -> str | None:
+        """Extract Instagram audio cluster/asset ID from musicInfo dict."""
+        if not music_info_dict:
+            return None
+        # Try music_info -> music_asset_info id
+        minfo = music_info_dict.get("music_info") or {}
+        asset = minfo.get("music_asset_info") or {}
+        audio_id = (
+            asset.get("id")
+            or asset.get("audio_cluster_id")
+            or asset.get("audioClusterId")
+            or asset.get("music_id")
+        )
+        if audio_id:
+            return str(audio_id)
+        # Fallback: original_sound_info
+        orig = music_info_dict.get("original_sound_info") or {}
+        audio_id = orig.get("audio_asset_id") or orig.get("id") or orig.get("audio_id")
+        return str(audio_id) if audio_id else None
+
+    def _extract_audio_use_count(self, music_info_dict: dict | None, audio_id: str | None = None) -> int:
+        """Extract how many reels are currently using this audio."""
+        if not music_info_dict:
+            return 0
+            
 
     def _extract_audio_id(self, music_info_dict: dict | None) -> str | None:
         """Extract Instagram audio cluster/asset ID from musicInfo dict."""
@@ -396,12 +440,17 @@ Return ONLY valid JSON, no markdown, no explanation:
                     raise
 
     def detect_reel_metadata(self, reel: dict) -> dict:
+        hashtags = reel.get("hashtags") or []
+        hashtag_text = ", ".join(hashtags) if isinstance(hashtags, list) else str(hashtags)
         prompt = f"""
 You are a metadata tagger for Instagram Reels. Analyse the following reel data
 and return ONLY a valid JSON object, no markdown, no explanation.
 
 Caption: "{reel.get('caption', '')}"
 Audio name: "{reel.get('audio_title', '') or reel.get('audio_name', '')}"
+Audio artist: "{reel.get('audio_artist', '')}"
+Hashtags: "{hashtag_text}"
+Creator username: "{reel.get('owner_username', '')}"
 Creator location hint: "unknown"
 
 Return this exact JSON structure:
@@ -415,7 +464,8 @@ Return this exact JSON structure:
 }}
 
 Rules:
-- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From "MovieName")', you MUST tag trend_origin and creator_country as "IN" and audio_language as "hindi" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.
+- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From "MovieName")', or the caption/hashtags strongly indicate India (reelsindia, trendingindia, reelkarofeelkaro, hindireels, punjabisongs, tamilreels, telugureels, kannadareels, bhojpurisong), you MUST tag trend_origin and creator_country as "IN" and audio_language as "hindi" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.
+- If the audio title/artist/caption clearly matches a known non-Indian track or artist (for example Piano Fantasia, Lana Del Rey, Pixies, Nacho Gomez Cao, or obvious Korean/Brazilian/Russian/Spanish cues), do NOT leave trend_origin as unknown unless the evidence is genuinely ambiguous.
 - is_cross_cultural should be true ONLY if the trend_origin is clearly from a different culture/country than the target consumer base (e.g., Russian, Korean, Spanish, or Brazilian audio being used by Indian creators). If the audio is Indian (IN origin) and caption is English (with English hashtags), is_cross_cultural MUST be false (since English is extremely common in Indian reels).
 - If caption is in Devanagari script → caption_language = "hindi"
 - If caption is in Latin script and English → caption_language = "english"

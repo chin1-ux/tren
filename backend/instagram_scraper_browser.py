@@ -776,6 +776,201 @@ class InstagramScraper:
         if not audio_id:
             return False
         try:
+    async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
+        """Navigate to the Instagram hashtag explore page with the Camoufox stealth browser
+        and capture the API JSON response via XHR interception."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("Failed to initialize browser session.")
+                return []
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            if not os.path.exists(cookies_path):
+                logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
+                return []
+
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            logger.info(f"Creating a fresh browser context for #{hashtag}...")
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            await ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.instagram.com/",
+            })
+
+            captured_json: list = [None]
+
+            def handle_response(response):
+                """Intercept the Instagram tags API XHR response."""
+                if "api/v1/tags/web_info" in response.url:
+                    try:
+                        captured_json[0] = response.json()
+                    except Exception:
+                        pass
+
+            page = await ctx.new_page()
+            page.on("response", handle_response)
+
+            try:
+                logger.info(f"Navigating Camoufox to explore page for #{hashtag}...")
+                await page.goto(
+                    f"https://www.instagram.com/explore/tags/{hashtag}/",
+                    wait_until="domcontentloaded",  # was: networkidle (waits 30s+ on Instagram SPA)
+                    timeout=15000,
+                )
+                await page.wait_for_timeout(800)
+            except Exception as e:
+                logger.warning(f"Navigation issue for #{hashtag}: {e}")
+            finally:
+                try:
+                    page.remove_listener("response", handle_response)
+                except Exception:
+                    pass
+
+            # Fallback: directly navigate to the API URL if the XHR was not captured
+            if not captured_json[0]:
+                logger.warning(f"XHR not captured for #{hashtag} — trying direct API endpoint...")
+                for attempt in range(2):
+                    try:
+                        headers, cookies = self._load_instagram_cookie_headers()
+                        response = requests.get(
+                            f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}",
+                            headers=headers,
+                            cookies=cookies,
+                            timeout=20,
+                        )
+                        response.raise_for_status()
+                        captured_json[0] = response.json()
+                        break
+                    except Exception as e:
+                        if attempt == 0:
+                            logger.warning(
+                                f"Direct API fetch failed for #{hashtag}: {e}. Reinitializing browser and retrying once..."
+                            )
+                        else:
+                            logger.error(f"Direct API fetch also failed for #{hashtag}: {e}")
+                            return []
+
+            # Detect login wall / challenge after navigation
+            current_url = page.url
+            if "/accounts/login/" in current_url or "/challenge/" in current_url:
+                raise RuntimeError(f"INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page ({current_url}) during scrape. Please refresh cookies.json.")
+
+            data = captured_json[0]
+            if not data:
+                logger.warning(f"No data returned for #{hashtag}")
+                return []
+
+            raw_data = data.get("data", {})
+            top_sections = raw_data.get("top", {}).get("sections", [])
+            recent_sections = raw_data.get("recent", {}).get("sections", [])
+            
+            medias = []
+            for section in top_sections + recent_sections:
+                layout_content = section.get("layout_content") or {}
+                
+                # Standard list of medias
+                for m_wrapper in layout_content.get("medias", []):
+                    media = m_wrapper.get("media")
+                    if media:
+                        medias.append(media)
+                
+                # Nested layout (like 1x2 grid or other containers)
+                for key, val in layout_content.items():
+                    if isinstance(val, dict) and "media" in val:
+                        medias.append(val["media"])
+                    elif isinstance(val, list):
+                        for subval in val:
+                            if isinstance(subval, dict) and "media" in subval:
+                                    medias.append(subval["media"])
+                            elif isinstance(subval, dict) and "clips" in subval:
+                                clips = subval.get("clips") or {}
+                                media = clips.get("media")
+                                if media:
+                                    medias.append(media)
+            
+            items = []
+            for media in medias:
+                media_type = media.get("media_type")
+                if media_type not in (2, 8):  # Must be video or video-carousel
+                    continue
+                
+                owner = media.get("user") or {}
+                caption_data = media.get("caption") or {}
+                caption_text = caption_data.get("text") or ""
+                
+                taken_at = media.get("taken_at", 0)
+                timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
+                
+                # Extract video url from video_versions
+                video_url = media.get("video_url")
+                if not video_url and media.get("video_versions"):
+                    video_url = media["video_versions"][0].get("url")
+
+                # Standardize format to match our pipeline expectancies
+                items.append({
+                    "shortCode": media.get("code"),
+                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
+                    "likesCount": media.get("like_count") or 0,
+                    "commentsCount": media.get("comment_count") or 0,
+                    "ownerFollowersCount": owner.get("follower_count") or 0,
+                    "timestamp": timestamp,
+                    "ownerUsername": owner.get("username"),
+                    "caption": caption_text[:500],
+                    "videoUrl": video_url,
+                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
+                    "media_dict": media
+                })
+                
+            logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
+            return items
+            
+        except Exception as e:
+            logger.error(f"API request failed for #{hashtag}: {e}", exc_info=True)
+            err_str = str(e).lower()
+            if "connection closed" in err_str or "target closed" in err_str or "playwright driver" in err_str:
+                logger.warning("Detected connection closed or target closed error. Tearing down browser completely to recover...")
+                await self._close_browser_async()
+            return []
+        finally:
+            if page:
+                try:
+                    page.remove_all_listeners()
+                except Exception:
+                    pass
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+
+    def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
+        if not audio_id:
+            return False
+        try:
             res = self.supabase.table("reels").select("id", count="exact").eq("audio_id", audio_id).gt("view_count", view_count).execute()
             count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
             return count < 20
@@ -784,52 +979,13 @@ class InstagramScraper:
             return True
 
     def _store_reel_video(self, reel_id: str, video_url: str, audio_id: str) -> str | None:
-        if not video_url:
-            return None
-        try:
-            max_bytes = int(os.getenv("REEL_PREVIEW_MAX_BYTES", "5000000"))
-            headers = {'User-Agent': 'Mozilla/5.0'}
-            response = requests.get(video_url, headers=headers, timeout=20)
-            if not response.ok:
-                logger.error(f"Download failed for video {video_url}: {response.status_code}")
-                return None
-            content_length = response.headers.get("Content-Length")
-            if content_length and int(content_length) > max_bytes:
-                logger.warning(
-                    f"Skipping video upload for reel {reel_id}: content-length {content_length} exceeds {max_bytes} bytes"
-                )
-                return None
-            if len(response.content) > max_bytes:
-                logger.warning(
-                    f"Skipping video upload for reel {reel_id}: downloaded {len(response.content)} bytes exceeds {max_bytes}"
-                )
-                return None
-            
-            safe_audio_id = audio_id or "no_audio"
-            path = f"reels/{safe_audio_id}/{reel_id}.mp4"
-            
-            self.supabase.storage.from_("reels-preview").upload(
-                path=path,
-                file=response.content,
-                file_options={"content-type": "video/mp4", "x-upsert": "true"}
-            )
-            
-            try:
-                public_url_obj = self.supabase.storage.from_("reels-preview").get_public_url(path)
-                url = str(public_url_obj) if public_url_obj else f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
-            except Exception:
-                url = f"{self.supabase_url}/storage/v1/object/public/reels-preview/{path}"
-            
-            logger.info(f"Stored reel video {reel_id} at {url}")
-            return url
-        except Exception as e:
-            logger.error(f"Video store failed for reel {reel_id}: {e}")
-            return None
+        # VIDEO UPLOADS PERMANENTLY DISABLED — thumbnail-only storage policy.
+        # Full MP4 uploads caused a 16GB quota blowout (2,625 videos up to 50MB each).
+        # Returning None here skips all video storage; thumbnail path is handled separately.
+        logger.debug(f"_store_reel_video skipped for {reel_id} — thumbnail-only policy active.")
+        return None
 
     def detect_reel_metadata(self, reel: dict) -> dict:
-        caption = reel.get('caption', '')
-        audio_name = reel.get('audio_title', '') or reel.get('audio_name', '')
-        
         prompt = (
             "You are a metadata tagger for Instagram Reels. Analyse the following reel data\n"
             "and return ONLY a valid JSON object, no markdown, no explanation.\n\n"

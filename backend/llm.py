@@ -68,7 +68,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
       - LLM_MODEL: default is "grok-beta" for grok, or custom
     """
     provider = os.getenv("LLM_PROVIDER", "groq").lower()
-    # Gemini block removed – Groq is now the default LLM provider
+    # Groq is the primary LLM provider; Gemini remains a fallback when Groq is exhausted
         
     if provider in ["grok", "openai"]:
         api_key = os.getenv("GROK_API_KEY") or os.getenv("LLM_API_KEY")

@@ -109,6 +109,23 @@ def _select_trend_origin(reels: list[dict]) -> str:
     return top_origin
 
 
+def _trend_group_key(reel: dict) -> tuple[str, str] | None:
+    title = (reel.get("audio_title") or "").strip()
+    artist = (reel.get("audio_artist") or "").strip()
+    if not title and not artist:
+        return None
+    if not title:
+        return None
+    if title.lower() == "original audio":
+        creator = (reel.get("owner_username") or "").strip()
+        if not creator:
+            return None
+        return (f"original_audio::{creator.lower()}", "")
+    if not artist:
+        artist = "Unknown Artist"
+    return (title, artist)
+
+
 @dataclass
 class StageBudgetState:
     stage: str = "initializing"
@@ -127,7 +144,7 @@ class TrendEngine:
 
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        # Gemini removed - Groq is the sole LLM provider
+        # Groq is the primary LLM provider; Gemini is handled as fallback in llm.py
         self.groq_key = os.getenv("GROQ_API_KEY")
 
         if not self.groq_key:
@@ -224,37 +241,53 @@ class TrendEngine:
 
             # STEP 2: Group by audio
             audio_groups = {}
-            excluded_original_audio = 0
+            special_cased_original_audio = 0
+            excluded_unidentifiable = 0
             proceeded_to_grouping = 0
             for reel in reels:
+                group_key = _trend_group_key(reel)
+                if group_key is None:
+                    excluded_unidentifiable += 1
+                    continue
                 if reel.get("is_original_audio") is True:
-                    excluded_original_audio += 1
-                    continue
+                    special_cased_original_audio += 1
                 proceeded_to_grouping += 1
-                audio_title = reel.get("audio_title")
-                audio_artist = reel.get("audio_artist") or "Unknown Artist"
-                if not audio_title or not audio_title.strip():
-                    continue
-                key = (audio_title.strip(), audio_artist.strip())
-                if key not in audio_groups:
-                    audio_groups[key] = []
-                audio_groups[key].append(reel)
-            logging.info(f"Audio grouping: excluded {excluded_original_audio} original-audio reels. {proceeded_to_grouping} reels proceeded to grouping. Grouped into {len(audio_groups)} unique audio combinations.")
+                if group_key not in audio_groups:
+                    audio_groups[group_key] = []
+                audio_groups[group_key].append(reel)
+            logging.info(
+                "Audio grouping: special-cased %s original-audio reels and excluded %s unidentifiable reels. "
+                "%s reels proceeded to grouping. Grouped into %s unique audio combinations.",
+                special_cased_original_audio,
+                excluded_unidentifiable,
+                proceeded_to_grouping,
+                len(audio_groups),
+            )
 
             # STEP 3: Skip already-known trends
             existing_res = self.supabase.table("trends") \
-                .select("audio_title, audio_artist") \
+                .select("audio_title, audio_artist, audio_id") \
                 .execute()
-            existing = {
+            existing_named = {
                 (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())
                 for t in (existing_res.data or [])
                 if t.get("audio_title")
+                and (t.get("audio_title") or "").strip().lower() != "original audio"
+            }
+            existing_audio_ids = {
+                (t.get("audio_id") or "").strip()
+                for t in (existing_res.data or [])
+                if t.get("audio_id")
             }
 
             # STEP 4: Evaluate each audio group
             confirmed = []
             for (title, artist), group_reels in audio_groups.items():
-                if (title, artist) in existing:
+                representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
+                if title.lower() == "original audio":
+                    if representative_audio_id and representative_audio_id.strip() in existing_audio_ids:
+                        continue
+                elif (title, artist) in existing_named:
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
