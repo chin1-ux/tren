@@ -33,6 +33,12 @@ jobs:
         run: |
           echo "${{ secrets.INSTAGRAM_COOKIES_B64 }}" | base64 -d > backend/cookies.json
 
+      - name: Run DB migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/migrate_creator_growth.py
+
       - name: Run pipeline script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
@@ -54,3 +60,4 @@ jobs:
         run: |
           python backend/manual_run_and_check.py
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+

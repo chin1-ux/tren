@@ -3,7 +3,9 @@ import json
 import random
 import logging
 import requests
+from datetime import datetime
 from dotenv import load_dotenv
+
 try:
     from llm import call_llm
 except ImportError:
