@@ -993,6 +993,8 @@ class InstagramScraper:
         return None
 
     def detect_reel_metadata(self, reel: dict) -> dict:
+        caption = reel.get("caption", "")
+        audio_name = reel.get("audio_title", "") or reel.get("audio_name", "")
         prompt = (
             "You are a metadata tagger for Instagram Reels. Analyse the following reel data\n"
             "and return ONLY a valid JSON object, no markdown, no explanation.\n\n"
