@@ -776,6 +776,13 @@ class InstagramScraper:
         if not audio_id:
             return False
         try:
+            res = self.supabase.table("reels").select("id", count="exact").eq("audio_id", audio_id).gt("view_count", view_count).execute()
+            count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
+            return count < 20
+        except Exception as e:
+            logger.error(f"Error checking top 20 for audio {audio_id}: {e}")
+            return True
+
     async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
         """Navigate to the Instagram hashtag explore page with the Camoufox stealth browser
         and capture the API JSON response via XHR interception."""
