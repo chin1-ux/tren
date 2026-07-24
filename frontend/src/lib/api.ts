@@ -342,6 +342,16 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers,
   });
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("trendrop_token");
+      localStorage.removeItem("trendrop_onboarded");
+      setAuthToken(null);
+      import("../store/useAppStore").then(({ useUserStore }) => {
+        useUserStore.getState().logout();
+      });
+    }
+  }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<T>;
 }
@@ -352,10 +362,21 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
-  return fetch(`${API_URL}${path}`, {
+  const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
   });
+  if (res.status === 401) {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("trendrop_token");
+      localStorage.removeItem("trendrop_onboarded");
+      setAuthToken(null);
+      import("../store/useAppStore").then(({ useUserStore }) => {
+        useUserStore.getState().logout();
+      });
+    }
+  }
+  return res;
 }
 
 // ── Trend fetch functions ──────────────────────────────────────────────────────
