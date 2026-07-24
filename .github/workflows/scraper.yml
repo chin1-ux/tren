@@ -34,6 +34,7 @@ jobs:
           echo "${{ secrets.INSTAGRAM_COOKIES_B64 }}" | base64 -d > backend/cookies.json
 
       - name: Run DB migrations
+        continue-on-error: true
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |

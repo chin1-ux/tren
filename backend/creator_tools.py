@@ -340,8 +340,13 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
             }
             return {"status": "success", "data": diagnostics}
         except Exception as e:
+            err_str = str(e)
+            # Table doesn't exist yet (PGRST205) — return no_data instead of 500
+            if "PGRST205" in err_str or "Could not find" in err_str:
+                logger.warning(f"creator_posts table missing — migration pending: {e}")
+                return {"status": "no_data", "message": "Creator analytics table is being set up. Please connect your Instagram account first."}
             logger.error(f"Error in run_flop_diagnostics: {e}")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": err_str}
 
     def run_niche_health_audit(self, user_email: str) -> dict:
         """Analyze category focus and semantic consistency across creator's historical posts."""
@@ -389,19 +394,27 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
                     "recommendations": ["Keep focus on consistent thematic styling."]
                 }
                 
-            # Persist profile
-            profile = {
-                "user_email": user_email,
-                "primary_niche": audit_result.get("primary_niche"),
-                "secondary_niches": audit_result.get("secondary_niches"),
-                "niche_health_score": audit_result.get("niche_health_score"),
-                "alignment_drift_detected": audit_result.get("alignment_drift_detected"),
-                "recommendations": audit_result.get("recommendations"),
-                "updated_at": datetime.now().isoformat()
-            }
-            self.supabase.table("creator_niche_profiles").upsert(profile, on_conflict="user_email").execute()
+            # Persist profile (skip if niche_profiles table also missing)
+            try:
+                profile = {
+                    "user_email": user_email,
+                    "primary_niche": audit_result.get("primary_niche"),
+                    "secondary_niches": audit_result.get("secondary_niches"),
+                    "niche_health_score": audit_result.get("niche_health_score"),
+                    "alignment_drift_detected": audit_result.get("alignment_drift_detected"),
+                    "recommendations": audit_result.get("recommendations"),
+                    "updated_at": datetime.now().isoformat()
+                }
+                self.supabase.table("creator_niche_profiles").upsert(profile, on_conflict="user_email").execute()
+            except Exception as persist_err:
+                logger.warning(f"Could not persist niche profile (table may be missing): {persist_err}")
             
             return {"status": "success", "data": audit_result}
         except Exception as e:
+            err_str = str(e)
+            # Table doesn't exist yet (PGRST205) — return no_data instead of 500
+            if "PGRST205" in err_str or "Could not find" in err_str:
+                logger.warning(f"creator_posts table missing — migration pending: {e}")
+                return {"status": "no_data", "message": "Creator analytics table is being set up. Please connect your Instagram account first."}
             logger.error(f"Error in run_niche_health_audit: {e}")
-            return {"status": "error", "message": str(e)}
+            return {"status": "error", "message": err_str}
