@@ -1008,11 +1008,18 @@ class InstagramScraper:
             '  "trend_origin": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
             '  "creator_country": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
             '  "is_cross_cultural": true | false,\n'
-            '  "confidence": 0.0 to 1.0\n'
+            '  "confidence": 0.0 to 1.0,\n'
+            '  "content_tone": "wholesome" | "neutral" | "controversial" | "outrage" | "unknown"\n'
             '}\n\n'
             "Rules:\n"
             "- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From \"MovieName\")', you MUST tag trend_origin and creator_country as \"IN\" and audio_language as \"hindi\" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.\n"
             "- is_cross_cultural should be true ONLY if the trend_origin is clearly from a different culture/country than the target consumer base (e.g., Russian, Korean, Spanish, or Brazilian audio being used by Indian creators). If the audio is Indian (IN origin) and caption is English (with English hashtags), is_cross_cultural MUST be false (since English is extremely common in Indian reels).\n"
+            "- content_tone classification guidelines:\n"
+            "  * \"wholesome\": content that is positive, uplifting, funny, heartwarming, educational, or family-friendly.\n"
+            "  * \"neutral\": simple aesthetic logs, travel vlogs, lifestyle, fashion, or generic music overlays.\n"
+            "  * \"controversial\": sensitive debates, opinionated/polarising views, or dramatic call-outs.\n"
+            "  * \"outrage\": content designed to trigger anger, heavy criticism, moral indignation, or flame wars.\n"
+            "  * \"unknown\": default if the caption/audio does not provide enough signal to classify.\n"
             "- If caption is in Devanagari script -> caption_language = \"hindi\"\n"
             "- If caption is in Latin script and English -> caption_language = \"english\"\n"
             "- Only return the JSON, nothing else."
@@ -1027,6 +1034,8 @@ class InstagramScraper:
             )
             if isinstance(meta, dict):
                 meta = _normalize_trend_origin(meta, reel)
+                if "content_tone" not in meta:
+                    meta["content_tone"] = "unknown"
             return meta
         except Exception as e:
             logger.error(f"Error in detect_reel_metadata: {e}")
@@ -1036,7 +1045,8 @@ class InstagramScraper:
                 "trend_origin": "unknown",
                 "creator_country": "unknown",
                 "is_cross_cultural": False,
-                "confidence": 0.0
+                "confidence": 0.0,
+                "content_tone": "unknown"
             }
             return _normalize_trend_origin(meta, reel)
 
@@ -1356,6 +1366,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "global_saturation_pct": sat["global"],
                             "india_saturation_pct": sat["india"],
                             "window_hours_remaining": window,
+                            "content_tone": meta.get("content_tone", "unknown"),
                         })
                         
                         # Video storage

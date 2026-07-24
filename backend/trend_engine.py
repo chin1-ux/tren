@@ -126,6 +126,131 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
     return (title, artist)
 
 
+def _aggregate_content_tone(reels: list[dict]) -> str:
+    tones = [r.get("content_tone") for r in reels if r.get("content_tone") and r.get("content_tone") != "unknown"]
+    if not tones:
+        return "unknown"
+    counts = {}
+    for t in tones:
+        counts[t] = counts.get(t, 0) + 1
+    ranked = sorted(counts.items(), key=lambda x: -x[1])
+    return ranked[0][0]
+
+
+def _get_news_search_query(audio_title: str, audio_artist: str, reels: list[dict]) -> str:
+    title = audio_title or ""
+    # Remove bracketed info (e.g. (From "Movie"))
+    title_clean = re.sub(r'\(.*?\)', '', title)
+    title_clean = re.sub(r'[^a-zA-Z0-9\s]', '', title_clean).strip()
+    
+    is_generic = any(w in title.lower() for w in ["original audio", "unknown", "song", "sound", "track", "music"]) or len(title_clean) < 3
+    
+    all_hashtags = set()
+    for r in reels:
+        tags = r.get("hashtags")
+        if isinstance(tags, list):
+            all_hashtags.update(tags)
+            
+    generic_tags = {"reels", "trending", "explore", "viral", "fyp", "instagram", "post", "reel", "trend", "love", "foryou", "foryoupage"}
+    clean_tags = [t.lower() for t in all_hashtags if t.lower() not in generic_tags]
+    
+    if not is_generic:
+        # Include artist if simple title might be too generic
+        artist_clean = re.sub(r'[^a-zA-Z0-9\s]', '', audio_artist or "").strip()
+        if artist_clean and len(title_clean) < 8:
+            return f"{title_clean} {artist_clean}"
+        return title_clean
+    elif clean_tags:
+        return clean_tags[0]
+    else:
+        return ""
+
+
+def _evaluate_news_correlation(audio_title: str, audio_artist: str, reels: list[dict]) -> tuple[str, list | None]:
+    query = _get_news_search_query(audio_title, audio_artist, reels)
+    if not query:
+        return "endogenous", None
+        
+    try:
+        from news_client import NewsClient, check_keyword_overlap
+        client = NewsClient()
+        articles = client.get_trending_news(query)
+    except Exception as e:
+        logging.error(f"Error fetching trending news in TrendEngine: {e}")
+        return "unknown", None
+        
+    if not articles:
+        return "endogenous", None
+        
+    # Build trend keywords list
+    title_clean = re.sub(r'[^a-zA-Z0-9\s]', '', audio_title or "").strip()
+    keywords = title_clean.split()
+    if audio_artist:
+        keywords.extend(audio_artist.split())
+    # Add top 3 hashtags
+    all_hashtags = set()
+    for r in reels:
+        tags = r.get("hashtags")
+        if isinstance(tags, list):
+            all_hashtags.update(tags)
+    generic_tags = {"reels", "trending", "explore", "viral", "fyp", "instagram", "post", "reel", "trend", "love", "foryou", "foryoupage"}
+    clean_tags = [t.lower() for t in all_hashtags if t.lower() not in generic_tags]
+    keywords.extend(clean_tags[:3])
+    
+    # Filter to words length >= 3
+    keywords = [w.lower() for w in keywords if len(w) >= 3]
+    
+    matching_articles = []
+    for art in articles:
+        score = check_keyword_overlap(keywords, art)
+        # If query word matches or overlap score is high
+        if score >= 0.35 or any(w.lower() in art.get("title", "").lower() for w in query.split()):
+            matching_articles.append(art)
+            
+    if not matching_articles:
+        return "endogenous", None
+        
+    # Determine if exogenous vs mixed
+    # Get oldest post time of reels
+    oldest_post = None
+    for r in reels:
+        posted_str = r.get("posted_at")
+        if posted_str:
+            try:
+                if posted_str.endswith("Z"):
+                    posted_str = posted_str[:-1] + "+00:00"
+                posted_dt = datetime.fromisoformat(posted_str)
+                if oldest_post is None or posted_dt < oldest_post:
+                    oldest_post = posted_dt
+            except Exception:
+                pass
+                
+    # Get oldest matching news pub date
+    oldest_news = None
+    for art in matching_articles:
+        pub_str = art.get("publishedAt")
+        if pub_str:
+            try:
+                if pub_str.endswith("Z"):
+                    pub_str = pub_str[:-1] + "+00:00"
+                pub_dt = datetime.fromisoformat(pub_str)
+                if oldest_news is None or pub_dt < oldest_news:
+                    oldest_news = pub_dt
+            except Exception:
+                pass
+                
+    if oldest_post and oldest_news:
+        if oldest_post.tzinfo is None:
+            oldest_post = oldest_post.replace(tzinfo=timezone.utc)
+        if oldest_news.tzinfo is None:
+            oldest_news = oldest_news.replace(tzinfo=timezone.utc)
+            
+        if oldest_post < oldest_news - timedelta(hours=12):
+            return "mixed", matching_articles
+            
+    return "exogenous", matching_articles
+
+
 @dataclass
 class StageBudgetState:
     stage: str = "initializing"
@@ -663,6 +788,14 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 if not sorted_niches:
                     sorted_niches = ["general"]
 
+                # Evaluate news correlation
+                virality_type, news_matches = _evaluate_news_correlation(
+                    trend["audio_title"], trend["audio_artist"], group_reels
+                )
+                
+                # Aggregate content tone
+                content_tone = _aggregate_content_tone(group_reels)
+
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],
@@ -711,6 +844,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     "llm_classified_at": trend.get("llm_classified_at"),
                     "llm_retry_count": trend.get("llm_retry_count", 0),
                     "has_creator_outlier": any(r.get("is_creator_outlier") is True for r in group_reels),
+                    "virality_type": virality_type,
+                    "exogenous_correlation": news_matches,
+                    "content_tone": content_tone,
                 }
 
                 try:

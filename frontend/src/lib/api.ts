@@ -70,6 +70,9 @@ export interface ApiTrend {
   semantic_niches?: string[];
   discovery_source?: string;
   has_creator_outlier?: boolean;
+  virality_type?: string;
+  exogenous_correlation?: any;
+  content_tone?: string;
 }
 
 export interface ApiCaptionKit {
@@ -217,6 +220,9 @@ export interface UiTrend {
   semanticNiches?: string[];
   discoverySource?: string;
   hasCreatorOutlier?: boolean;
+  viralityType?: string;
+  exogenousCorrelation?: any;
+  contentTone?: string;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -281,6 +287,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     semanticNiches: t.semantic_niches ?? [],
     discoverySource: t.discovery_source,
     hasCreatorOutlier: t.has_creator_outlier ?? false,
+    viralityType: t.virality_type ?? "unknown",
+    exogenousCorrelation: t.exogenous_correlation ?? null,
+    contentTone: t.content_tone ?? "unknown",
   };
 }
 

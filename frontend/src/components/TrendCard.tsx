@@ -352,6 +352,30 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
             {platformMeta.icon} {platformMeta.label}
           </span>
+          {trend.viralityType && trend.viralityType !== "unknown" && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+              trend.viralityType === "exogenous" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
+              trend.viralityType === "mixed" ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
+              "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
+            }`}>
+              {trend.viralityType === "exogenous" ? "📰 News" :
+               trend.viralityType === "mixed" ? "🌀 Mixed" :
+               "🟢 Organic"}
+            </span>
+          )}
+          {trend.contentTone && trend.contentTone !== "unknown" && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
+              trend.contentTone === "wholesome" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
+              trend.contentTone === "controversial" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
+              trend.contentTone === "outrage" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
+              "bg-white/5 text-muted-foreground border border-white/10"
+            }`}>
+              {trend.contentTone === "wholesome" ? "✨ Wholesome" :
+               trend.contentTone === "controversial" ? "⚡ Controversy" :
+               trend.contentTone === "outrage" ? "😡 Outrage" :
+               "⚪ Neutral"}
+            </span>
+          )}
         </div>
         <span className={`inline-flex items-center gap-1 text-xs font-semibold ${isUrgent ? "text-primary animate-pulse" : "text-muted-foreground"}`}>
           <Clock className="h-3.5 w-3.5" />

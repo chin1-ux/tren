@@ -30,6 +30,7 @@ def _build_pooler_url(db_url: str, supabase_url: str = "") -> list[str]:
 
 
 DDL_STATEMENTS = [
+    # ── Creator tables ──────────────────────────────────────────
     """
     CREATE TABLE IF NOT EXISTS creator_posts (
         id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
@@ -72,7 +73,65 @@ DDL_STATEMENTS = [
     "DROP POLICY IF EXISTS creator_niche_owner ON creator_niche_profiles",
     "CREATE POLICY creator_niche_owner ON creator_niche_profiles FOR ALL USING (user_email = auth.jwt() ->> 'email')",
     "CREATE INDEX IF NOT EXISTS idx_creator_posts_email_time ON creator_posts (user_email, timestamp)",
+
+    # ── Instagram OAuth tokens ───────────────────────────────────
+    """
+    CREATE TABLE IF NOT EXISTS instagram_tokens (
+        id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY,
+        user_email text UNIQUE NOT NULL,
+        access_token text NOT NULL,
+        token_type text DEFAULT 'long-lived',
+        expires_at timestamp NOT NULL,
+        ig_account_id text,
+        ig_username text,
+        updated_at timestamp DEFAULT now(),
+        created_at timestamp DEFAULT now()
+    )
+    """,
+    "ALTER TABLE instagram_tokens ENABLE ROW LEVEL SECURITY",
+    """
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='instagram_tokens' AND policyname='Users can view own Instagram tokens') THEN
+            CREATE POLICY "Users can view own Instagram tokens" ON instagram_tokens FOR SELECT USING (user_email = auth.jwt() ->> 'email');
+        END IF;
+    END $$
+    """,
+    """
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='instagram_tokens' AND policyname='Users can insert own Instagram tokens') THEN
+            CREATE POLICY "Users can insert own Instagram tokens" ON instagram_tokens FOR INSERT WITH CHECK (user_email = auth.jwt() ->> 'email');
+        END IF;
+    END $$
+    """,
+    """
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='instagram_tokens' AND policyname='Users can update own Instagram tokens') THEN
+            CREATE POLICY "Users can update own Instagram tokens" ON instagram_tokens FOR UPDATE USING (user_email = auth.jwt() ->> 'email');
+        END IF;
+    END $$
+    """,
+    """
+    DO $$ BEGIN
+        IF NOT EXISTS (SELECT 1 FROM pg_policies WHERE tablename='instagram_tokens' AND policyname='Users can delete own Instagram tokens') THEN
+            CREATE POLICY "Users can delete own Instagram tokens" ON instagram_tokens FOR DELETE USING (user_email = auth.jwt() ->> 'email');
+        END IF;
+    END $$
+    """,
+    "CREATE INDEX IF NOT EXISTS idx_instagram_tokens_user_email ON instagram_tokens(user_email)",
+
+    # ── brand_deals missing marketplace columns ──────────────────
+    "ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS creator_email text",
+    "ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS deal_amount numeric",
+    "ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS commission_amount numeric",
+    "ALTER TABLE brand_deals ADD COLUMN IF NOT EXISTS details text",
+
+    # ── users table extra columns ────────────────────────────────
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS auth_token text",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_username text",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS instagram_connected boolean DEFAULT false",
+    "ALTER TABLE users ADD COLUMN IF NOT EXISTS plan text DEFAULT 'free'",
 ]
+
 
 
 def run_migration():
