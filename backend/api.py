@@ -1882,39 +1882,62 @@ def get_job_status(request: Request, job_id: str):
 def get_reel_status(request: Request, job_id: str):
     return get_job_status(request, job_id)
 
-def run_scrapers_background():
+def run_scrapers_background(job_id: str = None):
     logger.info("Background scraper started.")
+    if job_id:
+        update_job_record(job_id, {"status": "processing", "progress": 10})
     try:
         try:
             insta = InstagramScraper()
             insta.scrape_trending_reels()
         except Exception as e:
             logger.error(f"Instagram scraper background error: {e}", exc_info=True)
+            if job_id:
+                update_job_record(job_id, {"error_message": f"Instagram Scraper error: {e}"})
+        if job_id:
+            update_job_record(job_id, {"progress": 40})
+
         if YouTubeScraper:
             try:
                 yt = YouTubeScraper()
                 yt.scrape_trending_shorts()
             except Exception as e:
                 logger.error(f"YouTube scraper background error: {e}", exc_info=True)
+                if job_id:
+                    update_job_record(job_id, {"error_message": f"YouTube Scraper error: {e}"})
         else:
             logger.info("YouTube scraper background task bypassed (disabled).")
+        if job_id:
+            update_job_record(job_id, {"progress": 60})
+
         new_ids = []
         try:
             te = TrendEngine()
             new_ids = te.detect_trends()
         except Exception as e:
             logger.error(f"TrendEngine background error: {e}", exc_info=True)
+            if job_id:
+                update_job_record(job_id, {"error_message": f"TrendEngine error: {e}"})
+        if job_id:
+            update_job_record(job_id, {"progress": 80})
+
         try:
             refresher = TrendRefresher()
             refresher.refresh_all()
         except Exception as e:
             logger.error(f"TrendRefresher background error: {e}", exc_info=True)
+        if job_id:
+            update_job_record(job_id, {"progress": 90})
+
         if new_ids:
             try:
                 alert = AlertSystem()
                 alert.send_trend_alerts(new_ids)
             except Exception as e:
                 logger.error(f"AlertSystem background error: {e}", exc_info=True)
+        
+        if job_id:
+            update_job_record(job_id, {"status": "completed", "progress": 100})
         logger.info("Background scraper complete.")
     except Exception as e:
         logger.error(f"Critical background scraper error: {e}", exc_info=True)
@@ -1925,8 +1948,9 @@ def run_scrapers_background():
 def trigger_scraper(request: Request, background_tasks: BackgroundTasks, is_admin: bool = Depends(get_admin_user)):
     """Manually trigger the full scraper + trend detection pipeline. Protected by Admin API Key."""
     try:
-        background_tasks.add_task(run_scrapers_background)
-        return {"message": "Pipeline started in background"}
+        job_id = create_job_record("scraper", "admin@trendrop.ai", {})
+        background_tasks.add_task(run_scrapers_background, job_id)
+        return {"status": "pending", "job_id": job_id, "message": "Pipeline started in background"}
     except Exception as e:
         logger.error(f"Scraper trigger failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
