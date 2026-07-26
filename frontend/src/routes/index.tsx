@@ -164,11 +164,15 @@ function TrendsFeed() {
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
-  const avgLeadTime = useMemo(() => {
+  const avgLeadTimeStr = useMemo(() => {
     const list = activeData ?? [];
     if (list.length === 0) return "N/A";
-    const sum = list.reduce((acc, t) => acc + (t.hoursLeft || 0), 0);
-    return (sum / list.length).toFixed(1);
+    const valid = list.filter(t => t.hoursLeft !== undefined && !isNaN(t.hoursLeft));
+    if (valid.length === 0) return "Not enough data yet";
+    const sum = valid.reduce((acc, t) => acc + (t.hoursLeft || 0), 0);
+    const avg = sum / valid.length;
+    if (avg <= 0) return "Not enough data yet";
+    return avg.toFixed(1);
   }, [activeData]);
 
   return (
@@ -224,7 +228,7 @@ function TrendsFeed() {
         {/* Simplified Stats */}
         <div className="relative z-10 text-center mt-2">
           <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
-            {totalActive.toLocaleString()} active trends tracked • {avgLeadTime}h avg. lead time
+            {totalActive.toLocaleString()} active trends tracked • {avgLeadTimeStr === "Not enough data yet" ? "Not enough data yet" : `${avgLeadTimeStr}h avg. lead time`}
           </p>
         </div>
       </div>

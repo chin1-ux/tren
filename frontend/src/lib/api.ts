@@ -73,6 +73,9 @@ export interface ApiTrend {
   virality_type?: string;
   exogenous_correlation?: any;
   content_tone?: string;
+  reel_id?: string;
+  thumbnail_url?: string | null;
+  velocity_score?: number;
 }
 
 export interface ApiCaptionKit {
@@ -230,7 +233,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
   const meta = CATEGORY_EMOJI[key] ?? { emoji: "🔥", category: "Viral" as TrendCategory };
   const hours = Math.max(0, Number(t.window_hours_remaining) || 0);
   const langInfo = LANGUAGE_INFO[(t.language ?? "").toLowerCase()] ?? null;
-  const classificationStatus = (t.llm_classification_status || "pending").toLowerCase();
+  const classificationStatus = (t.llm_classification_status || (t.reel_id ? "completed" : "pending")).toLowerCase();
   const isVerified = classificationStatus === "completed";
   const isUnverified = !isVerified;
 
@@ -240,7 +243,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     artist: t.artist || t.audio_artist || "Unknown Artist",
     hoursLeft: Math.round(hours),
     expiresAt: Date.now() + hours * 3600 * 1000,
-    viralMultiplier: Math.round((Number(t.velocity_avg) || 0) * 10) / 10,
+    viralMultiplier: Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) * 10) / 10,
     contentType: isUnverified ? "Classifying..." : meta.category,
     contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
     category: isUnverified ? "Classifying..." : meta.category,
@@ -290,6 +293,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     viralityType: t.virality_type ?? "unknown",
     exogenousCorrelation: t.exogenous_correlation ?? null,
     contentTone: t.content_tone ?? "unknown",
+    reelId: t.reel_id,
+    thumbnailUrl: t.thumbnail_url,
   };
 }
 
@@ -744,8 +749,9 @@ export async function fetchUserFeed(): Promise<ApiReel[]> {
   return http<ApiReel[]>("/api/reels/feed");
 }
 
-export async function fetchCrossCulturalTrends(): Promise<ApiReel[]> {
-  return http<ApiReel[]>("/api/reels/cross-cultural");
+export async function fetchCrossCulturalTrends(): Promise<UiTrend[]> {
+  const data = await http<ApiTrend[]>("/api/reels/cross-cultural");
+  return data.map(adaptTrend);
 }
 
 export interface FlopDiagnosticsData {

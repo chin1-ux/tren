@@ -771,7 +771,7 @@ def get_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "rising")
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("llm_classification_status", "completed")
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -814,7 +814,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "emerging")
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("llm_classification_status", "completed")
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
@@ -834,7 +834,7 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).order("velocity_avg", desc=True).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("llm_classification_status", "completed").order("velocity_avg", desc=True).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
@@ -887,6 +887,7 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
         res = supabase.table("trends") \
             .select("*") \
             .in_("status", ["emerging", "rising"]) \
+            .eq("llm_classification_status", "completed") \
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
             .execute()
@@ -1294,6 +1295,10 @@ def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_c
             .eq("is_original_audio", False) \
             .not_.is_("audio_title", "null") \
             .neq("audio_title", "Original audio") \
+            .not_.is_("owner_username", "null") \
+            .neq("owner_username", "") \
+            .not_.is_("reel_id", "null") \
+            .neq("reel_id", "") \
             .in_("caption_language", ["en", "english"]) \
             .neq("trend_origin", "IN") \
             .neq("trend_origin", "in") \
