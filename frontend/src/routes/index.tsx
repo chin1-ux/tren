@@ -273,17 +273,17 @@ function TrendsFeed() {
         ) : (
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-4">
             {(crossCulturalData as any[]).map((reel: any) => {
-              const indiaPct = reel.india_saturation_pct ?? 0;
+              const indiaPct = reel.indiaSaturationPct ?? 0;
               const originFlag: Record<string, string> = {
                 US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
                 DE: "🇩🇪", FR: "🇫🇷", MX: "🇲🇽",
               };
-              const flag = originFlag[(reel.trend_origin ?? "").toUpperCase()] ?? "🌍";
-              const audioUrl = reel.audio_id
-                ? `https://www.instagram.com/reels/audio/${reel.audio_id}/`
-                : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.audio_title || "")}/`;
-              const windowH = reel.window_hours_remaining;
-              const isDance = reel.is_dance || reel.niche_tag === "Dance";
+              const flag = originFlag[(reel.trendOrigin ?? "").toUpperCase()] ?? "🌍";
+              const audioUrl = reel.audioId
+                ? `https://www.instagram.com/reels/audio/${reel.audioId}/`
+                : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.song || "")}/`;
+              const windowH = reel.hoursLeft;
+              const isDance = reel.isDance || reel.nicheTag === "Dance";
               const borderClass = isDance
                 ? "border border-amber-500/35 shadow-[0_0_16px_rgba(239,159,39,0.09)] bg-gradient-to-b from-[rgba(239,159,39,0.08)] to-transparent hover:border-amber-400/70"
                 : "border border-primary/35 shadow-[0_0_16px_rgba(230,57,70,0.09)] bg-gradient-to-b from-[rgba(230,57,70,0.08)] to-transparent hover:border-primary/70";
@@ -306,10 +306,10 @@ function TrendsFeed() {
 
                   <div>
                     <p className="text-sm font-bold text-foreground truncate">
-                      {reel.audio_title || "Original Audio"}
+                      {reel.song || "Original Audio"}
                     </p>
                     <p className="text-[10px] text-muted-foreground truncate">
-                      by {reel.audio_artist || "Unknown"}
+                      by {reel.artist || "Unknown"}
                     </p>
                   </div>
 
