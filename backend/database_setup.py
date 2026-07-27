@@ -35,6 +35,7 @@ TABLES_SQL = {
             audio_artist text,
             hashtags text[],
             caption text,
+            source_hashtag_pool text,
             velocity_score float,
             content_type text,
             is_dance boolean,

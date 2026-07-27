@@ -177,6 +177,76 @@ def run_full_pipeline():
     # 2. YouTube Scraper (Bypassed)
     logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
 
+    # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
+    audio_backfill_filled = 0
+    audio_backfill_unrecoverable = 0
+    try:
+        run_state["stage"] = "audio_backfill"
+        sb = _get_supabase()
+        backfill_res = sb.table("reels") \
+            .select("reel_id, video_url, owner_username, audio_backfill_attempts") \
+            .eq("audio_backfill_status", "needs_audio_backfill") \
+            .lt("audio_backfill_attempts", 3) \
+            .limit(30) \
+            .execute()
+        backfill_reels = backfill_res.data or []
+        if backfill_reels:
+            logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
+            for r in backfill_reels:
+                rid = r["reel_id"]
+                attempts = (r.get("audio_backfill_attempts") or 0) + 1
+                # Re-fetch the reel's audio via Instagram shortcode endpoint
+                recovered = False
+                try:
+                    import requests
+                    resp = requests.get(
+                        f"https://www.instagram.com/p/{rid}/?__a=1&__d=dis",
+                        headers={"User-Agent": "Mozilla/5.0"},
+                        timeout=6,
+                    )
+                    if resp.ok:
+                        data = resp.json()
+                        item = (
+                            data.get("graphql", {}).get("shortcode_media")
+                            or data.get("items", [{}])[0]
+                        )
+                        clips_metadata = item.get("clips_metadata", {}) or {}
+                        audio_info = clips_metadata.get("original_sound_info") or clips_metadata.get("music_info", {}) or {}
+                        music = audio_info.get("music_asset_info") or audio_info
+                        new_title = music.get("title") or music.get("display_artist")
+                        new_audio_id = str(music.get("audio_cluster_id") or music.get("id") or "")
+                        if new_title or new_audio_id:
+                            sb.table("reels").update({
+                                "audio_title": new_title,
+                                "audio_id": new_audio_id or None,
+                                "audio_backfill_status": "backfilled",
+                                "audio_backfill_attempts": attempts,
+                            }).eq("reel_id", rid).execute()
+                            audio_backfill_filled += 1
+                            recovered = True
+                            logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}'")
+                except Exception as bf_err:
+                    logging.debug(f"Audio backfill fetch failed for reel={rid}: {bf_err}")
+
+                if not recovered:
+                    new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
+                    sb.table("reels").update({
+                        "audio_backfill_status": new_status,
+                        "audio_backfill_attempts": attempts,
+                    }).eq("reel_id", rid).execute()
+                    if new_status == "unrecoverable":
+                        audio_backfill_unrecoverable += 1
+                        logging.info(f"Audio backfill UNRECOVERABLE after {attempts} attempts: reel={rid}")
+            logging.info(
+                f"Step 2b: Audio backfill done. "
+                f"filled={audio_backfill_filled} unrecoverable={audio_backfill_unrecoverable} "
+                f"still_pending={len(backfill_reels)-audio_backfill_filled-audio_backfill_unrecoverable}"
+            )
+        else:
+            logging.info("Step 2b: No reels in audio_backfill queue.")
+    except Exception as bf_step_err:
+        logging.warning(f"Step 2b audio backfill failed: {bf_step_err}")
+
     # 3. Trend Engine: detect new trends
     trend_ids = []
     if new_reels_count > 0:  # Run trend detection even for small batches; TrendEngine has its own guard
@@ -203,21 +273,6 @@ def run_full_pipeline():
             logging.info("Step 3/5: Running TrendEngine to detect new trends...")
             engine = TrendEngine()
             
-            # Retry pending/failed LLM classifications first
-            try:
-                run_state["stage"] = "llm_backfill"
-                retried_count = engine.retry_pending_classifications(limit=3, max_seconds=90.0)
-                pending_backfilled = int(retried_count or 0)
-                logging.info(f"LLM Re-classification retry completed. Successfully re-classified {retried_count} trends.")
-                if retried_count < 3:
-                    logging.info(
-                        "LLM backfill finished within budget; fewer than the max batch size were retried."
-                    )
-            except Exception as retry_err:
-                run_state["stage"] = "llm_backfill_failed"
-                run_state["cutoff_reason"] = f"llm backfill failed: {retry_err}"
-                logging.error(f"LLM Re-classification retry failed: {retry_err}", exc_info=True)
-                
             trend_ids = engine.detect_trends()
             classification_success = int(engine.last_run_stats.get("classification_success", 0) or 0)
             classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)

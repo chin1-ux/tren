@@ -313,6 +313,7 @@ class InstagramScraper:
         # 6. DB fallback: Instagram removed use_count from their API circa mid-2025.
         #    If we've already fetched the official count for this audio via
         #    scrape_official_audio_counts, use that as the best available proxy.
+        official_count = 0
         if audio_id:
             try:
                 res = self.supabase.table("audio_official_counts") \
@@ -322,10 +323,52 @@ class InstagramScraper:
                     .limit(1) \
                     .execute()
                 if res.data and res.data[0].get("official_use_count") is not None:
-                    return int(res.data[0]["official_use_count"])
+                    official_count = int(res.data[0]["official_use_count"])
             except Exception:
                 pass
                     
+        if official_count > 0:
+            return official_count
+
+        # Proxy Calculation fallback:
+        if audio_id:
+            try:
+                res = self.supabase.table("reels") \
+                    .select("owner_username, scraped_at, velocity_score") \
+                    .eq("audio_id", audio_id) \
+                    .execute()
+                reels_list = res.data or []
+                if reels_list:
+                    import math
+                    from datetime import datetime, timezone
+                    unique_creators = len({r.get("owner_username") for r in reels_list if r.get("owner_username")})
+                    total_reels = len(reels_list)
+                    avg_vel = sum(r.get("velocity_score", 0.0) or 0.0 for r in reels_list) / total_reels
+                    
+                    now = datetime.now(timezone.utc)
+                    reels_last_12h = 0
+                    for r in reels_list:
+                        scraped_str = r.get("scraped_at")
+                        if scraped_str:
+                            try:
+                                if scraped_str.endswith("Z"):
+                                    scraped_str = scraped_str[:-1] + "+00:00"
+                                scraped_dt = datetime.fromisoformat(scraped_str)
+                                if scraped_dt.tzinfo is None:
+                                    scraped_dt = scraped_dt.replace(tzinfo=timezone.utc)
+                                age_h = (now - scraped_dt).total_seconds() / 3600.0
+                                if age_h <= 12:
+                                    reels_last_12h += 1
+                            except Exception:
+                                pass
+                    
+                    base_count = unique_creators * 800 + total_reels * 400
+                    growth_ratio = reels_last_12h / total_reels
+                    growth_mult = 1.0 + (growth_ratio * 2.5) * (1.0 + math.log1p(avg_vel / 1000.0))
+                    return max(100, int(base_count * growth_mult))
+            except Exception as e:
+                logging.warning(f"Error calculating proxy audio_use_count for {audio_id}: {e}")
+
         return 0
 
     # ── Groq hook analysis ────────────────────────────────────────────────────
@@ -646,6 +689,13 @@ Rules:
                         audio_id = self._extract_audio_id(music_info_dict)
                         audio_use_count = self._extract_audio_use_count(music_info_dict, audio_id=audio_id)
 
+                        is_original_audio = False
+                        if music_info_dict:
+                            if music_info_dict.get("original_sound_info") or not music_info_dict.get("music_info"):
+                                is_original_audio = True
+                                if audio_use_count >= 50:
+                                    is_original_audio = False
+
                         reel_data = {
                             "platform": "instagram",
                             "reel_id": reel_id,
@@ -663,8 +713,16 @@ Rules:
                             "audio_artist": music_artist,
                             "audio_id": audio_id,
                             "audio_use_count": audio_use_count,
+                            "is_original_audio": is_original_audio,
                             "velocity_score": velocity_score,
                             "scraped_at": scraped_time_str,
+                            # Audio backfill queue: flag rows where IG returned no audio metadata
+                            "audio_backfill_status": (
+                                "needs_audio_backfill"
+                                if not audio_id or not music_title
+                                else None
+                            ),
+                            "audio_backfill_attempts": 0,
                         }
 
                         # Groq metadata tagging
@@ -719,17 +777,66 @@ Rules:
                         else:
                             reel_data["video_storage_status"] = "pending"
 
+                        # Check unique creator count for original audio contaminant check
+                        unique_creators_count = 1
+                        if audio_id:
+                            try:
+                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_id", audio_id).execute()
+                                if creators_res.data:
+                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
+                                    unique_creators.add(owner_username)
+                                    unique_creators_count = len(unique_creators)
+                            except Exception as ex:
+                                logging.warning(f"Error checking creators for audio_id {audio_id}: {ex}")
+                        elif music_title:
+                            try:
+                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_title", music_title).execute()
+                                if creators_res.data:
+                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
+                                    unique_creators.add(owner_username)
+                                    unique_creators_count = len(unique_creators)
+                            except Exception as ex:
+                                logging.warning(f"Error checking creators for audio_title {music_title}: {ex}")
+
+                        is_contaminant = is_original_audio and unique_creators_count == 1
+                        is_unrecoverable = reel_data.get("audio_backfill_status") == "unrecoverable"
+
                         self.supabase.table("reels").insert(reel_data).execute()
                         scrape_stats["insert_attempts"] += 1
                         logging.info(f"Saved reel {reel_id} by @{owner_username} (velocity={velocity_score:.3f})")
                         scrape_stats["insert_saved"] += 1
 
-                        # Update trend lifecycle
-                        self._update_trend_lifecycle(
-                            audio_title=music_title or "unknown_trend",
-                            creator_country=metadata.get("creator_country", "unknown"),
-                            scraped_at=scraped_time_str
-                        )
+                        if is_contaminant:
+                            logging.info(f"Skipping tracked_audio and trend_lifecycle for original audio contaminant '{music_title}' (creator count: {unique_creators_count})")
+                        elif is_unrecoverable:
+                            logging.info(f"Skipping tracked_audio and trend_lifecycle for unrecoverable audio reel {reel_id} (audio missing after max retries)")
+                        else:
+                            # Track audio if it is a real (non-original) audio
+                            if audio_id:
+                                try:
+                                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
+                                    if not exist.data:
+                                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
+                                        reel_count = reels_res.count or 0
+                                        if reel_count >= 2:
+                                            self.supabase.table("tracked_audio").insert({
+                                                "audio_id": audio_id,
+                                                "audio_title": music_title,
+                                                "audio_artist": music_artist,
+                                                "first_seen_at": datetime.now(timezone.utc).isoformat()
+                                            }).execute()
+                                            logging.info(f"Added audio_id {audio_id} ('{music_title}') to tracked_audio (signal count: {reel_count})")
+                                        else:
+                                            logging.info(f"Skipped tracking audio_id {audio_id} ('{music_title}'): only has {reel_count} reel(s) in DB (floor is 2+)")
+                                except Exception as tae:
+                                    logging.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
+
+                            # Update trend lifecycle
+                            self._update_trend_lifecycle(
+                                audio_title=music_title or "unknown_trend",
+                                creator_country=metadata.get("creator_country", "unknown"),
+                                scraped_at=scraped_time_str
+                            )
 
                         high_velocity_reels.append(velocity_score)
                         saved_count += 1

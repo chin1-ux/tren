@@ -10,7 +10,7 @@ import asyncio
 from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from llm import call_llm
+from classification_rules import build_source_hashtag_pool, classify_content_tone, classify_niche
 import requests
 
 # Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
@@ -133,23 +133,20 @@ class InstagramScraper:
             custom_tags = [tag.strip().lstrip("#") for tag in override.split(",") if tag.strip()]
             if custom_tags:
                 self.hashtag_groups = {"CUSTOM": custom_tags}
+        self._hashtag_pool_lookup = {}
+        for pool_name, tags in self.hashtag_groups.items():
+            for tag in tags:
+                self._hashtag_pool_lookup[tag.lower()] = pool_name
 
-    def _classify_caption_niches(self, caption: str) -> list[str]:
-        niches = []
-        text = (caption or "").lower()
-        if any(kw in text for kw in ["food", "recipe", "kitchen", "cook", "chef", "eat", "diet", "dinner", "lunch", "breakfast", "healthyfood", "high protein"]):
-            niches.append("food")
-        if any(kw in text for kw in ["gym", "fit", "workout", "fitness", "motivation", "cardio", "healthy", "abs", "legs", "exercise", "weight loss", "fat loss", "protein"]):
-            niches.append("fitness")
-        if any(kw in text for kw in ["travel", "trip", "vlog", "wanderlust", "mountains", "beach", "nature", "explore", "roadtrip", "safarnama"]):
-            niches.append("travel")
-        if any(kw in text for kw in ["fashion", "look", "style", "wear", "dress", "ootd", "outfit", "aesthetic", "wardrobe"]):
-            niches.append("fashion")
-        if any(kw in text for kw in ["comedy", "funny", "joke", "laugh", "meme", "roast", "fun"]):
-            niches.append("comedy")
-        if not niches:
-            niches.append("general")
-        return niches
+    def _source_hashtag_pool_for_hashtags(self, hashtags: list[str]) -> str | None:
+        for tag in hashtags or []:
+            pool = self._hashtag_pool_lookup.get(tag.lower().lstrip("#"))
+            if pool:
+                return pool
+        return build_source_hashtag_pool(hashtags)
+
+    def _classify_caption_niches(self, caption: str, hashtags: list[str], source_hashtag_pool: str | None) -> list[str]:
+        return [classify_niche(caption, hashtags, source_hashtag_pool=source_hashtag_pool)]
 
     async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
         """Helper to navigate to creator profile using Playwright and intercept XHR response."""
@@ -541,6 +538,7 @@ class InstagramScraper:
         # 5. DB fallback: Instagram removed use_count from their API circa mid-2025.
         #    If we've already fetched the official count for this audio via
         #    scrape_official_audio_counts, use that as the best available proxy.
+        official_count = 0
         if audio_id:
             try:
                 res = self.supabase.table("audio_official_counts") \
@@ -550,10 +548,52 @@ class InstagramScraper:
                     .limit(1) \
                     .execute()
                 if res.data and res.data[0].get("official_use_count") is not None:
-                    return int(res.data[0]["official_use_count"])
+                    official_count = int(res.data[0]["official_use_count"])
             except Exception:
                 pass
         
+        if official_count > 0:
+            return official_count
+
+        # Proxy Calculation fallback:
+        if audio_id:
+            try:
+                res = self.supabase.table("reels") \
+                    .select("owner_username, scraped_at, velocity_score") \
+                    .eq("audio_id", audio_id) \
+                    .execute()
+                reels_list = res.data or []
+                if reels_list:
+                    import math
+                    from datetime import datetime, timezone
+                    unique_creators = len({r.get("owner_username") for r in reels_list if r.get("owner_username")})
+                    total_reels = len(reels_list)
+                    avg_vel = sum(r.get("velocity_score", 0.0) or 0.0 for r in reels_list) / total_reels
+                    
+                    now = datetime.now(timezone.utc)
+                    reels_last_12h = 0
+                    for r in reels_list:
+                        scraped_str = r.get("scraped_at")
+                        if scraped_str:
+                            try:
+                                if scraped_str.endswith("Z"):
+                                    scraped_str = scraped_str[:-1] + "+00:00"
+                                scraped_dt = datetime.fromisoformat(scraped_str)
+                                if scraped_dt.tzinfo is None:
+                                    scraped_dt = scraped_dt.replace(tzinfo=timezone.utc)
+                                age_h = (now - scraped_dt).total_seconds() / 3600.0
+                                if age_h <= 12:
+                                    reels_last_12h += 1
+                            except Exception:
+                                pass
+                    
+                    base_count = unique_creators * 800 + total_reels * 400
+                    growth_ratio = reels_last_12h / total_reels
+                    growth_mult = 1.0 + (growth_ratio * 2.5) * (1.0 + math.log1p(avg_vel / 1000.0))
+                    return max(100, int(base_count * growth_mult))
+            except Exception as e:
+                logger.warning(f"Error calculating proxy audio_use_count for {audio_id}: {e}")
+
         return 0
 
     def _load_instagram_cookie_headers(self) -> tuple[dict, dict]:
@@ -995,60 +1035,19 @@ class InstagramScraper:
     def detect_reel_metadata(self, reel: dict) -> dict:
         caption = reel.get("caption", "")
         audio_name = reel.get("audio_title", "") or reel.get("audio_name", "")
-        prompt = (
-            "You are a metadata tagger for Instagram Reels. Analyse the following reel data\n"
-            "and return ONLY a valid JSON object, no markdown, no explanation.\n\n"
-            f'Caption: "{caption}"\n'
-            f'Audio name: "{audio_name}"\n'
-            'Creator location hint: "unknown"\n\n'
-            "Return this exact JSON structure:\n"
-            '{\n'
-            '  "caption_language": "english" | "hindi" | "other",\n'
-            '  "audio_language": "english" | "hindi" | "tamil" | "telugu" | "punjabi" | "marathi" | "bengali" | "gujarati" | "kannada" | "malayalam" | "urdu" | "russian" | "portuguese" | "spanish" | "korean" | "other",\n'
-            '  "trend_origin": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
-            '  "creator_country": "IN" | "US" | "BR" | "RU" | "KR" | "GB" | "unknown",\n'
-            '  "is_cross_cultural": true | false,\n'
-            '  "confidence": 0.0 to 1.0,\n'
-            '  "content_tone": "wholesome" | "neutral" | "controversial" | "outrage" | "unknown"\n'
-            '}\n\n'
-            "Rules:\n"
-            "- If the artist name or audio title contains known Indian names/words (e.g., Arijit Singh, Alka Yagnik, Pritam, Rahman, Sachin, Amit, Neha, Vishal, Anirudh, Diljit, Shreya, Armaan, Badshah, AP Dhillon, etc.) or pattern '(From \"MovieName\")', you MUST tag trend_origin and creator_country as \"IN\" and audio_language as \"hindi\" or the specific regional language. Never tag them as KR (Korea) or other incorrect countries.\n"
-            "- is_cross_cultural should be true ONLY if the trend_origin is clearly from a different culture/country than the target consumer base (e.g., Russian, Korean, Spanish, or Brazilian audio being used by Indian creators). If the audio is Indian (IN origin) and caption is English (with English hashtags), is_cross_cultural MUST be false (since English is extremely common in Indian reels).\n"
-            "- content_tone classification guidelines:\n"
-            "  * \"wholesome\": content that is positive, uplifting, funny, heartwarming, educational, or family-friendly.\n"
-            "  * \"neutral\": simple aesthetic logs, travel vlogs, lifestyle, fashion, or generic music overlays.\n"
-            "  * \"controversial\": sensitive debates, opinionated/polarising views, or dramatic call-outs.\n"
-            "  * \"outrage\": content designed to trigger anger, heavy criticism, moral indignation, or flame wars.\n"
-            "  * \"unknown\": default if the caption/audio does not provide enough signal to classify.\n"
-            "- If caption is in Devanagari script -> caption_language = \"hindi\"\n"
-            "- If caption is in Latin script and English -> caption_language = \"english\"\n"
-            "- Only return the JSON, nothing else."
-        )
-        
-        try:
-            meta = call_llm(
-                system_prompt="You are a metadata tagger for Instagram Reels.",
-                user_prompt=prompt,
-                response_mime_type="application/json",
-                timeout=15
-            )
-            if isinstance(meta, dict):
-                meta = _normalize_trend_origin(meta, reel)
-                if "content_tone" not in meta:
-                    meta["content_tone"] = "unknown"
-            return meta
-        except Exception as e:
-            logger.error(f"Error in detect_reel_metadata: {e}")
-            meta = {
-                "caption_language": "unknown",
-                "audio_language": "unknown",
-                "trend_origin": "unknown",
-                "creator_country": "unknown",
-                "is_cross_cultural": False,
-                "confidence": 0.0,
-                "content_tone": "unknown"
-            }
-            return _normalize_trend_origin(meta, reel)
+        caption_text = (caption or "").lower()
+        audio_text = (audio_name or "").lower()
+        is_hindi = any(ch >= "\u0900" and ch <= "\u097f" for ch in caption_text)
+        meta = {
+            "caption_language": "hindi" if is_hindi else "english",
+            "audio_language": "hindi" if any(k in f"{caption_text} {audio_text}" for k in ("hindi", "punjabi", "bhojpuri", "marathi", "tamil", "telugu", "kannada")) else "english",
+            "trend_origin": "IN" if _looks_indian_audio(audio_name, None, caption) else "unknown",
+            "creator_country": "IN" if _looks_indian_audio(audio_name, None, caption) else "unknown",
+            "is_cross_cultural": False,
+            "confidence": 0.9 if _looks_indian_audio(audio_name, None, caption) else 0.35,
+            "content_tone": classify_content_tone(caption, reel.get("hashtags") or []),
+        }
+        return _normalize_trend_origin(meta, reel)
 
     def _run_hook_analysis(self, audio_title: str, reels_batch: list[dict]) -> dict:
         lines = []
@@ -1073,16 +1072,14 @@ Return ONLY valid JSON, no markdown, no explanation:
   "niche_tags": ["fitness", "food", "comedy", "fashion", "business", "travel", "beauty", "other"]
 }}"""
         
-        try:
-            return call_llm(
-                system_prompt="You are a social media trend analyst. Return ONLY valid JSON.",
-                user_prompt=hook_prompt,
-                response_mime_type="application/json",
-                timeout=20,
-            )
-        except Exception as e:
-            logger.error(f"Hook analysis failed for '{audio_title}': {e}")
-            return {}
+        return {
+            "dominant_hook_type": "text_overlay" if any("pov" in (r.get("caption") or "").lower() for r in reels_batch) else "broll",
+            "hook_opening_patterns": ["start with the beat", "use a fast hook", "keep captions short"],
+            "optimal_length_seconds": 20,
+            "visual_format": "montage",
+            "hook_brief_one_line": "Open with the strongest visual immediately.",
+            "niche_tags": [classify_niche(reels_batch[0].get("caption") or "", reels_batch[0].get("hashtags") or [], self._source_hashtag_pool_for_hashtags(reels_batch[0].get("hashtags") or []))] if reels_batch else ["general"],
+        }
 
     def _persist_hook_analysis(self, audio_title: str, audio_artist: str, hook_data: dict) -> None:
         if not hook_data:
@@ -1312,6 +1309,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                             except Exception as ex:
                                 logger.warning(f"Error checking secondary safeguard for audio_id {audio_id}: {ex}")
 
+                        source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags)
+
                         reel = {
                             "platform": "instagram",
                             "reel_id": reel_id,
@@ -1323,6 +1322,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "owner_follower_count": followers,
                             "caption": caption,
                             "hashtags": hashtags,
+                            "source_hashtag_pool": source_hashtag_pool,
                             "video_url": video_url,
                             "thumbnail_url": thumbnail_url,
                             "audio_title": audio_title,
@@ -1332,6 +1332,13 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "is_original_audio": is_original_audio,
                             "velocity_score": velocity,
                             "scraped_at": scraped_at,
+                            # Audio backfill queue: flag rows where IG returned no audio metadata
+                            "audio_backfill_status": (
+                                "needs_audio_backfill"
+                                if not audio_id or not audio_title
+                                else None
+                            ),
+                            "audio_backfill_attempts": 0,
                         }
                         
                         # Metadata tagging
@@ -1367,6 +1374,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "india_saturation_pct": sat["india"],
                             "window_hours_remaining": window,
                             "content_tone": meta.get("content_tone", "unknown"),
+                            "niche_tag": classify_niche(caption, hashtags, source_hashtag_pool=source_hashtag_pool),
                         })
                         
                         # Video storage
@@ -1387,7 +1395,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             reel["video_storage_status"] = "pending"
                         
                         # Classify semantic niches
-                        reel["semantic_niches"] = self._classify_caption_niches(caption)
+                        reel["semantic_niches"] = self._classify_caption_niches(caption, hashtags, source_hashtag_pool)
 
                         # Creator baseline caching and outlier tagging
                         multiplier = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
@@ -1435,34 +1443,62 @@ Return ONLY valid JSON, no markdown, no explanation:
                         logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, outlier={is_outlier})")
                         scrape_stats["insert_saved"] += 1
 
-                        # Track audio if it is a real (non-original) audio
-                        is_orig = is_original_audio or (audio_title and "original audio" in audio_title.lower())
-                        if audio_id and not is_orig:
+                        # Check unique creator count for original audio contaminant check
+                        unique_creators_count = 1
+                        if audio_id:
                             try:
-                                exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
-                                if not exist.data:
-                                    # Ensure we have at least 2 reels in the DB for this audio (including the one just inserted)
-                                    reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
-                                    reel_count = reels_res.count or 0
-                                    if reel_count >= 2:
-                                        self.supabase.table("tracked_audio").insert({
-                                            "audio_id": audio_id,
-                                            "audio_title": audio_title,
-                                            "audio_artist": audio_artist,
-                                            "first_seen_at": datetime.now(timezone.utc).isoformat()
-                                        }).execute()
-                                        logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
-                                    else:
-                                        logger.info(f"Skipped tracking audio_id {audio_id} ('{audio_title}'): only has {reel_count} reel(s) in DB (floor is 2+)")
-                            except Exception as tae:
-                                logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
-                        
-                        # Trend lifecycle
-                        self._update_trend_lifecycle(
-                            audio_title=audio_title or "unknown_trend",
-                            creator_country=creator_country,
-                            scraped_at=scraped_at,
-                        )
+                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_id", audio_id).execute()
+                                if creators_res.data:
+                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
+                                    unique_creators.add(owner)
+                                    unique_creators_count = len(unique_creators)
+                            except Exception as ex:
+                                logger.warning(f"Error checking creators for audio_id {audio_id}: {ex}")
+                        elif audio_title:
+                            try:
+                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_title", audio_title).execute()
+                                if creators_res.data:
+                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
+                                    unique_creators.add(owner)
+                                    unique_creators_count = len(unique_creators)
+                            except Exception as ex:
+                                logger.warning(f"Error checking creators for audio_title {audio_title}: {ex}")
+
+                        is_contaminant = is_original_audio and unique_creators_count == 1
+                        is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
+
+                        if is_contaminant:
+                            logger.info(f"Skipping tracked_audio and trend_lifecycle for original audio contaminant '{audio_title}' (creator count: {unique_creators_count})")
+                        elif is_unrecoverable:
+                            logger.info(f"Skipping tracked_audio and trend_lifecycle for unrecoverable audio reel {reel_id} (audio missing after max retries)")
+                        else:
+                            # Track audio if it is a real (non-original) audio
+                            if audio_id:
+                                try:
+                                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
+                                    if not exist.data:
+                                        # Ensure we have at least 2 reels in the DB for this audio (including the one just inserted)
+                                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
+                                        reel_count = reels_res.count or 0
+                                        if reel_count >= 2:
+                                            self.supabase.table("tracked_audio").insert({
+                                                "audio_id": audio_id,
+                                                "audio_title": audio_title,
+                                                "audio_artist": audio_artist,
+                                                "first_seen_at": datetime.now(timezone.utc).isoformat()
+                                            }).execute()
+                                            logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
+                                        else:
+                                            logger.info(f"Skipped tracking audio_id {audio_id} ('{audio_title}'): only has {reel_count} reel(s) in DB (floor is 2+)")
+                                except Exception as tae:
+                                    logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
+                            
+                            # Trend lifecycle
+                            self._update_trend_lifecycle(
+                                audio_title=audio_title or "unknown_trend",
+                                creator_country=creator_country,
+                                scraped_at=scraped_at,
+                            )
                         
                         saved_count += 1
                         high_velocity.append(velocity)

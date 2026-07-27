@@ -48,6 +48,7 @@ MIGRATIONS = [
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS audio_use_count INTEGER DEFAULT 0;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS window_hours_remaining INTEGER DEFAULT 24;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS avg_reel_length_seconds INTEGER DEFAULT 0;",
+    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS source_hashtag_pool TEXT;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS india_saturation_pct FLOAT DEFAULT 0;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS global_saturation_pct FLOAT DEFAULT 0;",
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS niche_tag TEXT DEFAULT 'general';",

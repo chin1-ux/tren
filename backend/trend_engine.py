@@ -4,9 +4,11 @@ import json
 import time
 import logging
 import concurrent.futures
+from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
+from classification_rules import classify_niche, classify_content_tone
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -39,7 +41,7 @@ def generate_local_fallback(trend):
     return {
         "content_type": None,
         "is_dance": is_dance,
-        "niche_tag": "general",
+        "niche_tag": trend.get("niche_tag") or "general",
         "needs_filming": is_dance,
         "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
         "narrative_structure": "transformation" if is_dance else "none",
@@ -135,6 +137,12 @@ def _aggregate_content_tone(reels: list[dict]) -> str:
         counts[t] = counts.get(t, 0) + 1
     ranked = sorted(counts.items(), key=lambda x: -x[1])
     return ranked[0][0]
+
+def _dominant_source_hashtag_pool(reels: list[dict]) -> str | None:
+    pools = [r.get("source_hashtag_pool") for r in reels if r.get("source_hashtag_pool")]
+    if not pools:
+        return None
+    return Counter(pools).most_common(1)[0][0]
 
 
 def _get_news_search_query(audio_title: str, audio_artist: str, reels: list[dict]) -> str:
@@ -269,11 +277,9 @@ class TrendEngine:
 
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
-        # Groq is the primary LLM provider; Gemini is handled as fallback in llm.py
+        # Main trend detection is now deterministic; the nightly batch owns any
+        # remaining LLM-backed enrichment.
         self.groq_key = os.getenv("GROQ_API_KEY")
-
-        if not self.groq_key:
-            raise ValueError("GROQ_API_KEY not configured in environment")
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
         self.last_run_stats = {
@@ -335,8 +341,9 @@ class TrendEngine:
         """
         logging.info("=== TrendEngine.detect_trends() starting ===")
         new_trend_ids = []
-        self.last_run_stats["classification_success"] = 0
-        self.last_run_stats["classification_failed_429"] = 0
+        # NOTE: Do NOT reset classification_success or classification_failed_429 here.
+        # retry_pending_classifications() runs first and seeds these counters.
+        # detect_trends() accumulates on top via += in classify_single_trend().
 
         try:
             # Check for scraper outage: skip only if 0 reels scraped in the last 6h.
@@ -360,6 +367,7 @@ class TrendEngine:
                 .select("*") \
                 .gt("velocity_score", 0.3) \
                 .gte("created_at", time_threshold_48h) \
+                .neq("audio_backfill_status", "unrecoverable") \
                 .execute()
             reels = reels_res.data or []
             logging.info(f"Loaded {len(reels)} reels for evaluation")
@@ -596,98 +604,44 @@ class TrendEngine:
                 if is_mega:
                     logging.info(f"MEGA TREND: '{trend['audio_title']}' also on YouTube Shorts")
 
-            try:
-                from llm import call_llm
-            except ImportError:
-                try:
-                    from backend.llm import call_llm
-                except ImportError:
-                    from .llm import call_llm
-
             def classify_single_trend(trend):
-                captions = [r.get("caption") for r in trend["reels"] if r.get("caption")]
-                sample_captions = " | ".join(captions[:5])
-                all_hashtags = set()
-                for r in trend["reels"]:
-                    tags = r.get("hashtags")
-                    if isinstance(tags, list):
-                        all_hashtags.update(tags)
-                unique_hashtags = ", ".join(list(all_hashtags)[:30])
-
-                system_prompt = "You are a social media trend analyst. Return ONLY valid JSON. No markdown."
-                user_prompt = f"""
-Classify this REAL social media trend and enrich it with creator intelligence.
-
-Audio: "{trend['audio_title']}" by {trend['audio_artist']}
-Creators using it: {trend['count']}
-Average velocity: {trend['avg_velocity']:.2f}x above baseline
-Sample captions from creators: {sample_captions}
-Hashtags found: {unique_hashtags}
-Also trending on YouTube: {trend.get('is_mega', False)}
-
-Return ONLY a valid JSON object with EXACTLY these fields:
-{{
-  "content_type": "one of: dance, scenic, fashion, travel, food, narrative_edit, text_overlay, comedy, devotional, festival, motivation, fitness, study, other",
-  "is_dance": true or false,
-  "needs_filming": true if creator must film themselves live,
-  "edit_style": "one of: fast_cuts, slow_dissolve, zoom_pulse, smooth_transition, color_flash",
-  "narrative_structure": "one of: before_after, transformation, reveal, countdown, none",
-  "text_overlay_template": "exact text pattern creators use like 'POV: you finally did it' OR null",
-  "language": "one of: en, hi, kn, ta, te, bn, mr, other",
-  "cultural_context": "one of: festival, celebration, everyday, none",
-  "ideal_content_description": "one sentence on what photos/clips work best for this trend",
-  "camera_style": "one of: selfie, wide_shot, close_up, aerial, handheld, static",
-  "window_hours_remaining": "integer estimate 6–72 before oversaturation",
-  "confidence": "float 0.0–1.0",
-  "saturation_score": "float 0.0–1.0 where 0=very early 1=oversaturated",
-  "optimal_post_hour_ist": "best hour 0-23 IST to post for maximum reach",
-  "best_platform_first": "instagram or youtube_shorts",
-  "why_this_works": "one sentence explaining the viral psychology behind this trend",
-  "audio_cue_second": "integer — which second in the song to start filming (e.g. 7 for a beat drop at 0:07)",
-  "format_transferable": true or false,
-  "transfer_instructions": "if format_transferable is true, brief instruction on how a creator from a completely different niche (like tech, gaming, or food) can adapt this trend/format to their own niche; if not, return null or empty string"
-}}
-"""
-                # GROQ TPM MATH (2 keys × 12,000 TPM each):
-                # max_attempts=2: 7 trends × 2 attempts × ~800 tokens = 11,200 total / 2 keys = 5,600 TPM/key (47%)
-                # max_attempts=4: 7 trends × 4 attempts × ~800 tokens = 22,400 total / 2 keys = 11,200 TPM/key (93%) ← old, too close to limit
-                max_attempts = int(os.getenv("TREND_CLASSIFICATION_MAX_ATTEMPTS", "2"))
-                base_delay = float(os.getenv("TREND_CLASSIFICATION_BASE_DELAY", "2.0"))
-                max_delay = float(os.getenv("TREND_CLASSIFICATION_MAX_DELAY", "24.0"))
-                success = False
-                for attempt in range(1, max_attempts + 1):
-                    try:
-                        logging.info(f"LLM call for '{trend['audio_title']}' (attempt {attempt})")
-                        classification = call_llm(system_prompt, user_prompt, timeout=10)
-                        trend.update(classification)
-                        success = True
-                        self.last_run_stats["classification_success"] += 1
-                        break
-                    except Exception as e:
-                        logging.warning(f"LLM attempt {attempt} failed: {e}")
-                        if "429" in str(e):
-                            self.last_run_stats["classification_failed_429"] += 1
-                        if attempt < max_attempts:
-                            delay = min(max_delay, base_delay * (2 ** (attempt - 1)))
-                            if "429" in str(e):
-                                delay = min(max_delay, delay * 1.5)
-                            logging.info(
-                                f"Backoff before retrying '{trend['audio_title']}': sleeping {delay:.1f}s"
-                            )
-                            time.sleep(delay)
-                
-                if not success:
-                    logging.warning(f"LLM classification failed for '{trend['audio_title']}'. Applying local fallback.")
-                    fallback = generate_local_fallback(trend)
-                    trend.update(fallback)
-                    trend["llm_classification_status"] = "pending"
-                    trend["raw_llm_response"] = None
-                    trend["llm_classified_at"] = None
-                else:
-                    trend["llm_classification_status"] = "completed"
-                    trend["raw_llm_response"] = _serialize_llm_response(classification)
-                    trend["llm_classified_at"] = datetime.now(timezone.utc).isoformat()
-                return success
+                reels = trend["reels"]
+                captions = [r.get("caption") for r in reels if r.get("caption")]
+                source_pool = _dominant_source_hashtag_pool(reels)
+                niche_source = source_pool or classify_niche(
+                    " ".join(captions[:3]),
+                    [tag for r in reels for tag in (r.get("hashtags") or [])],
+                    source_hashtag_pool=source_pool,
+                )
+                trend["niche_tag"] = niche_source if niche_source else "general"
+                trend["content_tone"] = _aggregate_content_tone(reels)
+                trend["content_type"] = trend.get("content_type") or trend["niche_tag"]
+                trend["is_dance"] = bool(any(word in (trend["audio_title"] or "").lower() for word in ["dance", "bhangra", "step", "groove"]))
+                trend["needs_filming"] = trend["is_dance"] or trend["content_tone"] in {"wholesome", "neutral"}
+                trend["edit_style"] = "fast_cuts" if trend["is_dance"] else "slow_dissolve"
+                trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
+                trend["text_overlay_template"] = None
+                trend["language"] = "hi" if any(any(ch >= "\u0900" and ch <= "\u097f" for ch in (c or "")) for c in captions) else "en"
+                trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
+                trend["ideal_content_description"] = "Short creator clips that match the rhythm and caption vibe."
+                trend["camera_style"] = "handheld" if trend["is_dance"] else "static"
+                trend["window_hours_remaining"] = trend.get("window_hours_remaining") or 24
+                trend["confidence"] = 0.75
+                trend["saturation_score"] = min(1.0, max(0.0, trend.get("saturation_score") or 0.2))
+                trend["optimal_post_hour_ist"] = 18
+                trend["best_platform_first"] = "instagram"
+                trend["why_this_works"] = "The trend is reinforced by repeated creator adoption and strong engagement velocity."
+                trend["audio_cue_second"] = 0
+                trend["format_transferable"] = trend["content_tone"] != "outrage"
+                trend["transfer_instructions"] = None
+                trend["creator_fit_score"] = trend.get("creator_fit_score") or 0.6
+                trend["saturation_penalty"] = trend.get("saturation_penalty") or 0.3
+                trend["hook_retention_score"] = trend.get("hook_retention_score") or 0.5
+                trend["llm_classification_status"] = "not_needed"
+                trend["raw_llm_response"] = None
+                trend["llm_classified_at"] = None
+                trend["llm_retry_count"] = 0
+                return True
 
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
             llm_classification_failures = 0
@@ -701,15 +655,9 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                 if not success:
                     llm_classification_failures += 1
 
-            if llm_classification_failures > 0:
-                logging.warning(
-                    f"CLASSIFICATION_FAILURES: {llm_classification_failures}/{len(confirmed)} trends in this run "
-                    f"had NO successful LLM classification from any provider (Groq or Gemini). "
-                    f"They were saved with local fallback metadata (llm_classification_status='pending') "
-                    f"and will be retried in the next pipeline run."
-                )
-            else:
-                logging.info(f"CLASSIFICATION_SUCCESSES: All {len(confirmed)} trends classified successfully by LLM.")
+            logging.info(
+                f"Deterministic trend classification completed for {len(confirmed) - llm_classification_failures}/{len(confirmed)} trends."
+            )
 
             # ── STEP 7: Save to Supabase ───────────────────────────────────────
             for trend in confirmed:
@@ -1251,8 +1199,13 @@ Return ONLY a valid JSON object with EXACTLY these fields:
                     logging.info(f"Successfully re-classified trend '{title}' (id={tid}) via LLM.")
                     success_count += 1
                     self.last_run_stats["pending_backfilled"] = success_count
+                    # Mirror into classification_success so cron_job has one source of truth
+                    self.last_run_stats["classification_success"] += 1
                 except Exception as err:
                     logging.warning(f"Re-classification attempt {new_retry_count} failed for '{title}': {err}")
+                    # Track 429 failures from the backfill phase explicitly
+                    if "429" in str(err):
+                        self.last_run_stats["classification_failed_429"] += 1
                     
                     # Increment retry count and mark skipped if ceiling hit
                     status = "pending"
