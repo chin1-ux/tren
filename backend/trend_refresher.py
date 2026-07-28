@@ -57,12 +57,11 @@ class TrendRefresher:
         try:
             res = self.supabase.table("trends") \
                 .select("*") \
-                .in_("status", ["emerging", "rising"]) \
                 .execute()
             trends = res.data or []
-            logger.info(f"Found {len(trends)} active trends to refresh")
+            logger.info(f"Found {len(trends)} total trends to refresh")
         except Exception as e:
-            logger.error(f"Failed to fetch active trends: {e}", exc_info=True)
+            logger.error(f"Failed to fetch trends: {e}", exc_info=True)
             return summary
 
         for trend in trends:
@@ -74,6 +73,14 @@ class TrendRefresher:
                 current_velocity = trend.get("velocity_avg", 0.0)
                 peak_velocity = trend.get("peak_velocity") or current_velocity
                 window_hours = trend.get("window_hours_remaining", 24)
+
+                # Always refresh audio use count first, regardless of status
+                if self._refresh_audio_use_count(trend):
+                    summary["audio_use_count_refreshed"] += 1
+
+                # Only run state transitions and velocity calculations for active status
+                if current_status not in ["emerging", "rising"]:
+                    continue
 
                 if created_at_str:
                     if created_at_str.endswith("Z"):
@@ -214,9 +221,6 @@ class TrendRefresher:
                         "promotion_reason": promotion_reason,
                     })
 
-                # ── Refresh audio_use_count from max in reels table ──────────
-                if self._refresh_audio_use_count(trend):
-                    summary["audio_use_count_refreshed"] += 1
 
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
