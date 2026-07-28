@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Globe } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchCrossCulturalTrends, type UiTrend } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends, fetchAllActiveTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -120,8 +120,8 @@ function TrendsFeed() {
     data: crossCulturalData,
     isLoading: crossCulturalLoading,
   } = useQuery({
-    queryKey: ["reels-cross-cultural"],
-    queryFn: () => fetchCrossCulturalTrends(),
+    queryKey: ["trends-all-active", language, selectedNiche],
+    queryFn: () => fetchAllActiveTrends(),
     staleTime: 3 * 60_000,
     refetchInterval: 5 * 60_000,
   });
@@ -423,7 +423,7 @@ function TrendsFeed() {
             <p className="mt-1 text-sm text-muted-foreground">
               {feedTab === "india"
                 ? "Our scrapers are working. New India trends will appear soon."
-                : "Our global-first rail is warming up. New cross-cultural trends will appear soon."}
+                : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>
         ) : (

@@ -1309,7 +1309,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             except Exception as ex:
                                 logger.warning(f"Error checking secondary safeguard for audio_id {audio_id}: {ex}")
 
-                        source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags)
+                        source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags) or "GLOBAL_DISCOVERY"
 
                         reel = {
                             "platform": "instagram",

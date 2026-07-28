@@ -738,8 +738,12 @@ class TrendEngine:
                     trend["audio_title"], trend["audio_artist"], group_reels
                 )
                 
-                # Aggregate content tone
+                # Aggregate content tone, but never leave the trend row unknown.
                 content_tone = _aggregate_content_tone(group_reels)
+                if content_tone == "unknown":
+                    caption_fallback = " ".join((r.get("caption") or "") for r in group_reels if r.get("caption"))
+                    hashtag_fallback = [tag for r in group_reels for tag in (r.get("hashtags") or [])]
+                    content_tone = classify_content_tone(caption_fallback, hashtag_fallback)
 
                 trend_data = {
                     "audio_title": trend["audio_title"],

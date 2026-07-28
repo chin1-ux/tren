@@ -9,6 +9,7 @@ from dotenv import load_dotenv
 from apify_client import ApifyClient
 from supabase import create_client, Client
 from llm import call_llm
+from classification_rules import build_source_hashtag_pool
 
 try:
     logging.basicConfig(
@@ -696,6 +697,8 @@ Rules:
                                 if audio_use_count >= 50:
                                     is_original_audio = False
 
+                        source_hashtag_pool = build_source_hashtag_pool(hashtags_list)
+
                         reel_data = {
                             "platform": "instagram",
                             "reel_id": reel_id,
@@ -707,6 +710,7 @@ Rules:
                             "owner_follower_count": follower_count,
                             "caption": caption,
                             "hashtags": hashtags_list,
+                            "source_hashtag_pool": source_hashtag_pool,
                             "video_url": video_url,
                             "thumbnail_url": thumbnail_url,
                             "audio_title": music_title,
@@ -758,6 +762,7 @@ Rules:
                             "global_saturation_pct": sat["global"],
                             "india_saturation_pct": sat["india"],
                             "window_hours_remaining": window_hours,
+                            "source_hashtag_pool": source_hashtag_pool or "GLOBAL_DISCOVERY",
                         })
 
                         # Video storage check for trend-card eligibility

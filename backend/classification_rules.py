@@ -79,12 +79,12 @@ def _norm(text: str | None) -> str:
 
 def build_source_hashtag_pool(hashtags: list[str] | None) -> str | None:
     if not hashtags:
-        return None
+        return "GLOBAL_DISCOVERY"
     seen = {tag.lower().lstrip("#") for tag in hashtags if tag}
     for pool_name, pool_tags in HASHTAG_POOL_MAP.items():
         if seen.intersection(pool_tags):
             return pool_name
-    return None
+    return "GLOBAL_DISCOVERY"
 
 def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str | None = None) -> str:
     if source_hashtag_pool:
@@ -140,4 +140,3 @@ def classify_content_tone(caption: str, hashtags: list[str] | None = None) -> st
             if term in text:
                 scores[tone] += weight * 0.5
     return scores.most_common(1)[0][0] if scores else "wholesome"
-
