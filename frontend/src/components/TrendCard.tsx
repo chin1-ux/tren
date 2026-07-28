@@ -1,6 +1,6 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
-  Clock, Flame, Video, ChevronDown, ChevronUp,
+  Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
   Bookmark, BookmarkCheck, Sparkles, Film, HelpCircle,
   ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
@@ -222,11 +222,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   };
 
   const isEmerging = trend.isEmerging || trend.status === "emerging";
-  const isUrgent = trend.hoursLeft <= 6;
   const isMegaTrend = (trend.viralMultiplier ?? 0) >= 12 || (trend.reelCount ?? 0) > 10000;
   const satMeta = getSaturationMeta(trend.saturationScore ?? 0);
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
-  const viralPct = Math.min(100, (trend.viralMultiplier / 30) * 100);
   const creatorFit = trend.creatorFitScore ?? 0;
   const hookRetention = trend.hookRetentionScore ?? 0;
   const saturationPenalty = trend.saturationPenalty ?? 0;
@@ -343,7 +341,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         )}
       </div>
 
-      {/* ── 1. Top row: platform + window ───────────────────────────────── */}
+      {/* ── 1. Top row: platform ───────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
         <div className="flex items-center gap-2">
           <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
@@ -377,10 +375,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             </span>
           )}
         </div>
-        <span className={`inline-flex items-center gap-1 text-xs font-semibold ${isUrgent ? "text-primary animate-pulse" : "text-muted-foreground"}`}>
-          <Clock className="h-3.5 w-3.5" />
-          {trend.hoursLeft > 0 ? `~${trend.hoursLeft}h left` : "Ending soon"}
-        </span>
       </div>
 
       {/* Video Preview Section */}
@@ -464,11 +458,10 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
-          <span className="font-bold text-primary">{trend.viralMultiplier}x normal</span>
+          <span className="font-bold text-primary">Trend strength</span>
         </div>
         <div className="flex items-end gap-[3px] h-7">
           {Array.from({ length: 20 }).map((_, i) => {
-            const filled = i < Math.round((viralPct / 100) * 20);
             const h = 15 + Math.sin(i * 0.8) * 10;
             return (
               <motion.div
@@ -476,7 +469,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                 initial={{ height: 0 }}
                 animate={{ height: `${h}px` }}
                 transition={{ type: "spring", stiffness: 80, damping: 10, delay: i * 0.02 }}
-                className={`flex-1 rounded-sm ${filled ? "bg-gradient-to-t from-primary to-secondary" : "bg-muted/30"}`}
+                className="flex-1 rounded-sm bg-gradient-to-t from-primary to-secondary"
               />
             );
           })}
@@ -587,10 +580,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             </div>
 
             {/* ── 6. Saturation bars ── */}
-            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-3">
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-2">
               <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">📊 Saturation</p>
-              <SaturationBar label="🌍 Global" pct={globalPct} />
-              <SaturationBar label="🇮🇳 India" pct={indiaPct} showOpportunity />
+              <p className="text-xs text-muted-foreground">Saturation details are hidden until source counts are verified.</p>
             </div>
 
             {/* Creator scores + saturation status */}

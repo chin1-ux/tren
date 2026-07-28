@@ -164,17 +164,6 @@ function TrendsFeed() {
 
   const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
 
-  const avgLeadTimeStr = useMemo(() => {
-    const list = activeData ?? [];
-    if (list.length === 0) return "N/A";
-    const valid = list.filter(t => t.hoursLeft !== undefined && !isNaN(t.hoursLeft));
-    if (valid.length === 0) return "Not enough data yet";
-    const sum = valid.reduce((acc, t) => acc + (t.hoursLeft || 0), 0);
-    const avg = sum / valid.length;
-    if (avg <= 0) return "Not enough data yet";
-    return avg.toFixed(1);
-  }, [activeData]);
-
   return (
     <div className="flex flex-col gap-0 pb-24">
       {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
@@ -228,7 +217,7 @@ function TrendsFeed() {
         {/* Simplified Stats */}
         <div className="relative z-10 text-center mt-2">
           <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
-            {totalActive.toLocaleString()} active trends tracked • {avgLeadTimeStr === "Not enough data yet" ? "Not enough data yet" : `${avgLeadTimeStr}h avg. lead time`}
+            {totalActive.toLocaleString()} active trends tracked
           </p>
         </div>
       </div>
@@ -274,11 +263,6 @@ function TrendsFeed() {
           <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-4">
             {(crossCulturalData as any[]).map((reel: any) => {
               const indiaPct = reel.indiaSaturationPct ?? 0;
-              const originFlag: Record<string, string> = {
-                US: "🇺🇸", BR: "🇧🇷", RU: "🇷🇺", KR: "🇰🇷", GB: "🇬🇧",
-                DE: "🇩🇪", FR: "🇫🇷", MX: "🇲🇽",
-              };
-              const flag = originFlag[(reel.trendOrigin ?? "").toUpperCase()] ?? "🌍";
               const audioUrl = reel.audioId
                 ? `https://www.instagram.com/reels/audio/${reel.audioId}/`
                 : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.song || "")}/`;
@@ -294,14 +278,9 @@ function TrendsFeed() {
                   className={`shrink-0 w-64 rounded-[1.5rem] p-4 space-y-3 transition-all ${borderClass}`}
                 >
                   <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-muted-foreground flex items-center gap-1">
-                      {flag} → 🇮🇳
+                    <span className="text-[11px] font-bold text-muted-foreground">
+                      Global trend
                     </span>
-                    {windowH > 0 && (
-                      <span className="rounded-full border border-primary/20 bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold text-primary">
-                        ~{windowH}h window
-                      </span>
-                    )}
                   </div>
 
                   <div>
