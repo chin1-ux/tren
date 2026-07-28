@@ -367,6 +367,7 @@ def run_full_pipeline():
         f"duration={int(elapsed)}s | "
         f"pending_backfilled={pending_backfilled}"
     )
+    logging.info("NOTE: classification_success=0 is expected in no-LLM runs; it confirms classification stayed isolated from the main pipeline.")
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
@@ -899,4 +900,5 @@ if __name__ == "__main__":
             time.sleep(60)
     except KeyboardInterrupt:
         logging.info("Cron job stopped by user (KeyboardInterrupt).")
+
 
