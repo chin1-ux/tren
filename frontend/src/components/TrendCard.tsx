@@ -261,6 +261,14 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const displayNiches = nichesToDisplay.slice(0, 2);
   const remainingCount = nichesToDisplay.length - displayNiches.length;
 
+  // Eager shallow query — always fires to resolve reel_id/thumbnail for the video preview.
+  // Separate lazy query (enabled: showReels) drives the expanded reels list.
+  const { data: previewReels } = useQuery({
+    queryKey: ["trend-reels-preview", trend.id],
+    queryFn: () => fetchTrendReels(trend.id),
+    staleTime: 10 * 60_000,
+  });
+
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
     queryFn: () => fetchTrendReels(trend.id),
@@ -382,8 +390,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <TrendCardVideo
           reel={{
             id: String(trend.id),
-            thumbnail_url: (reels?.[0] as any)?.thumbnail_url ?? trend.thumbnailUrl ?? null,
-            reel_id: (reels?.[0] as any)?.reel_id ?? trend.reelId ?? undefined,
+            thumbnail_url: (previewReels?.[0] as any)?.thumbnail_url ?? (reels?.[0] as any)?.thumbnail_url ?? trend.thumbnailUrl ?? null,
+            reel_id: (previewReels?.[0] as any)?.reel_id ?? (reels?.[0] as any)?.reel_id ?? trend.reelId ?? undefined,
+            audio_id: trend.audioId ?? undefined,
           }}
         />
       </div>
@@ -410,8 +419,8 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       {audioUseCount > 0 && (
         <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
           <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span className="text-muted-foreground">Using this audio now:</span>
-          <span className="font-bold text-foreground ml-auto">{formatAudioUseCount(audioUseCount)} reels</span>
+          <span className="text-muted-foreground">Reels using this audio:</span>
+          <span className="font-bold text-foreground ml-auto">{formatAudioUseCount(audioUseCount)}</span>
         </div>
       )}
 
@@ -458,10 +467,15 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       <div className="space-y-1.5">
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
-          <span className="font-bold text-primary">Trend strength</span>
+          {velocityStrength > 0 ? (
+            <span className="font-bold text-primary">{velocityStrength.toFixed(1)}x normal</span>
+          ) : (
+            <span className="font-bold text-primary">Trend strength</span>
+          )}
         </div>
         <div className="flex items-end gap-[3px] h-7">
           {Array.from({ length: 20 }).map((_, i) => {
+            const filled = velocityStrength > 0 && i < Math.round((Math.min(100, (velocityStrength / 30) * 100) / 100) * 20);
             const h = 15 + Math.sin(i * 0.8) * 10;
             return (
               <motion.div
@@ -469,7 +483,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                 initial={{ height: 0 }}
                 animate={{ height: `${h}px` }}
                 transition={{ type: "spring", stiffness: 80, damping: 10, delay: i * 0.02 }}
-                className="flex-1 rounded-sm bg-gradient-to-t from-primary to-secondary"
+                className={`flex-1 rounded-sm ${filled ? "bg-gradient-to-t from-primary to-secondary" : "bg-muted/30"}`}
               />
             );
           })}
