@@ -51,7 +51,7 @@ class TrendRefresher:
         """
         logger.info("=== TrendRefresher starting refresh_all ===")
         now = datetime.now(timezone.utc)
-        summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0}
+        summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0}
         rising_baseline = self._get_rising_baseline()
 
         try:
@@ -214,6 +214,10 @@ class TrendRefresher:
                         "promotion_reason": promotion_reason,
                     })
 
+                # ── Refresh audio_use_count from max in reels table ──────────
+                if self._refresh_audio_use_count(trend):
+                    summary["audio_use_count_refreshed"] += 1
+
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
                 summary["errors"] += 1
@@ -226,6 +230,59 @@ class TrendRefresher:
         if extra:
             payload.update(extra)
         self.supabase.table("trends").update(payload).eq("id", trend_id).execute()
+
+    def _refresh_audio_use_count(self, trend: dict) -> bool:
+        """
+        Re-reads max(audio_use_count) from the reels table for this trend's audio
+        and updates trends.audio_use_count if the reels table has a fresher/higher value.
+
+        Uses audio_id match first (exact), then falls back to audio_title+audio_artist.
+        Returns True if an update was written.
+        """
+        trend_id = trend["id"]
+        stored_count = trend.get("audio_use_count") or 0
+        audio_id = trend.get("audio_id")
+        audio_title = trend.get("audio_title")
+        audio_artist = trend.get("audio_artist")
+
+        try:
+            if audio_id:
+                res = self.supabase.table("reels") \
+                    .select("audio_use_count") \
+                    .eq("audio_id", audio_id) \
+                    .execute()
+            elif audio_title and audio_artist:
+                res = self.supabase.table("reels") \
+                    .select("audio_use_count") \
+                    .eq("audio_title", audio_title) \
+                    .eq("audio_artist", audio_artist) \
+                    .execute()
+            else:
+                return False
+
+            counts = [
+                r["audio_use_count"]
+                for r in (res.data or [])
+                if r.get("audio_use_count") and r["audio_use_count"] > 0
+            ]
+            if not counts:
+                return False
+
+            live_max = max(counts)
+            if live_max > stored_count:
+                self.supabase.table("trends") \
+                    .update({"audio_use_count": live_max}) \
+                    .eq("id", trend_id) \
+                    .execute()
+                logger.info(
+                    f"[AUDIO_USE_COUNT] trend_id={trend_id} '{audio_title}': "
+                    f"{stored_count} -> {live_max} (delta={live_max - stored_count:+,})"
+                )
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"Could not refresh audio_use_count for trend_id={trend_id}: {e}")
+            return False
 
     def _calc_live_velocity(self, audio_title: str, audio_artist: str, now: datetime) -> float:
         """Recalculates avg velocity_score of reels matching this audio in last 24h."""
