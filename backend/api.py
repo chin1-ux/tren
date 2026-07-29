@@ -791,7 +791,7 @@ def get_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("llm_classification_status", "completed")
+        q = supabase.table("trends").select("*").eq("status", "rising").in_("llm_classification_status", ["completed", "not_needed"])
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -834,7 +834,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("llm_classification_status", "completed")
+        q = supabase.table("trends").select("*").eq("status", "emerging").in_("llm_classification_status", ["completed", "not_needed"])
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
@@ -854,7 +854,7 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("llm_classification_status", "completed").order("velocity_avg", desc=True).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
@@ -907,7 +907,7 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
         res = supabase.table("trends") \
             .select("*") \
             .in_("status", ["emerging", "rising"]) \
-            .eq("llm_classification_status", "completed") \
+            .in_("llm_classification_status", ["completed", "not_needed"]) \
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
             .execute()
@@ -935,6 +935,37 @@ def get_trend(request: Request, trend_id: int, current_user: str = Depends(get_c
     except HTTPException:
         raise
     except Exception as e:
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+
+@app.get("/api/trends/{trend_id}/audio-history")
+@limiter.limit("60/minute")
+def get_trend_audio_history(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
+    """Fetch 72h historical snapshot points for sparkline growth charting."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        # Get trend representative audio_id
+        trend_res = supabase.table("trends").select("audio_id").eq("id", trend_id).execute()
+        if not trend_res.data or not trend_res.data[0].get("audio_id"):
+            return []
+            
+        audio_id = trend_res.data[0]["audio_id"]
+        # Fetch snapshots of the audio count from the last 72 hours
+        from datetime import datetime, timedelta, timezone
+        time_threshold = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
+        
+        history_res = supabase.table("reel_snapshots") \
+            .select("snapshotted_at, audio_use_count") \
+            .eq("audio_id", audio_id) \
+            .gte("snapshotted_at", time_threshold) \
+            .order("snapshotted_at", desc=False) \
+            .execute()
+            
+        return history_res.data or []
+    except Exception as e:
+        logger.error(f"Error fetching audio history for trend {trend_id}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
