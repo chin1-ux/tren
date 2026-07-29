@@ -45,6 +45,40 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
     if velocity_pct > 300 and audio_use_count < 20_000:
         return 8
     if velocity_pct > 150 and audio_use_count < 50_000:
+import requests
+
+# Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
+try:
+    from camoufox.async_api import AsyncCamoufox as CamoufoxBrowser
+    _CAMOUFOX_AVAILABLE = True
+except ImportError:
+    CamoufoxBrowser = None  # type: ignore
+    _CAMOUFOX_AVAILABLE = False
+
+try:
+    logging.basicConfig(
+        filename="instagram_scraper_browser.log",
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+except Exception:
+    pass
+logger = logging.getLogger(__name__)
+
+def calculate_saturation(audio_use_count: int, india_use_count: int) -> dict:
+    global_pct = min(100.0, (audio_use_count / 100_000) * 100)
+    india_pct = min(100.0, (india_use_count / 8_000) * 100)
+    return {
+        "global": round(global_pct, 1),
+        "india": round(india_pct, 1),
+    }
+
+def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
+    if audio_use_count > 100_000:
+        return 0
+    if velocity_pct > 300 and audio_use_count < 20_000:
+        return 8
+    if velocity_pct > 150 and audio_use_count < 50_000:
         return 16
     if velocity_pct > 100 and audio_use_count < 80_000:
         return 24
@@ -52,10 +86,99 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
 
 
 _INDIAN_ORIGIN_HINTS = (
+    # Bollywood / Indian artists
     "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
     "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
-    "neh", "ap dhillon", "from \"", "(from ", "from the movie", "original audio"
+    "neh", "ap dhillon", "from \"", "(from ", "from the movie",
+    # Music labels (India-specific)
+    "t-series", "zee music", "sony music india", "tips music", "saregama",
+    "speed records", "venus music", "jio saavn", "gaana", "hungama",
+    "t series", "tseries", "lahari music", "aditya music",
+    # Film industries
+    "bollywood", "kollywood", "tollywood", "mollywood", "sandalwood",
+    # Language-explicit song names
+    "hindi song", "punjabi song", "tamil song", "telugu song", "kannada song",
+    "hindi music", "punjabi music",
 )
+
+# Maps language keywords (in audio title / caption / hashtags) → ISO 639-1 code
+LANG_KEYWORD_MAP: dict[str, str] = {
+    "hindi": "hi", "bhojpuri": "hi", "hindisong": "hi", "hindireels": "hi",
+    "hindi song": "hi", "hindi music": "hi",
+    "punjabi": "pa", "punjabisong": "pa", "punjabisongs": "pa",
+    "punjabi song": "pa", "punjabi music": "pa",
+    "tamil": "ta", "tamilreels": "ta", "kollywood": "ta",
+    "tamil song": "ta", "tamilsong": "ta",
+    "telugu": "te", "telugureels": "te", "tollywood": "te",
+    "telugu song": "te", "telugusong": "te",
+    "kannada": "kn", "kannadareels": "kn", "sandalwood": "kn",
+    "kannada song": "kn",
+    "marathi": "mr", "marathireels": "mr", "marathisong": "mr",
+    "marathi song": "mr",
+    "malayalam": "ml", "mollywood": "ml", "malayalamsong": "ml",
+    "bengali": "bn", "bengalireels": "bn", "bengalisong": "bn",
+    "english": "en",
+}
+
+# Maps specific hashtags used as pool seeds → guaranteed language code (highest priority)
+VERNACULAR_HASHTAG_LANG: dict[str, str] = {
+    "hindireels": "hi", "bhojpurisong": "hi",
+    "punjabisongs": "pa",
+    "tamilreels": "ta",
+    "telugureels": "te",
+    "kannadareels": "kn",
+    "marathireels": "mr",
+    "bengalireels": "bn",
+}
+
+_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn"}
+
+
+def _detect_audio_language(
+    audio_text: str,
+    caption_text: str,
+    hashtags: list[str] | None = None,
+    source_hashtag_pool: str | None = None,
+) -> str:
+    """
+    Detect audio language with a reliable priority chain:
+    1. Vernacular hashtag (e.g. #tamilreels → ta) — most reliable
+    2. Individual hashtag keyword match
+    3. audio_text keyword match (song title / artist name)
+    4. caption_text keyword match
+    5. Devanagari script in caption → hi
+    6. Default → en
+    """
+    # Priority 1: vernacular pool hashtag (100% reliable)
+    for tag in (hashtags or []):
+        clean = tag.lower().lstrip("#").replace(" ", "")
+        if clean in VERNACULAR_HASHTAG_LANG:
+            return VERNACULAR_HASHTAG_LANG[clean]
+
+    # Priority 2: hashtag keyword → language map
+    for tag in (hashtags or []):
+        clean = tag.lower().lstrip("#")
+        if clean in LANG_KEYWORD_MAP:
+            return LANG_KEYWORD_MAP[clean]
+
+    # Priority 3: audio title / artist text keyword match
+    audio_lower = audio_text.lower() if audio_text else ""
+    for keyword, lang_code in LANG_KEYWORD_MAP.items():
+        if keyword in audio_lower:
+            return lang_code
+
+    # Priority 4: caption keyword match
+    caption_lower = caption_text.lower() if caption_text else ""
+    for keyword, lang_code in LANG_KEYWORD_MAP.items():
+        if keyword in caption_lower:
+            return lang_code
+
+    # Priority 5: Devanagari script → Hindi
+    if any("\u0900" <= ch <= "\u097f" for ch in caption_lower):
+        return "hi"
+
+    # Default
+    return "en"
 
 
 def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
@@ -823,208 +946,6 @@ class InstagramScraper:
             logger.error(f"Error checking top 20 for audio {audio_id}: {e}")
             return True
 
-    async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
-        """Navigate to the Instagram hashtag explore page with the Camoufox stealth browser
-        and capture the API JSON response via XHR interception."""
-        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
-            logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
-            await self._close_browser_async()
-            if not await self._init_browser_async():
-                logger.error("Failed to initialize browser session.")
-                return []
-
-        ctx = None
-        page = None
-        try:
-            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-            if not os.path.exists(cookies_path):
-                logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
-                return []
-
-            with open(cookies_path, "r") as f:
-                cookies = json.load(f)
-
-            formatted_cookies = [
-                {
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".instagram.com"),
-                    "path": c.get("path", "/"),
-                }
-                for c in cookies
-            ]
-
-            logger.info(f"Creating a fresh browser context for #{hashtag}...")
-            ctx = await self._camoufox_browser.new_context(no_viewport=True)
-            await ctx.add_cookies(formatted_cookies)
-            await ctx.set_extra_http_headers({
-                "X-IG-App-ID": "936619743392459",
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept-Language": "en-US,en;q=0.9",
-                "Referer": "https://www.instagram.com/",
-            })
-
-            captured_json: list = [None]
-
-            def handle_response(response):
-                """Intercept the Instagram tags API XHR response."""
-                if "api/v1/tags/web_info" in response.url:
-                    try:
-                        captured_json[0] = response.json()
-                    except Exception:
-                        pass
-
-            page = await ctx.new_page()
-            page.on("response", handle_response)
-
-            try:
-                logger.info(f"Navigating Camoufox to explore page for #{hashtag}...")
-                await page.goto(
-                    f"https://www.instagram.com/explore/tags/{hashtag}/",
-                    wait_until="domcontentloaded",  # was: networkidle (waits 30s+ on Instagram SPA)
-                    timeout=15000,
-                )
-                await page.wait_for_timeout(800)
-            except Exception as e:
-                logger.warning(f"Navigation issue for #{hashtag}: {e}")
-            finally:
-                try:
-                    page.remove_listener("response", handle_response)
-                except Exception:
-                    pass
-
-            # Fallback: directly navigate to the API URL if the XHR was not captured
-            if not captured_json[0]:
-                logger.warning(f"XHR not captured for #{hashtag} — trying direct API endpoint...")
-                for attempt in range(2):
-                    try:
-                        headers, cookies = self._load_instagram_cookie_headers()
-                        response = requests.get(
-                            f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}",
-                            headers=headers,
-                            cookies=cookies,
-                            timeout=20,
-                        )
-                        response.raise_for_status()
-                        captured_json[0] = response.json()
-                        break
-                    except Exception as e:
-                        if attempt == 0:
-                            logger.warning(
-                                f"Direct API fetch failed for #{hashtag}: {e}. Reinitializing browser and retrying once..."
-                            )
-                        else:
-                            logger.error(f"Direct API fetch also failed for #{hashtag}: {e}")
-                            return []
-
-            # Detect login wall / challenge after navigation
-            current_url = page.url
-            if "/accounts/login/" in current_url or "/challenge/" in current_url:
-                raise RuntimeError(f"INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page ({current_url}) during scrape. Please refresh cookies.json.")
-
-            data = captured_json[0]
-            if not data:
-                logger.warning(f"No data returned for #{hashtag}")
-                return []
-
-            raw_data = data.get("data", {})
-            top_sections = raw_data.get("top", {}).get("sections", [])
-            recent_sections = raw_data.get("recent", {}).get("sections", [])
-            
-            medias = []
-            for section in top_sections + recent_sections:
-                layout_content = section.get("layout_content") or {}
-                
-                # Standard list of medias
-                for m_wrapper in layout_content.get("medias", []):
-                    media = m_wrapper.get("media")
-                    if media:
-                        medias.append(media)
-                
-                # Nested layout (like 1x2 grid or other containers)
-                for key, val in layout_content.items():
-                    if isinstance(val, dict) and "media" in val:
-                        medias.append(val["media"])
-                    elif isinstance(val, list):
-                        for subval in val:
-                            if isinstance(subval, dict) and "media" in subval:
-                                    medias.append(subval["media"])
-                            elif isinstance(subval, dict) and "clips" in subval:
-                                clips = subval.get("clips") or {}
-                                media = clips.get("media")
-                                if media:
-                                    medias.append(media)
-            
-            items = []
-            for media in medias:
-                media_type = media.get("media_type")
-                if media_type not in (2, 8):  # Must be video or video-carousel
-                    continue
-                
-                owner = media.get("user") or {}
-                caption_data = media.get("caption") or {}
-                caption_text = caption_data.get("text") or ""
-                
-                taken_at = media.get("taken_at", 0)
-                timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
-                
-                # Extract video url from video_versions
-                video_url = media.get("video_url")
-                if not video_url and media.get("video_versions"):
-                    video_url = media["video_versions"][0].get("url")
-
-                # Standardize format to match our pipeline expectancies
-                items.append({
-                    "shortCode": media.get("code"),
-                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
-                    "likesCount": media.get("like_count") or 0,
-                    "commentsCount": media.get("comment_count") or 0,
-                    "ownerFollowersCount": owner.get("follower_count") or 0,
-                    "timestamp": timestamp,
-                    "ownerUsername": owner.get("username"),
-                    "caption": caption_text[:500],
-                    "videoUrl": video_url,
-                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
-                    "media_dict": media
-                })
-                
-            logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
-            return items
-            
-        except Exception as e:
-            logger.error(f"API request failed for #{hashtag}: {e}", exc_info=True)
-            err_str = str(e).lower()
-            if "connection closed" in err_str or "target closed" in err_str or "playwright driver" in err_str:
-                logger.warning("Detected connection closed or target closed error. Tearing down browser completely to recover...")
-                await self._close_browser_async()
-            return []
-        finally:
-            if page:
-                try:
-                    page.remove_all_listeners()
-                except Exception:
-                    pass
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if ctx:
-                try:
-                    await ctx.close()
-                except Exception:
-                    pass
-
-    def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
-        if not audio_id:
-            return False
-        try:
-            res = self.supabase.table("reels").select("id", count="exact").eq("audio_id", audio_id).gt("view_count", view_count).execute()
-            count = res.count if hasattr(res, 'count') else (len(res.data) if res.data else 0)
-            return count < 20
-        except Exception as e:
-            logger.error(f"Error checking top 20 for audio {audio_id}: {e}")
-            return True
-
     def _store_reel_video(self, reel_id: str, video_url: str, audio_id: str) -> str | None:
         # VIDEO UPLOADS PERMANENTLY DISABLED — thumbnail-only storage policy.
         # Full MP4 uploads caused a 16GB quota blowout (2,625 videos up to 50MB each).
@@ -1032,20 +953,45 @@ class InstagramScraper:
         logger.debug(f"_store_reel_video skipped for {reel_id} — thumbnail-only policy active.")
         return None
 
-    def detect_reel_metadata(self, reel: dict) -> dict:
-        caption = reel.get("caption", "")
-        audio_name = reel.get("audio_title", "") or reel.get("audio_name", "")
-        caption_text = (caption or "").lower()
-        audio_text = (audio_name or "").lower()
-        is_hindi = any(ch >= "\u0900" and ch <= "\u097f" for ch in caption_text)
+    def detect_reel_metadata(self, reel: dict, source_hashtag_pool: str | None = None) -> dict:
+        caption = reel.get("caption", "") or ""
+        audio_name = reel.get("audio_title", "") or reel.get("audio_name", "") or ""
+        hashtags: list[str] = reel.get("hashtags") or []
+        caption_text = caption.lower()
+        audio_text = audio_name.lower()
+
+        # Detect caption language (for caption_language field)
+        is_devanagari = any("\u0900" <= ch <= "\u097f" for ch in caption_text)
+        caption_lang = "hi" if is_devanagari else "en"
+
+        # Detect audio language using priority chain (the bug fix)
+        audio_lang = _detect_audio_language(audio_text, caption_text, hashtags, source_hashtag_pool)
+
+        looks_indian = _looks_indian_audio(audio_name, None, caption)
+
+        # If audio language is an Indian language code, force origin to IN
+        # This fixes the case where a Tamil/Telugu artist isn't in _INDIAN_ORIGIN_HINTS
+        if audio_lang in _INDIAN_LANG_CODES:
+            trend_origin = "IN"
+            creator_country = "IN"
+            confidence = 0.92
+        elif looks_indian:
+            trend_origin = "IN"
+            creator_country = "IN"
+            confidence = 0.90
+        else:
+            trend_origin = "unknown"
+            creator_country = "unknown"
+            confidence = 0.35
+
         meta = {
-            "caption_language": "hindi" if is_hindi else "english",
-            "audio_language": "hindi" if any(k in f"{caption_text} {audio_text}" for k in ("hindi", "punjabi", "bhojpuri", "marathi", "tamil", "telugu", "kannada")) else "english",
-            "trend_origin": "IN" if _looks_indian_audio(audio_name, None, caption) else "unknown",
-            "creator_country": "IN" if _looks_indian_audio(audio_name, None, caption) else "unknown",
+            "caption_language": caption_lang,
+            "audio_language": audio_lang,
+            "trend_origin": trend_origin,
+            "creator_country": creator_country,
             "is_cross_cultural": False,
-            "confidence": 0.9 if _looks_indian_audio(audio_name, None, caption) else 0.35,
-            "content_tone": classify_content_tone(caption, reel.get("hashtags") or []),
+            "confidence": confidence,
+            "content_tone": classify_content_tone(caption, hashtags),
         }
         return _normalize_trend_origin(meta, reel)
 
@@ -1341,8 +1287,9 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "audio_backfill_attempts": 0,
                         }
                         
-                        # Metadata tagging
-                        meta = self.detect_reel_metadata(reel)
+                        # Metadata tagging — pass source_hashtag_pool so language
+                        # detection uses the strongest available signal first
+                        meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
                         creator_country = meta.get("creator_country", "unknown")
                         
                         # Calculate India saturation

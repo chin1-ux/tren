@@ -77,8 +77,13 @@ def _serialize_llm_response(payload: dict | None) -> str | None:
 
 
 def _trend_discovery_source(trend: dict) -> str:
-    if trend.get("is_cross_cultural") or (trend.get("trend_origin") or "").upper() not in {"", "IN", "UNKNOWN"}:
+    origin = (trend.get("trend_origin") or "").upper()
+    is_cross = trend.get("is_cross_cultural", False)
+    # Only truly non-Indian, non-unknown origins are "global"
+    if is_cross and origin not in {"IN", "UNKNOWN", ""}:
         return "global"
+    if origin not in {"", "IN", "UNKNOWN"} and not is_cross:
+        return "global"  # Confirmed foreign (KR, US, BR etc.) without crossover
     if (trend.get("max_velocity") or 0) >= 3.0 or (trend.get("avg_velocity") or 0) >= 1.5:
         return "unexpected_candidate"
     return "regional"
@@ -91,7 +96,7 @@ def _select_trend_origin(reels: list[dict]) -> str:
         if (r.get("trend_origin") or "").strip()
     ]
     if not origins:
-        return "unknown"
+        return "IN"  # Default to IN for Indian scraping context
 
     counts: dict[str, int] = {}
     for origin in origins:
@@ -100,14 +105,14 @@ def _select_trend_origin(reels: list[dict]) -> str:
         counts[origin] = counts.get(origin, 0) + 1
 
     if not counts:
-        return "unknown"
+        return "IN"  # If all are UNKNOWN/empty, default to IN
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     top_origin, top_count = ranked[0]
     if len(ranked) > 1 and ranked[1][1] == top_count:
         if "IN" in counts:
             return "IN"
-        return "unknown"
+        return "IN"
     return top_origin
 
 
