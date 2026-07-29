@@ -1,10 +1,15 @@
 import os
 import sys
 import logging
-import os
 from datetime import datetime, timezone
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Load .env BEFORE any module-level os.getenv() calls (e.g. SCRAPER_BACKEND below).
+# Must come first — moving it below any env read means standalone runs silently
+# fall back to hardcoded defaults (e.g. Apify) instead of respecting .env.
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
 # Dual logging: file + stdout
 import tempfile
@@ -37,17 +42,24 @@ from trend_engine import TrendEngine
 from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
 from supabase import create_client
-from dotenv import load_dotenv
 
-# Determine which Instagram scraper backend to use
+# Determine which Instagram scraper backend to use.
+# SCRAPER_BACKEND is read here at module level — load_dotenv() above must run first.
 SCRAPER_BACKEND = os.getenv("SCRAPER_BACKEND", "apify")
 if SCRAPER_BACKEND == "browser_use":
     try:
         from instagram_scraper_browser import InstagramScraper as InstagramScraper
         logging.info("Using browser-use Instagram scraper backend.")
     except Exception as e:
-        logging.error(f"Failed to import InstagramScraperBrowser: {e}. Falling back to Apify scraper.")
-        from instagram_scraper import InstagramScraper as InstagramScraper
+        # Hard failure — do NOT fall back to Apify silently.
+        # A silent fallback would burn Apify API credits without any operator awareness.
+        # If browser_use was explicitly configured and fails to load, something is
+        # broken in the environment and the pipeline should not run at all.
+        logging.critical(
+            f"SCRAPER_BACKEND=browser_use but instagram_scraper_browser failed to import: {e}. "
+            "Refusing to fall back to Apify. Fix the import error or set SCRAPER_BACKEND=apify explicitly."
+        )
+        sys.exit(1)
 else:
     from instagram_scraper import InstagramScraper as InstagramScraper
 
