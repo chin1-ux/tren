@@ -89,7 +89,9 @@ class TrendRefresher:
                     if created_at.tzinfo is None:
                         created_at = created_at.replace(tzinfo=timezone.utc)
                 else:
-                    created_at = now - timedelta(hours=12)
+                    # Defensive fallback: If first_detected_at is ever NULL, treat the trend
+                    # as newly born (now) rather than pre-decayed (12 hours ago).
+                    created_at = now
 
                 age_hours = (now - created_at).total_seconds() / 3600
 

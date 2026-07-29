@@ -48,7 +48,7 @@ const NICHES = [
   { id: "beauty",   label: "💄 Beauty" },
 ];
 
-type FeedTab = "global" | "india";
+type FeedTab = "global" | "india" | "emerging";
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
@@ -140,10 +140,29 @@ function TrendsFeed() {
     prevCountRef.current = emergingCount;
   }, [emergingCount]);
 
-  const activeData = feedTab === "global" ? crossCulturalData : risingData;
-  const isLoading = feedTab === "global" ? crossCulturalLoading : risingLoading;
-  const isError = feedTab === "global" ? false : risingError;
-  const refetch = feedTab === "global" ? refetchRising : refetchRising;
+  const activeData = feedTab === "global"
+    ? crossCulturalData
+    : feedTab === "emerging"
+    ? emergingData
+    : risingData;
+
+  const isLoading = feedTab === "global"
+    ? crossCulturalLoading
+    : feedTab === "emerging"
+    ? emergingLoading
+    : risingLoading;
+
+  const isError = feedTab === "global"
+    ? false
+    : feedTab === "emerging"
+    ? emergingError
+    : risingError;
+
+  const refetch = feedTab === "global"
+    ? refetchRising
+    : feedTab === "emerging"
+    ? refetchEmerging
+    : refetchRising;
 
   const trends = useMemo(() => {
     const list = activeData ?? [];
@@ -349,6 +368,14 @@ function TrendsFeed() {
             label="India"
             count={risingData?.length}
           />
+          <TabButton
+            active={feedTab === "emerging"}
+            onClick={() => setFeedTab("emerging")}
+            icon={<Zap className="h-3.5 w-3.5" />}
+            label="Emerging"
+            count={emergingCount}
+            urgent
+          />
         </div>
 
         {/* Search */}
@@ -372,7 +399,7 @@ function TrendsFeed() {
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
       <div className="space-y-4 px-4 pt-4">
-        {feedTab === "india" && (
+        {feedTab === "emerging" && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
               ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
@@ -402,6 +429,8 @@ function TrendsFeed() {
             <p className="mt-1 text-sm text-muted-foreground">
               {feedTab === "india"
                 ? "Our scrapers are working. New India trends will appear soon."
+                : feedTab === "emerging"
+                ? "No emerging trends detected in the last 6 hours. Check back soon!"
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>

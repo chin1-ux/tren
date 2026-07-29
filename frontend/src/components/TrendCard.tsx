@@ -232,6 +232,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const dmShareScore = getDMShareScore(trend);
   const optimalLength = getOptimalLength(trend.category);
   const saveBaitTip = getSaveBaitTip(trend.category);
+  const velocityStrength = trend.viralMultiplier ?? 0;
 
   // v2 saturation data
   const globalPct = trend.globalSaturationPct ?? 0;

@@ -226,6 +226,8 @@ export interface UiTrend {
   viralityType?: string;
   exogenousCorrelation?: any;
   contentTone?: string;
+  reelId?: string;
+  thumbnailUrl?: string | null;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {

@@ -727,6 +727,23 @@ def _normalize_trends(trends: list) -> list:
         t["artist"] = t.get("audio_artist")
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
+        
+        # Inject matching reel's thumbnail_url and reel_id
+        try:
+            # Query reels table to find the highest-velocity matching reel
+            res = supabase.table("reels") \
+                .select("reel_id, thumbnail_url") \
+                .eq("audio_title", t.get("audio_title")) \
+                .eq("audio_artist", t.get("audio_artist")) \
+                .order("velocity_score", desc=True) \
+                .limit(1) \
+                .execute()
+            if res.data:
+                t["reel_id"] = res.data[0].get("reel_id")
+                t["thumbnail_url"] = res.data[0].get("thumbnail_url")
+        except Exception as e:
+            logger.warning(f"Failed to normalize thumbnail_url for trend {t.get('id')}: {e}")
+            
     return trends
 
 

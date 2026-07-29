@@ -747,15 +747,15 @@ class TrendEngine:
                 global_sat = round(min(100.0, (audio_use_count / 100_000) * 100), 1)
                 india_sat = round(min(100.0, (india_use_count / 8_000) * 100), 1)
 
-                # Window hours
+                # Window hours (recalibrated for emerging=150k and rising=800k thresholds)
                 avg_vel = trend["avg_velocity"]
-                if audio_use_count > 100_000:
+                if audio_use_count > 3_000_000:
                     window_h = 0
-                elif avg_vel * 100 > 300 and audio_use_count < 20_000:
+                elif avg_vel * 100 > 300 and audio_use_count < 150_000:
                     window_h = 8
-                elif avg_vel * 100 > 150 and audio_use_count < 50_000:
+                elif avg_vel * 100 > 150 and audio_use_count < 400_000:
                     window_h = 16
-                elif avg_vel * 100 > 100 and audio_use_count < 80_000:
+                elif avg_vel * 100 > 100 and audio_use_count < 800_000:
                     window_h = 24
                 else:
                     window_h = int(trend.get("window_hours_remaining") or 24)
@@ -853,6 +853,7 @@ class TrendEngine:
                     "virality_type": virality_type,
                     "exogenous_correlation": news_matches,
                     "content_tone": content_tone,
+                    "first_detected_at": datetime.now(timezone.utc).isoformat(),
                 }
 
                 try:
