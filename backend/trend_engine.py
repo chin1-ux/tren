@@ -76,6 +76,41 @@ def _serialize_llm_response(payload: dict | None) -> str | None:
         return None
 
 
+def _detect_regional_crossover(audio_language: str, reels: list[dict]) -> dict:
+    """
+    Returns crossover info if a regional language audio is spreading
+    to a different language creator community.
+    """
+    if not audio_language or audio_language in {"en", "unknown"}:
+        return {"is_crossover": False}
+
+    REGIONAL_LANGS = {"ta", "te", "kn", "mr", "ml", "bn", "pa"}
+    if audio_language not in REGIONAL_LANGS:
+        return {"is_crossover": False}
+
+    # Check if any reels using this audio come from Hindi/general pools
+    hindi_pool_reels = [
+        r for r in reels
+        if r.get("source_hashtag_pool") in {"INDIA_TRENDING", "INDIA_VERNACULAR"}
+        and any(
+            tag in {"hindireels", "trendingindia", "reelsindia", "reelkarofeelkaro"}
+            for tag in (r.get("hashtags") or [])
+        )
+    ]
+    if len(hindi_pool_reels) >= 2:
+        LANG_NAMES = {
+            "ta": "Tamil", "te": "Telugu", "kn": "Kannada",
+            "mr": "Marathi", "ml": "Malayalam", "bn": "Bengali", "pa": "Punjabi"
+        }
+        return {
+            "is_crossover": True,
+            "from_language": LANG_NAMES.get(audio_language, audio_language),
+            "crossover_reel_count": len(hindi_pool_reels),
+            "message": f"This {LANG_NAMES.get(audio_language, 'regional')} audio is spreading to Hindi creators"
+        }
+    return {"is_crossover": False}
+
+
 def _trend_discovery_source(trend: dict) -> str:
     origin = (trend.get("trend_origin") or "").upper()
     is_cross = trend.get("is_cross_cultural", False)
@@ -806,6 +841,9 @@ class TrendEngine:
                     hashtag_fallback = [tag for r in group_reels for tag in (r.get("hashtags") or [])]
                     content_tone = classify_content_tone(caption_fallback, hashtag_fallback)
 
+                # Regional crossover detection
+                crossover_info = _detect_regional_crossover(trend.get("language") or "en", group_reels)
+
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],
@@ -859,6 +897,10 @@ class TrendEngine:
                     "exogenous_correlation": news_matches,
                     "content_tone": content_tone,
                     "first_detected_at": datetime.now(timezone.utc).isoformat(),
+                    # Crossover Detection Integration
+                    "is_regional_crossover": crossover_info.get("is_crossover", False),
+                    "crossover_from_language": crossover_info.get("from_language"),
+                    "crossover_message": crossover_info.get("message"),
                 }
 
                 try:

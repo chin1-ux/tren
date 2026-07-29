@@ -1390,6 +1390,48 @@ Return ONLY valid JSON, no markdown, no explanation:
                         logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, outlier={is_outlier})")
                         scrape_stats["insert_saved"] += 1
 
+                        # Snapshots and delta computation
+                        try:
+                            # 1. Fetch most recent snapshot for this reel
+                            prev_snap_res = self.supabase.table("reel_snapshots") \
+                                .select("view_count, like_count, audio_use_count") \
+                                .eq("reel_id", reel_id) \
+                                .order("snapshotted_at", desc=True) \
+                                .limit(1) \
+                                .execute()
+                            
+                            views_delta = 0
+                            likes_delta = 0
+                            audio_delta = 0
+                            
+                            if prev_snap_res.data:
+                                last_snap = prev_snap_res.data[0]
+                                views_delta = max(0, view - (last_snap.get("view_count") or 0))
+                                likes_delta = max(0, likes - (last_snap.get("like_count") or 0))
+                                audio_delta = max(0, audio_use - (last_snap.get("audio_use_count") or 0))
+                            
+                            # 2. Insert new snapshot
+                            self.supabase.table("reel_snapshots").insert({
+                                "reel_id": reel_id,
+                                "audio_id": audio_id,
+                                "view_count": view,
+                                "like_count": likes,
+                                "comment_count": comments,
+                                "audio_use_count": audio_use
+                            }).execute()
+
+                            # 3. Update deltas on the reels row
+                            if views_delta > 0 or likes_delta > 0 or audio_delta > 0:
+                                self.supabase.table("reels").update({
+                                    "views_delta_last_run": views_delta,
+                                    "likes_delta_last_run": likes_delta,
+                                    "audio_delta_last_run": audio_delta
+                                }).eq("reel_id", reel_id).execute()
+                                
+                        except Exception as snap_ex:
+                            logger.warning(f"Error updating snapshots/deltas for reel {reel_id}: {snap_ex}")
+
+
                         # Check unique creator count for original audio contaminant check
                         unique_creators_count = 1
                         if audio_id:
