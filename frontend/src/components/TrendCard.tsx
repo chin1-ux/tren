@@ -223,12 +223,10 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
   const isEmerging = trend.isEmerging || trend.status === "emerging";
   const isMegaTrend = (trend.viralMultiplier ?? 0) >= 12 || (trend.reelCount ?? 0) > 10000;
-  const satMeta = getSaturationMeta(trend.saturationScore ?? 0);
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
   const creatorFit = trend.creatorFitScore ?? 0;
   const hookRetention = trend.hookRetentionScore ?? 0;
   const saturationPenalty = trend.saturationPenalty ?? 0;
-  const compositeScore = trend.compositeScore ?? 0;
   const dmShareScore = getDMShareScore(trend);
   const optimalLength = getOptimalLength(trend.category);
   const saveBaitTip = getSaveBaitTip(trend.category);
@@ -261,14 +259,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
   const displayNiches = nichesToDisplay.slice(0, 2);
   const remainingCount = nichesToDisplay.length - displayNiches.length;
-
-  // Eager shallow query — always fires to resolve reel_id/thumbnail for the video preview.
-  // Separate lazy query (enabled: showReels) drives the expanded reels list.
-  const { data: previewReels } = useQuery({
-    queryKey: ["trend-reels-preview", trend.id],
-    queryFn: () => fetchTrendReels(trend.id),
-    staleTime: 10 * 60_000,
-  });
 
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
@@ -305,13 +295,27 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   };
 
   const getBorderClass = () => {
+    if (trend.opportunityScore && trend.opportunityScore >= 80)
+      return "border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.08)] bg-gradient-to-b from-[rgba(16,185,129,0.05)] to-transparent hover:border-emerald-500/80";
     if (trend.isDance || trend.category === "Dance")
       return "border border-amber/40 shadow-[0_0_12px_rgba(239,159,39,0.08)] bg-gradient-to-b from-[rgba(239,159,39,0.05)] to-transparent hover:border-amber/80";
     if (trend.isNarrativeEdit || trend.category === "Narrative")
       return "border border-purple/40 shadow-[0_0_12px_rgba(127,119,221,0.08)] bg-gradient-to-b from-[rgba(127,119,221,0.05)] to-transparent hover:border-purple/80";
-    if ((trend.category || "").toLowerCase() === "faceless")
-      return "border border-teal/40 shadow-[0_0_12px_rgba(29,158,117,0.08)] bg-gradient-to-b from-[rgba(29,158,117,0.05)] to-transparent hover:border-teal/80";
     return "border border-primary/40 shadow-[0_0_12px_rgba(230,57,70,0.08)] bg-gradient-to-b from-[rgba(230,57,70,0.05)] to-transparent hover:border-primary/80";
+  };
+
+  const getOpportunityScoreBadgeColor = (score: number) => {
+    if (score >= 80) return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
+    if (score >= 60) return "bg-amber-500/20 text-amber-400 border-amber-500/30";
+    if (score >= 40) return "bg-orange-500/20 text-orange-400 border-orange-500/30";
+    return "bg-rose-500/20 text-rose-400 border-rose-500/30";
+  };
+
+  const getOpportunityScoreStatus = (score: number) => {
+    if (score >= 80) return "Act now — window closing fast";
+    if (score >= 60) return "Still time to jump in";
+    if (score >= 40) return "Saturating — post today";
+    return "Too late for this trend";
   };
 
   return (
@@ -319,7 +323,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       ref={cardRef as any}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
-      onClick={() => setShowPreviewModal(true)}
+      onClick={() => setIsExpanded(!isExpanded)}
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
@@ -327,7 +331,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
     >
       {/* Badges */}
-      <div className="absolute -top-1 left-4 flex gap-2">
+      <div className="absolute -top-1 left-4 flex gap-2 z-20">
         {isEmerging && (
           <span className="inline-flex items-center gap-1 rounded-b-lg bg-[#ff006e] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
             <Zap className="h-2.5 w-2.5" /> EMERGING
@@ -349,6 +353,15 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           </span>
         )}
       </div>
+
+      {/* Opportunity Score Indicator (Top-Right) */}
+      {trend.opportunityScore !== undefined && (
+        <div className="absolute top-3 right-3 z-20">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
+            🟢 {Math.round(trend.opportunityScore)} Opportunity
+          </span>
+        </div>
+      )}
 
       {/* ── 1. Top row: platform ───────────────────────────────── */}
       <div className="flex items-center justify-between pt-1">
@@ -386,15 +399,18 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         </div>
       </div>
 
-      {/* Video Preview Section */}
+      {/* Video/Audio Identity Card replacing Image Thumbnail */}
       <div onClick={(e) => e.stopPropagation()} className="relative z-10">
         <TrendCardVideo
           reel={{
             id: String(trend.id),
-            thumbnail_url: (previewReels?.[0] as any)?.thumbnail_url ?? (reels?.[0] as any)?.thumbnail_url ?? trend.thumbnailUrl ?? null,
-            reel_id: (previewReels?.[0] as any)?.reel_id ?? (reels?.[0] as any)?.reel_id ?? trend.reelId ?? undefined,
-            audio_id: trend.audioId ?? undefined,
+            audio_title: trend.song,
+            audio_artist: trend.artist,
+            audio_use_count: audioUseCount,
+            audio_id: trend.audioId,
           }}
+          trendId={trend.id}
+          opportunityScore={trend.opportunityScore}
         />
       </div>
 
@@ -414,6 +430,13 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           </button>
         </h3>
         <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
+        
+        {/* Saturation advice subtitle */}
+        {trend.opportunityScore !== undefined && (
+          <p className="text-[10px] text-white/50 italic mt-0.5">
+            {getOpportunityScoreStatus(trend.opportunityScore)}
+          </p>
+        )}
       </div>
 
       {/* ── 2. Audio use count ────────────────────────────────────────────── */}
@@ -421,13 +444,30 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
           <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
           <span className="text-muted-foreground">Reels using this audio:</span>
-          <span className="font-bold text-foreground ml-auto">{formatAudioUseCount(audioUseCount)}</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {trend.viewsDelta && trend.viewsDelta > 0 && (
+              <span className="text-[10px] font-bold text-emerald-400 mr-1 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                📈 +{formatViews(trend.viewsDelta)}
+              </span>
+            )}
+            <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount)}</span>
+          </div>
         </div>
       )}
 
-      {/* ── 3. Window badge (shown in top row above) ─ also a chips row ─── */}
+      {/* ── 3. Chips row ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
         <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
+        {trend.isRegionalCrossover && trend.crossoverFromLanguage && (
+          <Chip className="bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+            🔀 {trend.crossoverFromLanguage} crossover
+          </Chip>
+        )}
+        {trend.nicheFitScore !== undefined && trend.nicheFitScore >= 80 && (
+          <Chip className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
+            🎯 Niche Match
+          </Chip>
+        )}
         {!trend.isClassificationVerified && (
           <Chip className="bg-amber-500/15 text-amber-300 border border-amber-500/20">
             ⏳ Classifying
@@ -438,7 +478,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         )}
         {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
         {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
-        {/* Niche tag pills */}
         {displayNiches.map((n) => {
           const isMatched = selectedNiche && selectedNiche !== "all" && (n || "").toLowerCase() === selectedNiche.toLowerCase();
           return (
@@ -509,6 +548,13 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             onClick={(e) => e.stopPropagation()}
           >
 
+            {/* Crossover notification bar */}
+            {trend.isRegionalCrossover && trend.crossoverMessage && (
+              <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 text-xs text-amber-300">
+                ⚠️ <strong>Crossover Alert:</strong> {trend.crossoverMessage}
+              </div>
+            )}
+
             {/* ── 2026 Algorithm Insight ── */}
             <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 space-y-3">
               <p className="text-[10px] font-bold text-primary uppercase tracking-wider">⚡ 2026 Algorithm Insights</p>
@@ -576,7 +622,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                     <ul className="space-y-0.5">
                       {primaryHook.hook_opening_patterns.slice(0, 3).map((p, i) => (
                         <li key={i} className="flex items-start gap-1.5 text-[11px] text-foreground/80">
-                          <span className="text-secondary mt-0.5 shrink-0">▸</span>
+                           <span className="text-secondary mt-0.5 shrink-0">▸</span>
                           <span>{p}</span>
                         </li>
                       ))}
@@ -594,23 +640,22 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               </p>
             </div>
 
-            {/* ── 6. Saturation bars ── */}
-            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-2">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">📊 Saturation</p>
-              <p className="text-xs text-muted-foreground">Saturation details are hidden until source counts are verified.</p>
+            {/* ── 6. Saturation dual clocks comparison ── */}
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-3">
+              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">📊 Saturation Clock</p>
+              <div className="grid grid-cols-2 gap-4">
+                <SaturationBar label="🌍 Global Saturation" pct={globalPct} />
+                <SaturationBar label="🇮🇳 India Saturation" pct={indiaPct} showOpportunity={true} />
+              </div>
             </div>
 
-            {/* Creator scores + saturation status */}
+            {/* Creator scores */}
             <div className="space-y-2">
-              <div className="flex items-center gap-2">
-                <div className={`h-1.5 w-1.5 rounded-full shrink-0 ${satMeta.dot}`} />
-                <span className={`text-[11px] font-semibold ${satMeta.color}`}>{satMeta.label}</span>
-                {trend.optimalPostHourIst !== undefined && (
-                  <span className="ml-auto text-[11px] text-muted-foreground shrink-0">
-                    Best post: {trend.optimalPostHourIst}:00 IST
-                  </span>
-                )}
-              </div>
+              {trend.optimalPostHourIst !== undefined && (
+                <div className="flex items-center text-[11px] text-muted-foreground">
+                  <span>Best post time: {trend.optimalPostHourIst}:00 IST</span>
+                </div>
+              )}
               <div className="grid grid-cols-3 gap-2">
                 <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
                 <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />

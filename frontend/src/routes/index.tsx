@@ -292,58 +292,15 @@ function TrendsFeed() {
                 : "border border-primary/35 shadow-[0_0_16px_rgba(230,57,70,0.09)] bg-gradient-to-b from-[rgba(230,57,70,0.08)] to-transparent hover:border-primary/70";
 
               return (
-                <div
-                  key={reel.id}
-                  className={`shrink-0 w-64 rounded-[1.5rem] p-4 space-y-3 transition-all ${borderClass}`}
-                >
-                  <div className="flex items-center justify-between gap-2">
-                    <span className="text-[11px] font-bold text-muted-foreground">
-                      Global trend
-                    </span>
-                  </div>
-
-                  <div>
-                    <p className="text-sm font-bold text-foreground truncate">
-                      {reel.song || "Original Audio"}
-                    </p>
-                    <p className="text-[10px] text-muted-foreground truncate">
-                      by {reel.artist || "Unknown"}
-                    </p>
-                  </div>
-
-                  <div className="space-y-1.5">
-                    <div className="flex items-center justify-between text-[9px]">
-                      <span className="text-muted-foreground">🇮🇳 India saturation</span>
-                      <span className="font-bold text-foreground">{Math.round(indiaPct)}%</span>
-                    </div>
-                    <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
-                      <div
-                        className={`h-full rounded-full ${
-                          indiaPct < 30 ? "bg-emerald-500" :
-                          indiaPct < 60 ? "bg-amber-500" : "bg-red-500"
-                        }`}
-                        style={{ width: `${Math.min(100, indiaPct)}%` }}
-                      />
-                    </div>
-                    {indiaPct < 30 ? (
-                      <span className="text-[9px] font-bold text-emerald-400">
-                        🚀 Opportunity window open
-                      </span>
-                    ) : (
-                      <span className="text-[9px] font-medium text-muted-foreground">
-                        More saturated than the early window
-                      </span>
-                    )}
-                  </div>
-
-                  <a
-                    href={audioUrl}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="flex w-full items-center justify-center gap-1 rounded-xl bg-primary/12 border border-primary/20 text-primary text-[10px] font-bold px-2 py-2 hover:bg-primary/20 transition-all"
-                  >
-                    🎵 Save Audio
-                  </a>
+                <div key={reel.id} className="shrink-0 w-64">
+                  <AudioIdentityCard
+                    audioId={reel.audioId}
+                    audioTitle={reel.song}
+                    audioArtist={reel.artist}
+                    audioUseCount={reel.audioUseCount}
+                    trendId={reel.id}
+                    opportunityScore={reel.opportunityScore}
+                  />
                 </div>
               );
             })}

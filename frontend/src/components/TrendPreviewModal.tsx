@@ -100,13 +100,17 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* Left Column: Video Preview / Playlist Autoplay */}
           <div className="space-y-4">
-            <div className="relative aspect-[9/16] w-full rounded-2xl overflow-hidden bg-black/60 border border-zinc-800 flex items-center justify-center">
+            <div className="relative w-full rounded-2xl overflow-hidden bg-black/60 border border-zinc-800 flex items-center justify-center p-1">
               <TrendCardVideo
                 reel={{
                   id: trend.id,
-                  thumbnail_url: undefined,
-                  reel_id: trend.audioId || undefined,
+                  audio_title: trend.song,
+                  audio_artist: trend.artist,
+                  audio_use_count: trend.audioUseCount,
+                  audio_id: trend.audioId,
                 }}
+                trendId={trend.id}
+                opportunityScore={trend.opportunityScore}
               />
             </div>
 

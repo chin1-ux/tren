@@ -37,6 +37,7 @@ export function OnboardingFlow({ onComplete }: Props) {
   const [step, setStep] = useState<Step>(1);
   const [niche, setNiche] = useState("");
   const [language, setLanguage] = useState("");
+  const [followerTier, setFollowerTier] = useState("");
   const [email, setEmail] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [done, setDone] = useState(false);
@@ -56,6 +57,7 @@ export function OnboardingFlow({ onComplete }: Props) {
     localStorage.setItem("trendrop_email", email);
     localStorage.setItem("trendrop_niche", niche);
     localStorage.setItem("trendrop_language", language);
+    localStorage.setItem("trendrop_pref_size", followerTier);
     localStorage.setItem("trendrop_notify_trend_alerts", String(agreeEmails));
     localStorage.setItem("trendrop_notify_daily_ideas", String(agreeEmails));
     localStorage.setItem("trendrop_notify_brand_deals", String(agreeEmails));
@@ -228,10 +230,48 @@ export function OnboardingFlow({ onComplete }: Props) {
               </Button>
             </div>
           </div>
+        ) : step === 3 ? (
+          <div className="space-y-5 animate-fade-in-up">
+            <div>
+              <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">Step 3 of 4</p>
+              <h2 className="font-display text-2xl font-bold">Audience size? 📈</h2>
+              <p className="mt-1 text-sm text-muted-foreground">Help us calibrate early warning limits for your size.</p>
+            </div>
+            <div className="flex flex-col gap-3">
+              {[
+                { id: "micro", label: "🌱 Micro Creator (Under 10K)" },
+                { id: "mid", label: "🚀 Rising Creator (10K - 100K)" },
+                { id: "mega", label: "👑 Established Creator (100K+)" },
+              ].map((tier) => (
+                <button
+                  key={tier.id}
+                  onClick={() => setFollowerTier(tier.id)}
+                  className={`w-full rounded-xl p-4 transition-all text-left border ${
+                    followerTier === tier.id
+                      ? "bg-primary/20 border-primary text-primary font-bold"
+                      : "bg-muted/50 border-transparent text-muted-foreground hover:border-border"
+                  }`}
+                >
+                  <span className="text-sm font-semibold leading-tight">{tier.label}</span>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <Button onClick={() => setStep(2)} variant="ghost" className="h-12 w-12 px-0">←</Button>
+              <Button onClick={onComplete} variant="ghost" className="flex-1 h-12">Skip</Button>
+              <Button
+                onClick={() => setStep(4)}
+                disabled={!followerTier}
+                className="flex-1 h-12 bg-primary font-bold uppercase tracking-wide"
+              >
+                Next →
+              </Button>
+            </div>
+          </div>
         ) : (
           <div className="space-y-5 animate-fade-in-up">
             <div>
-              <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">Step 3 of 3</p>
+              <p className="text-xs font-bold uppercase tracking-widest text-primary mb-1">Step 4 of 4</p>
               <h2 className="font-display text-2xl font-bold">Get early alerts ⚡</h2>
               <p className="mt-1 text-sm text-muted-foreground">
                 We'll email you the moment a trend hits your niche — before anyone else.
@@ -243,6 +283,10 @@ export function OnboardingFlow({ onComplete }: Props) {
                 <span className="text-primary font-bold">{NICHES.find(n => n.id === niche)?.emoji} {NICHES.find(n => n.id === niche)?.label}</span>
                 {" "}•{" "}
                 <span className="text-primary font-bold">{LANGUAGES.find(l => l.code === language)?.emoji} {LANGUAGES.find(l => l.code === language)?.label}</span>
+                {" "}•{" "}
+                <span className="text-primary font-bold">
+                  {followerTier === "micro" ? "🌱 Micro" : followerTier === "mid" ? "🚀 Rising" : "👑 Established"}
+                </span>
               </p>
             </div>
             <input
@@ -287,7 +331,7 @@ export function OnboardingFlow({ onComplete }: Props) {
             </div>
 
             <div className="flex gap-2">
-              <Button onClick={() => setStep(2)} variant="ghost" className="flex-1 h-12">← Back</Button>
+              <Button onClick={() => setStep(3)} variant="ghost" className="flex-1 h-12">← Back</Button>
               <Button
                 onClick={handleSubmit}
                 disabled={submitting || !email.includes("@") || !agreeToS}

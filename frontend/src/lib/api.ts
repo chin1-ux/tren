@@ -72,10 +72,14 @@ export interface ApiTrend {
   has_creator_outlier?: boolean;
   virality_type?: string;
   exogenous_correlation?: any;
-  content_tone?: string;
-  reel_id?: string;
-  thumbnail_url?: string | null;
   velocity_score?: number;
+  opportunity_score?: number;
+  is_regional_crossover?: boolean;
+  crossover_from_language?: string | null;
+  crossover_message?: string | null;
+  views_delta_last_run?: number;
+  likes_delta_last_run?: number;
+  audio_delta_last_run?: number;
 }
 
 export interface ApiCaptionKit {
@@ -150,11 +154,13 @@ const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }>
 
 const LANGUAGE_INFO: Record<string, { emoji: string; label: string }> = {
   hi: { emoji: "🇮🇳", label: "Hindi" },
+  pa: { emoji: "🎺", label: "Punjabi" },
   kn: { emoji: "🎯", label: "Kannada" },
   ta: { emoji: "🌴", label: "Tamil" },
   te: { emoji: "🌟", label: "Telugu" },
   bn: { emoji: "🐯", label: "Bengali" },
   mr: { emoji: "🦁", label: "Marathi" },
+  ml: { emoji: "🌴", label: "Malayalam" },
   en: { emoji: "🌐", label: "English" },
 };
 
@@ -228,13 +234,34 @@ export interface UiTrend {
   contentTone?: string;
   reelId?: string;
   thumbnailUrl?: string | null;
+
+  // opportunity and crossover fields
+  opportunityScore?: number;
+  nicheFitScore?: number;
+  isRegionalCrossover?: boolean;
+  crossoverFromLanguage?: string | null;
+  crossoverMessage?: string | null;
+  viewsDelta?: number;
+  likesDelta?: number;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
   const key = (t.content_type || "viral").toLowerCase();
   const meta = CATEGORY_EMOJI[key] ?? { emoji: "🔥", category: "Viral" as TrendCategory };
   const hours = Math.max(0, Number(t.window_hours_remaining) || 0);
-  const langInfo = LANGUAGE_INFO[(t.language ?? "").toLowerCase()] ?? null;
+  let rawLang = (t.language ?? "").toLowerCase().trim();
+  // Map legacy text values to proper ISO codes
+  if (rawLang === "hindi" || rawLang === "bhojpuri") rawLang = "hi";
+  else if (rawLang === "tamil") rawLang = "ta";
+  else if (rawLang === "telugu") rawLang = "te";
+  else if (rawLang === "punjabi") rawLang = "pa";
+  else if (rawLang === "kannada") rawLang = "kn";
+  else if (rawLang === "marathi") rawLang = "mr";
+  else if (rawLang === "malayalam") rawLang = "ml";
+  else if (rawLang === "bengali") rawLang = "bn";
+  else if (rawLang === "english") rawLang = "en";
+
+  const langInfo = LANGUAGE_INFO[rawLang] ?? null;
   const classificationStatus = (t.llm_classification_status || (t.reel_id ? "completed" : "pending")).toLowerCase();
   const isVerified = classificationStatus === "completed";
   const isUnverified = !isVerified;
@@ -297,6 +324,13 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     contentTone: t.content_tone ?? "unknown",
     reelId: t.reel_id,
     thumbnailUrl: t.thumbnail_url,
+    opportunityScore: t.opportunity_score,
+    nicheFitScore: t.niche_fit_score !== undefined ? t.niche_fit_score : undefined,
+    isRegionalCrossover: t.is_regional_crossover ?? false,
+    crossoverFromLanguage: t.crossover_from_language,
+    crossoverMessage: t.crossover_message,
+    viewsDelta: t.views_delta_last_run,
+    likesDelta: t.likes_delta_last_run,
   };
 }
 
@@ -396,6 +430,10 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
 }
 
 // ── Trend fetch functions ──────────────────────────────────────────────────────
+
+export async function fetchAudioHistory(trendId: string | number): Promise<Array<{ snapshotted_at: string; audio_use_count: number }>> {
+  return http<Array<{ snapshotted_at: string; audio_use_count: number }>>(`/api/trends/${encodeURIComponent(trendId)}/audio-history`);
+}
 
 export async function fetchTrends(language?: string, sort?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
