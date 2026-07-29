@@ -72,7 +72,7 @@ except Exception as e:
     BeatDetector = None
 
 try:
-    from instagram_scraper import InstagramScraper
+    from instagram_scraper_browser import InstagramScraper
 except Exception as e:
     logger.warning(f"InstagramScraper import failed: {e}")
     InstagramScraper = None
@@ -126,7 +126,6 @@ if not os.getenv("SUPABASE_URL"):
 required_env_vars = [
     "SUPABASE_URL",
     "SUPABASE_KEY",
-    "APIFY_API_TOKEN",
     "YOUTUBE_API_KEY",
     "RESEND_API_KEY",
     "SUPABASE_DB_URL"
@@ -299,7 +298,7 @@ def is_safe_instagram_url(url: str) -> bool:
 @app.get("/api/reels/stream/{db_id}")
 async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
     """
-    Fallback: triggers Apify Instagram reel scraper for a specific reel URL
+    Fallback: retrieves video URL directly from Instagram via session cookies
     when the cached storage preview is expired, failed, or missing.
     """
     if not supabase:
@@ -386,6 +385,10 @@ async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
         except Exception as err:
             logging.error(f"Error fetching fresh video url via cookie session: {err}")
  
+    # TODO: Pre-existing fallback bug: expired/missing video_url + preview_url currently
+    # returns a hard 400 instead of falling back gracefully to thumbnail_url.
+    # Root cause: the manual requests-cookie-session is blocked by Instagram's bot detection.
+    # Needs a Camoufox/browser-use rewrite or a graceful fallback to a thumbnail asset.
     if not fresh_video_url or not is_safe_instagram_url(fresh_video_url):
         raise HTTPException(status_code=400, detail="Invalid or unsafe video URL retrieved")
         

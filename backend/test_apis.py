@@ -98,58 +98,16 @@ def test_gemini():
             all_ok = False
     return all_ok
 
-def test_apify():
-    print("\n--- Testing Apify API Tokens ---")
-    raw_tokens = os.getenv("APIFY_API_TOKEN")
-    if not raw_tokens:
-        print("FAIL: APIFY_API_TOKEN not configured.")
-        return False
-    
-    tokens = [t.strip() for t in raw_tokens.split(",") if t.strip()]
-    print(f"Found {len(tokens)} Apify token(s) in configuration.")
-    
-    all_ok = True
-    for idx, token in enumerate(tokens, start=1):
-        masked = token[:10] + "..." + token[-4:] if len(token) > 14 else "invalid"
-        print(f"Testing token #{idx} ({masked})...")
-        try:
-            # Query Apify API to fetch user info or list actor runs
-            res = requests.get(
-                "https://api.apify.com/v2/users/me",
-                headers={"Authorization": f"Bearer {token}"},
-                timeout=10
-            )
-            if res.status_code == 200:
-                user_data = res.json().get("data", {})
-                username = user_data.get("username", "Unknown")
-                print(f"  SUCCESS: Token #{idx} is valid. User: {username}")
-            elif res.status_code == 401:
-                print(f"  FAIL: Token #{idx} is unauthorized (invalid key).")
-                all_ok = False
-            elif res.status_code == 403:
-                # Could be forbidden/rate limit
-                print(f"  FAIL: Token #{idx} forbidden: {res.text}")
-                all_ok = False
-            else:
-                res.raise_for_status()
-        except Exception as e:
-            print(f"  FAIL: Token #{idx} request error: {e}")
-            all_ok = False
-            
-    return all_ok
-
 if __name__ == "__main__":
     sb = test_supabase()
     gq = test_groq()
     gm = test_gemini()
-    ap = test_apify()
     
     print("\n--- Diagnostic Summary ---")
     print(f"Supabase Status: {'PASS' if sb else 'FAIL'}")
     print(f"Groq API Status: {'PASS' if gq else 'SOME/ALL KEYS FAILED'}")
     print(f"Gemini API Status: {'PASS' if gm else 'SOME/ALL KEYS FAILED'}")
-    print(f"Apify API Status: {'PASS' if ap else 'SOME/ALL TOKENS FAILED'}")
     
-    if not (sb and gq and gm and ap):
+    if not (sb and gq and gm):
         sys.exit(1)
     sys.exit(0)

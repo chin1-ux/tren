@@ -43,25 +43,9 @@ from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
 from supabase import create_client
 
-# Determine which Instagram scraper backend to use.
-# SCRAPER_BACKEND is read here at module level — load_dotenv() above must run first.
-SCRAPER_BACKEND = os.getenv("SCRAPER_BACKEND", "apify")
-if SCRAPER_BACKEND == "browser_use":
-    try:
-        from instagram_scraper_browser import InstagramScraper as InstagramScraper
-        logging.info("Using browser-use Instagram scraper backend.")
-    except Exception as e:
-        # Hard failure — do NOT fall back to Apify silently.
-        # A silent fallback would burn Apify API credits without any operator awareness.
-        # If browser_use was explicitly configured and fails to load, something is
-        # broken in the environment and the pipeline should not run at all.
-        logging.critical(
-            f"SCRAPER_BACKEND=browser_use but instagram_scraper_browser failed to import: {e}. "
-            "Refusing to fall back to Apify. Fix the import error or set SCRAPER_BACKEND=apify explicitly."
-        )
-        sys.exit(1)
-else:
-    from instagram_scraper import InstagramScraper as InstagramScraper
+# Unconditionally use the browser-use Instagram scraper backend.
+# The legacy Apify-based scraper has been completely removed from the codebase.
+from instagram_scraper_browser import InstagramScraper as InstagramScraper
 
 
 def _invalidate_trends_cache():
@@ -668,12 +652,9 @@ def run_creator_sync_job():
 def run_audio_count_check():
     logging.info("Starting Audio Official Counts Check Job...")
     try:
-        if SCRAPER_BACKEND == "browser_use":
-            insta = InstagramScraper()
-            insta.scrape_official_audio_counts(limit=30)
-            logging.info("Audio Official Counts Check Job complete.")
-        else:
-            logging.info("Audio check job skipped (only supported with browser_use backend).")
+        insta = InstagramScraper()
+        insta.scrape_official_audio_counts(limit=30)
+        logging.info("Audio Official Counts Check Job complete.")
     except Exception as e:
         logging.error(f"Audio Official Counts Check Job FAILED: {e}", exc_info=True)
 
