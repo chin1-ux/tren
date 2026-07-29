@@ -522,15 +522,54 @@ class TrendEngine:
                         pass
                 creator_velocity = (len(creators_0) - len(creators_1)) / 3.0
 
-                # Determine initial status
-                very_viral = any((r.get("velocity_score", 0) or 0) > 3.0 for r in recent_reels_6h)
+                # Determine initial status using grounded Option B triggers
+                # Grounded thresholds calibrated on 2026-07-29 against N=108 distinct audio_id values (p50 = 153k, p75 = 798k).
+                # Re-audit these thresholds if scrape distribution changes significantly.
+                EMERGING_USE_THRESHOLD = 150000
+                RISING_USE_THRESHOLD = 800000
 
-                reel_count = len(group_reels)
-                if creator_count >= 3 and creator_velocity > 0:
+                # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
+                has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
+                if not has_valid_engagement:
+                    continue
+
+                max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+
+                has_strong_official_velocity = False
+                if representative_audio_id:
+                    try:
+                        official_res = self.supabase.table("audio_official_counts") \
+                            .select("official_count_velocity") \
+                            .eq("audio_id", representative_audio_id) \
+                            .order("checked_at", desc=True) \
+                            .limit(1) \
+                            .execute()
+                        if official_res.data:
+                            vel = official_res.data[0].get("official_count_velocity")
+                            if vel and vel > 100.0:
+                                has_strong_official_velocity = True
+                    except Exception:
+                        pass
+
+                initial_status = None
+                promotion_trigger = None
+
+                if max_use_count >= RISING_USE_THRESHOLD:
                     initial_status = "rising"
-                elif creator_count >= 2 and reel_count >= 2:
+                    promotion_trigger = "audio_use_count_rising"
+                elif creator_count >= 3 and creator_velocity > 0:
+                    # TODO: Investigate why creator_count_rising fired 0 times in backtests.
+                    # Verify if condition is too strict or if creator velocity metrics need tuning.
+                    initial_status = "rising"
+                    promotion_trigger = "creator_count_rising"
+                elif max_use_count >= EMERGING_USE_THRESHOLD:
                     initial_status = "emerging"
-                else:
+                    promotion_trigger = "audio_use_count_emerging"
+                elif creator_count >= 2 and len(group_reels) >= 2:
+                    initial_status = "emerging"
+                    promotion_trigger = "creator_count_emerging"
+
+                if not initial_status:
                     continue
 
                 # Validate time window: all reels within 48h of each other
@@ -562,6 +601,7 @@ class TrendEngine:
                     "count": len(group_reels),
                     "usernames": list(usernames),
                     "initial_status": initial_status,
+                    "promotion_trigger": promotion_trigger,
                     "discovery_source": _trend_discovery_source({
                         "is_cross_cultural": any(r.get("is_cross_cultural") for r in group_reels),
                         "trend_origin": max(
@@ -788,6 +828,7 @@ class TrendEngine:
                     "saturation_penalty": trend.get("saturation_penalty"),
                     "hook_retention_score": trend.get("hook_retention_score"),
                     "composite_score": trend.get("composite_score"),
+                    "promotion_reason": trend.get("promotion_trigger"),
                     "llm_classification_status": trend.get("llm_classification_status", "pending"),
                     "raw_llm_response": trend.get("raw_llm_response"),
                     "llm_classified_at": trend.get("llm_classified_at"),
