@@ -357,16 +357,32 @@ class TrendEngine:
                 return []
 
             # STEP 1: Load recent high-velocity reels (last 48h)
+            # Note on filter semantics: PostgREST neq maps to SQL != which EXCLUDES NULLs.
+            # audio_backfill_status is NULL for the majority of valid reels (those whose audio
+            # was present at scrape time and never needed backfilling). Using neq("audio_backfill_status",
+            # "unrecoverable") would silently drop all of them. The correct intent is SQL's
+            # IS DISTINCT FROM — include rows where status is NULL or any non-unrecoverable value.
+            # Implemented via PostgREST or_ filter: (status.is.null,status.neq.unrecoverable)
             time_threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
             time_threshold_6h = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
 
-            reels_res = self.supabase.table("reels") \
-                .select("*") \
-                .gt("velocity_score", 0.3) \
-                .gte("created_at", time_threshold_48h) \
-                .neq("audio_backfill_status", "unrecoverable") \
-                .execute()
-            reels = reels_res.data or []
+            reels = []
+            offset = 0
+            _PAGE_SIZE = 1000
+            while True:
+                reels_res = self.supabase.table("reels") \
+                    .select("*") \
+                    .gt("velocity_score", 0.3) \
+                    .gte("created_at", time_threshold_48h) \
+                    .or_("audio_backfill_status.is.null,audio_backfill_status.neq.unrecoverable") \
+                    .order("created_at", desc=True) \
+                    .range(offset, offset + _PAGE_SIZE - 1) \
+                    .execute()
+                data = reels_res.data or []
+                reels.extend(data)
+                if len(data) < _PAGE_SIZE:
+                    break
+                offset += _PAGE_SIZE
             logging.info(f"Loaded {len(reels)} reels for evaluation")
 
             # STEP 2: Group by audio
