@@ -728,11 +728,11 @@ def _normalize_trends(trends: list) -> list:
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         
-        # Inject matching reel's thumbnail_url and reel_id
+        # Inject matching reel details
         try:
             # Query reels table to find the highest-velocity matching reel
             res = supabase.table("reels") \
-                .select("reel_id, thumbnail_url") \
+                .select("reel_id, views_delta_last_run") \
                 .eq("audio_title", t.get("audio_title")) \
                 .eq("audio_artist", t.get("audio_artist")) \
                 .order("velocity_score", desc=True) \
@@ -740,9 +740,9 @@ def _normalize_trends(trends: list) -> list:
                 .execute()
             if res.data:
                 t["reel_id"] = res.data[0].get("reel_id")
-                t["thumbnail_url"] = res.data[0].get("thumbnail_url")
+                t["views_delta_last_run"] = res.data[0].get("views_delta_last_run") or 0
         except Exception as e:
-            logger.warning(f"Failed to normalize thumbnail_url for trend {t.get('id')}: {e}")
+            logger.warning(f"Failed to normalize reel info for trend {t.get('id')}: {e}")
             
     return trends
 

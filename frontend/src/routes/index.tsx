@@ -15,6 +15,7 @@ import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 
 export const Route = createFileRoute("/")({
   head: () => ({

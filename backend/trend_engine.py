@@ -800,6 +800,13 @@ class TrendEngine:
                 else:
                     window_h = int(trend.get("window_hours_remaining") or 24)
 
+                # Compute dynamic opportunity score
+                # 60% based on low India saturation, 40% based on remaining opportunity window hours
+                # If window_h is None or 0, opportunity score is penalized
+                sat_factor = max(0.0, (100.0 - india_sat) / 100.0)
+                win_factor = max(0.0, (window_h or 0.0) / 24.0)
+                opportunity_score = round(((sat_factor * 60.0) + (win_factor * 40.0)) * (confidence or 0.0), 1)
+
                 # Niche tag: from hook_brief if available, else content_type
                 niche_tag = (
                     trend.get("niche_tag")
@@ -901,6 +908,8 @@ class TrendEngine:
                     "is_regional_crossover": crossover_info.get("is_crossover", False),
                     "crossover_from_language": crossover_info.get("from_language"),
                     "crossover_message": crossover_info.get("message"),
+                    "opportunity_score": opportunity_score,
+                    "niche_fit_score": float(trend.get("creator_fit_score") or 0.6) * 100.0,
                 }
 
                 try:

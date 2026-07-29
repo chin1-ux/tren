@@ -52,7 +52,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
     try {
       const { data, error } = await supabase
         .from("reels")
-        .select("reel_id, thumbnail_url")
+        .select("reel_id")
         .eq("audio_id", trend.audioId)
         .eq("video_storage_status", "stored")
         .order("view_count", { ascending: false })

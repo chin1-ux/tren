@@ -233,7 +233,6 @@ export interface UiTrend {
   exogenousCorrelation?: any;
   contentTone?: string;
   reelId?: string;
-  thumbnailUrl?: string | null;
 
   // opportunity and crossover fields
   opportunityScore?: number;
@@ -323,7 +322,6 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     exogenousCorrelation: t.exogenous_correlation ?? null,
     contentTone: t.content_tone ?? "unknown",
     reelId: t.reel_id,
-    thumbnailUrl: t.thumbnail_url,
     opportunityScore: t.opportunity_score,
     nicheFitScore: t.niche_fit_score !== undefined ? t.niche_fit_score : undefined,
     isRegionalCrossover: t.is_regional_crossover ?? false,
@@ -717,7 +715,6 @@ export interface ApiReel {
   caption: string;
   velocity_score: number;
   video_url?: string;
-  thumbnail_url?: string;
   // v2 new fields
   global_saturation_pct?: number;
   india_saturation_pct?: number;
