@@ -51,8 +51,8 @@ export default defineConfig({
         devOptions: { enabled: false },
         workbox: {
           globPatterns: [],
-          // navigateFallback intentionally omitted: TanStack Start/Nitro is SSR —
-          // there is no static index.html to fall back to; the server handles all HTML routes.
+          // Disable navigateFallback since TanStack Start/Nitro is SSR and there is no static index.html.
+          navigateFallback: null,
           runtimeCaching: [
             {
               urlPattern: ({ request }) => request.mode === "navigate",
