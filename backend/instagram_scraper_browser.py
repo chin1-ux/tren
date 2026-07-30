@@ -45,40 +45,6 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
     if velocity_pct > 300 and audio_use_count < 20_000:
         return 8
     if velocity_pct > 150 and audio_use_count < 50_000:
-import requests
-
-# Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
-try:
-    from camoufox.async_api import AsyncCamoufox as CamoufoxBrowser
-    _CAMOUFOX_AVAILABLE = True
-except ImportError:
-    CamoufoxBrowser = None  # type: ignore
-    _CAMOUFOX_AVAILABLE = False
-
-try:
-    logging.basicConfig(
-        filename="instagram_scraper_browser.log",
-        level=logging.INFO,
-        format="%(asctime)s - %(levelname)s - %(message)s",
-    )
-except Exception:
-    pass
-logger = logging.getLogger(__name__)
-
-def calculate_saturation(audio_use_count: int, india_use_count: int) -> dict:
-    global_pct = min(100.0, (audio_use_count / 100_000) * 100)
-    india_pct = min(100.0, (india_use_count / 8_000) * 100)
-    return {
-        "global": round(global_pct, 1),
-        "india": round(india_pct, 1),
-    }
-
-def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
-    if audio_use_count > 100_000:
-        return 0
-    if velocity_pct > 300 and audio_use_count < 20_000:
-        return 8
-    if velocity_pct > 150 and audio_use_count < 50_000:
         return 16
     if velocity_pct > 100 and audio_use_count < 80_000:
         return 24
