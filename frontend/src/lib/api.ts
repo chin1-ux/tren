@@ -774,10 +774,6 @@ export async function fetchUserFeed(): Promise<ApiReel[]> {
   return http<ApiReel[]>("/api/reels/feed");
 }
 
-export async function fetchCrossCulturalTrends(): Promise<ApiReel[]> {
-  return http<ApiReel[]>("/api/reels/cross-cultural");
-}
-
 export interface FlopDiagnosticsData {
   status: string;
   message?: string;

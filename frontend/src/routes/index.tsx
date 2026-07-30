@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Globe } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchAllActiveTrends, type UiTrend } from "@/lib/api";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -50,13 +50,13 @@ const NICHES = [
   { id: "beauty",   label: "💄 Beauty" },
 ];
 
-type FeedTab = "global" | "india" | "emerging";
+type FeedTab = "india" | "emerging";
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<string>("all");
-  const [feedTab, setFeedTab] = useState<FeedTab>("global");
+  const [feedTab, setFeedTab] = useState<FeedTab>("india");
   const [sortMode] = useState<any>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -118,16 +118,6 @@ function TrendsFeed() {
     refetchInterval: 5 * 60_000,
   });
 
-  const {
-    data: crossCulturalData,
-    isLoading: crossCulturalLoading,
-  } = useQuery({
-    queryKey: ["trends-all-active", language, selectedNiche],
-    queryFn: () => fetchAllActiveTrends(),
-    staleTime: 3 * 60_000,
-    refetchInterval: 5 * 60_000,
-  });
-
   const emergingCount = emergingData?.length ?? 0;
 
   // Notify on new emerging trends
@@ -142,27 +132,19 @@ function TrendsFeed() {
     prevCountRef.current = emergingCount;
   }, [emergingCount]);
 
-  const activeData = feedTab === "global"
-    ? crossCulturalData
-    : feedTab === "emerging"
+  const activeData = feedTab === "emerging"
     ? emergingData
     : risingData;
 
-  const isLoading = feedTab === "global"
-    ? crossCulturalLoading
-    : feedTab === "emerging"
+  const isLoading = feedTab === "emerging"
     ? emergingLoading
     : risingLoading;
 
-  const isError = feedTab === "global"
-    ? false
-    : feedTab === "emerging"
+  const isError = feedTab === "emerging"
     ? emergingError
     : risingError;
 
-  const refetch = feedTab === "global"
-    ? refetchRising
-    : feedTab === "emerging"
+  const refetch = feedTab === "emerging"
     ? refetchEmerging
     : refetchRising;
 
@@ -243,83 +225,9 @@ function TrendsFeed() {
         </div>
       </div>
 
-      {/* Global-first discovery rail */}
-      <div className="mx-4 mt-6 overflow-hidden rounded-[1.75rem] border border-primary/20 bg-gradient-to-b from-primary/10 via-background to-background shadow-[0_24px_80px_rgba(230,57,70,0.08)]">
-        <div className="flex items-center justify-between gap-4 border-b border-border/30 px-4 py-4">
-          <div className="flex items-center gap-3">
-            <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-primary/15 text-primary ring-1 ring-primary/20">
-              <Globe className="h-5 w-5" />
-            </div>
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.28em] text-primary/80">
-                Global-first discovery
-              </p>
-              <h2 className="text-base font-bold font-display tracking-tight text-foreground">
-                Global trends entering India
-              </h2>
-            </div>
-          </div>
-          <span className="rounded-full border border-primary/20 bg-primary/10 px-3 py-1 text-[10px] font-bold uppercase tracking-wide text-primary">
-            Cross-cultural
-          </span>
-        </div>
-
-        {crossCulturalLoading ? (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-4">
-            {[1, 2, 3].map((i) => (
-              <div key={i} className="shrink-0 w-64 rounded-[1.5rem] border border-border/30 bg-muted/30 p-4 animate-pulse">
-                <div className="h-4 w-20 rounded-full bg-foreground/10" />
-                <div className="mt-4 h-4 w-40 rounded-full bg-foreground/10" />
-                <div className="mt-2 h-3 w-28 rounded-full bg-foreground/10" />
-                <div className="mt-5 h-2 w-full rounded-full bg-foreground/10" />
-                <div className="mt-4 h-8 w-full rounded-xl bg-foreground/10" />
-              </div>
-            ))}
-          </div>
-        ) : !crossCulturalData || (crossCulturalData as any).length === 0 ? (
-          <div className="px-4 py-6 text-sm text-muted-foreground">
-            No global cross-cultural trends detected yet.
-          </div>
-        ) : (
-          <div className="flex gap-3 overflow-x-auto no-scrollbar px-4 py-4">
-            {(crossCulturalData as any[]).map((reel: any) => {
-              const indiaPct = reel.indiaSaturationPct ?? 0;
-              const audioUrl = reel.audioId
-                ? `https://www.instagram.com/reels/audio/${reel.audioId}/`
-                : `https://www.instagram.com/explore/tags/${encodeURIComponent(reel.song || "")}/`;
-              const windowH = reel.hoursLeft;
-              const isDance = reel.isDance || reel.nicheTag === "Dance";
-              const borderClass = isDance
-                ? "border border-amber-500/35 shadow-[0_0_16px_rgba(239,159,39,0.09)] bg-gradient-to-b from-[rgba(239,159,39,0.08)] to-transparent hover:border-amber-400/70"
-                : "border border-primary/35 shadow-[0_0_16px_rgba(230,57,70,0.09)] bg-gradient-to-b from-[rgba(230,57,70,0.08)] to-transparent hover:border-primary/70";
-
-              return (
-                <div key={reel.id} className="shrink-0 w-64">
-                  <AudioIdentityCard
-                    audioId={reel.audioId}
-                    audioTitle={reel.song}
-                    audioArtist={reel.artist}
-                    audioUseCount={reel.audioUseCount}
-                    trendId={reel.id}
-                    opportunityScore={reel.opportunityScore}
-                  />
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
       {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
-          <TabButton
-            active={feedTab === "global"}
-            onClick={() => setFeedTab("global")}
-            icon={<Globe className="h-3.5 w-3.5" />}
-            label="Global"
-            count={crossCulturalData?.length}
-          />
           <TabButton
             active={feedTab === "india"}
             onClick={() => setFeedTab("india")}
