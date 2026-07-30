@@ -355,7 +355,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       </div>
 
       {/* Opportunity Score Indicator (Top-Right) */}
-      {trend.opportunityScore !== undefined && (
+      {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
         <div className="absolute top-3 right-3 z-20">
           <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
             🟢 {Math.round(trend.opportunityScore)} Opportunity

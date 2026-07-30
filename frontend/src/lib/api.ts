@@ -148,6 +148,10 @@ const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }>
   faceless_video: { emoji: "🎭", category: "Faceless" },
   face_less:      { emoji: "🎭", category: "Faceless" },
   regional:       { emoji: "🌍", category: "Regional" },
+  global_discovery: { emoji: "🌍", category: "Global" },
+  india_vernacular: { emoji: "🇮🇳", category: "Regional" },
+  GLOBAL_DISCOVERY: { emoji: "🌍", category: "Global" },
+  INDIA_VERNACULAR: { emoji: "🇮🇳", category: "Regional" },
   other:          { emoji: "🔥", category: "Viral" },
   viral:          { emoji: "🔥", category: "Viral" },
 };
@@ -262,7 +266,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
 
   const langInfo = LANGUAGE_INFO[rawLang] ?? null;
   const classificationStatus = (t.llm_classification_status || (t.reel_id ? "completed" : "pending")).toLowerCase();
-  const isVerified = classificationStatus === "completed";
+  const VERIFIED_STATUSES = new Set(["completed", "not_needed", "verified"]);
+  const isVerified = VERIFIED_STATUSES.has(classificationStatus);
   const isUnverified = !isVerified;
 
   return {
@@ -271,7 +276,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     artist: t.artist || t.audio_artist || "Unknown Artist",
     hoursLeft: Math.round(hours),
     expiresAt: Date.now() + hours * 3600 * 1000,
-    viralMultiplier: Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) * 10) / 10,
+    viralMultiplier: Math.min(99.9, Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) / 10000 * 10) / 10),
     contentType: isUnverified ? "Classifying..." : meta.category,
     contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
     category: isUnverified ? "Classifying..." : meta.category,
@@ -339,33 +344,16 @@ import { supabase } from "./supabase";
 let inMemoryToken: string | null = null;
 
 export const createDefaultPreferences = async (userId: string) => {
-  try {
-    await supabase
-      .from('user_preferences')
-      .upsert({
-        user_id: userId,
-        languages: ['english', 'hindi'],   // Phase 1 default — hardcoded
-        categories: [],
-        regions: ['IN'],
-      }, { onConflict: 'user_id' });
-  } catch (err) {
-    console.error("Failed to create default preferences:", err);
-  }
+  // Graceful no-op since user_preferences table does not exist in backend schema
 };
 
 if (typeof window !== "undefined") {
   supabase.auth.getSession().then(({ data: { session } }) => {
     inMemoryToken = session?.access_token || null;
-    if (session?.user?.id) {
-      createDefaultPreferences(session.user.id);
-    }
   });
 
   supabase.auth.onAuthStateChange(async (event, session) => {
     inMemoryToken = session?.access_token || null;
-    if ((event === "SIGNED_IN" || event === "USER_UPDATED") && session?.user?.id) {
-      await createDefaultPreferences(session.user.id);
-    }
   });
 }
 
@@ -786,9 +774,8 @@ export async function fetchUserFeed(): Promise<ApiReel[]> {
   return http<ApiReel[]>("/api/reels/feed");
 }
 
-export async function fetchCrossCulturalTrends(): Promise<UiTrend[]> {
-  const data = await http<ApiTrend[]>("/api/reels/cross-cultural");
-  return data.map(adaptTrend);
+export async function fetchCrossCulturalTrends(): Promise<ApiReel[]> {
+  return http<ApiReel[]>("/api/reels/cross-cultural");
 }
 
 export interface FlopDiagnosticsData {

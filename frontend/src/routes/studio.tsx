@@ -3,7 +3,7 @@ import { useState } from "react";
 import { Sparkles, Trophy, Lightbulb, Target, Info, Check, Share2, ClipboardList, PenTool, MessageSquarePlus } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, getAuthToken } from "@/lib/api";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
@@ -77,7 +77,7 @@ function StudioPage() {
       return;
     }
     setLoadingAnalysis(true);
-    const token = localStorage.getItem("trendrop_token");
+    const token = getAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -100,20 +100,10 @@ function StudioPage() {
         setAnalysisResult(data);
         toast.success("Analysis complete!");
       } else {
-        throw new Error();
+        throw new Error(`Server returned ${res.status}`);
       }
-    } catch {
-      setAnalysisResult({
-        overall_score: 78,
-        breakdown: { hook_strength: 75, audio_match: 85, seo_and_caption: 65, hashtags: 80, timing: 85 },
-        fixes: [
-          "Make the hook more active. Start with a strong action verb.",
-          "Place keywords at the direct top of your caption to optimize for search.",
-          "Add 3-5 high-volume tags matching your exact content subcategory."
-        ],
-        estimated_reach_multiplier: "1.4x"
-      });
-      toast.success("Generated analysis!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate analysis. Check your backend status.");
     } finally {
       setLoadingAnalysis(false);
     }
@@ -126,7 +116,7 @@ function StudioPage() {
       return;
     }
     setLoadingHooks(true);
-    const token = localStorage.getItem("trendrop_token");
+    const token = getAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -145,18 +135,10 @@ function StudioPage() {
         setHooksResult(data);
         toast.success("Hooks generated!");
       } else {
-        throw new Error();
+        throw new Error(`Server returned ${res.status}`);
       }
-    } catch {
-      setHooksResult({
-        hooks: [
-          { style: "Curiosity", text: `I bet you didn't know this about ${hookTopic}...`, why_it_works: "Triggers the open-loop effect in viewers' brains." },
-          { style: "Authority", text: `Stop listening to fake advice about ${hookTopic}. Here is the truth.`, why_it_works: "Positions you as an expert instantly." },
-          { style: "Relatability", text: `My first month trying to figure out ${hookTopic} was a complete mess.`, why_it_works: "Fosters instant human connection." },
-          { style: "Fear of Missing Out (FOMO)", text: `If you don't do this with ${hookTopic} by tomorrow, you'll regret it.`, why_it_works: "Urgency drives higher watch time." }
-        ]
-      });
-      toast.success("Generated hooks!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate hooks.");
     } finally {
       setLoadingHooks(false);
     }
@@ -169,7 +151,7 @@ function StudioPage() {
       return;
     }
     setLoadingSeo(true);
-    const token = localStorage.getItem("trendrop_token");
+    const token = getAuthToken();
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (token) {
       headers["Authorization"] = `Bearer ${token}`;
@@ -188,16 +170,10 @@ function StudioPage() {
         setSeoResult(data);
         toast.success("SEO Caption generated!");
       } else {
-        throw new Error();
+        throw new Error(`Server returned ${res.status}`);
       }
-    } catch {
-      setSeoResult({
-        caption: `🚀 Elevating your game with ${seoDesc}! Here's the ultimate framework to scale your content. Let me know your thoughts in the comments! 👇\n\n#contentcreator #seo #socialmediatips`,
-        keywords_targeted: [seoDesc, "content creation tips"],
-        alt_text: `A professional infographic illustrating ${seoDesc} for creators`,
-        hashtag_strategy: "Combines high volume reach tags with extremely specific, low competition niche terms."
-      });
-      toast.success("Generated SEO copy!");
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate SEO Caption.");
     } finally {
       setLoadingSeo(false);
     }

@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
+import { useUserStore } from "@/store/useAppStore";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -200,8 +201,8 @@ function TrendsFeed() {
               <button
               id="notification-bell"
               onClick={() => {
-                setFeedTab("global");
-                toast("⚡ Switched to Global feed", {
+                setFeedTab("emerging");
+                toast("⚡ Switched to Emerging feed", {
                   description: emergingCount > 0
                     ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} detected right now`
                     : "No new emerging trends yet — check back soon!",
@@ -227,8 +228,8 @@ function TrendsFeed() {
               className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
               aria-label="Profile"
             >
-              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white">
-                U
+              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white uppercase">
+                {useUserStore.getState().email ? useUserStore.getState().email.charAt(0) : "T"}
               </div>
             </button>
           </div>
@@ -352,6 +353,28 @@ function TrendsFeed() {
               <X className="h-4 w-4 text-muted-foreground" />
             </button>
           )}
+        </div>
+
+        {/* Language Selection Chip Strip */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mt-2 px-1">
+          {LANGUAGES.map((lang) => (
+            <button
+              key={lang.code}
+              onClick={() => {
+                setLanguage(lang.code);
+                if (typeof window !== "undefined") {
+                  localStorage.setItem("trendrop_pref_language", lang.code);
+                }
+              }}
+              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-all border ${
+                language === lang.code
+                  ? "bg-primary text-white border-primary"
+                  : "bg-muted text-muted-foreground border-border/30 hover:text-foreground"
+              }`}
+            >
+              {lang.label}
+            </button>
+          ))}
         </div>
       </div>
 

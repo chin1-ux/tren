@@ -415,6 +415,7 @@ app.add_middleware(GZipMiddleware, minimum_size=1000)
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 allowed_origins = [
+    "https://trendrop-black.vercel.app",
     "https://trendrop-drop-first.vercel.app",
     "https://trendrop-eta.vercel.app",
     "https://trendrop.vercel.app",
@@ -477,9 +478,9 @@ async def security_headers_and_limits_middleware(request: Request, call_next):
         "script-src 'self' 'unsafe-inline'; "
         "style-src 'self' 'unsafe-inline' fonts.googleapis.com; "
         "font-src fonts.gstatic.com; "
-        "img-src 'self' data: blob:; "
-        "media-src 'self' blob:; "
-        "connect-src 'self' tdisqfmtvuljfstncxqv.supabase.co"
+        "img-src 'self' data: blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net; "
+        "media-src 'self' blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net; "
+        "connect-src 'self' https://tdisqfmtvuljfstncxqv.supabase.co https://*.cdninstagram.com"
     )
     return response
 
