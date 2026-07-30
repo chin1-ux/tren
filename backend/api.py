@@ -180,6 +180,8 @@ app = FastAPI(
     description="AI-powered trend intelligence for Indian short-form creators",
     version="2.0"
 )
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
 
@@ -955,7 +957,7 @@ def get_trend(request: Request, trend_id: int, current_user: str = Depends(get_c
 
 
 @app.get("/api/trends/{trend_id}/audio-history")
-@limiter.limit("60/minute")
+@limiter.limit("300/minute")
 def get_trend_audio_history(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
     """Fetch 72h historical snapshot points for sparkline growth charting."""
     if not supabase:

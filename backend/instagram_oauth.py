@@ -27,12 +27,14 @@ INSTAGRAM_API_VERSION = "v18.0"
 # Supabase client
 supabase: Optional[Client] = None
 try:
-    supabase = create_client(
-        os.getenv("SUPABASE_URL"),
-        os.getenv("SUPABASE_SERVICE_KEY")
-    )
+    _url = os.getenv("SUPABASE_URL")
+    _key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or os.getenv("SUPABASE_SERVICE_KEY")
+    if _url and _key:
+        supabase = create_client(_url, _key)
+    else:
+        logger.warning("Supabase URL or Key missing for InstagramOAuth")
 except Exception as e:
-    logger.error(f"Failed to initialize Supabase client: {e}")
+    logger.error(f"Failed to initialize Supabase client in instagram_oauth: {e}")
 
 
 class InstagramOAuth:
