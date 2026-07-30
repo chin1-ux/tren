@@ -354,7 +354,20 @@ class TrendEngine:
         age_pressure = min(1.0, oldest_age_hours / 72)
         return max(0.0, min(1.0, (crowding * 0.45) + (momentum_density * 0.35) + (age_pressure * 0.20)))
 
-    def _estimate_hook_retention_score(self, title: str, recent_6h_avg: float, avg_velocity: float, max_velocity: float) -> float:
+    def _estimate_hook_retention_score(self, reels: list[dict], title: str, recent_6h_avg: float, avg_velocity: float, max_velocity: float) -> float:
+        engagement_rates = []
+        for r in reels:
+            views = r.get("view_count") or 0
+            likes = r.get("like_count") or 0
+            comments = r.get("comment_count") or 0
+            if views > 0:
+                er = (likes + comments) / views
+                engagement_rates.append(er)
+        if engagement_rates:
+            avg_er = sum(engagement_rates) / len(engagement_rates)
+            # base 0.40 + engagement rate * 4.0 (e.g. 5% ER -> 0.40 + 0.20 = 0.60, 10% ER -> 0.80)
+            return min(0.95, max(0.35, 0.40 + avg_er * 4.0))
+
         text = title.lower()
         hooky_words = [
             "dance", "step", "reveal", "before", "after", "pov", "wait",
@@ -538,6 +551,7 @@ class TrendEngine:
 
                 # Hook retention is estimated from the content format and momentum profile.
                 hook_retention_score = self._estimate_hook_retention_score(
+                    reels=group_reels,
                     title=title,
                     recent_6h_avg=recent_6h_avg,
                     avg_velocity=avg_velocity,
@@ -721,7 +735,31 @@ class TrendEngine:
                 trend["window_hours_remaining"] = trend.get("window_hours_remaining") or 24
                 trend["confidence"] = 0.75
                 trend["saturation_score"] = min(1.0, max(0.0, trend.get("saturation_score") or 0.2))
-                trend["optimal_post_hour_ist"] = 18
+                # Calculate dynamic optimal post time based on linked reels
+                posted_hours = []
+                for r in reels:
+                    posted_str = r.get("posted_at")
+                    if posted_str:
+                        try:
+                            if posted_str.endswith("Z"):
+                                posted_str = posted_str[:-1] + "+00:00"
+                            from datetime import timedelta
+                            dt_posted = datetime.fromisoformat(posted_str)
+                            if dt_posted.tzinfo is None:
+                                dt_posted = dt_posted.replace(tzinfo=timezone.utc)
+                            ist_dt = dt_posted + timedelta(hours=5.5)
+                            posted_hours.append(ist_dt.hour)
+                        except Exception:
+                            pass
+                if posted_hours:
+                    from collections import Counter
+                    most_common_hour = Counter(posted_hours).most_common(1)[0][0]
+                    peak_slots = [8, 12, 15, 18, 20, 21]
+                    best_hour = min(peak_slots, key=lambda x: min(abs(x - most_common_hour), abs(x - most_common_hour - 24)))
+                    trend["optimal_post_hour_ist"] = best_hour
+                else:
+                    fallback_slots = [8, 12, 15, 18, 20, 21]
+                    trend["optimal_post_hour_ist"] = fallback_slots[abs(hash(trend["audio_title"])) % len(fallback_slots)]
                 trend["best_platform_first"] = "instagram"
                 trend["why_this_works"] = "The trend is reinforced by repeated creator adoption and strong engagement velocity."
                 trend["audio_cue_second"] = 0

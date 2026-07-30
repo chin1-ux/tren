@@ -723,27 +723,40 @@ CONTENT_TYPE_NORMALIZE = {
 
 def _normalize_trends(trends: list) -> list:
     """Normalize content_type and inject song/artist aliases on each trend row."""
+    if not trends:
+        return trends
+
+    # Batch query reels for all trend titles in a single DB round-trip
+    titles = list(set(t.get("audio_title") for t in trends if t.get("audio_title")))
+    reels_lookup = {}
+    if titles and supabase:
+        try:
+            res_reels = supabase.table("reels") \
+                .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score") \
+                .in_("audio_title", titles) \
+                .execute()
+            
+            for r in (res_reels.data or []):
+                key = (r.get("audio_title"), r.get("audio_artist"))
+                velocity = float(r.get("velocity_score") or 0.0)
+                existing = reels_lookup.get(key)
+                if not existing or velocity > float(existing.get("velocity_score") or 0.0):
+                    reels_lookup[key] = r
+        except Exception as e:
+            logger.warning(f"Failed to pre-fetch reels info: {e}")
+
     for t in trends:
         t["song"]   = t.get("audio_title")
         t["artist"] = t.get("audio_artist")
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         
-        # Inject matching reel details
-        try:
-            # Query reels table to find the highest-velocity matching reel
-            res = supabase.table("reels") \
-                .select("reel_id, views_delta_last_run") \
-                .eq("audio_title", t.get("audio_title")) \
-                .eq("audio_artist", t.get("audio_artist")) \
-                .order("velocity_score", desc=True) \
-                .limit(1) \
-                .execute()
-            if res.data:
-                t["reel_id"] = res.data[0].get("reel_id")
-                t["views_delta_last_run"] = res.data[0].get("views_delta_last_run") or 0
-        except Exception as e:
-            logger.warning(f"Failed to normalize reel info for trend {t.get('id')}: {e}")
+        # Inject matching reel details from lookup
+        key = (t.get("audio_title"), t.get("audio_artist"))
+        match = reels_lookup.get(key)
+        if match:
+            t["reel_id"] = match.get("reel_id")
+            t["views_delta_last_run"] = match.get("views_delta_last_run") or 0
             
     return trends
 
@@ -776,7 +789,8 @@ def get_trends(
     Optional filters: ?language=hi&sort=velocity|time_left|newest&niche=fitness
     """
     lang_key = language or "all"
-    cache_key = f"trends:{lang_key}:{sort}"
+    niche_key = niche or "all"
+    cache_key = f"trends:{lang_key}:{sort}:{niche_key}"
     
     # Try fetching from Redis cache first
     if standard_queue and standard_queue.connection:

@@ -56,6 +56,11 @@ _INDIAN_ORIGIN_HINTS = (
     "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
     "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
     "neh", "ap dhillon", "from \"", "(from ", "from the movie",
+    "anu malik", "hema sardesai", "sai abhyankkar", "gana muthu", "vishnu edavan",
+    "jyotica tangri", "shaarib toshi", "kumaar", "tanishk", "bagchi", "badshah",
+    "shreya ghoshal", "sonu nigam", "sunidhi", "shankar", "ehsaan", "loy", "udit narayan",
+    "kumar sanu", "lata", "asha bhosle", "kishore", "rafi", "malik", "sardesai",
+    "abhyankkar", "muthu", "edavan", "tangri", "toshi",
     # Music labels (India-specific)
     "t-series", "zee music", "sony music india", "tips music", "saregama",
     "speed records", "venus music", "jio saavn", "gaana", "hungama",
@@ -933,7 +938,7 @@ class InstagramScraper:
         # Detect audio language using priority chain (the bug fix)
         audio_lang = _detect_audio_language(audio_text, caption_text, hashtags, source_hashtag_pool)
 
-        looks_indian = _looks_indian_audio(audio_name, None, caption)
+        looks_indian = _looks_indian_audio(audio_name, reel.get("audio_artist"), caption)
 
         # If audio language is an Indian language code, force origin to IN
         # This fixes the case where a Tamil/Telugu artist isn't in _INDIAN_ORIGIN_HINTS
@@ -941,10 +946,14 @@ class InstagramScraper:
             trend_origin = "IN"
             creator_country = "IN"
             confidence = 0.92
+            if source_hashtag_pool == "GLOBAL_DISCOVERY":
+                source_hashtag_pool = "INDIA_VERNACULAR"
         elif looks_indian:
             trend_origin = "IN"
             creator_country = "IN"
             confidence = 0.90
+            if source_hashtag_pool == "GLOBAL_DISCOVERY":
+                source_hashtag_pool = "INDIA_VERNACULAR"
         else:
             trend_origin = "unknown"
             creator_country = "unknown"
@@ -958,6 +967,7 @@ class InstagramScraper:
             "is_cross_cultural": False,
             "confidence": confidence,
             "content_tone": classify_content_tone(caption, hashtags),
+            "source_hashtag_pool": source_hashtag_pool,
         }
         return _normalize_trend_origin(meta, reel)
 
@@ -1256,6 +1266,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                         # Metadata tagging — pass source_hashtag_pool so language
                         # detection uses the strongest available signal first
                         meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
+                        source_hashtag_pool = meta.get("source_hashtag_pool", source_hashtag_pool)
+                        reel["source_hashtag_pool"] = source_hashtag_pool
                         creator_country = meta.get("creator_country", "unknown")
                         
                         # Calculate India saturation

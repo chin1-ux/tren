@@ -23,6 +23,18 @@ interface Props {
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+const LANG_EMOJIS: Record<string, string> = {
+  en: "🇬🇧 English",
+  hi: "🇮🇳 Hindi",
+  kn: "🎯 Kannada",
+  ta: "🌴 Tamil",
+  te: "🌟 Telugu",
+  bn: "🐯 Bengali",
+  mr: "🦁 Marathi",
+  pa: "🌾 Punjabi",
+  ml: "🥥 Malayalam",
+};
+
 function getSaturationMeta(score: number): { label: string; color: string; dot: string } {
   if (score < 0.2) return { label: "Very Early 🟢", color: "text-emerald-400", dot: "bg-emerald-400" };
   if (score < 0.5) return { label: "Getting Popular 🟡", color: "text-amber-400", dot: "bg-amber-400" };
@@ -295,20 +307,24 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   };
 
   const getBorderClass = () => {
+    // Glassmorphic styling: light themed glass in light mode, dark themed obsidian in dark mode
+    const baseBg = "bg-surface/85 dark:bg-zinc-950/70 backdrop-blur-xl transition-all duration-300";
+    const baseShadow = "shadow-[0_8px_30px_rgb(0,0,0,0.04)] dark:shadow-[0_12px_32px_rgba(0,0,0,0.4)]";
+
     if (trend.opportunityScore && trend.opportunityScore >= 80)
-      return "border border-emerald-500/40 shadow-[0_0_12px_rgba(16,185,129,0.08)] bg-gradient-to-b from-[rgba(16,185,129,0.05)] to-transparent hover:border-emerald-500/80";
+      return `${baseBg} ${baseShadow} border border-emerald-500/20 dark:border-emerald-500/20 hover:border-emerald-500/55`;
     if (trend.isDance || trend.category === "Dance")
-      return "border border-amber/40 shadow-[0_0_12px_rgba(239,159,39,0.08)] bg-gradient-to-b from-[rgba(239,159,39,0.05)] to-transparent hover:border-amber/80";
+      return `${baseBg} ${baseShadow} border border-amber-500/20 dark:border-amber-500/20 hover:border-amber-500/55`;
     if (trend.isNarrativeEdit || trend.category === "Narrative")
-      return "border border-purple/40 shadow-[0_0_12px_rgba(127,119,221,0.08)] bg-gradient-to-b from-[rgba(127,119,221,0.05)] to-transparent hover:border-purple/80";
-    return "border border-primary/40 shadow-[0_0_12px_rgba(230,57,70,0.08)] bg-gradient-to-b from-[rgba(230,57,70,0.05)] to-transparent hover:border-primary/80";
+      return `${baseBg} ${baseShadow} border border-purple-500/20 dark:border-purple-500/20 hover:border-purple-500/55`;
+    return `${baseBg} ${baseShadow} border border-border/80 dark:border-white/10 hover:border-violet-500/30 dark:hover:border-violet-500/30`;
   };
 
   const getOpportunityScoreBadgeColor = (score: number) => {
-    if (score >= 80) return "bg-emerald-500/20 text-emerald-400 border-emerald-500/30";
-    if (score >= 60) return "bg-amber-500/20 text-amber-400 border-amber-500/30";
-    if (score >= 40) return "bg-orange-500/20 text-orange-400 border-orange-500/30";
-    return "bg-rose-500/20 text-rose-400 border-rose-500/30";
+    if (score >= 80) return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.1)]";
+    if (score >= 60) return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.1)]";
+    if (score >= 40) return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
+    return "bg-rose-500/10 text-rose-600 dark:text-rose-400 border-rose-500/20";
   };
 
   const getOpportunityScoreStatus = (score: number) => {
@@ -330,73 +346,53 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       whileHover={{ y: -4, boxShadow: "0 15px 40px rgba(0,0,0,0.4)" }}
       className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
     >
-      {/* Badges */}
-      <div className="absolute -top-1 left-4 flex gap-2 z-20">
-        {isEmerging && (
-          <span className="inline-flex items-center gap-1 rounded-b-lg bg-[#ff006e] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
-            <Zap className="h-2.5 w-2.5" /> EMERGING
-          </span>
-        )}
-        {isMegaTrend && (
-          <span className="inline-flex items-center gap-1 rounded-b-lg bg-gradient-to-r from-purple to-pink-500 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
-            <Flame className="h-2.5 w-2.5 animate-bounce" /> MEGA TREND
-          </span>
-        )}
-        {trend.discoverySource === "unexpected_candidate" && (
-          <span className="inline-flex items-center gap-1 rounded-b-lg bg-[#2563eb] px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
-            <Zap className="h-2.5 w-2.5" /> UNDER RADAR
-          </span>
-        )}
-        {hasCreatorBreakout && (
-          <span className="inline-flex items-center gap-1 rounded-b-lg bg-emerald-500 px-2.5 py-1 text-[9px] font-bold uppercase tracking-widest text-white shadow-md">
-            🚀 BREAKOUT
-          </span>
-        )}
-      </div>
-
       {/* Opportunity Score Indicator (Top-Right) */}
       {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
-        <div className="absolute top-3 right-3 z-20">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
+        <div className="absolute top-4 right-4 z-20">
+          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
             🟢 {Math.round(trend.opportunityScore)} Opportunity
           </span>
         </div>
       )}
 
-      {/* ── 1. Top row: platform ───────────────────────────────── */}
-      <div className="flex items-center justify-between pt-1">
-        <div className="flex items-center gap-2">
-          <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[10px] font-bold uppercase tracking-wide text-primary">
-            <TrendingUp className="h-3 w-3" /> Trending
-          </span>
+      {/* ── 1. Top row: platform and status badges (unified tag cloud to prevent overlaps) ── */}
+      <div className="flex flex-wrap items-center gap-1.5 pt-1 pr-24 z-10">
+        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
+          <TrendingUp className="h-2.5 w-2.5" /> Trending
+        </span>
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
+          {platformMeta.icon} {platformMeta.label}
+        </span>
+        {trend.language && (
           <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-            {platformMeta.icon} {platformMeta.label}
+            {LANG_EMOJIS[trend.language] || trend.language.toUpperCase()}
           </span>
-          {trend.viralityType && trend.viralityType !== "unknown" && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-              trend.viralityType === "exogenous" ? "bg-blue-500/10 text-blue-400 border border-blue-500/20" :
-              trend.viralityType === "mixed" ? "bg-purple-500/10 text-purple-400 border border-purple-500/20" :
-              "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20"
-            }`}>
-              {trend.viralityType === "exogenous" ? "📰 News" :
-               trend.viralityType === "mixed" ? "🌀 Mixed" :
-               "🟢 Organic"}
-            </span>
-          )}
-          {trend.contentTone && trend.contentTone !== "unknown" && (
-            <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-semibold ${
-              trend.contentTone === "wholesome" ? "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20" :
-              trend.contentTone === "controversial" ? "bg-amber-500/10 text-amber-400 border border-amber-500/20" :
-              trend.contentTone === "outrage" ? "bg-red-500/10 text-red-400 border border-red-500/20" :
-              "bg-white/5 text-muted-foreground border border-white/10"
-            }`}>
-              {trend.contentTone === "wholesome" ? "✨ Wholesome" :
-               trend.contentTone === "controversial" ? "⚡ Controversy" :
-               trend.contentTone === "outrage" ? "😡 Outrage" :
-               "⚪ Neutral"}
-            </span>
-          )}
-        </div>
+        )}
+        {isEmerging && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-[#ff006e]/15 border border-[#ff006e]/20 px-2 py-0.5 text-[9px] font-bold text-[#ff006e]">
+            ⚡ EMERGING
+          </span>
+        )}
+        {isMegaTrend && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[9px] font-bold">
+            🔥 MEGA TREND
+          </span>
+        )}
+        {trend.discoverySource === "unexpected_candidate" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 text-[9px] font-bold">
+            🎯 UNDER RADAR
+          </span>
+        )}
+        {hasCreatorBreakout && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 px-2 py-0.5 text-[9px] font-bold">
+            🚀 BREAKOUT
+          </span>
+        )}
+        {trend.isRegionalCrossover && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 text-[9px] font-bold">
+            🌐 CROSSOVER
+          </span>
+        )}
       </div>
 
       {/* Video/Audio Identity Card replacing Image Thumbnail */}
@@ -416,11 +412,13 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
       {/* ── 1. Song info ─────────────────────────────────────────────────── */}
       <div className="space-y-0.5 min-w-0">
-        <h3
-          className="font-display text-xl font-bold leading-snug tracking-tight text-foreground flex items-center justify-between gap-2"
-          title={trend.song}
-        >
-          <span className="line-clamp-1 min-w-0 flex-1">{trend.song}</span>
+        <div className="flex items-center justify-between gap-2">
+          <h3
+            className="font-extrabold text-foreground tracking-tight text-base md:text-lg flex items-center gap-1.5 group hover:text-primary transition-colors truncate"
+            title={trend.song}
+          >
+            <span className="truncate">{trend.song}</span>
+          </h3>
           <button
             onClick={toggleSave}
             className="shrink-0 text-muted-foreground hover:text-primary transition-colors p-1"
@@ -428,12 +426,12 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           >
             {isSaved ? <BookmarkCheck className="h-5 w-5 text-primary" /> : <Bookmark className="h-5 w-5" />}
           </button>
-        </h3>
-        <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5 truncate">by {trend.artist}</p>
         
         {/* Saturation advice subtitle */}
         {trend.opportunityScore !== undefined && (
-          <p className="text-[10px] text-white/50 italic mt-0.5">
+          <p className="text-[10px] text-muted-foreground/80 italic mt-0.5">
             {getOpportunityScoreStatus(trend.opportunityScore)}
           </p>
         )}
@@ -445,7 +443,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
           <span className="text-muted-foreground">Reels using this audio:</span>
           <div className="flex items-center gap-1.5 ml-auto">
-            {trend.viewsDelta && trend.viewsDelta > 0 && (
+            {trend.viewsDelta !== undefined && trend.viewsDelta > 0 && (
               <span className="text-[10px] font-bold text-emerald-400 mr-1 bg-emerald-500/10 px-1.5 py-0.5 rounded">
                 📈 +{formatViews(trend.viewsDelta)}
               </span>
@@ -579,7 +577,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
                 <p className="text-xs text-foreground/90 leading-relaxed">
-                  {trend.whyThisWorks || `Open with the beat drop — grab attention in second 1 before viewers scroll away.`}
+                  {trend.llmClassificationStatus === "completed" 
+                    ? (trend.whyThisWorks || "No hook advice available.") 
+                    : "Not enough data yet for a tailored strategy."}
                 </p>
               </div>
 
@@ -636,7 +636,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
               <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
-                {trend.idealContentDescription || "Sync high-impact transitions with the main beats of this song for maximum reach."}
+                {trend.llmClassificationStatus === "completed" 
+                  ? (trend.idealContentDescription || "No content concept available.") 
+                  : "Not enough data yet for a tailored strategy."}
               </p>
             </div>
 

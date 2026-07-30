@@ -635,12 +635,20 @@ function GeneratePage() {
                 </div>
               </div>
 
+              {/* Coming Soon Beta Banner */}
+              <div className="rounded-xl border border-dashed border-amber-500/30 bg-[rgba(245,158,11,0.03)] p-4 text-center">
+                <AlertTriangle className="h-5 w-5 text-amber-500 mx-auto mb-2" />
+                <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Feature Coming Soon</p>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Faceless video generation using AI-generated templates is currently undergoing private beta testing.
+                </p>
+              </div>
+
               <Button
-                onClick={handleCreateFaceless}
-                disabled={!contentDescription.trim()}
-                className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                disabled={true}
+                className="w-full h-12 bg-white/5 border border-white/10 text-slate-400 font-bold uppercase tracking-wider rounded-xl cursor-not-allowed"
               >
-                Generate Faceless Reel
+                Coming Soon
               </Button>
             </div>
           )}

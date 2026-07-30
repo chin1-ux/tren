@@ -227,18 +227,23 @@ For each idea, provide:
 4. Best audio suggestion (incorporate some of the active trends if applicable)
 5. Best time to post
 
-Return ONLY a JSON array of 3 objects in the following format:
-[
-  {{
-    "title": "Concept Title",
-    "description": "What to do in this video",
-    "hook": "Wait till the end to see...",
-    "audio_suggestion": "Audio name or type",
-    "posting_time": "7:00 PM"
-  }}
-]
+Return ONLY a JSON response in the following format:
+{{
+  "ideas": [
+    {{
+      "title": "Concept Title",
+      "description": "What to do in this video",
+      "hook": "Wait till the end to see...",
+      "audio_suggestion": "Audio name or type",
+      "posting_time": "7:00 PM"
+    }}
+  ]
+}}
 """
         result = self._call_gemini(system_prompt, user_prompt)
+        if isinstance(result, dict) and "ideas" in result:
+            result = result["ideas"]
+
         if not isinstance(result, list):
             result = [
                 {"title": f"The Ultimate {niche} Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM"},

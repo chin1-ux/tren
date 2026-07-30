@@ -37,6 +37,8 @@ const LANGUAGES = [
   { code: "te",  label: "🌟 Telugu" },
   { code: "bn",  label: "🐯 Bengali" },
   { code: "mr",  label: "🦁 Marathi" },
+  { code: "pa",  label: "🌾 Punjabi" },
+  { code: "ml",  label: "🥥 Malayalam" },
 ];
 
 const NICHES = [
@@ -65,6 +67,7 @@ function TrendsFeed() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
+  const lastTotalActiveRef = useRef<number>(0);
 
   // Niche filter — read from preferences
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
@@ -165,7 +168,16 @@ function TrendsFeed() {
     hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
   }), []);
 
-  const totalActive = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
+  const totalActive = useMemo(() => {
+    const isRisingLoading = risingLoading && !risingData;
+    const isEmergingLoading = emergingLoading && !emergingData;
+    if (isRisingLoading || isEmergingLoading) {
+      return lastTotalActiveRef.current;
+    }
+    const count = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
+    lastTotalActiveRef.current = count;
+    return count;
+  }, [risingData, emergingData, risingLoading, emergingLoading]);
 
   return (
     <div className="flex flex-col gap-0 pb-24">
