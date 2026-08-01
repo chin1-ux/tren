@@ -45,6 +45,10 @@ async function unregisterExisting(): Promise<void> {
 
 export function registerPWA(): void {
   if (typeof window === "undefined") return;
+  if (import.meta.env.VITE_ENABLE_PWA !== "true") {
+    void unregisterExisting();
+    return;
+  }
   if (isRefusedContext()) {
     void unregisterExisting();
     return;
