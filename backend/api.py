@@ -657,7 +657,8 @@ def health_check():
         total, used, free = shutil.disk_usage("/")
         disk_free_gb = free / (2**30)
         disk_status = "healthy" if disk_free_gb > 1.0 else "low_space"
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Disk health check failed: {e}")
         total, used, free = 0, 0, 0
         disk_free_gb = 0
         disk_status = "unknown"
@@ -683,8 +684,8 @@ def health_check():
         elif os.name == 'nt':
             # Windows memory checks using built-in system command or fallback
             mem_status = "healthy"
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception(f"Memory health check failed: {e}")
 
     return {
         "status": "ok",
@@ -823,6 +824,7 @@ def get_trends(
         else:
             q = q.order("velocity_avg", desc=True)
 
+        q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -855,6 +857,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
+        q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -871,11 +874,12 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).limit(100).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
     except Exception as e:
+        logger.exception(f"Error fetching trend {trend_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -900,6 +904,7 @@ def get_audio_trend_scores_api(request: Request, current_user: str = Depends(get
             .select("*") \
             .eq("scrape_cycle_at", latest_cycle) \
             .neq("lifecycle_stage", "INSUFFICIENT_DATA") \
+            .limit(100) \
             .execute()
         
         # Sort in memory since None values for velocities could exist
@@ -927,6 +932,7 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
             .in_("llm_classification_status", ["completed", "not_needed"]) \
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
+            .limit(100) \
             .execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -982,7 +988,7 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
             
         return history_res.data or []
     except Exception as e:
-        logger.error(f"Error fetching audio history for trend {trend_id}: {e}", exc_info=True)
+        logger.exception(f"Error fetching audio history for trend {trend_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -1012,6 +1018,7 @@ def get_trend_reels(request: Request, trend_id: int, current_user: str = Depends
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Error fetching similar trends for trend {trend_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -1063,6 +1070,7 @@ def get_similar_trends(request: Request, trend_id: int, current_user: str = Depe
     except HTTPException:
         raise
     except Exception as e:
+        logger.exception(f"Error computing trend decision for trend {trend_id}: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -1601,8 +1609,8 @@ def get_job_queue(user_email: str) -> Optional["Queue"]:
         res = supabase.table("users").select("plan").eq("email", user_email).execute()
         if res.data and res.data[0].get("plan") == "pro":
             return priority_queue or standard_queue
-    except Exception:
-        pass
+    except Exception as e:
+        logger.exception(f"Job queue plan lookup failed for {user_email}: {e}")
     return standard_queue
 
 @app.post("/api/generate-reel")
@@ -1690,7 +1698,7 @@ async def generate_reel_endpoint(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"generate-reel error: {e}", exc_info=True)
+        logger.exception(f"generate-reel error: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 @app.post("/api/generate-narrative")
@@ -1721,11 +1729,13 @@ async def generate_narrative_endpoint(
     except Exception as e:
         if isinstance(e, HTTPException):
             raise
+        logger.exception(f"Invalid trend_id in /api/generate-narrative for user {user_email}: {e}")
         raise HTTPException(status_code=400, detail="Invalid trend_id format")
 
     try:
         overlays = json.loads(text_overlays)
-    except Exception:
+    except Exception as e:
+        logger.exception(f"Invalid text_overlays JSON in /api/generate-narrative for user {user_email}: {e}")
         overlays = []
     try:
         job_id = create_job_record("narrative_generation", user_email, {
@@ -2065,7 +2075,7 @@ def generate_hooks(request: Request, req: HookRequest, authorization: Optional[s
         topic = req.content_description or req.topic or "viral reels"
         return creator_tools.generate_hooks(niche=niche, topic=topic)
     except Exception as e:
-        logger.error(f"Error in /api/generate-hooks: {e}", exc_info=True)
+        logger.exception(f"Error in /api/generate-hooks: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2110,8 +2120,8 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
                 "score": overall
             }
             supabase.table("pre_post_analyses").insert(analysis_data).execute()
-        except Exception:
-            pass
+        except Exception as e:
+            logger.exception(f"Failed to persist pre_post analysis for user {current_user_email}: {e}")
 
         return {
             "overall_score": overall,
@@ -2295,7 +2305,7 @@ def get_calendar(request: Request, current_user_email: str = Depends(get_current
             return res.data[0]["schedule_data"]
         return {"calendar": []}
     except Exception as e:
-        logger.error(f"Error getting calendar: {e}", exc_info=True)
+        logger.exception(f"Error getting calendar: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2308,10 +2318,10 @@ def get_creator_profiles(request: Request, niche: Optional[str] = None):
         q = supabase.table("creator_profiles").select("*").eq("is_active", True)
         if niche and niche != "all":
             q = q.eq("niche", niche)
-        res = q.order("followers", desc=True).execute()
+        res = q.order("followers", desc=True).limit(100).execute()
         return res.data or []
     except Exception as e:
-        logger.error(f"Error getting creator profiles: {e}", exc_info=True)
+        logger.exception(f"Error getting creator profiles: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2333,7 +2343,7 @@ def create_or_update_profile(request: Request, req: CreatorProfileRequest, curre
         res = supabase.table("creator_profiles").upsert(profile_data, on_conflict="user_email").execute()
         return res.data[0] if res.data else {}
     except Exception as e:
-        logger.error(f"Error saving/updating creator profile: {e}", exc_info=True)
+        logger.exception(f"Error saving/updating creator profile: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2354,7 +2364,7 @@ def create_brand_deal(request: Request, req: BrandDealRequest, current_user_emai
         res = supabase.table("brand_deals").insert(deal_data).execute()
         return res.data[0] if res.data else {}
     except Exception as e:
-        logger.error(f"Error creating brand deal: {e}", exc_info=True)
+        logger.exception(f"Error creating brand deal: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2362,10 +2372,10 @@ def create_brand_deal(request: Request, req: BrandDealRequest, current_user_emai
 @limiter.limit("20/minute")
 def get_brand_deals(request: Request, current_user_email: str = Depends(get_current_user)):
     try:
-        res = supabase.table("brand_deals").select("*").eq("creator_email", current_user_email).order("created_at", desc=True).execute()
+        res = supabase.table("brand_deals").select("*").eq("creator_email", current_user_email).order("created_at", desc=True).limit(100).execute()
         return res.data or []
     except Exception as e:
-        logger.error(f"Error getting brand list: {e}", exc_info=True)
+        logger.exception(f"Error getting brand list: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2488,7 +2498,7 @@ def create_creator_deal(
         deal["milestones"] = inserted_milestones
         return deal
     except Exception as e:
-        logger.error(f"Error creating creator brand deal: {e}", exc_info=True)
+        logger.exception(f"Error creating creator brand deal: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/deals")
@@ -2503,16 +2513,16 @@ def get_creator_deals(
     try:
         user_sb = get_user_supabase_client(authorization)
         # Apply filter at API layer in addition to database RLS
-        res_deals = user_sb.table("brand_deals").select("*").eq("creator_id", current_user_email).order("created_at", desc=True).execute()
+        res_deals = user_sb.table("brand_deals").select("*").eq("creator_id", current_user_email).order("created_at", desc=True).limit(100).execute()
         deals = res_deals.data or []
         
         for deal in deals:
-            res_m = user_sb.table("deal_payment_milestones").select("*").eq("deal_id", deal["id"]).order("due_date", desc=False).execute()
+            res_m = user_sb.table("deal_payment_milestones").select("*").eq("deal_id", deal["id"]).order("due_date", desc=False).limit(100).execute()
             deal["milestones"] = res_m.data or []
             
         return deals
     except Exception as e:
-        logger.error(f"Error getting creator brand deals: {e}", exc_info=True)
+        logger.exception(f"Error getting creator brand deals: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/api/deals/{deal_id}/download")
@@ -2553,7 +2563,7 @@ def download_deal_contract(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error downloading deal contract: {e}", exc_info=True)
+        logger.exception(f"Error downloading deal contract: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/deals/{deal_id}/pay-milestone/{milestone_id}")
@@ -2580,7 +2590,7 @@ def pay_deal_milestone(
     except HTTPException:
         raise
     except Exception as e:
-        logger.error(f"Error marking milestone as paid: {e}", exc_info=True)
+        logger.exception(f"Error marking milestone as paid: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/deals/run-reminders")
@@ -2616,7 +2626,7 @@ class CollabRequest(BaseModel):
 def get_brand_deals_marketplace(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
-        
+
     # Get user niche
     niche = "lifestyle"
     if supabase:
@@ -2624,9 +2634,9 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
             res_user = supabase.table("creator_profiles").select("niche").eq("user_email", user_email).execute()
             if res_user.data:
                 niche = res_user.data[0].get("niche", "lifestyle")
-        except Exception:
-            pass
-            
+        except Exception as e:
+            logger.exception(f"Error loading niche for brand deals marketplace user {user_email}: {e}")
+
     cache_key = f"deals:{niche}"
     if standard_queue and standard_queue.connection:
         try:
@@ -2635,17 +2645,17 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
                 logger.info(f"Serving brand deals from cache for key: {cache_key}")
                 return json.loads(cached_data)
         except Exception as e:
-            logger.error(f"Redis fetch error for deals: {e}")
+            logger.exception(f"Redis fetch error for deals: {e}")
 
     try:
         # 1. Fetch all deals from DB (both open and pending)
         deals = []
         if supabase:
             try:
-                res = supabase.table("brand_deals").select("*").execute()
+                res = supabase.table("brand_deals").select("*").limit(100).execute()
                 deals = res.data or []
             except Exception as e:
-                logger.warning(f"Error fetching brand deals from DB: {e}")
+                logger.exception(f"Error fetching brand deals from DB: {e}")
         
         # Return only real database brand deals
         pass
@@ -2654,10 +2664,10 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
         user_apps = []
         if supabase:
             try:
-                res_apps = supabase.table("brand_deal_applications").select("*").eq("user_email", user_email).execute()
+                res_apps = supabase.table("brand_deal_applications").select("*").eq("user_email", user_email).limit(100).execute()
                 user_apps = res_apps.data or []
             except Exception as e:
-                logger.warning(f"Error fetching user applications: {e}")
+                logger.exception(f"Error fetching user applications: {e}")
 
         applied_deal_ids = {app["deal_id"] for app in user_apps if "deal_id" in app}
 
@@ -2684,7 +2694,7 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
         active_deals = 0
         if supabase:
             try:
-                res_my_deals = supabase.table("brand_deals").select("deal_amount, commission_amount, status").eq("creator_email", user_email).execute()
+                res_my_deals = supabase.table("brand_deals").select("deal_amount, commission_amount, status").eq("creator_email", user_email).limit(100).execute()
                 my_deals = res_my_deals.data or []
                 for d in my_deals:
                     stat = d.get("status", "").lower()
@@ -2693,8 +2703,8 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
                         total_earnings += amt
                     if stat == "active":
                         active_deals += 1
-            except Exception:
-                pass
+            except Exception as e:
+                logger.exception(f"Error computing marketplace stats for {user_email}: {e}")
 
         stats = {
             "total_earnings": total_earnings,
@@ -2717,7 +2727,7 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
         return result
 
     except Exception as e:
-        logger.error(f"Error in GET /api/brand-deals: {e}", exc_info=True)
+        logger.exception(f"Error in GET /api/brand-deals: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2738,12 +2748,12 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
                 supabase.table("brand_deal_applications").insert(app_data).execute()
                 return {"success": True, "message": "Application submitted successfully!"}
             except Exception as e:
-                logger.error(f"Failed to submit application: {e}")
+                logger.exception(f"Failed to submit application: {e}")
                 raise HTTPException(status_code=500, detail="Database submission failed")
         else:
             return {"success": True, "message": "Application submitted successfully (mock)!"}
     except Exception as e:
-        logger.error(f"Error in POST /api/apply-deal: {e}", exc_info=True)
+        logger.exception(f"Error in POST /api/apply-deal: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2760,18 +2770,18 @@ def get_collab_matches(user_email: str, request: Request, current_user_email: st
                 res_user = supabase.table("creator_profiles").select("niche").eq("user_email", user_email).execute()
                 if res_user.data:
                     user_niche = res_user.data[0].get("niche", "fashion")
-            except Exception:
-                pass
+            except Exception as e:
+                logger.exception(f"Error loading collab niche for {user_email}: {e}")
 
 
         # Fetch other profiles
         profiles = []
         if supabase:
             try:
-                res_prof = supabase.table("creator_profiles").select("*").neq("user_email", user_email).eq("is_active", True).execute()
+                res_prof = supabase.table("creator_profiles").select("*").neq("user_email", user_email).eq("is_active", True).limit(100).execute()
                 profiles = res_prof.data or []
-            except Exception:
-                pass
+            except Exception as e:
+                logger.exception(f"Error fetching collab profiles for {user_email}: {e}")
 
 
 
@@ -2779,10 +2789,10 @@ def get_collab_matches(user_email: str, request: Request, current_user_email: st
         sent_requests = set()
         if supabase:
             try:
-                res_reqs = supabase.table("collab_requests").select("to_email").eq("from_email", user_email).execute()
+                res_reqs = supabase.table("collab_requests").select("to_email").eq("from_email", user_email).limit(100).execute()
                 sent_requests = {r["to_email"] for r in res_reqs.data or [] if "to_email" in r}
-            except Exception:
-                pass
+            except Exception as e:
+                logger.exception(f"Error fetching sent collab requests for {user_email}: {e}")
 
         # Calculate compatibility score for each profile
         matches = []
