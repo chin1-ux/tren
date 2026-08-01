@@ -33,7 +33,8 @@ def _send_webhook(message: str) -> None:
     if not webhook_url:
         raise RuntimeError("CRON_HEARTBEAT_WEBHOOK_URL is not set")
 
-    if "discord.com/api/webhooks" in webhook_url:
+    is_discord = "discord.com/api/webhooks" in webhook_url or "discordapp.com/api/webhooks" in webhook_url
+    if is_discord:
         payload = {"content": message}
     else:
         payload = {"text": message}
