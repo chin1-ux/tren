@@ -434,13 +434,13 @@ def main():
             # analytics_events policies
             cursor.execute("DROP POLICY IF EXISTS insert_analytics_policy ON analytics_events;")
             cursor.execute("DROP POLICY IF EXISTS select_analytics_policy ON analytics_events;")
-            cursor.execute("CREATE POLICY insert_analytics_policy ON analytics_events FOR INSERT WITH CHECK (true);")
+            cursor.execute("CREATE POLICY insert_analytics_policy ON analytics_events FOR INSERT WITH CHECK (user_id = auth.jwt() ->> 'email');")
             cursor.execute("CREATE POLICY select_analytics_policy ON analytics_events FOR SELECT USING (user_id = auth.jwt() ->> 'email');")
 
             # creator_feedback policies
             cursor.execute("DROP POLICY IF EXISTS insert_feedback_policy ON creator_feedback;")
             cursor.execute("DROP POLICY IF EXISTS select_feedback_policy ON creator_feedback;")
-            cursor.execute("CREATE POLICY insert_feedback_policy ON creator_feedback FOR INSERT WITH CHECK (true);")
+            cursor.execute("CREATE POLICY insert_feedback_policy ON creator_feedback FOR INSERT WITH CHECK (creator_id = auth.jwt() ->> 'email');")
             cursor.execute("CREATE POLICY select_feedback_policy ON creator_feedback FOR SELECT USING (creator_id = auth.jwt() ->> 'email');")
             
             print("Table alterations, indexes, and RLS policies completed successfully.")

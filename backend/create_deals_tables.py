@@ -113,7 +113,7 @@ def main():
 
         cursor.execute("""
             CREATE POLICY insert_analytics_policy ON analytics_events
-            FOR INSERT WITH CHECK (true);
+            FOR INSERT WITH CHECK (user_id = auth.jwt() ->> 'email');
         """)
 
         cursor.execute("""
@@ -123,7 +123,7 @@ def main():
 
         cursor.execute("""
             CREATE POLICY insert_feedback_policy ON creator_feedback
-            FOR INSERT WITH CHECK (true);
+            FOR INSERT WITH CHECK (creator_id = auth.jwt() ->> 'email');
         """)
 
         cursor.execute("""
