@@ -45,6 +45,10 @@ def _send_webhook(message: str) -> None:
         method="POST",
     )
     with urllib.request.urlopen(req, timeout=15) as resp:
+        body = resp.read().decode("utf-8", errors="replace").strip()
+        print(f"webhook_status={resp.status}")
+        if body:
+            print(f"webhook_body={body}")
         if resp.status not in (200, 204):
             raise RuntimeError(f"Webhook delivery failed with status {resp.status}")
 
@@ -54,15 +58,27 @@ def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
     Look for the most recent successful cron run and email a human if the
     pipeline has gone stale longer than the allowed threshold.
     """
+    force_stale_test = os.getenv("FORCE_STALE_TEST", "").strip().lower() in {"1", "true", "yes", "on"}
     sb = _get_supabase()
-    res = (
-        sb.table("cron_runs")
-        .select("run_at, completed_at, status, stage, cutoff_reason")
-        .order("completed_at", desc=True)
-        .limit(1)
-        .execute()
-    )
-    latest = (res.data or [None])[0]
+    if force_stale_test:
+        now = datetime.now(timezone.utc)
+        completed_dt = now - timedelta(hours=max_age_hours + 1)
+        latest = {
+            "run_at": completed_dt.isoformat(),
+            "completed_at": completed_dt.isoformat(),
+            "status": "success",
+            "stage": "forced_test",
+            "cutoff_reason": "forced stale test override",
+        }
+    else:
+        res = (
+            sb.table("cron_runs")
+            .select("run_at, completed_at, status, stage, cutoff_reason")
+            .order("completed_at", desc=True)
+            .limit(1)
+            .execute()
+        )
+        latest = (res.data or [None])[0]
     now = datetime.now(timezone.utc)
 
     if not latest:
