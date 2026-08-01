@@ -45,13 +45,23 @@ def _send_webhook(message: str) -> None:
         headers={"Content-Type": "application/json"},
         method="POST",
     )
-    with urllib.request.urlopen(req, timeout=15) as resp:
-        body = resp.read().decode("utf-8", errors="replace").strip()
-        print(f"webhook_status={resp.status}")
+    req.add_header("User-Agent", "TrendropHeartbeatBot/1.0")
+    try:
+        with urllib.request.urlopen(req, timeout=15) as resp:
+            body = resp.read().decode("utf-8", errors="replace").strip()
+            print(f"webhook_status={resp.status}")
+            if body:
+                print(f"webhook_body={body}")
+            if resp.status not in (200, 204):
+                raise RuntimeError(f"Webhook delivery failed with status {resp.status}")
+    except urllib.error.HTTPError as err:
+        body = err.read().decode("utf-8", errors="replace").strip()
+        headers = dict(err.headers.items()) if err.headers else {}
+        print(f"webhook_status={err.code}")
+        print(f"webhook_headers={json.dumps(headers, sort_keys=True)}")
         if body:
             print(f"webhook_body={body}")
-        if resp.status not in (200, 204):
-            raise RuntimeError(f"Webhook delivery failed with status {resp.status}")
+        raise RuntimeError(f"Webhook delivery failed with status {err.code}") from err
 
 
 def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
