@@ -23,7 +23,7 @@ export default defineConfig({
     plugins: [
       VitePWA({
         registerType: "autoUpdate",
-        injectRegister: "auto",
+        injectRegister: null,
         filename: "sw.js",
         manifest: {
           name: "Trendrop",
