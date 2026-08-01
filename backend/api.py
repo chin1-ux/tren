@@ -3099,21 +3099,30 @@ class LogEventRequest(BaseModel):
     event_name: str
 
 @app.post("/api/analytics/log")
+@limiter.limit("60/minute")
 def log_analytics_event(
+    request: Request,
     req: LogEventRequest,
     current_user_email: str = Depends(get_current_user),
     authorization: Optional[str] = Header(None)
 ):
+    if current_user_email == "guest@trendrop.app":
+        raise HTTPException(status_code=401, detail="Unauthorized")
+    event_name = req.event_name.strip()
+    if not event_name:
+        raise HTTPException(status_code=422, detail="event_name is required")
+    if len(event_name) > 128:
+        raise HTTPException(status_code=422, detail="event_name is too long")
     try:
         user_sb = get_user_supabase_client(authorization)
         user_sb.table("analytics_events").insert({
             "user_id": current_user_email if current_user_email != "guest@trendrop.app" else None,
-            "event_name": req.event_name
+            "event_name": event_name
         }).execute()
         return {"success": True}
     except Exception as e:
-        logger.error(f"Error logging event {req.event_name}: {e}")
-        return {"success": True}
+        logger.error(f"Error logging event {event_name} for user {current_user_email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to log analytics event")
 
 @app.get("/api/admin/analytics-summary")
 def get_analytics_summary(current_user_email: str = Depends(get_current_user)):
