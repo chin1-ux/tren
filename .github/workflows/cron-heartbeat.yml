@@ -39,6 +39,6 @@ jobs:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           CRON_HEARTBEAT_WEBHOOK_URL: ${{ secrets.CRON_HEARTBEAT_WEBHOOK_URL }}
-          FORCE_STALE_TEST: ${{ inputs.force_stale_test || 'false' }}
+          FORCE_STALE_TEST: ${{ github.event.inputs.force_stale_test || 'false' }}
         run: |
           python -m backend.heartbeat_monitor

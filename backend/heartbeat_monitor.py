@@ -121,5 +121,6 @@ def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
 
 
 if __name__ == "__main__":
+    print(f"FORCE_STALE_TEST={os.getenv('FORCE_STALE_TEST', '')}")
     result = check_cron_heartbeat()
     print(result)
