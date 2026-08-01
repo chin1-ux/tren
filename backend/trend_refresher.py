@@ -6,6 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from trend_scoring import calculate_opportunity_score
 
 try:
     logging.basicConfig(
@@ -141,6 +142,7 @@ class TrendRefresher:
                     new_window = max(0, window_hours - 3)
 
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
+                self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     self._update_status(trend_id, "peaked", {
                         "window_hours_remaining": new_window,
@@ -236,6 +238,18 @@ class TrendRefresher:
         if extra:
             payload.update(extra)
         self.supabase.table("trends").update(payload).eq("id", trend_id).execute()
+
+    def _refresh_opportunity_score(self, trend: dict, *, confidence: float | None = None, window_hours_remaining: float | None = None) -> float:
+        score = calculate_opportunity_score(
+            india_saturation_pct=trend.get("india_saturation_pct") or 0.0,
+            window_hours_remaining=window_hours_remaining if window_hours_remaining is not None else trend.get("window_hours_remaining") or 0.0,
+            confidence=confidence if confidence is not None else trend.get("confidence") or 0.0,
+        )
+        try:
+            self.supabase.table("trends").update({"opportunity_score": score}).eq("id", trend["id"]).execute()
+        except Exception as e:
+            logger.warning(f"Could not refresh opportunity_score for trend_id={trend.get('id')}: {e}")
+        return score
 
     def _refresh_audio_use_count(self, trend: dict) -> bool:
         """

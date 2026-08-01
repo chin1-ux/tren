@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
+from trend_scoring import calculate_opportunity_score
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -685,8 +686,9 @@ class TrendEngine:
 
             logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
 
-            # Sort and limit to top 7 to avoid API rate limits and speed up processing
-            confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)[:7]
+            # Keep all confirmed candidates. The old "top 7" slice silently dropped the
+            # remainder with no queue or retry, so it was discarding qualified trends.
+            confirmed = sorted(confirmed, key=lambda x: (x["composite_score"], x["trend_score"], x["avg_velocity"]), reverse=True)
             logging.info(f"Selected top {len(confirmed)} trends for classification")
 
             # ── STEP 5: Cross-reference YouTube Shorts ─────────────────────────
@@ -838,12 +840,11 @@ class TrendEngine:
                 else:
                     window_h = int(trend.get("window_hours_remaining") or 24)
 
-                # Compute dynamic opportunity score
-                # 60% based on low India saturation, 40% based on remaining opportunity window hours
-                # If window_h is None or 0, opportunity score is penalized
-                sat_factor = max(0.0, (100.0 - india_sat) / 100.0)
-                win_factor = max(0.0, (window_h or 0.0) / 24.0)
-                opportunity_score = round(((sat_factor * 60.0) + (win_factor * 40.0)) * (confidence or 0.0), 1)
+                opportunity_score = calculate_opportunity_score(
+                    india_saturation_pct=india_sat,
+                    window_hours_remaining=window_h,
+                    confidence=confidence,
+                )
 
                 # Niche tag: from hook_brief if available, else content_type
                 niche_tag = (
