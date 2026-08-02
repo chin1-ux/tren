@@ -22,8 +22,10 @@ else:
 log_handlers = [logging.StreamHandler(sys.stdout)]
 try:
     log_handlers.append(logging.FileHandler(log_file))
-except Exception:
-    pass
+except Exception as _fh_err:
+    # Log file unavailable (read-only filesystem on Vercel/serverless).
+    # Continue with stdout only so the pipeline can still run.
+    print(f"cron_job: WARNING: could not open log file '{log_file}', stdout only: {_fh_err}")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -163,7 +165,8 @@ def run_full_pipeline():
     try:
         sb = _get_supabase()
         run_count = sb.table("cron_runs").select("id", count="exact").execute().count or 0
-    except Exception:
+    except Exception as _rc_err:
+        logging.warning(f"Could not fetch cron run count (defaulting to 0, mode will be 'india'): {_rc_err}")
         run_count = 0
     scrape_mode = "india" if run_count % 2 == 0 else "global"
     os.environ["SCRAPER_MODE"] = scrape_mode

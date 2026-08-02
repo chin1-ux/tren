@@ -128,7 +128,8 @@ class NewsClient:
                 # format: Fri, 24 Jul 2026 12:00:00 GMT
                 dt = datetime.strptime(pub_date, "%a, %d %b %Y %H:%M:%S %Z")
                 published_at = dt.replace(tzinfo=timezone.utc).isoformat()
-            except Exception:
+            except Exception as _date_err:
+                logger.debug(f"fetch_google_news_rss: could not parse pubDate '{pub_date}': {_date_err}; using raw string")
                 published_at = pub_date
                 
             results.append({

@@ -26,8 +26,9 @@ log_handlers = [
 ]
 try:
     log_handlers.append(logging.FileHandler("trend_engine.log", encoding="utf-8"))
-except Exception:
-    pass
+except Exception as _fh_err:
+    # Log file unavailable (e.g. read-only filesystem on Vercel/serverless).
+    print(f"trend_engine: WARNING: could not open log file, stdout only: {_fh_err}")
 
 logging.basicConfig(
     level=logging.INFO,
@@ -73,7 +74,8 @@ def _serialize_llm_response(payload: dict | None) -> str | None:
         return None
     try:
         return json.dumps(payload, ensure_ascii=False)
-    except Exception:
+    except Exception as _ser_err:
+        logging.warning(f"_serialize_llm_response: failed to serialize LLM payload ({type(_ser_err).__name__}: {_ser_err}); returning None")
         return None
 
 
@@ -271,8 +273,8 @@ def _evaluate_news_correlation(audio_title: str, audio_artist: str, reels: list[
                 posted_dt = datetime.fromisoformat(posted_str)
                 if oldest_post is None or posted_dt < oldest_post:
                     oldest_post = posted_dt
-            except Exception:
-                pass
+            except Exception as _dt_err:
+                logging.debug(f"_detect_origin_signal: could not parse reel posted_at '{posted_str}': {_dt_err}")
                 
     # Get oldest matching news pub date
     oldest_news = None
@@ -285,8 +287,8 @@ def _evaluate_news_correlation(audio_title: str, audio_artist: str, reels: list[
                 pub_dt = datetime.fromisoformat(pub_str)
                 if oldest_news is None or pub_dt < oldest_news:
                     oldest_news = pub_dt
-            except Exception:
-                pass
+            except Exception as _dt_err:
+                logging.debug(f"_detect_origin_signal: could not parse article publishedAt '{pub_str}': {_dt_err}")
                 
     if oldest_post and oldest_news:
         if oldest_post.tzinfo is None:
@@ -517,8 +519,8 @@ class TrendEngine:
                             recent_reels_6h.append(r)
                         if age_hours <= 24:
                             recent_24h_velocities.append(r.get("velocity_score", 0.0))
-                    except Exception:
-                        pass
+                    except Exception as _dt_err:
+                        logging.debug(f"detect_trends: could not parse reel created_at '{created_str}': {_dt_err}")
 
                 recent_6h_avg = sum(recent_6h_velocities) / len(recent_6h_velocities) if recent_6h_velocities else 0.0
                 recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
@@ -589,8 +591,9 @@ class TrendEngine:
                                 creators_0.add(username)
                             elif diff_seconds <= 6.0 * 3600.0:
                                 creators_1.add(username)
-                    except Exception:
-                        pass
+                    except Exception as _dt_err:
+                        logging.debug(f"detect_trends: could not parse reel posted_at for creator velocity: {_dt_err}")
+
                 creator_velocity = (len(creators_0) - len(creators_1)) / 3.0
 
                 # Determine initial status using grounded Option B triggers
@@ -619,8 +622,8 @@ class TrendEngine:
                             vel = official_res.data[0].get("official_count_velocity")
                             if vel and vel > 100.0:
                                 has_strong_official_velocity = True
-                    except Exception:
-                        pass
+                    except Exception as _auc_err:
+                        logging.debug(f"detect_trends: could not fetch official audio velocity for audio_id={representative_audio_id}: {_auc_err}")
 
                 initial_status = None
                 promotion_trigger = None
@@ -652,8 +655,9 @@ class TrendEngine:
                             posted_str = posted_str[:-1] + "+00:00"
                         try:
                             posted_times.append(datetime.fromisoformat(posted_str))
-                        except Exception:
-                            pass
+                        except Exception as _dt_err:
+                            logging.debug(f"detect_trends: could not parse reel posted_at for time-window check: {_dt_err}")
+
                 if posted_times:
                     if (max(posted_times) - min(posted_times)) > timedelta(hours=72):
                         continue
@@ -751,8 +755,9 @@ class TrendEngine:
                                 dt_posted = dt_posted.replace(tzinfo=timezone.utc)
                             ist_dt = dt_posted + timedelta(hours=5.5)
                             posted_hours.append(ist_dt.hour)
-                        except Exception:
-                            pass
+                        except Exception as _dt_err:
+                            logging.debug(f"detect_trends: could not parse reel posted_at for IST optimal hour: {_dt_err}")
+
                 if posted_hours:
                     from collections import Counter
                     most_common_hour = Counter(posted_hours).most_common(1)[0][0]
@@ -798,7 +803,8 @@ class TrendEngine:
                 if isinstance(confidence, str):
                     try:
                         confidence = float(confidence)
-                    except Exception:
+                    except Exception as _conf_err:
+                        logging.warning(f"detect_trends: could not parse confidence string for '{trend.get('audio_title')}': {_conf_err}; defaulting to 0.0")
                         confidence = 0.0
 
                 # Blend model confidence with observed trend strength so we don't over-trust the LLM.
