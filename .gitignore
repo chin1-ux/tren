@@ -58,3 +58,6 @@ scratch/*.py
 # Artifacts
 artifacts/
 artifacts/scratch/
+
+# Build Output
+dist/
