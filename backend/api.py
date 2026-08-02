@@ -3159,6 +3159,7 @@ class FeedbackRequest(BaseModel):
 @app.post("/api/creator/feedback")
 @limiter.limit("20/minute")
 def submit_creator_feedback(
+    request: Request,
     req: FeedbackRequest,
     current_user_email: str = Depends(get_current_user),
     authorization: Optional[str] = Header(None)

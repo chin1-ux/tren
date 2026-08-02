@@ -81,6 +81,33 @@ def _invalidate_trends_cache():
         logging.error(f'Cache invalidation failed (non-fatal): {cache_err}')
 
 
+def _send_cron_heartbeat():
+    """
+    Emit a direct operator heartbeat after a successful pipeline run.
+    This is separate from the stale-run watchdog so we can prove success
+    and detect silence independently.
+    """
+    try:
+        from heartbeat_monitor import _send_email
+
+        recipient = os.getenv("CRON_HEARTBEAT_ALERT_EMAIL")
+        if not recipient:
+            logging.info("Cron heartbeat email skipped: CRON_HEARTBEAT_ALERT_EMAIL not set.")
+            return
+
+        last_completed = datetime.now(timezone.utc).isoformat()
+        subject = "Trendrop heartbeat: pipeline completed successfully"
+        html = f"""
+        <h2>Trendrop pipeline heartbeat</h2>
+        <p>The latest cron run completed successfully at <strong>{last_completed}</strong>.</p>
+        <p>This is the direct operator heartbeat for the scheduled pipeline.</p>
+        """
+        _send_email(subject, html)
+        logging.info("Cron heartbeat email sent.")
+    except Exception as heartbeat_err:
+        logging.warning(f"Failed to send cron heartbeat email: {heartbeat_err}")
+
+
 def _get_supabase():
     load_dotenv()
     if not os.getenv("SUPABASE_URL"):
@@ -367,6 +394,7 @@ def run_full_pipeline():
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
+    _send_cron_heartbeat()
     # Immediately purge the Redis trends cache so the next API request
     # serves the freshly-written data, not a stale 5-minute window.
     _invalidate_trends_cache()
