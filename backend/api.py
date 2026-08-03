@@ -1021,23 +1021,24 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
         trend_res = supabase.table("trends").select("audio_id").eq("id", trend_id).execute()
         if not trend_res.data or not trend_res.data[0].get("audio_id"):
             return []
-            
+
         audio_id = trend_res.data[0]["audio_id"]
         # Fetch snapshots of the audio count from the last 72 hours
         from datetime import datetime, timedelta, timezone
         time_threshold = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
-        
+
         history_res = supabase.table("reel_snapshots") \
             .select("snapshotted_at, audio_use_count") \
             .eq("audio_id", audio_id) \
             .gte("snapshotted_at", time_threshold) \
             .order("snapshotted_at", desc=False) \
             .execute()
-            
+
         return history_res.data or []
     except Exception as e:
         logger.exception(f"Error fetching audio history for trend {trend_id}: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Return empty array instead of 500 error to prevent UI breaking
+        return []
 
 
 @app.get("/api/trends/{trend_id}/reels")
