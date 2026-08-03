@@ -883,6 +883,54 @@ def get_all_active_trends(request: Request, current_user: str = Depends(get_curr
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@app.get("/api/trends/peaked")
+@limiter.limit("60/minute")
+def get_peaked_trends(request: Request, language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+    """
+    Fetch PEAKED trends — trends that have peaked but still have value.
+    These are trends that dropped below 60% of their peak velocity.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        q = supabase.table("trends").select("*").eq("status", "peaked").in_("llm_classification_status", ["completed", "not_needed"])
+        if language and language != "all":
+            q = q.eq("language", language)
+        q = q.order("first_detected_at", desc=True)
+        q = q.limit(100)
+        res = q.execute()
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
+        return trends
+    except Exception as e:
+        logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/trends/expired")
+@limiter.limit("60/minute")
+def get_expired_trends(request: Request, language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+    """
+    Fetch EXPIRED trends — trends that have passed their window or aged out.
+    These are trends that are no longer active but may still have historical value.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        q = supabase.table("trends").select("*").eq("status", "expired").in_("llm_classification_status", ["completed", "not_needed"])
+        if language and language != "all":
+            q = q.eq("language", language)
+        q = q.order("first_detected_at", desc=True)
+        q = q.limit(100)
+        res = q.execute()
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=_trend_priority_key, reverse=True)
+        return trends
+    except Exception as e:
+        logger.error(f"Error fetching expired trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
 @app.get("/api/trends/audio-scores")
 @limiter.limit("60/minute")
 def get_audio_trend_scores_api(request: Request, current_user: str = Depends(get_current_user)):
