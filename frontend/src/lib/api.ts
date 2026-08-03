@@ -438,6 +438,18 @@ export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]>
   return data.map(adaptTrend);
 }
 
+export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
+  const qs = language && language !== "all" ? `?language=${language}` : "";
+  const data = await http<ApiTrend[]>(`/api/trends/peaked${qs}`);
+  return data.map(adaptTrend);
+}
+
+export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> {
+  const qs = language && language !== "all" ? `?language=${language}` : "";
+  const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
+  return data.map(adaptTrend);
+}
+
 export async function fetchAllActiveTrends(): Promise<UiTrend[]> {
   const data = await http<ApiTrend[]>("/api/trends/all-active");
   return data.map(adaptTrend);
