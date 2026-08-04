@@ -234,7 +234,8 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   };
 
   const isEmerging = trend.isEmerging || trend.status === "emerging";
-  const isMegaTrend = (trend.viralMultiplier ?? 0) >= 12 || (trend.reelCount ?? 0) > 10000;
+  const isMegaTrend = trend.isMega;
+  
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
   const creatorFit = trend.creatorFitScore ?? 0;
   const hookRetention = trend.hookRetentionScore ?? 0;

@@ -276,7 +276,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     artist: t.artist || t.audio_artist || "Unknown Artist",
     hoursLeft: Math.round(hours),
     expiresAt: Date.now() + hours * 3600 * 1000,
-    viralMultiplier: Math.min(99.9, Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) / 10000 * 10) / 10),
+    viralMultiplier: Math.min(99.9, Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) / VIRAL_SCALE_FACTOR * VIRAL_DISPLAY_MULTIPLIER) / 10),
     contentType: isUnverified ? "Classifying..." : meta.category,
     contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
     category: isUnverified ? "Classifying..." : meta.category,
@@ -338,6 +338,11 @@ export function adaptTrend(t: ApiTrend): UiTrend {
 }
 
 // ── HTTP helper ────────────────────────────────────────────────────────────────
+
+// NOTE: These must match backend VIRAL_MULTIPLIER_SCALE_FACTOR and VIRAL_MULTIPLIER_DISPLAY_MULTIPLIER
+// TODO: Expose these via API to avoid manual sync
+const VIRAL_SCALE_FACTOR = 10000;
+const VIRAL_DISPLAY_MULTIPLIER = 10;
 
 import { supabase } from "./supabase";
 

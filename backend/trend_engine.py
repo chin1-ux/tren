@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
-from trend_scoring import calculate_opportunity_score
+from trend_scoring import calculate_opportunity_score, calculate_trend_state, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -306,6 +306,86 @@ class StageBudgetState:
     cutoff_reason: str | None = None
 
 
+
+
+def generate_fallback_hook_text(trend: dict, hook_retention_score: float) -> str:
+    """Generate hook advice when LLM is unavailable, based on score."""
+    if hook_retention_score >= 0.8:
+        return "This trend has strong early engagement. Start with the most surprising moment or visual hook in the first second."
+    elif hook_retention_score >= 0.6:
+        return "Good engagement potential. Open with a clear question or transformation that viewers will want to see through."
+    elif hook_retention_score >= 0.4:
+        return "Moderate engagement. Consider adding text overlay or a compelling statement in the first 2 seconds."
+    else:
+        return "Lower engagement signal. Test different opening patterns: POV, before/after, or direct address to camera."
+
+def generate_fallback_content_description(trend: dict, creator_fit_score: float) -> str:
+    """Generate content concept when LLM is unavailable, based on score."""
+    category = trend.get("content_type", "general").lower()
+    
+    if creator_fit_score >= 0.8:
+        return f"High fit for your niche. Create content that showcases {category} in your authentic style while matching the trend's rhythm."
+    elif creator_fit_score >= 0.6:
+        return f"Good fit potential. Adapt the {category} format to include elements specific to your audience and expertise."
+    else:
+        return f"Consider whether this {category} trend aligns with your content strategy. If posting, add your unique perspective to stand out."
+
+
+def classify_single_trend(trend):
+    reels = trend["reels"]
+    captions = [r.get("caption") for r in reels if r.get("caption")]
+    source_pool = _dominant_source_hashtag_pool(reels)
+    niche_source = source_pool or classify_niche(
+        " ".join(captions),
+        [tag for r in reels for tag in (r.get("hashtags") or [])],
+        source_hashtag_pool=source_pool,
+        sample_size=len(reels),
+    )
+    trend["niche_tag"] = niche_source if niche_source else "general"
+    trend["content_tone"] = _aggregate_content_tone(reels)
+    trend["content_type"] = trend.get("content_type") or trend["niche_tag"]
+    trend["is_dance"] = bool(any(word in (trend["audio_title"] or "").lower() for word in ["dance", "bhangra", "step", "groove"]))
+    trend["needs_filming"] = trend["is_dance"] or trend["content_tone"] in {"wholesome", "neutral"}
+    trend["edit_style"] = "fast_cuts" if trend["is_dance"] else "slow_dissolve"
+    trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
+    trend["text_overlay_template"] = None
+    trend["language"] = "hi" if any(any(ch >= "ऀ" and ch <= "ॿ" for ch in (c or "")) for c in captions) else "en"
+    trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
+    trend["ideal_content_description"] = "Short creator clips that match the rhythm and caption vibe."
+    trend["camera_style"] = "handheld" if trend["is_dance"] else "static"
+    trend["window_hours_remaining"] = trend.get("window_hours_remaining") or 24
+    trend["confidence"] = 0.75
+    trend["saturation_score"] = min(1.0, max(0.0, trend.get("saturation_score") or 0.2))
+    # Calculate dynamic optimal post time based on linked reels
+    posted_hours = []
+    for r in reels:
+        posted_str = r.get("posted_at")
+        if posted_str:
+            try:
+                if posted_str.endswith("Z"):
+                    posted_str = posted_str[:-1] + "+00:00"
+                from datetime import timedelta
+                dt_posted = datetime.fromisoformat(posted_str)
+                if dt_posted.tzinfo is None:
+                    dt_posted = dt_posted.replace(tzinfo=timezone.utc)
+                ist_dt = dt_posted + timedelta(hours=5.5)
+                posted_hours.append(ist_dt.hour)
+            except Exception:
+                pass
+    if posted_hours:
+        from collections import Counter
+        most_common_hour = Counter(posted_hours).most_common(1)[0][0]
+        peak_slots = [8, 12, 15, 18, 20, 21]
+        trend["optimal_post_hour_ist"] = peak_slots[min(range(len(peak_slots)), key=lambda i: abs(peak_slots[i] - most_common_hour))]
+    else:
+        # Use category-based default instead of arbitrary hash
+        category = trend.get("content_type", "general").lower()
+        if category in ["dance", "fitness"]:
+            trend["optimal_post_hour_ist"] = 18
+        elif category in ["food", "fashion"]:
+            trend["optimal_post_hour_ist"] = 12
+        else:
+            trend["optimal_post_hour_ist"] = 20
 
 class TrendEngine:
     def __init__(self):
@@ -713,68 +793,6 @@ class TrendEngine:
                 if is_mega:
                     logging.info(f"MEGA TREND: '{trend['audio_title']}' also on YouTube Shorts")
 
-            def classify_single_trend(trend):
-                reels = trend["reels"]
-                captions = [r.get("caption") for r in reels if r.get("caption")]
-                source_pool = _dominant_source_hashtag_pool(reels)
-                niche_source = source_pool or classify_niche(
-                    " ".join(captions[:3]),
-                    [tag for r in reels for tag in (r.get("hashtags") or [])],
-                    source_hashtag_pool=source_pool,
-                )
-                trend["niche_tag"] = niche_source if niche_source else "general"
-                trend["content_tone"] = _aggregate_content_tone(reels)
-                trend["content_type"] = trend.get("content_type") or trend["niche_tag"]
-                trend["is_dance"] = bool(any(word in (trend["audio_title"] or "").lower() for word in ["dance", "bhangra", "step", "groove"]))
-                trend["needs_filming"] = trend["is_dance"] or trend["content_tone"] in {"wholesome", "neutral"}
-                trend["edit_style"] = "fast_cuts" if trend["is_dance"] else "slow_dissolve"
-                trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
-                trend["text_overlay_template"] = None
-                trend["language"] = "hi" if any(any(ch >= "\u0900" and ch <= "\u097f" for ch in (c or "")) for c in captions) else "en"
-                trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
-                trend["ideal_content_description"] = "Short creator clips that match the rhythm and caption vibe."
-                trend["camera_style"] = "handheld" if trend["is_dance"] else "static"
-                trend["window_hours_remaining"] = trend.get("window_hours_remaining") or 24
-                trend["confidence"] = 0.75
-                trend["saturation_score"] = min(1.0, max(0.0, trend.get("saturation_score") or 0.2))
-                # Calculate dynamic optimal post time based on linked reels
-                posted_hours = []
-                for r in reels:
-                    posted_str = r.get("posted_at")
-                    if posted_str:
-                        try:
-                            if posted_str.endswith("Z"):
-                                posted_str = posted_str[:-1] + "+00:00"
-                            from datetime import timedelta
-                            dt_posted = datetime.fromisoformat(posted_str)
-                            if dt_posted.tzinfo is None:
-                                dt_posted = dt_posted.replace(tzinfo=timezone.utc)
-                            ist_dt = dt_posted + timedelta(hours=5.5)
-                            posted_hours.append(ist_dt.hour)
-                        except Exception:
-                            pass
-                if posted_hours:
-                    from collections import Counter
-                    most_common_hour = Counter(posted_hours).most_common(1)[0][0]
-                    peak_slots = [8, 12, 15, 18, 20, 21]
-                    best_hour = min(peak_slots, key=lambda x: min(abs(x - most_common_hour), abs(x - most_common_hour - 24)))
-                    trend["optimal_post_hour_ist"] = best_hour
-                else:
-                    fallback_slots = [8, 12, 15, 18, 20, 21]
-                    trend["optimal_post_hour_ist"] = fallback_slots[abs(hash(trend["audio_title"])) % len(fallback_slots)]
-                trend["best_platform_first"] = "instagram"
-                trend["why_this_works"] = "The trend is reinforced by repeated creator adoption and strong engagement velocity."
-                trend["audio_cue_second"] = 0
-                trend["format_transferable"] = trend["content_tone"] != "outrage"
-                trend["transfer_instructions"] = None
-                trend["creator_fit_score"] = trend.get("creator_fit_score") or 0.6
-                trend["saturation_penalty"] = trend.get("saturation_penalty") or 0.3
-                trend["hook_retention_score"] = trend.get("hook_retention_score") or 0.5
-                trend["llm_classification_status"] = "not_needed"
-                trend["raw_llm_response"] = None
-                trend["llm_classified_at"] = None
-                trend["llm_retry_count"] = 0
-                return True
 
             # Classify top 7 trends sequentially with stagger/delay to respect rate limits
             llm_classification_failures = 0
@@ -824,27 +842,40 @@ class TrendEngine:
                 )
 
                 # Saturation percentages
-                global_sat = round(min(100.0, (audio_use_count / 100_000) * 100), 1)
-                india_sat = round(min(100.0, (india_use_count / 8_000) * 100), 1)
+                global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
+                india_sat = round(min(100.0, (india_use_count / INDIA_SATURATION_THRESHOLD_REELS) * 100), 1)
 
-                # Window hours (recalibrated for emerging=150k and rising=800k thresholds)
-                avg_vel = trend["avg_velocity"]
-                if audio_use_count > 3_000_000:
+                # Window hours - calculate based on saturation and velocity
+                # Low saturation trends should not have 0 window hours
+                if global_saturation_pct >= 90:
                     window_h = 0
-                elif avg_vel * 100 > 300 and audio_use_count < 150_000:
+                elif global_saturation_pct >= 75:
                     window_h = 8
-                elif avg_vel * 100 > 150 and audio_use_count < 400_000:
+                elif global_saturation_pct >= 50:
                     window_h = 16
-                elif avg_vel * 100 > 100 and audio_use_count < 800_000:
+                elif global_saturation_pct >= 20:
                     window_h = 24
                 else:
-                    window_h = int(trend.get("window_hours_remaining") or 24)
+                    # Early saturation trends have more time
+                    window_h = 48
 
                 opportunity_score = calculate_opportunity_score(
                     india_saturation_pct=india_sat,
                     window_hours_remaining=window_h,
                     confidence=confidence,
                 )
+                # Calculate unified trend state
+                trend_state = calculate_trend_state(
+                    velocity_avg=trend["avg_velocity"],
+                    global_saturation_pct=global_sat,
+                    india_saturation_pct=india_sat,
+                    window_hours_remaining=window_h,
+                    audio_use_count=audio_use_count,
+                    confidence=confidence,
+                    max_velocity=trend["max_velocity"],
+                    discovery_source=trend.get("discovery_source", "regional"),
+                )
+
 
                 # Niche tag: from hook_brief if available, else content_type
                 niche_tag = (

@@ -86,7 +86,11 @@ def build_source_hashtag_pool(hashtags: list[str] | None) -> str | None:
             return pool_name
     return "GLOBAL_DISCOVERY"
 
-def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str | None = None) -> str:
+def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str | None = None, sample_size: int = 0) -> str:
+    # If sample size is too small, return "general" to avoid overfitting
+    if sample_size > 0 and sample_size < 5:
+        return "general"
+    
     if source_hashtag_pool:
         pool_clean = source_hashtag_pool.upper().strip()
         pool_tags = HASHTAG_POOL_MAP.get(pool_clean, set())
