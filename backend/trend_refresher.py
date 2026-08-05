@@ -14,8 +14,12 @@ try:
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s",
     )
-except Exception:
-    pass
+except Exception as _log_cfg_err:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s",
+    )
+    logging.warning(f"trend_refresher: could not open log file, falling back to stdout: {_log_cfg_err}")
 
 logger = logging.getLogger(__name__)
 

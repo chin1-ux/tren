@@ -11,8 +11,14 @@ try:
         level=logging.INFO,
         format="%(asctime)s - %(levelname)s - %(message)s"
     )
-except Exception:
-    pass
+except Exception as _log_cfg_err:
+    # File-based log handler unavailable (e.g. read-only fs on Vercel).
+    # Fall back to stdout so the error is still surfaced.
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+    logging.warning(f"alert_system: could not open log file, falling back to stdout: {_log_cfg_err}")
 
 class AlertSystem:
     def __init__(self):
