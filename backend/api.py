@@ -218,6 +218,30 @@ except Exception as e:
     logger.warning(f"VideoViralityScorer import failed: {e}")
     VideoViralityScorer = None
 
+try:
+    from instagram_data_fetcher import InstagramDataFetcher
+except Exception as e:
+    logger.warning(f"InstagramDataFetcher import failed: {e}")
+    InstagramDataFetcher = None
+
+try:
+    from youtube_data_fetcher import YouTubeDataFetcher
+except Exception as e:
+    logger.warning(f"YouTubeDataFetcher import failed: {e}")
+    YouTubeDataFetcher = None
+
+try:
+    from realtime_trend_detector import RealTimeTrendDetector
+except Exception as e:
+    logger.warning(f"RealTimeTrendDetector import failed: {e}")
+    RealTimeTrendDetector = None
+
+try:
+    from user_performance_tracker import UserPerformanceTracker
+except Exception as e:
+    logger.warning(f"UserPerformanceTracker import failed: {e}")
+    UserPerformanceTracker = None
+
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -4888,6 +4912,219 @@ def get_video_improvements(
     except Exception as e:
         logger.exception(f"Error getting video improvements: {e}")
         raise HTTPException(status_code=500, detail="Failed to get improvement suggestions")
+
+
+# ── Phase 4: Real Data Integration Endpoints ─────────────────────────────────────
+
+@app.get("/api/instagram/user-profile")
+@limiter.limit("30/minute")
+def get_instagram_user_profile(
+    request: Request,
+    access_token: str,
+    user_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Get Instagram user profile data."""
+    if not InstagramDataFetcher:
+        raise HTTPException(status_code=500, detail="Instagram data fetcher not configured.")
+    
+    try:
+        profile = InstagramDataFetcher.get_user_profile(access_token, user_id)
+        return profile
+    except Exception as e:
+        logger.exception(f"Error fetching Instagram profile: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch Instagram profile")
+
+@app.get("/api/instagram/user-insights")
+@limiter.limit("30/minute")
+def get_instagram_user_insights(
+    request: Request,
+    access_token: str,
+    user_id: str,
+    period: str = "day",
+    current_user: str = Depends(get_current_user)
+):
+    """Get Instagram user insights."""
+    if not InstagramDataFetcher:
+        raise HTTPException(status_code=500, detail="Instagram data fetcher not configured.")
+    
+    try:
+        insights = InstagramDataFetcher.get_user_insights(access_token, user_id, period)
+        return insights
+    except Exception as e:
+        logger.exception(f"Error fetching Instagram insights: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch Instagram insights")
+
+@app.get("/api/instagram/user-media")
+@limiter.limit("30/minute")
+def get_instagram_user_media(
+    request: Request,
+    access_token: str,
+    user_id: str,
+    limit: int = 25,
+    current_user: str = Depends(get_current_user)
+):
+    """Get Instagram user media."""
+    if not InstagramDataFetcher:
+        raise HTTPException(status_code=500, detail="Instagram data fetcher not configured.")
+    
+    try:
+        media = InstagramDataFetcher.get_user_media(access_token, user_id, limit)
+        return media
+    except Exception as e:
+        logger.exception(f"Error fetching Instagram media: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch Instagram media")
+
+@app.get("/api/youtube/trending")
+@limiter.limit("30/minute")
+def get_youtube_trending(
+    request: Request,
+    region_code: str = "IN",
+    category_id: str = "10",
+    max_results: int = 25,
+    current_user: str = Depends(get_current_user)
+):
+    """Get YouTube trending videos."""
+    if not YouTubeDataFetcher:
+        raise HTTPException(status_code=500, detail="YouTube data fetcher not configured.")
+    
+    try:
+        trending = YouTubeDataFetcher.get_trending_videos(region_code, category_id, max_results)
+        return trending
+    except Exception as e:
+        logger.exception(f"Error fetching YouTube trending: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch YouTube trending")
+
+@app.get("/api/youtube/trending-music")
+@limiter.limit("30/minute")
+def get_youtube_trending_music(
+    request: Request,
+    max_results: int = 25,
+    current_user: str = Depends(get_current_user)
+):
+    """Get YouTube trending music in India."""
+    if not YouTubeDataFetcher:
+        raise HTTPException(status_code=500, detail="YouTube data fetcher not configured.")
+    
+    try:
+        trending = YouTubeDataFetcher.get_trending_music_india(max_results)
+        return trending
+    except Exception as e:
+        logger.exception(f"Error fetching YouTube trending music: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch YouTube trending music")
+
+@app.get("/api/realtime/trends")
+@limiter.limit("30/minute")
+def get_realtime_trends(
+    request: Request,
+    india_focus: bool = True,
+    current_user: str = Depends(get_current_user)
+):
+    """Get real-time trending topics across platforms."""
+    if not RealTimeTrendDetector:
+        raise HTTPException(status_code=500, detail="Real-time trend detector not configured.")
+    
+    try:
+        trends = RealTimeTrendDetector.detect_trending_topics(india_focus)
+        return trends
+    except Exception as e:
+        logger.exception(f"Error detecting real-time trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect real-time trends")
+
+@app.get("/api/realtime/cross-platform")
+@limiter.limit("30/minute")
+def get_cross_platform_trends(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get cross-platform trending topics."""
+    if not RealTimeTrendDetector:
+        raise HTTPException(status_code=500, detail="Real-time trend detector not configured.")
+    
+    try:
+        trends = RealTimeTrendDetector.detect_cross_platform_trends()
+        return trends
+    except Exception as e:
+        logger.exception(f"Error detecting cross-platform trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect cross-platform trends")
+
+@app.post("/api/user/performance/store")
+@limiter.limit("10/minute")
+def store_user_performance(
+    request: Request,
+    user_email: str,
+    instagram_data: dict,
+    current_user: str = Depends(get_current_user)
+):
+    """Store user performance data from Instagram."""
+    if not UserPerformanceTracker:
+        raise HTTPException(status_code=500, detail="User performance tracker not configured.")
+    
+    try:
+        result = UserPerformanceTracker.store_user_performance(user_email, instagram_data)
+        return result
+    except Exception as e:
+        logger.exception(f"Error storing user performance: {e}")
+        raise HTTPException(status_code=500, detail="Failed to store user performance")
+
+@app.get("/api/user/performance")
+@limiter.limit("30/minute")
+def get_user_performance(
+    request: Request,
+    user_email: str,
+    days: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get user performance data."""
+    if not UserPerformanceTracker:
+        raise HTTPException(status_code=500, detail="User performance tracker not configured.")
+    
+    try:
+        performance = UserPerformanceTracker.get_user_performance(user_email, days)
+        return performance
+    except Exception as e:
+        logger.exception(f"Error getting user performance: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user performance")
+
+@app.get("/api/user/performance/growth")
+@limiter.limit("30/minute")
+def get_user_growth_rate(
+    request: Request,
+    user_email: str,
+    days: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get user growth rate."""
+    if not UserPerformanceTracker:
+        raise HTTPException(status_code=500, detail="User performance tracker not configured.")
+    
+    try:
+        growth = UserPerformanceTracker.calculate_growth_rate(user_email, days)
+        return growth
+    except Exception as e:
+        logger.exception(f"Error calculating growth rate: {e}")
+        raise HTTPException(status_code=500, detail="Failed to calculate growth rate")
+
+@app.get("/api/user/performance/top-media")
+@limiter.limit("30/minute")
+def get_user_top_media(
+    request: Request,
+    user_email: str,
+    limit: int = 5,
+    current_user: str = Depends(get_current_user)
+):
+    """Get user's top performing media."""
+    if not UserPerformanceTracker:
+        raise HTTPException(status_code=500, detail="User performance tracker not configured.")
+    
+    try:
+        top_media = UserPerformanceTracker.get_top_performing_media(user_email, limit)
+        return top_media
+    except Exception as e:
+        logger.exception(f"Error getting top media: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get top media")
+
+
 
 
 
