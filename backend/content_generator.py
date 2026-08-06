@@ -82,6 +82,140 @@ class AIContentGenerator:
             except Exception as e:
                 logger.warning(f"Failed to initialize Supabase client: {e}")
         
+        # India-specific caption templates
+        self.india_caption_templates = {
+            'hindi': [
+                "{content} kya baat hai! ✨ Dekhiye ye video.",
+                "{content} bohot mast hai! 🔥 zaroor try karein.",
+                "POV: {content} dekh kar shock ho gaye! 😱",
+                "{content} ka magic dekhiye nahi to miss karoge! 💥",
+                "Indian style mein {content} - kaisa laga? 🇮🇳"
+            ],
+            'tamil': [
+                "{content} super ah irukku! ✨ Paathu paarunga.",
+                "{content} vera level! 🔥 Kandippa try pannunga.",
+                "POV: {content} paathu shock aagalam! 😱",
+                "{content} magic-a paathu miss pannatha! 💥",
+                "Tamil style-la {content} - eppadi irukku? 🇮🇳"
+            ],
+            'telugu': [
+                "{content} chala bagundi! ✨ Chudandi.",
+                "{content} marma! 🔖 Saradaga try cheyandi.",
+                "POV: {content} chusi shock ayyaru! 😱",
+                "{content} magic chusi miss cheyyakandi! 💥",
+                "Telugu style lo {content} - ela undi? 🇮🇳"
+            ],
+            'punjabi': [
+                "{content} kamal hai! ✨ Dekho ji.",
+                "{content} tez hai! 🔥 Jaroor try karo.",
+                "POV: {content} dekh ke shock ho gaye! 😱",
+                "{content} magic dekho miss na karo! 💥",
+                "Punjabi style mein {content} - kaisa laga? 🇮🇳"
+            ]
+        }
+        
+        # India-specific content ideas
+        self.india_content_ideas = {
+            'festival': [
+                {
+                    'title': 'Diwali Special Reel',
+                    'description': 'Create a Diwali celebration reel with traditional decorations and lights',
+                    'content_type': 'reel',
+                    'niche': 'lifestyle',
+                    'difficulty': 'medium',
+                    'script_outline': ['Show diya lighting', 'Rangoli making', 'Family celebration', 'Fireworks']
+                },
+                {
+                    'title': 'Holi Colors Celebration',
+                    'description': 'Vibrant Holi celebration content with colors and music',
+                    'content_type': 'reel',
+                    'niche': 'entertainment',
+                    'difficulty': 'easy',
+                    'script_outline': ['Color application', 'Dance to trending song', 'Friends celebration', 'Before/after']
+                },
+                {
+                    'title': 'Eid Special Content',
+                    'description': 'Eid celebration with traditional food and family time',
+                    'content_type': 'reel',
+                    'niche': 'food',
+                    'difficulty': 'medium',
+                    'script_outline': ['Food preparation', 'Family gathering', 'Traditional dress', 'Celebration moments']
+                }
+            ],
+            'regional': [
+                {
+                    'title': 'South Indian Recipe',
+                    'description': 'Traditional South Indian dish preparation',
+                    'content_type': 'reel',
+                    'niche': 'food',
+                    'difficulty': 'medium',
+                    'script_outline': ['Ingredients', 'Cooking process', 'Final dish', 'Tasting reaction']
+                },
+                {
+                    'title': 'Punjabi Bhangra Dance',
+                    'description': 'Energetic Bhangra dance performance',
+                    'content_type': 'reel',
+                    'niche': 'entertainment',
+                    'difficulty': 'hard',
+                    'script_outline': ['Traditional steps', 'Energy buildup', 'Group dance', 'Finale pose']
+                },
+                {
+                    'title': 'Marathi Festival Tradition',
+                    'description': 'Showcase Marathi cultural traditions',
+                    'content_type': 'carousel',
+                    'niche': 'culture',
+                    'difficulty': 'medium',
+                    'script_outline': ['Festival history', 'Traditional attire', 'Rituals', 'Modern adaptation']
+                }
+            ]
+        }
+        
+        # India-specific cultural events
+        self.india_cultural_events = {
+            'diwali': {
+                'name': 'Diwali',
+                'date': 'Variable (Oct-Nov)',
+                'content_themes': ['lights', 'diyas', 'rangoli', 'sweets', 'fireworks', 'family'],
+                'hashtags': ['#Diwali2024', '#FestivalOfLights', '#DiwaliVibes', '#IndianFestival'],
+                'trending_hashtags': ['#diwalireels', '#diwalicrackers', '#diwalidecoration']
+            },
+            'holi': {
+                'name': 'Holi',
+                'date': 'Variable (March)',
+                'content_themes': ['colors', 'water', 'dance', 'music', 'friends', 'celebration'],
+                'hashtags': ['#Holi2024', '#FestivalOfColors', '#HoliVibes', '#RangHoli'],
+                'trending_hashtags': ['#holireels', '#colors', '#holicelebration']
+            },
+            'eid': {
+                'name': 'Eid',
+                'date': 'Variable (Variable)',
+                'content_themes': ['prayer', 'food', 'family', 'tradition', 'celebration', 'charity'],
+                'hashtags': ['#Eid2024', '#EidMubarak', '#EidVibes', '#Festival'],
+                'trending_hashtags': ['#eidreels', '#eidcelebration', '#eidspecial']
+            },
+            'navratri': {
+                'name': 'Navratri',
+                'date': 'Variable (Sept-Oct)',
+                'content_themes': ['dance', 'garba', 'devotion', 'traditional', 'nine_nights'],
+                'hashtags': ['#Navratri2024', '#Garba', '#NavratriVibes', '#NineNights'],
+                'trending_hashtags': ['#garbareels', '#navratridance', '#dandiya']
+            },
+            'christmas': {
+                'name': 'Christmas',
+                'date': 'December 25',
+                'content_themes': ['decorations', 'carols', 'family', 'gifts', 'celebration'],
+                'hashtags': ['#Christmas2024', '#Xmas', '#ChristmasVibes', '#FestivalSeason'],
+                'trending_hashtags': ['#christmasreels', '#xmasvibes', '#holidayseason']
+            },
+            'independence_day': {
+                'name': 'Independence Day',
+                'date': 'August 15',
+                'content_themes': ['patriotism', 'tricolor', 'freedom', 'celebration', 'pride'],
+                'hashtags': ['#IndependenceDay2024', '#India75', '#JaiHind', '#AzadiKaAmritMahotsav'],
+                'trending_hashtags': ['#independencedayreels', '#indianpride', '#15august']
+            }
+        }
+        
         # Caption templates
         self.caption_templates = {
             'casual': [
@@ -213,6 +347,113 @@ class AIContentGenerator:
                 "I discovered something wild about {topic}."
             ]
         }
+    
+    def generate_india_caption(self, trend_name: str, language: str = "hindi", tone: str = "casual") -> GeneratedCaption:
+        """
+        Generate India-specific caption in regional language
+        """
+        # Select template based on language
+        templates = self.india_caption_templates.get(language, self.india_caption_templates['hindi'])
+        template = templates[hash(trend_name) % len(templates)]
+        
+        # Generate caption
+        caption = template.format(content=trend_name)
+        
+        # Generate hashtags (mix of English and regional)
+        hashtags = self._generate_india_hashtags(trend_name, language)
+        
+        # Generate CTA
+        cta = self._generate_india_cta(language)
+        
+        return GeneratedCaption(
+            caption=caption,
+            hashtags=hashtags,
+            tone=tone,
+            target_audience=f"india_{language}",
+            cta=cta,
+            emoji_usage="moderate"
+        )
+    
+    def generate_india_content_ideas(self, event_type: str = "festival", count: int = 3) -> List[ContentIdea]:
+        """
+        Generate India-specific content ideas for cultural events
+        """
+        ideas = self.india_content_ideas.get(event_type, self.india_content_ideas['festival'])
+        
+        generated_ideas = []
+        for i, idea_template in enumerate(ideas[:count]):
+            idea = ContentIdea(
+                title=idea_template['title'],
+                description=idea_template['description'],
+                content_type=idea_template['content_type'],
+                niche=idea_template['niche'],
+                difficulty=idea_template['difficulty'],
+                estimated_engagement="high",
+                required_resources=["phone", "lighting", "traditional elements"],
+                script_outline=idea_template['script_outline'],
+                suggested_hashtags=self._generate_event_hashtags(event_type)
+            )
+            generated_ideas.append(idea)
+        
+        return generated_ideas
+    
+    def get_cultural_event_content(self, event_name: str) -> Dict:
+        """
+        Get content suggestions for a specific cultural event
+        """
+        event_data = self.india_cultural_events.get(event_name.lower())
+        
+        if not event_data:
+            return {
+                'error': f'Event {event_name} not found',
+                'available_events': list(self.india_cultural_events.keys())
+            }
+        
+        return {
+            'event_name': event_data['name'],
+            'date': event_data['date'],
+            'content_themes': event_data['content_themes'],
+            'hashtags': event_data['hashtags'],
+            'trending_hashtags': event_data['trending_hashtags'],
+            'content_ideas': self.generate_india_content_ideas('festival', 3),
+            'caption_templates': [
+                f"Celebrating {event_data['name']} with {theme}! ✨"
+                for theme in event_data['content_themes'][:3]
+            ]
+        }
+    
+    def _generate_india_hashtags(self, trend_name: str, language: str) -> List[str]:
+        """Generate India-specific hashtags"""
+        base_hashtags = self._generate_hashtags(trend_name, 'general')
+        
+        # Add regional hashtags
+        regional_tags = {
+            'hindi': ['#hindireels', '#indiancreators', '#trendingindia'],
+            'tamil': ['#tamilreels', '#southindian', '#tamiltrending'],
+            'telugu': ['#telugureels', '#southindian', '#telugutrending'],
+            'punjabi': ['#punjabireels', '#northindian', '#punjabitrending']
+        }
+        
+        return base_hashtags + regional_tags.get(language, regional_tags['hindi'])
+    
+    def _generate_event_hashtags(self, event_type: str) -> List[str]:
+        """Generate hashtags for cultural events"""
+        if event_type == 'festival':
+            return ['#IndianFestival', '#CulturalCelebration', '#IndiaVibes', '#Traditional']
+        elif event_type == 'regional':
+            return ['#RegionalContent', '#LocalCulture', '#IndianTradition', '#DesiVibes']
+        else:
+            return ['#India', '#Desi', '#IndianContent', '#Cultural']
+    
+    def _generate_india_cta(self, language: str) -> str:
+        """Generate India-specific call to action"""
+        ctas = {
+            'hindi': "Follow karo for more! 🔔",
+            'tamil': "Follow pannunga for more! 🔔",
+            'telugu': "Follow cheyyandi for more! 🔔",
+            'punjabi': "Follow karo for more! 🔔"
+        }
+        return ctas.get(language, "Follow for more! 🔔")
     
     def generate_caption(self, trend_name: str, tone: str = "casual", niche: str = "general") -> GeneratedCaption:
         """

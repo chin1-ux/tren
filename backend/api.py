@@ -147,6 +147,12 @@ except Exception as e:
     CreatorAnalyticsEngine = None
 
 try:
+    from content_generator import AIContentGenerator as ContentGenerator
+except Exception as e:
+    logger.warning(f"ContentGenerator import failed: {e}")
+    ContentGenerator = None
+
+try:
     from content_generator import AIContentGenerator
 except Exception as e:
     logger.warning(f"AIContentGenerator import failed: {e}")
@@ -175,6 +181,24 @@ try:
 except Exception as e:
     logger.warning(f"IndiaFeaturesEngine import failed: {e}")
     IndiaFeaturesEngine = None
+
+try:
+    from early_trend_detection import EarlyTrendDetector
+except Exception as e:
+    logger.warning(f"EarlyTrendDetector import failed: {e}")
+    EarlyTrendDetector = None
+
+try:
+    from virality_prediction import ViralityPredictor
+except Exception as e:
+    logger.warning(f"ViralityPredictor import failed: {e}")
+    ViralityPredictor = None
+
+try:
+    from cultural_event_calendar import CulturalEventCalendar
+except Exception as e:
+    logger.warning(f"CulturalEventCalendar import failed: {e}")
+    CulturalEventCalendar = None
 
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
@@ -4412,6 +4436,282 @@ def create_plan_feature_admin(
     except Exception as e:
         logger.exception(f"Error creating plan feature: {e}")
         raise HTTPException(status_code=500, detail="Failed to save plan feature")
+
+
+# ── Phase 2: Unique Value Proposition Endpoints ─────────────────────────────────────
+
+@app.get("/api/early-detection/trends")
+@limiter.limit("30/minute")
+def get_early_detection_trends(
+    request: Request,
+    limit: int = 10,
+    current_user: str = Depends(get_current_user)
+):
+    """Get trends with high early detection scores (about to go viral)."""
+    if not EarlyTrendDetector:
+        raise HTTPException(status_code=500, detail="Early trend detection not configured.")
+    
+    try:
+        trends = EarlyTrendDetector.get_early_detection_trends(limit)
+        return {
+            'trends': trends,
+            'total': len(trends)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting early detection trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get early detection trends")
+
+@app.get("/api/early-detection/predict/{trend_id}")
+@limiter.limit("30/minute")
+def predict_trend_viral_potential(
+    request: Request,
+    trend_id: int,
+    current_user: str = Depends(get_current_user)
+):
+    """Predict viral potential of a specific trend."""
+    if not EarlyTrendDetector:
+        raise HTTPException(status_code=500, detail="Early trend detection not configured.")
+    
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured.")
+    
+    try:
+        # Get trend data
+        res = supabase.table('trends') \
+            .select('*') \
+            .eq('id', trend_id) \
+            .single() \
+            .execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Trend not found")
+        
+        trend_data = res.data
+        prediction = EarlyTrendDetector.predict_viral_potential(trend_data)
+        
+        return prediction
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error predicting trend viral potential: {e}")
+        raise HTTPException(status_code=500, detail="Failed to predict viral potential")
+
+@app.post("/api/virality/predict")
+@limiter.limit("10/minute")
+def predict_content_virality(
+    request: Request,
+    content_data: dict,
+    trend_id: int,
+    creator_email: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
+):
+    """Predict virality of content before posting."""
+    if not ViralityPredictor:
+        raise HTTPException(status_code=500, detail="Virality prediction not configured.")
+    
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured.")
+    
+    try:
+        # Get trend data
+        res = supabase.table('trends') \
+            .select('*') \
+            .eq('id', trend_id) \
+            .single() \
+            .execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Trend not found")
+        
+        trend_data = res.data
+        prediction = ViralityPredictor.predict_content_virality(content_data, trend_data, creator_email)
+        
+        return prediction
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error predicting content virality: {e}")
+        raise HTTPException(status_code=500, detail="Failed to predict content virality")
+
+@app.get("/api/virality/improvements")
+@limiter.limit("30/minute")
+def get_virality_improvements(
+    request: Request,
+    content_data: dict,
+    trend_id: int,
+    current_user: str = Depends(get_current_user)
+):
+    """Get improvement suggestions to increase virality."""
+    if not ViralityPredictor:
+        raise HTTPException(status_code=500, detail="Virality prediction not configured.")
+    
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured.")
+    
+    try:
+        # Get trend data
+        res = supabase.table('trends') \
+            .select('*') \
+            .eq('id', trend_id) \
+            .single() \
+            .execute()
+        
+        if not res.data:
+            raise HTTPException(status_code=404, detail="Trend not found")
+        
+        trend_data = res.data
+        suggestions = ViralityPredictor.get_improvement_suggestions(content_data, trend_data)
+        
+        return {
+            'suggestions': suggestions,
+            'total': len(suggestions)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting virality improvements: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get improvement suggestions")
+
+@app.get("/api/india/cultural-events")
+@limiter.limit("30/minute")
+def get_cultural_events(
+    request: Request,
+    days_ahead: int = 90,
+    current_user: str = Depends(get_current_user)
+):
+    """Get upcoming India-specific cultural events."""
+    if not CulturalEventCalendar:
+        raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+    
+    try:
+        events = CulturalEventCalendar.get_upcoming_events(days_ahead)
+        return {
+            'events': events,
+            'total': len(events)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting cultural events: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cultural events")
+
+@app.get("/api/india/cultural-events/{event_name}")
+@limiter.limit("30/minute")
+def get_cultural_event_suggestions(
+    request: Request,
+    event_name: str,
+    region: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
+):
+    """Get content suggestions for a specific cultural event."""
+    if not CulturalEventCalendar:
+        raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+    
+    try:
+        suggestions = CulturalEventCalendar.get_event_content_suggestions(event_name, region)
+        return suggestions
+    except Exception as e:
+        logger.exception(f"Error getting cultural event suggestions: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cultural event suggestions")
+
+@app.get("/api/india/cultural-events/{event_name}/optimal-timing")
+@limiter.limit("30/minute")
+def get_cultural_event_timing(
+    request: Request,
+    event_name: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Get optimal posting window for a cultural event."""
+    if not CulturalEventCalendar:
+        raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+    
+    try:
+        window = CulturalEventCalendar.get_optimal_posting_window(event_name)
+        return window
+    except Exception as e:
+        logger.exception(f"Error getting cultural event timing: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get optimal timing")
+
+@app.get("/api/india/caption/generate")
+@limiter.limit("10/minute")
+def generate_india_caption(
+    request: Request,
+    trend_name: str,
+    language: str = "hindi",
+    tone: str = "casual",
+    current_user: str = Depends(get_current_user)
+):
+    """Generate India-specific caption in regional language."""
+    if not ContentGenerator:
+        raise HTTPException(status_code=500, detail="Content generator not configured.")
+    
+    try:
+        generator = ContentGenerator()
+        caption = generator.generate_india_caption(trend_name, language, tone)
+        
+        return {
+            'caption': caption.caption,
+            'hashtags': caption.hashtags,
+            'tone': caption.tone,
+            'cta': caption.cta
+        }
+    except Exception as e:
+        logger.exception(f"Error generating India caption: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate caption")
+
+@app.get("/api/india/content-ideas/generate")
+@limiter.limit("10/minute")
+def generate_india_content_ideas(
+    request: Request,
+    event_type: str = "festival",
+    count: int = 3,
+    current_user: str = Depends(get_current_user)
+):
+    """Generate India-specific content ideas for cultural events."""
+    if not ContentGenerator:
+        raise HTTPException(status_code=500, detail="Content generator not configured.")
+    
+    try:
+        generator = ContentGenerator()
+        ideas = generator.generate_india_content_ideas(event_type, count)
+        
+        return {
+            'ideas': [
+                {
+                    'title': idea.title,
+                    'description': idea.description,
+                    'content_type': idea.content_type,
+                    'niche': idea.niche,
+                    'difficulty': idea.difficulty,
+                    'script_outline': idea.script_outline,
+                    'hashtags': idea.suggested_hashtags
+                }
+                for idea in ideas
+            ],
+            'total': len(ideas)
+        }
+    except Exception as e:
+        logger.exception(f"Error generating India content ideas: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate content ideas")
+
+@app.get("/api/india/cultural-event/{event_name}")
+@limiter.limit("30/minute")
+def get_cultural_event(
+    request: Request,
+    event_name: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Get content suggestions for a specific cultural event."""
+    if not ContentGenerator:
+        raise HTTPException(status_code=500, detail="Content generator not configured.")
+    
+    try:
+        generator = ContentGenerator()
+        event_data = generator.get_cultural_event_content(event_name)
+        return event_data
+    except Exception as e:
+        logger.exception(f"Error getting cultural event: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cultural event")
+
+
 
 
 
