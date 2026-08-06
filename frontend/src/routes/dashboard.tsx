@@ -3,6 +3,7 @@ import { CreatorAnalyticsDashboard } from "@/components/CreatorAnalyticsDashboar
 import { AIContentGenerator } from "@/components/AIContentGenerator";
 import { IndiaFeaturesDashboard } from "@/components/IndiaFeaturesDashboard";
 import { EarlyDetectionPanel } from "@/components/EarlyDetectionPanel";
+import { VideoAnalysisPanel } from "@/components/VideoAnalysisPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 
@@ -18,8 +19,9 @@ function Dashboard() {
       <OnboardingTour open={isOpen} onComplete={closeOnboarding} />
       <div className="container mx-auto py-8 px-4">
         <Tabs defaultValue="early-detection" className="w-full">
-          <TabsList className="grid w-full grid-cols-4">
+          <TabsList className="grid w-full grid-cols-5">
             <TabsTrigger value="early-detection">Early Detection</TabsTrigger>
+            <TabsTrigger value="video-analysis">Video Analysis</TabsTrigger>
             <TabsTrigger value="analytics">Analytics</TabsTrigger>
             <TabsTrigger value="ai">AI Generator</TabsTrigger>
             <TabsTrigger value="india">India Features</TabsTrigger>
@@ -27,6 +29,10 @@ function Dashboard() {
 
           <TabsContent value="early-detection" className="mt-6">
             <EarlyDetectionPanel />
+          </TabsContent>
+
+          <TabsContent value="video-analysis" className="mt-6">
+            <VideoAnalysisPanel />
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6">
