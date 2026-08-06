@@ -5,7 +5,7 @@ Generates captions, content ideas, hooks, and scripts based on trending topics a
 import os
 import sys
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Optional
 from dataclasses import dataclass
 from dotenv import load_dotenv
