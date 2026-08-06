@@ -268,6 +268,12 @@ except Exception as e:
     generate_pitch_deck_content = None
     export_pitch_deck_to_markmark = None
 
+try:
+    from phone_verification import PhoneVerification
+except Exception as e:
+    logger.warning(f"PhoneVerification import failed: {e}")
+    PhoneVerification = None
+
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -5314,6 +5320,67 @@ def get_pitch_deck_markdown(
     except Exception as e:
         logger.exception(f"Error exporting pitch deck to markdown: {e}")
         raise HTTPException(status_code=500, detail="Failed to export pitch deck")
+
+
+# ── Phone Verification Endpoints ─────────────────────────────────────
+
+@app.post("/api/phone/send-code")
+@limiter.limit("5/minute")
+def send_phone_verification_code(
+    request: Request,
+    phone_number: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Send verification code via SMS."""
+    if not PhoneVerification:
+        raise HTTPException(status_code=500, detail="Phone verification not configured.")
+    
+    try:
+        result = PhoneVerification.send_verification_code(phone_number)
+        return result
+    except Exception as e:
+        logger.exception(f"Error sending verification code: {e}")
+        raise HTTPException(status_code=500, detail="Failed to send verification code")
+
+@app.post("/api/phone/verify")
+@limiter.limit("10/minute")
+def verify_phone_code(
+    request: Request,
+    phone_number: str,
+    code: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Verify the submitted code."""
+    if not PhoneVerification:
+        raise HTTPException(status_code=500, detail="Phone verification not configured.")
+    
+    try:
+        result = PhoneVerification.verify_code(phone_number, code)
+        return result
+    except Exception as e:
+        logger.exception(f"Error verifying code: {e}")
+        raise HTTPException(status_code=500, detail="Failed to verify code")
+
+@app.get("/api/phone/status")
+@limiter.limit("30/minute")
+def get_phone_verification_status(
+    request: Request,
+    phone_number: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Check if a phone number is verified."""
+    if not PhoneVerification:
+        raise HTTPException(status_code=500, detail="Phone verification not configured.")
+    
+    try:
+        is_verified = PhoneVerification.is_phone_verified(phone_number)
+        return {
+            'phone_number': phone_number,
+            'verified': is_verified
+        }
+    except Exception as e:
+        logger.exception(f"Error checking verification status: {e}")
+        raise HTTPException(status_code=500, detail="Failed to check verification status")
 
 
 
