@@ -94,8 +94,13 @@ function IdeasPage() {
       setIdeas(data);
     } catch (err) {
       console.error("Failed to load daily ideas", err);
-      toast.error("Failed to load daily ideas from server.");
-      setIdeas([]);
+      toast.error("Failed to load daily ideas. Using fallback ideas.");
+      // Set fallback ideas
+      setIdeas([
+        { title: "The Ultimate Lifestyle Hack", description: "Show a 15-second hack of something in your niche.", hook: "Stop doing it the hard way!", audio_suggestion: "Upbeat trending pop", posting_time: "6:30 PM", difficulty: "Easy" },
+        { title: "Day in the Life", description: "B-roll of your daily routine with text overlay.", hook: "What my typical day actually looks like...", audio_suggestion: "Chill Lofi", posting_time: "8:00 PM", difficulty: "Medium" },
+        { title: "My Biggest Mistake", description: "Share a relatable mistake and how you solved it.", hook: "Don't make this mistake I made...", audio_suggestion: "Dramatic build-up", posting_time: "7:15 PM", difficulty: "Hard" }
+      ]);
     } finally {
       setLoadingIdeas(false);
     }
@@ -147,8 +152,18 @@ function IdeasPage() {
       toast.success("Reel scored successfully!");
     } catch (err) {
       console.error("Failed to score reel", err);
-      toast.error("Failed to score your reel. Please try again later.");
-      setScoringResult(null);
+      toast.error("Failed to score your reel. Using fallback score.");
+      // Set fallback score
+      setScoringResult({
+        overall_score: 75,
+        grade: "B",
+        hook_score: 70,
+        audio_score: 70,
+        caption_score: 70,
+        hashtag_score: 70,
+        timing_score: 70,
+        top_fixes: ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."]
+      });
     } finally {
       setLoadingScore(false);
     }
@@ -171,8 +186,13 @@ function IdeasPage() {
       toast.success("5 high-converting hooks generated!");
     } catch (err) {
       console.error("Failed to generate hooks", err);
-      toast.error("Failed to generate hooks. Please try again later.");
-      setGeneratedHooks([]);
+      toast.error("Failed to generate hooks. Using fallback hooks.");
+      // Set fallback hooks
+      setGeneratedHooks([
+        { style: "Curiosity", text: `Why nobody is talking about ${hookDescription}`, why_it_works: "Intrigue" },
+        { style: "Authority", text: `The only guide you need for ${hookDescription}`, why_it_works: "Establishes immediate value" },
+        { style: "Relatable", text: "I was today years old when I learned this about " + hookDescription, why_it_works: "Humor & connection" }
+      ]);
     } finally {
       setLoadingHooks(false);
     }
@@ -188,8 +208,18 @@ function IdeasPage() {
       toast.success("Your 30-Day Autopilot Calendar is ready!");
     } catch (err) {
       console.error("Failed to generate calendar", err);
-      toast.error("Failed to generate your 30-Day calendar.");
-      setCalendar([]);
+      toast.error("Failed to generate your 30-Day calendar. Using fallback calendar.");
+      // Set fallback calendar
+      const fallbackCalendar = Array.from({ length: 30 }, (_, i) => ({
+        day: i + 1,
+        topic: `Day ${i + 1} challenge/tip`,
+        hook: `Here is tip #${i + 1}...`,
+        audio_style: "Trending audio",
+        hashtags: ["#lifestyle"],
+        posting_time: "6:00 PM"
+      }));
+      setCalendar(fallbackCalendar);
+      localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(fallbackCalendar));
     } finally {
       setLoadingCalendar(false);
     }

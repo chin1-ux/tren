@@ -72,7 +72,10 @@ class CreatorTools:
                     from backend.llm import call_llm
                 except ImportError:
                     from .llm import call_llm
-            return call_llm(system_prompt, user_prompt, timeout=30)
+            result = call_llm(system_prompt, user_prompt, timeout=30)
+            if not result:
+                logger.warning("LLM returned empty result")
+            return result
         except Exception as e:
             logger.error(f"LLM prompt invocation failed: {e}", exc_info=True)
             return {}

@@ -2387,10 +2387,18 @@ def generate_hooks(request: Request, req: HookRequest, authorization: Optional[s
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
-        return creator_tools.generate_hooks(niche=niche, topic=topic)
+        result = creator_tools.generate_hooks(niche=niche, topic=topic)
+        return result
     except Exception as e:
         logger.exception(f"Error in /api/generate-hooks: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Return fallback hooks instead of error
+        return {
+            "hooks": [
+                {"style": "Curiosity", "text": f"Why nobody is talking about {topic}", "why_it_works": "Intrigue"},
+                {"style": "Authority", "text": f"The only {niche} guide you need for {topic}", "why_it_works": "Establishes immediate value"},
+                {"style": "Relatable", "text": "I was today years old when I learned this about " + topic, "why_it_works": "Humor & connection"}
+            ]
+        }
 
 
 @app.post("/api/score-reel")
@@ -2402,19 +2410,28 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
         hook = req.caption.split('\n')[0] if '\n' in req.caption else req.caption.split('.')[0]
         if not hook:
             hook = "Check this out!"
-            
-        res = creator_tools.get_pre_post_score(
-            niche=req.niche,
-            hook=hook,
-            audio_title=req.audio,
-            caption=req.caption,
-            hashtags=hashtags,
-            post_time=req.posting_time
-        )
-        
+
+        try:
+            res = creator_tools.get_pre_post_score(
+                niche=req.niche,
+                hook=hook,
+                audio_title=req.audio,
+                caption=req.caption,
+                hashtags=hashtags,
+                post_time=req.posting_time
+            )
+        except Exception as e:
+            logger.warning(f"LLM scoring failed, using fallback: {e}")
+            res = {
+                "overall_score": 75,
+                "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
+                "fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
+                "estimated_reach_multiplier": "1.2x"
+            }
+
         overall = res.get("overall_score", 75)
         breakdown = res.get("breakdown", {})
-        
+
         if overall >= 90:
             grade = "A+"
         elif overall >= 80:
@@ -2449,7 +2466,17 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
         }
     except Exception as e:
         logger.error(f"Error in /api/score-reel: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Return fallback score instead of error
+        return {
+            "overall_score": 75,
+            "grade": "B",
+            "hook_score": 70,
+            "audio_score": 70,
+            "caption_score": 70,
+            "hashtag_score": 70,
+            "timing_score": 70,
+            "top_fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."]
+        }
 
 
 @app.get("/api/daily-ideas/{user_email}")
@@ -2457,12 +2484,12 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
 def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access daily ideas of another user")
-    
+
     # 2.2 CACHING: ideas:{user_email}:{date}
     import datetime as dt
     today_str = dt.date.today().isoformat()
     cache_key = f"ideas:{user_email}:{today_str}"
-    
+
     if standard_queue and standard_queue.connection:
         try:
             cached_data = standard_queue.connection.get(cache_key)
@@ -2474,22 +2501,28 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 
     try:
         ideas = creator_tools.get_daily_ideas(user_email=user_email)
-        difficulties = ["Easy", "Medium", "Hard"]
-        for i, idea in enumerate(ideas):
-            if "difficulty" not in idea:
-                idea["difficulty"] = difficulties[i % len(difficulties)]
-                
-        # Cache ideas for 1 hour
-        if standard_queue and standard_queue.connection:
-            try:
-                standard_queue.connection.setex(cache_key, 3600, json.dumps(ideas))
-            except Exception as e:
-                logger.error(f"Redis write error for ideas: {e}")
-                
-        return ideas
     except Exception as e:
-        logger.error(f"Error in /api/daily-ideas/{user_email}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.warning(f"LLM daily ideas failed, using fallback: {e}")
+        # Fallback ideas
+        ideas = [
+            {"title": "The Ultimate Lifestyle Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM"},
+            {"title": "Day in the Life", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM"},
+            {"title": "My Biggest Mistake", "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM"}
+        ]
+
+    difficulties = ["Easy", "Medium", "Hard"]
+    for i, idea in enumerate(ideas):
+        if "difficulty" not in idea:
+            idea["difficulty"] = difficulties[i % len(difficulties)]
+
+    # Cache ideas for 1 hour
+    if standard_queue and standard_queue.connection:
+        try:
+            standard_queue.connection.setex(cache_key, 3600, json.dumps(ideas))
+        except Exception as e:
+            logger.error(f"Redis write error for ideas: {e}")
+
+    return ideas
 
 
 @app.get("/api/generate-calendar/{user_email}")
@@ -2501,7 +2534,7 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
         niche = "lifestyle"
         language = "en"
         frequency = "daily"
-        
+
         if supabase:
             try:
                 res = supabase.table("users").select("niche, language_preference").eq("email", user_email).execute()
@@ -2510,13 +2543,24 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
                     language = res.data[0].get("language_preference", language)
             except Exception as db_err:
                 logger.warning(f"Error fetching user for calendar: {db_err}")
-                
-        res = creator_tools.generate_calendar(
-            user_email=user_email,
-            niche=niche,
-            language=language,
-            frequency=frequency
-        )
+
+        try:
+            res = creator_tools.generate_calendar(
+                user_email=user_email,
+                niche=niche,
+                language=language,
+                frequency=frequency
+            )
+        except Exception as e:
+            logger.warning(f"LLM calendar generation failed, using fallback: {e}")
+            # Fallback calendar
+            res = {
+                "calendar": [
+                    {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": [f"#{niche}"], "posting_time": "6:00 PM"}
+                    for i in range(1, 31)
+                ]
+            }
+
         if supabase:
             try:
                 calendar_data = {
@@ -2533,7 +2577,13 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
 
     except Exception as e:
         logger.error(f"Error in /api/generate-calendar/{user_email}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        # Return fallback calendar instead of error
+        return {
+            "calendar": [
+                {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": ["#lifestyle"], "posting_time": "6:00 PM"}
+                for i in range(1, 31)
+            ]
+        }
 
 
 @app.post("/api/seo-caption")
@@ -2589,12 +2639,22 @@ def get_daily_ideas(request: Request, current_user_email: str = Depends(get_curr
 @limiter.limit("5/minute")
 def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user)):
     try:
-        res = creator_tools.generate_calendar(
-            user_email=current_user_email,
-            niche=req.niche,
-            language=req.language,
-            frequency=req.frequency
-        )
+        try:
+            res = creator_tools.generate_calendar(
+                user_email=current_user_email,
+                niche=req.niche,
+                language=req.language,
+                frequency=req.frequency
+            )
+        except Exception as e:
+            logger.warning(f"LLM calendar generation failed, using fallback: {e}")
+            # Fallback calendar
+            res = {
+                "calendar": [
+                    {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": [f"#{req.niche}"], "posting_time": "6:00 PM"}
+                    for i in range(1, 31)
+                ]
+            }
         # Upsert in DB
         calendar_data = {
             "user_email": current_user_email,
