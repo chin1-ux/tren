@@ -19,6 +19,7 @@ import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as GenerateRouteImport } from './routes/generate'
 import { Route as DataRightsRouteImport } from './routes/data-rights'
+import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as DealsIndexRouteImport } from './routes/deals.index'
 import { Route as TrendIdRouteImport } from './routes/trend.$id'
@@ -75,6 +76,11 @@ const DataRightsRoute = DataRightsRouteImport.update({
   path: '/data-rights',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DashboardRoute = DashboardRouteImport.update({
+  id: '/dashboard',
+  path: '/dashboard',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const IndexRoute = IndexRouteImport.update({
   id: '/',
   path: '/',
@@ -103,6 +109,7 @@ const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
@@ -120,6 +127,7 @@ export interface FileRoutesByFullPath {
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
@@ -138,6 +146,7 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/': typeof IndexRoute
+  '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
+    | '/dashboard'
     | '/data-rights'
     | '/generate'
     | '/ideas'
@@ -174,6 +184,7 @@ export interface FileRouteTypes {
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
+    | '/dashboard'
     | '/data-rights'
     | '/generate'
     | '/ideas'
@@ -191,6 +202,7 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/'
+    | '/dashboard'
     | '/data-rights'
     | '/generate'
     | '/ideas'
@@ -209,6 +221,7 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
+  DashboardRoute: typeof DashboardRoute
   DataRightsRoute: typeof DataRightsRoute
   GenerateRoute: typeof GenerateRoute
   IdeasRoute: typeof IdeasRoute
@@ -297,6 +310,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DataRightsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/dashboard': {
+      id: '/dashboard'
+      path: '/dashboard'
+      fullPath: '/dashboard'
+      preLoaderRoute: typeof DashboardRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/': {
       id: '/'
       path: '/'
@@ -337,6 +357,7 @@ declare module '@tanstack/react-router' {
 
 const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
+  DashboardRoute: DashboardRoute,
   DataRightsRoute: DataRightsRoute,
   GenerateRoute: GenerateRoute,
   IdeasRoute: IdeasRoute,

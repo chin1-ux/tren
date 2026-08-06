@@ -217,6 +217,15 @@ export interface UiTrend {
   nicheTag?: string;
   hookBrief?: Array<{
     dominant_hook_type?: string;
+  // Trend classification fields for display differentiation
+  trendClassification?: string;
+  velocityPattern?: string;
+  isEvergreen?: boolean;
+  trendAgeHours?: number;
+  audioReleaseDate?: string;
+  audioOriginalReleaseYear?: number;
+  audioGenre?: string;
+  audioLabel?: string;
     hook_opening_patterns?: string[];
     hook_brief_one_line?: string;
     optimal_length_seconds?: number;
@@ -334,6 +343,15 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     crossoverMessage: t.crossover_message,
     viewsDelta: t.views_delta_last_run,
     likesDelta: t.likes_delta_last_run,
+    // Trend classification fields for display differentiation
+    trendClassification: t.trend_classification ?? "new_viral",
+    velocityPattern: t.velocity_pattern ?? "sudden_spike",
+    isEvergreen: t.is_evergreen ?? false,
+    trendAgeHours: t.trend_age_hours ?? 0,
+    audioReleaseDate: t.audio_release_date,
+    audioOriginalReleaseYear: t.audio_original_release_year,
+    audioGenre: t.audio_genre,
+    audioLabel: t.audio_label,
   };
 }
 
@@ -453,6 +471,492 @@ export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> 
   const qs = language && language !== "all" ? `?language=${language}` : "";
   const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
   return data.map(adaptTrend);
+}
+
+// ── Instagram Algorithm Insights API ─────────────────────────────────────
+
+export interface ContentAnalysisData {
+  views?: number;
+  likes?: number;
+  comments?: number;
+  shares?: number;
+  saves?: number;
+  duration?: number;
+  niche?: string;
+  uses_trending_audio?: boolean;
+}
+
+export interface AlgorithmAnalysis {
+  virality_score: number;
+  viral_potential: string;
+  factor_scores: Record<string, number>;
+  engagement_metrics: {
+    engagement_rate: number;
+    like_rate: number;
+    comment_rate: number;
+    share_rate: number;
+    save_rate: number;
+  };
+  recommendations: Array<{
+    category: string;
+    priority: string;
+    title: string;
+    description: string;
+    expected_impact: string;
+    difficulty: string;
+  }>;
+  algorithm_explanation: string;
+}
+
+export async function analyzeContentForVirality(contentData: ContentAnalysisData): Promise<AlgorithmAnalysis> {
+  const params = new URLSearchParams();
+  if (contentData.views !== undefined) params.set('views', contentData.views.toString());
+  if (contentData.likes !== undefined) params.set('likes', contentData.likes.toString());
+  if (contentData.comments !== undefined) params.set('comments', contentData.comments.toString());
+  if (contentData.shares !== undefined) params.set('shares', contentData.shares.toString());
+  if (contentData.saves !== undefined) params.set('saves', contentData.saves.toString());
+  if (contentData.duration !== undefined) params.set('duration', contentData.duration.toString());
+  if (contentData.niche) params.set('niche', contentData.niche);
+  if (contentData.uses_trending_audio !== undefined) params.set('uses_trending_audio', contentData.uses_trending_audio.toString());
+  
+  const qs = params.toString() ? `?${params}` : "";
+  return http<AlgorithmAnalysis>(`/api/algorithm/analyze${qs}`);
+}
+
+export async function getOptimalPostingTimes(niche: string = "general", targetAudience: string = "india"): Promise<{
+  niche: string;
+  target_audience: string;
+  optimal_times: string[];
+}> {
+  const params = new URLSearchParams();
+  params.set('niche', niche);
+  params.set('target_audience', targetAudience);
+  return http(`/api/algorithm/posting-times?${params}`);
+}
+
+export async function getHashtagStrategy(niche: string = "general", contentType: string = "reel"): Promise<{
+  niche: string;
+  content_type: string;
+  hashtag_strategy: Record<string, string[]>;
+}> {
+  const params = new URLSearchParams();
+  params.set('niche', niche);
+  params.set('content_type', contentType);
+  return http(`/api/algorithm/hashtag-strategy?${params}`);
+}
+
+// ── Event Monitoring API ─────────────────────────────────────────────────────
+
+export interface SocialMediaEvent {
+  id: string;
+  name: string;
+  type: string;
+  impact: string;
+  start_date: string;
+  end_date: string;
+  hashtags: string[];
+  content_themes: string[];
+  creator_opportunities: string[];
+  target_audiences: string[];
+  platform_relevance: Record<string, number>;
+  viral_potential: number;
+  trending_now: boolean;
+  estimated_creator_participation: number;
+  days_until_start: number;
+}
+
+export async function getActiveEvents(daysAhead: number = 30, daysBehind: number = 7): Promise<{
+  events: SocialMediaEvent[];
+  total_events: number;
+  query_params: { days_ahead: number; days_behind: number };
+}> {
+  const params = new URLSearchParams();
+  params.set('days_ahead', daysAhead.toString());
+  params.set('days_behind', daysBehind.toString());
+  return http(`/api/events/active?${params}`);
+}
+
+export async function getEventOpportunities(eventId: string): Promise<any> {
+  return http(`/api/events/${eventId}/opportunities`);
+}
+
+export async function detectHashtagSpikes(hoursWindow: number = 24): Promise<{
+  spikes: Array<{
+    hashtag: string;
+    event_name: string;
+    usage_count: number;
+    velocity_score: number;
+    spike_detected: boolean;
+    trend_direction: string;
+  }>;
+  hours_window: number;
+  total_spikes: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('hours_window', hoursWindow.toString());
+  return http(`/api/events/hashtag-spikes?${params}`);
+}
+
+// ── Hashtag Velocity Tracking API ───────────────────────────────────────────
+
+export interface HashtagVelocity {
+  hashtag: string;
+  current_count: number;
+  previous_count: number;
+  velocity_score: number;
+  trend_direction: string;
+  acceleration: number;
+  usage_frequency: number;
+  niche_relevance: string;
+  estimated_total_creators: number;
+  peak_24h_usage: number;
+  discovered_at: string;
+}
+
+export async function getHashtagVelocity(hoursWindow: number = 24): Promise<{
+  hashtag_velocities: HashtagVelocity[];
+  total_hashtags: number;
+  hours_window: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('hours_window', hoursWindow.toString());
+  return http(`/api/hashtags/velocity?${params}`);
+}
+
+export interface HashtagTrend {
+  hashtag: string;
+  velocity_score: number;
+  trend_direction: string;
+  related_hashtags: string[];
+  content_themes: string[];
+  target_audiences: string[];
+  optimal_content_types: string[];
+  estimated_lifespan_hours: number;
+  competition_level: string;
+  platform_performance: Record<string, number>;
+}
+
+export async function getTrendingHashtags(hoursWindow: number = 24, minVelocity: number = 20.0): Promise<{
+  trending_hashtags: HashtagTrend[];
+  total_trending: number;
+  query_params: { hours_window: number; min_velocity: number };
+}> {
+  const params = new URLSearchParams();
+  params.set('hours_window', hoursWindow.toString());
+  params.set('min_velocity', minVelocity.toString());
+  return http(`/api/hashtags/trending?${params}`);
+}
+
+// ── Topic Clustering API ─────────────────────────────────────────────────────
+
+export interface TopicCluster {
+  topic_id: string;
+  topic_name: string;
+  topic_keywords: string[];
+  topic_category: string;
+  content_samples: string[];
+  creator_count: number;
+  total_engagement: number;
+  avg_velocity: number;
+  viral_potential: number;
+  trending_since: string;
+  estimated_lifespan_hours: number;
+  related_topics: string[];
+  target_audiences: string[];
+  content_opportunities: string[];
+}
+
+export async function getTopicClusters(hoursWindow: number = 48, minClusterSize: number = 5): Promise<{
+  topic_clusters: TopicCluster[];
+  total_clusters: number;
+  query_params: { hours_window: number; min_cluster_size: number };
+}> {
+  const params = new URLSearchParams();
+  params.set('hours_window', hoursWindow.toString());
+  params.set('min_cluster_size', minClusterSize.toString());
+  return http(`/api/topics/clusters?${params}`);
+}
+
+export interface Conversation {
+  conversation_id: string;
+  conversation_name: string;
+  conversation_type: string;
+  template_structure: string;
+  participation_count: number;
+  velocity_score: number;
+  engagement_rate: number;
+  viral_potential: number;
+  platform_performance: Record<string, number>;
+  optimal_content_types: string[];
+  example_captions: string[];
+  creator_opportunities: string[];
+}
+
+export async function detectConversations(hoursWindow: number = 48): Promise<{
+  conversations: Conversation[];
+  total_conversations: number;
+  hours_window: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('hours_window', hoursWindow.toString());
+  return http(`/api/conversations/detect?${params}`);
+}
+
+// ── Creator Analytics API ─────────────────────────────────────────────────────
+
+export interface CreatorMetrics {
+  creator_email: string;
+  total_reels_analyzed: number;
+  total_views: number;
+  total_likes: number;
+  total_comments: number;
+  total_shares: number;
+  avg_engagement_rate: number;
+  avg_velocity_score: number;
+  top_performing_content: Array<{
+    id: string;
+    views: number;
+    likes: number;
+    velocity: number;
+    category: string;
+  }>;
+  content_categories: Record<string, number>;
+  trend_adoption_rate: number;
+  viral_content_count: number;
+  growth_trend: string;
+  peak_performance_hours: number[];
+  optimal_posting_times: string[];
+}
+
+export async function getCreatorMetrics(daysBack: number = 30): Promise<CreatorMetrics> {
+  const params = new URLSearchParams();
+  params.set('days_back', daysBack.toString());
+  return http(`/api/creator/metrics?${params}`);
+}
+
+export interface TrendAdoption {
+  trend_id: number;
+  trend_name: string;
+  adoption_date: string;
+  content_created: number;
+  avg_performance: number;
+  success_score: number;
+  timing_score: number;
+  category_fit: string;
+}
+
+export async function getTrendAdoptionHistory(daysBack: number = 90): Promise<{
+  trend_adoption: TrendAdoption[];
+  total_adoptions: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('days_back', daysBack.toString());
+  return http(`/api/creator/trend-adoption?${params}`);
+}
+
+export async function getContentPerformanceOverTime(daysBack: number = 30): Promise<{
+  performance_data: Array<{
+    date: string;
+    total_views: number;
+    total_likes: number;
+    total_comments: number;
+    content_count: number;
+    avg_views: number;
+  }>;
+  days_analyzed: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('days_back', daysBack.toString());
+  return http(`/api/creator/performance-over-time?${params}`);
+}
+
+export async function getSuccessRecommendations(): Promise<{
+  recommendations: Array<{
+    type: string;
+    title: string;
+    description: string;
+    action: string;
+  }>;
+  total_recommendations: number;
+}> {
+  return http(`/api/creator/recommendations`);
+}
+
+// ── AI Content Generation API ───────────────────────────────────────────────
+
+export interface GeneratedCaption {
+  caption: string;
+  hashtags: string[];
+  tone: string;
+  target_audience: string;
+  cta: string;
+  emoji_usage: string;
+}
+
+export async function generateCaption(trendName: string, tone: string = "casual", niche: string = "general"): Promise<GeneratedCaption> {
+  const params = new URLSearchParams();
+  params.set('trend_name', trendName);
+  params.set('tone', tone);
+  params.set('niche', niche);
+  return http(`/api/ai/generate-caption?${params}`);
+}
+
+export interface ContentIdea {
+  title: string;
+  description: string;
+  content_type: string;
+  niche: string;
+  difficulty: string;
+  estimated_engagement: string;
+  required_resources: string[];
+  script_outline: string[];
+  suggested_hashtags: string[];
+}
+
+export async function generateContentIdeas(niche: string = "general", count: number = 5): Promise<{
+  content_ideas: ContentIdea[];
+  total_ideas: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('niche', niche);
+  params.set('count', count.toString());
+  return http(`/api/ai/content-ideas?${params}`);
+}
+
+export interface HookSuggestion {
+  hook_text: string;
+  hook_type: string;
+  estimated_retention: number;
+  best_for_content: string[];
+}
+
+export async function generateAIHooks(topic: string, count: number = 5): Promise<{
+  hooks: HookSuggestion[];
+  total_hooks: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('topic', topic);
+  params.set('count', count.toString());
+  return http(`/api/ai/generate-hooks?${params}`);
+}
+
+export async function generateScriptOutline(contentType: string = "reel", topic: string = "general", durationSeconds: number = 30): Promise<{
+  script_outline: string[];
+  content_type: string;
+  topic: string;
+  duration_seconds: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('content_type', contentType);
+  params.set('topic', topic);
+  params.set('duration_seconds', durationSeconds.toString());
+  return http(`/api/ai/script-outline?${params}`);
+}
+
+// ── India-Specific Features API ───────────────────────────────────────────
+
+export interface RegionalTrend {
+  region: string;
+  city: string;
+  language: string;
+  trend_name: string;
+  viral_score: number;
+  cultural_context: string;
+  peak_hours: number[];
+  hashtags: string[];
+  content_themes: string[];
+}
+
+export async function getRegionalTrends(region?: string): Promise<{
+  regional_trends: RegionalTrend[];
+  total_trends: number;
+}> {
+  const params = new URLSearchParams();
+  if (region) params.set('region', region);
+  return http(`/api/india/regional-trends?${params}`);
+}
+
+export async function getRegionalTimingOptimization(region: string = "north"): Promise<{
+  region: string;
+  city: string;
+  peak_hours: number[];
+  secondary_hours: number[];
+  best_days: string[];
+  timezone_offset: string;
+  cultural_considerations: string[];
+}> {
+  const params = new URLSearchParams();
+  params.set('region', region);
+  return http(`/api/india/regional-timing?${params}`);
+}
+
+export interface CulturalEvent {
+  event_name: string;
+  event_date: string;
+  region: string;
+  content_automation: string[];
+  hashtag_strategy: string[];
+  timing_recommendations: string[];
+  content_themes: string[];
+  creator_opportunities: string[];
+}
+
+export async function getCulturalEventAutomation(daysAhead: number = 30): Promise<{
+  cultural_events: CulturalEvent[];
+  total_events: number;
+}> {
+  const params = new URLSearchParams();
+  params.set('days_ahead', daysAhead.toString());
+  return http(`/api/india/cultural-events?${params}`);
+}
+
+export async function detectLanguageCrossover(content: string): Promise<{
+  detected_languages: Record<string, number>;
+  content: string;
+}> {
+  return http('/api/india/detect-language', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ content }),
+  });
+}
+
+export async function getRegionalHashtagStrategy(region: string = "north", contentType: string = "general"): Promise<{
+  regional: string[];
+  city_specific: string[];
+  language_specific: string[];
+  cultural: string[];
+}> {
+  const params = new URLSearchParams();
+  params.set('region', region);
+  params.set('content_type', contentType);
+  return http(`/api/india/hashtag-strategy?${params}`);
+}
+
+export async function getCreatorPatternAnalysis(creatorRegion: string = "north"): Promise<{
+  region: string;
+  peak_content_hours: number[];
+  popular_languages: string[];
+  cultural_themes: string[];
+  content_preferences: {
+    video_length: string;
+    music_preference: string;
+    caption_style: string;
+    posting_frequency: string;
+  };
+  audience_insights: {
+    primary_age_group: string;
+    gender_distribution: string;
+    engagement_pattern: string;
+    content_type_preference: string;
+  };
+  success_factors: string[];
+}> {
+  const params = new URLSearchParams();
+  params.set('creator_region', creatorRegion);
+  return http(`/api/india/creator-patterns?${params}`);
 }
 
 export async function fetchAllActiveTrends(): Promise<UiTrend[]> {
@@ -683,6 +1187,107 @@ export async function verifyPayment(args: {
 
 export async function getUserPlan(email: string): Promise<{ plan: string }> {
   return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
+}
+
+// ── Admin API Functions ───────────────────────────────────────────────────────────
+
+export async function getAdminUsers(search?: string, planFilter?: string): Promise<any> {
+  const params = new URLSearchParams();
+  if (search) params.append("search", search);
+  if (planFilter && planFilter !== "all") params.append("plan_filter", planFilter);
+  
+  return http<any>(`/api/admin/users?${params.toString()}`, {
+    headers: {
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    }
+  });
+}
+
+export async function getAdminUserDetails(email: string): Promise<any> {
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}`, {
+    headers: {
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    }
+  });
+}
+
+export async function updateAdminUserPlan(email: string, newPlan: string, reason?: string): Promise<any> {
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}/plan`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    },
+    body: JSON.stringify({ new_plan: newPlan, reason }),
+  });
+}
+
+export async function lockAdminUserAccount(email: string, reason?: string): Promise<any> {
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}/lock`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function unlockAdminUserAccount(email: string, reason?: string): Promise<any> {
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}/unlock`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    },
+    body: JSON.stringify({ reason }),
+  });
+}
+
+export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
+  return http<any>(`/api/admin/business-metrics?days=${days}`, {
+    headers: {
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    }
+  });
+}
+
+export async function getAdminSuspiciousActivity(days: number = 7): Promise<any> {
+  return http<any>(`/api/admin/suspicious-activity?days=${days}`, {
+    headers: {
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    }
+  });
+}
+
+export async function resolveAdminSuspiciousActivity(activityId: number, resolution?: string): Promise<any> {
+  return http<any>(`/api/admin/suspicious-activity/${activityId}/resolve`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    },
+    body: JSON.stringify({ resolution }),
+  });
+}
+
+export async function getAdminPlanFeatures(): Promise<any> {
+  return http<any>("/api/admin/plan-features", {
+    headers: {
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    }
+  });
+}
+
+export async function createAdminPlanFeature(data: any): Promise<any> {
+  return http<any>("/api/admin/plan-features", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+    },
+    body: JSON.stringify(data),
+  });
 }
 
 

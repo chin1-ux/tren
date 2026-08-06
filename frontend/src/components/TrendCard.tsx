@@ -3,17 +3,18 @@ import {
   Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
   Bookmark, BookmarkCheck, Sparkles, Film, HelpCircle,
-  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
+  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2, Lightbulb
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTrendReels } from "@/lib/api";
+import { fetchTrendReels, analyzeContentForVirality } from "@/lib/api";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
+import { AlgorithmInsightsPanel } from "./AlgorithmInsightsPanel";
 
 interface Props {
   trend: UiTrend;
@@ -45,6 +46,37 @@ function getSaturationMeta(score: number): { label: string; color: string; dot: 
 function getPlatformMeta(platform: string): { label: string; icon: string } {
   if (platform === "youtube_shorts") return { label: "YouTube Shorts", icon: "▶" };
   return { label: "Instagram", icon: "◎" };
+}
+
+/** Trend classification badge for display differentiation */
+function getTrendClassificationBadge(classification?: string): { label: string; color: string; bgColor: string; icon: string } {
+  switch (classification) {
+    case "viral_revival":
+      return { label: "Viral Revival", color: "text-purple-300", bgColor: "bg-purple-500/15", icon: "🔄" };
+    case "evergreen_popular":
+      return { label: "Evergreen Popular", color: "text-emerald-300", bgColor: "bg-emerald-500/15", icon: "🌿" };
+    case "classic_hit":
+      return { label: "Classic Hit", color: "text-amber-300", bgColor: "bg-amber-500/15", icon: "🎵" };
+    case "new_viral":
+    default:
+      return { label: "New Viral", color: "text-rose-300", bgColor: "bg-rose-500/15", icon: "🔥" };
+  }
+}
+
+/** Velocity pattern indicator */
+function getVelocityPatternIndicator(pattern?: string): { label: string; icon: string } {
+  switch (pattern) {
+    case "sudden_spike":
+      return { label: "Sudden Spike", icon: "📈" };
+    case "gradual_growth":
+      return { label: "Gradual Growth", icon: "📊" };
+    case "steady_popular":
+      return { label: "Steady Popular", icon: "📉" };
+    case "declining":
+      return { label: "Declining", icon: "📉" };
+    default:
+      return { label: "Unknown", icon: "❓" };
+  }
 }
 
 /** 2026-algo: optimal reel length in seconds by content type */
@@ -201,6 +233,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showReels, setShowReels] = useState(false);
+  const [showAlgorithmInsights, setShowAlgorithmInsights] = useState(false);
+  const [algorithmAnalysis, setAlgorithmAnalysis] = useState<any>(null);
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
@@ -244,6 +279,10 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const optimalLength = getOptimalLength(trend.category);
   const saveBaitTip = getSaveBaitTip(trend.category);
   const velocityStrength = trend.viralMultiplier ?? 0;
+  
+  // Trend classification for display differentiation
+  const trendBadge = getTrendClassificationBadge(trend.trendClassification);
+  const velocityPattern = getVelocityPatternIndicator(trend.velocityPattern);
 
   // v2 saturation data
   const globalPct = trend.globalSaturationPct ?? 0;
@@ -361,6 +400,17 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
           <TrendingUp className="h-2.5 w-2.5" /> Trending
         </span>
+        
+        {/* Trend Classification Badge - Display Differentiation */}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${trendBadge.bgColor} ${trendBadge.color}`}>
+          {trendBadge.icon} {trendBadge.label}
+        </span>
+        
+        {/* Velocity Pattern Indicator */}
+        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground" title={`Velocity Pattern: ${velocityPattern.label}`}>
+          {velocityPattern.icon}
+        </span>
+        
         <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
           {platformMeta.icon} {platformMeta.label}
         </span>
@@ -746,7 +796,63 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               )}
             </div>
 
-            {/* ── 8. Save Audio deep-link button ── */}
+            {/* ── 8. Instagram Algorithm Insights Panel ── */}
+            <div className="mt-4">
+              <Button
+                onClick={() => setShowAlgorithmInsights(!showAlgorithmInsights)}
+                variant="outline"
+                size="sm"
+                className="w-full border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
+              >
+                <Lightbulb className="h-4 w-4 mr-2" />
+                {showAlgorithmInsights ? "Hide" : "Show"} Algorithm Insights
+              </Button>
+              
+              <AnimatePresence>
+                {showAlgorithmInsights && (
+                  <motion.div
+                    initial={{ opacity: 0, height: 0 }}
+                    animate={{ opacity: 1, height: "auto" }}
+                    exit={{ opacity: 0, height: 0 }}
+                    className="mt-3"
+                  >
+                    <AlgorithmInsightsPanel 
+                      analysis={algorithmAnalysis}
+                      loading={loadingAnalysis}
+                      onAnalyze={async () => {
+                        setLoadingAnalysis(true);
+                        try {
+                          // Use trend data to estimate content performance
+                          const estimatedViews = Math.floor((trend.audioUseCount || 0) * 0.1) + 1000;
+                          const estimatedLikes = Math.floor(estimatedViews * 0.05);
+                          const estimatedComments = Math.floor(estimatedViews * 0.01);
+                          const estimatedShares = Math.floor(estimatedViews * 0.005);
+                          const estimatedSaves = Math.floor(estimatedViews * 0.008);
+                          
+                          const analysis = await analyzeContentForVirality({
+                            views: estimatedViews,
+                            likes: estimatedLikes,
+                            comments: estimatedComments,
+                            shares: estimatedShares,
+                            saves: estimatedSaves,
+                            duration: 20,
+                            niche: trend.nicheTag || "general",
+                            uses_trending_audio: true
+                          });
+                          setAlgorithmAnalysis(analysis);
+                        } catch (error) {
+                          toast.error("Failed to analyze content");
+                        } finally {
+                          setLoadingAnalysis(false);
+                        }
+                      }}
+                    />
+                  </motion.div>
+                )}
+              </AnimatePresence>
+            </div>
+
+            {/* ── 9. Save Audio deep-link button ── */}
             <a
               href={audioUrl}
               target="_blank"

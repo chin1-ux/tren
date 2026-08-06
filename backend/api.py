@@ -116,6 +116,66 @@ except Exception as e:
     logger.warning(f"InstagramOAuth import failed: {e}")
     InstagramOAuth = None
 
+try:
+    from instagram_algorithm_insights import InstagramAlgorithmInsights
+except Exception as e:
+    logger.warning(f"InstagramAlgorithmInsights import failed: {e}")
+    InstagramAlgorithmInsights = None
+
+try:
+    from event_monitor import EventMonitor
+except Exception as e:
+    logger.warning(f"EventMonitor import failed: {e}")
+    EventMonitor = None
+
+try:
+    from hashtag_velocity_tracker import HashtagVelocityTracker
+except Exception as e:
+    logger.warning(f"HashtagVelocityTracker import failed: {e}")
+    HashtagVelocityTracker = None
+
+try:
+    from topic_clustering import TopicClusteringEngine
+except Exception as e:
+    logger.warning(f"TopicClusteringEngine import failed: {e}")
+    TopicClusteringEngine = None
+
+try:
+    from creator_analytics import CreatorAnalyticsEngine
+except Exception as e:
+    logger.warning(f"CreatorAnalyticsEngine import failed: {e}")
+    CreatorAnalyticsEngine = None
+
+try:
+    from content_generator import AIContentGenerator
+except Exception as e:
+    logger.warning(f"AIContentGenerator import failed: {e}")
+    AIContentGenerator = None
+
+try:
+    from device_fingerprint import DeviceFingerprint
+except Exception as e:
+    logger.warning(f"DeviceFingerprint import failed: {e}")
+    DeviceFingerprint = None
+
+try:
+    from usage_tracker import UsageTracker
+except Exception as e:
+    logger.warning(f"UsageTracker import failed: {e}")
+    UsageTracker = None
+
+try:
+    from user_management import UserManager
+except Exception as e:
+    logger.warning(f"UserManager import failed: {e}")
+    UserManager = None
+
+try:
+    from india_features import IndiaFeaturesEngine
+except Exception as e:
+    logger.warning(f"IndiaFeaturesEngine import failed: {e}")
+    IndiaFeaturesEngine = None
+
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
     script_dir = os.path.dirname(os.path.abspath(__file__))
@@ -1081,6 +1141,113 @@ def get_trend_caption(request: Request, trend_id: int, current_user: str = Depen
     """
     try:
         engine = CaptionEngine()
+        # Caption generation logic would go here
+        return {"message": "Caption generation not fully implemented yet"}
+    except Exception as e:
+        logger.exception(f"Error generating caption for trend {trend_id}: {e}")
+        raise HTTPException(status_code=500, detail="Caption generation failed")
+
+
+@app.get("/api/algorithm/analyze")
+@limiter.limit("30/minute")
+def analyze_content_for_virality(
+    request: Request,
+    views: int = 0,
+    likes: int = 0,
+    comments: int = 0,
+    shares: int = 0,
+    saves: int = 0,
+    duration: int = 0,
+    niche: str = "general",
+    uses_trending_audio: bool = False,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Analyze content metrics and provide Instagram algorithm insights for virality optimization.
+    Returns overall virality score, factor analysis, and actionable recommendations.
+    """
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        
+        content_data = {
+            'views': views,
+            'likes': likes,
+            'comments': comments,
+            'shares': shares,
+            'saves': saves,
+            'duration': duration,
+            'niche': niche,
+            'uses_trending_audio': uses_trending_audio
+        }
+        
+        analysis = insights.analyze_content_for_virality(content_data)
+        
+        return {
+            'virality_score': analysis['overall_virality_score'],
+            'viral_potential': analysis['viral_potential'],
+            'factor_scores': analysis['factor_scores'],
+            'engagement_metrics': analysis['engagement_metrics'],
+            'recommendations': [
+                {
+                    'category': rec.category,
+                    'priority': rec.priority,
+                    'title': rec.title,
+                    'description': rec.description,
+                    'expected_impact': rec.expected_impact,
+                    'difficulty': rec.implementation_difficulty
+                }
+                for rec in analysis['recommendations']
+            ],
+            'algorithm_explanation': analysis['algorithm_explanation']
+        }
+    except Exception as e:
+        logger.exception(f"Error in algorithm analysis: {e}")
+        raise HTTPException(status_code=500, detail="Algorithm analysis failed")
+
+
+@app.get("/api/algorithm/posting-times")
+@limiter.limit("60/minute")
+def get_optimal_posting_times(
+    request: Request,
+    niche: str = "general",
+    target_audience: str = "india",
+    current_user: str = Depends(get_current_user)
+):
+    """Get optimal posting times based on niche and target audience."""
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        times = insights.get_optimal_posting_times(niche, target_audience)
+        return {'niche': niche, 'target_audience': target_audience, 'optimal_times': times}
+    except Exception as e:
+        logger.exception(f"Error getting posting times: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get posting times")
+
+
+@app.get("/api/algorithm/hashtag-strategy")
+@limiter.limit("60/minute")
+def get_hashtag_strategy(
+    request: Request,
+    niche: str = "general",
+    content_type: str = "reel",
+    current_user: str = Depends(get_current_user)
+):
+    """Get hashtag strategy recommendations based on niche and content type."""
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        strategy = insights.get_hashtag_strategy(niche, content_type)
+        return {'niche': niche, 'content_type': content_type, 'hashtag_strategy': strategy}
+    except Exception as e:
+        logger.exception(f"Error getting hashtag strategy: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get hashtag strategy")
         kit = engine.get_caption_kit(trend_id)
         return kit
     except ValueError as e:
@@ -3227,6 +3394,1025 @@ def submit_creator_feedback(
     except Exception as e:
         logger.error(f"Error submitting creator feedback: {e}")
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/api/algorithm/analyze")
+@limiter.limit("30/minute")
+def analyze_content_for_virality(
+    request: Request,
+    views: int = 0,
+    likes: int = 0,
+    comments: int = 0,
+    shares: int = 0,
+    saves: int = 0,
+    duration: int = 0,
+    niche: str = "general",
+    uses_trending_audio: bool = False,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Analyze content metrics and provide Instagram algorithm insights for virality optimization.
+    Returns overall virality score, factor analysis, and actionable recommendations.
+    """
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        
+        content_data = {
+            'views': views,
+            'likes': likes,
+            'comments': comments,
+            'shares': shares,
+            'saves': saves,
+            'duration': duration,
+            'niche': niche,
+            'uses_trending_audio': uses_trending_audio
+        }
+        
+        analysis = insights.analyze_content_for_virality(content_data)
+        
+        return {
+            'virality_score': analysis['overall_virality_score'],
+            'viral_potential': analysis['viral_potential'],
+            'factor_scores': analysis['factor_scores'],
+            'engagement_metrics': analysis['engagement_metrics'],
+            'recommendations': [
+                {
+                    'category': rec.category,
+                    'priority': rec.priority,
+                    'title': rec.title,
+                    'description': rec.description,
+                    'expected_impact': rec.expected_impact,
+                    'difficulty': rec.implementation_difficulty
+                }
+                for rec in analysis['recommendations']
+            ],
+            'algorithm_explanation': analysis['algorithm_explanation']
+        }
+    except Exception as e:
+        logger.exception(f"Error in algorithm analysis: {e}")
+        raise HTTPException(status_code=500, detail="Algorithm analysis failed")
+
+
+@app.get("/api/algorithm/posting-times")
+@limiter.limit("60/minute")
+def get_optimal_posting_times(
+    request: Request,
+    niche: str = "general",
+    target_audience: str = "india",
+    current_user: str = Depends(get_current_user)
+):
+    """Get optimal posting times based on niche and target audience."""
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        times = insights.get_optimal_posting_times(niche, target_audience)
+        return {'niche': niche, 'target_audience': target_audience, 'optimal_times': times}
+    except Exception as e:
+        logger.exception(f"Error getting posting times: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get posting times")
+
+
+@app.get("/api/algorithm/hashtag-strategy")
+@limiter.limit("60/minute")
+def get_hashtag_strategy(
+    request: Request,
+    niche: str = "general",
+    content_type: str = "reel",
+    current_user: str = Depends(get_current_user)
+):
+    """Get hashtag strategy recommendations based on niche and content type."""
+    if not InstagramAlgorithmInsights:
+        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
+    
+    try:
+        insights = InstagramAlgorithmInsights()
+        strategy = insights.get_hashtag_strategy(niche, content_type)
+        return {'niche': niche, 'content_type': content_type, 'hashtag_strategy': strategy}
+    except Exception as e:
+        logger.exception(f"Error getting hashtag strategy: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get hashtag strategy")
+
+
+@app.get("/api/events/active")
+@limiter.limit("60/minute")
+def get_active_events(
+    request: Request,
+    days_ahead: int = 30,
+    days_behind: int = 7,
+    current_user: str = Depends(get_current_user)
+):
+    """Get active global events that could impact social media content."""
+    if not EventMonitor:
+        raise HTTPException(status_code=500, detail="Event monitoring system not configured.")
+    
+    try:
+        monitor = EventMonitor()
+        events = monitor.get_active_events(days_ahead=days_ahead, days_behind=days_behind)
+        
+        return {
+            'events': [
+                {
+                    'id': event.id,
+                    'name': event.name,
+                    'type': event.event_type.value,
+                    'impact': event.impact.value,
+                    'start_date': event.start_date.isoformat(),
+                    'end_date': event.end_date.isoformat(),
+                    'hashtags': event.hashtags,
+                    'content_themes': event.content_themes,
+                    'creator_opportunities': event.creator_opportunities,
+                    'target_audiences': event.target_audiences,
+                    'platform_relevance': event.platform_relevance,
+                    'viral_potential': event.viral_potential,
+                    'trending_now': event.trending_now,
+                    'estimated_creator_participation': event.estimated_creator_participation,
+                    'days_until_start': (event.start_date - datetime.now(timezone.utc)).days
+                }
+                for event in events
+            ],
+            'total_events': len(events),
+            'query_params': {'days_ahead': days_ahead, 'days_behind': days_behind}
+        }
+    except Exception as e:
+        logger.exception(f"Error getting active events: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get active events")
+
+
+@app.get("/api/events/{event_id}/opportunities")
+@limiter.limit("30/minute")
+def get_event_opportunities(
+    request: Request,
+    event_id: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Get detailed creator opportunities for a specific event."""
+    if not EventMonitor:
+        raise HTTPException(status_code=500, detail="Event monitoring system not configured.")
+    
+    try:
+        monitor = EventMonitor()
+        opportunities = monitor.get_creator_opportunities_for_event(event_id)
+        return opportunities
+    except Exception as e:
+        logger.exception(f"Error getting event opportunities: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get event opportunities")
+
+
+@app.get("/api/events/hashtag-spikes")
+@limiter.limit("30/minute")
+def detect_hashtag_spikes(
+    request: Request,
+    hours_window: int = 24,
+    current_user: str = Depends(get_current_user)
+):
+    """Detect sudden spikes in hashtag usage that might indicate trending events."""
+    if not EventMonitor:
+        raise HTTPException(status_code=500, detail="Event monitoring system not configured.")
+    
+    try:
+        monitor = EventMonitor()
+        spikes = monitor.detect_event_hashtag_spikes(hours_window=hours_window)
+        return {
+            'spikes': spikes,
+            'hours_window': hours_window,
+            'total_spikes': len(spikes)
+        }
+    except Exception as e:
+        logger.exception(f"Error detecting hashtag spikes: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect hashtag spikes")
+
+
+@app.get("/api/hashtags/velocity")
+@limiter.limit("30/minute")
+def get_hashtag_velocity(
+    request: Request,
+    hours_window: int = 24,
+    current_user: str = Depends(get_current_user)
+):
+    """Get hashtag velocity data for trending hashtags."""
+    if not HashtagVelocityTracker:
+        raise HTTPException(status_code=500, detail="Hashtag velocity tracker not configured.")
+    
+    try:
+        tracker = HashtagVelocityTracker()
+        velocities = tracker.track_hashtag_velocity(hours_window=hours_window)
+        
+        return {
+            'hashtag_velocities': [
+                {
+                    'hashtag': hv.hashtag,
+                    'current_count': hv.current_count,
+                    'previous_count': hv.previous_count,
+                    'velocity_score': hv.velocity_score,
+                    'trend_direction': hv.trend_direction,
+                    'acceleration': hv.acceleration,
+                    'usage_frequency': hv.usage_frequency,
+                    'niche_relevance': hv.niche_relevance,
+                    'estimated_total_creators': hv.estimated_total_creators,
+                    'peak_24h_usage': hv.peak_24h_usage,
+                    'discovered_at': hv.discovered_at.isoformat()
+                }
+                for hv in velocities
+            ],
+            'total_hashtags': len(velocities),
+            'hours_window': hours_window
+        }
+    except Exception as e:
+        logger.exception(f"Error getting hashtag velocity: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get hashtag velocity")
+
+
+@app.get("/api/hashtags/trending")
+@limiter.limit("30/minute")
+def get_trending_hashtags(
+    request: Request,
+    hours_window: int = 24,
+    min_velocity: float = 20.0,
+    current_user: str = Depends(get_current_user)
+):
+    """Get trending hashtags with detailed trend analysis."""
+    if not HashtagVelocityTracker:
+        raise HTTPException(status_code=500, detail="Hashtag velocity tracker not configured.")
+    
+    try:
+        tracker = HashtagVelocityTracker()
+        trends = tracker.get_trending_hashtags(hours_window=hours_window, min_velocity=min_velocity)
+        
+        return {
+            'trending_hashtags': [
+                {
+                    'hashtag': trend.hashtag,
+                    'velocity_score': trend.velocity_score,
+                    'trend_direction': trend.trend_direction,
+                    'related_hashtags': trend.related_hashtags,
+                    'content_themes': trend.content_themes,
+                    'target_audiences': trend.target_audiences,
+                    'optimal_content_types': trend.optimal_content_types,
+                    'estimated_lifespan_hours': trend.estimated_lifespan,
+                    'competition_level': trend.competition_level,
+                    'platform_performance': trend.platform_performance
+                }
+                for trend in trends
+            ],
+            'total_trending': len(trends),
+            'query_params': {'hours_window': hours_window, 'min_velocity': min_velocity}
+        }
+    except Exception as e:
+        logger.exception(f"Error getting trending hashtags: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get trending hashtags")
+
+
+@app.get("/api/topics/clusters")
+@limiter.limit("30/minute")
+def get_topic_clusters(
+    request: Request,
+    hours_window: int = 48,
+    min_cluster_size: int = 5,
+    current_user: str = Depends(get_current_user)
+):
+    """Get topic clusters from recent content analysis."""
+    if not TopicClusteringEngine:
+        raise HTTPException(status_code=500, detail="Topic clustering engine not configured.")
+    
+    try:
+        engine = TopicClusteringEngine()
+        clusters = engine.cluster_topics(hours_window=hours_window, min_cluster_size=min_cluster_size)
+        
+        return {
+            'topic_clusters': [
+                {
+                    'topic_id': cluster.topic_id,
+                    'topic_name': cluster.topic_name,
+                    'topic_keywords': cluster.topic_keywords,
+                    'topic_category': cluster.topic_category,
+                    'content_samples': cluster.content_samples,
+                    'creator_count': cluster.creator_count,
+                    'total_engagement': cluster.total_engagement,
+                    'avg_velocity': cluster.avg_velocity,
+                    'viral_potential': cluster.viral_potential,
+                    'trending_since': cluster.trending_since.isoformat(),
+                    'estimated_lifespan_hours': cluster.estimated_lifespan_hours,
+                    'related_topics': cluster.related_topics,
+                    'target_audiences': cluster.target_audiences,
+                    'content_opportunities': cluster.content_opportunities
+                }
+                for cluster in clusters
+            ],
+            'total_clusters': len(clusters),
+            'query_params': {'hours_window': hours_window, 'min_cluster_size': min_cluster_size}
+        }
+    except Exception as e:
+        logger.exception(f"Error getting topic clusters: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get topic clusters")
+
+
+@app.get("/api/conversations/detect")
+@limiter.limit("30/minute")
+def detect_conversations(
+    request: Request,
+    hours_window: int = 48,
+    current_user: str = Depends(get_current_user)
+):
+    """Detect trending conversation formats and meme structures."""
+    if not TopicClusteringEngine:
+        raise HTTPException(status_code=500, detail="Topic clustering engine not configured.")
+    
+    try:
+        engine = TopicClusteringEngine()
+        conversations = engine.detect_conversations(hours_window=hours_window)
+        
+        return {
+            'conversations': [
+                {
+                    'conversation_id': conv.conversation_id,
+                    'conversation_name': conv.conversation_name,
+                    'conversation_type': conv.conversation_type,
+                    'template_structure': conv.template_structure,
+                    'participation_count': conv.participation_count,
+                    'velocity_score': conv.velocity_score,
+                    'engagement_rate': conv.engagement_rate,
+                    'viral_potential': conv.viral_potential,
+                    'platform_performance': conv.platform_performance,
+                    'optimal_content_types': conv.optimal_content_types,
+                    'example_captions': conv.example_captions,
+                    'creator_opportunities': conv.creator_opportunities
+                }
+                for conv in conversations
+            ],
+            'total_conversations': len(conversations),
+            'hours_window': hours_window
+        }
+    except Exception as e:
+        logger.exception(f"Error detecting conversations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect conversations")
+
+
+@app.get("/api/creator/metrics")
+@limiter.limit("30/minute")
+def get_creator_metrics(
+    request: Request,
+    days_back: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get comprehensive metrics for a creator."""
+    if not CreatorAnalyticsEngine:
+        raise HTTPException(status_code=500, detail="Creator analytics engine not configured.")
+    
+    try:
+        analytics = CreatorAnalyticsEngine()
+        metrics = analytics.get_creator_metrics(current_user, days_back=days_back)
+        
+        return {
+            'creator_email': metrics.creator_email,
+            'total_reels_analyzed': metrics.total_reels_analyzed,
+            'total_views': metrics.total_views,
+            'total_likes': metrics.total_likes,
+            'total_comments': metrics.total_comments,
+            'total_shares': metrics.total_shares,
+            'avg_engagement_rate': metrics.avg_engagement_rate,
+            'avg_velocity_score': metrics.avg_velocity_score,
+            'top_performing_content': metrics.top_performing_content,
+            'content_categories': metrics.content_categories,
+            'trend_adoption_rate': metrics.trend_adoption_rate,
+            'viral_content_count': metrics.viral_content_count,
+            'growth_trend': metrics.growth_trend,
+            'peak_performance_hours': metrics.peak_performance_hours,
+            'optimal_posting_times': metrics.optimal_posting_times
+        }
+    except Exception as e:
+        logger.exception(f"Error getting creator metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get creator metrics")
+
+
+@app.get("/api/creator/trend-adoption")
+@limiter.limit("30/minute")
+def get_trend_adoption_history(
+    request: Request,
+    days_back: int = 90,
+    current_user: str = Depends(get_current_user)
+):
+    """Get creator's trend adoption history."""
+    if not CreatorAnalyticsEngine:
+        raise HTTPException(status_code=500, detail="Creator analytics engine not configured.")
+    
+    try:
+        analytics = CreatorAnalyticsEngine()
+        adoption = analytics.get_trend_adoption_history(current_user, days_back=days_back)
+        
+        return {
+            'trend_adoption': [
+                {
+                    'trend_id': ad.trend_id,
+                    'trend_name': ad.trend_name,
+                    'adoption_date': ad.adoption_date.isoformat(),
+                    'content_created': ad.content_created,
+                    'avg_performance': ad.avg_performance,
+                    'success_score': ad.success_score,
+                    'timing_score': ad.timing_score,
+                    'category_fit': ad.category_fit
+                }
+                for ad in adoption
+            ],
+            'total_adoptions': len(adoption)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting trend adoption history: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get trend adoption history")
+
+
+@app.get("/api/creator/performance-over-time")
+@limiter.limit("30/minute")
+def get_content_performance_over_time(
+    request: Request,
+    days_back: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get content performance data over time for charts."""
+    if not CreatorAnalyticsEngine:
+        raise HTTPException(status_code=500, detail="Creator analytics engine not configured.")
+    
+    try:
+        analytics = CreatorAnalyticsEngine()
+        performance = analytics.get_content_performance_over_time(current_user, days_back=days_back)
+        return {
+            'performance_data': performance,
+            'days_analyzed': days_back
+        }
+    except Exception as e:
+        logger.exception(f"Error getting performance over time: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get performance data")
+
+
+@app.get("/api/creator/recommendations")
+@limiter.limit("30/minute")
+def get_success_recommendations(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get personalized success recommendations for a creator."""
+    if not CreatorAnalyticsEngine:
+        raise HTTPException(status_code=500, detail="Creator analytics engine not configured.")
+    
+    try:
+        analytics = CreatorAnalyticsEngine()
+        recommendations = analytics.get_success_recommendations(current_user)
+        return {
+            'recommendations': recommendations,
+            'total_recommendations': len(recommendations)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting success recommendations: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get recommendations")
+
+
+@app.get("/api/ai/generate-caption")
+@limiter.limit("20/minute")
+def generate_caption(
+    request: Request,
+    trend_name: str,
+    tone: str = "casual",
+    niche: str = "general",
+    current_user: str = Depends(get_current_user)
+):
+    """Generate an AI caption for a specific trend or topic."""
+    if not AIContentGenerator:
+        raise HTTPException(status_code=500, detail="AI content generator not configured.")
+    
+    try:
+        generator = AIContentGenerator()
+        caption = generator.generate_caption(trend_name, tone=tone, niche=niche)
+        
+        return {
+            'caption': caption.caption,
+            'hashtags': caption.hashtags,
+            'tone': caption.tone,
+            'target_audience': caption.target_audience,
+            'cta': caption.cta,
+            'emoji_usage': caption.emoji_usage
+        }
+    except Exception as e:
+        logger.exception(f"Error generating caption: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate caption")
+
+
+@app.get("/api/ai/content-ideas")
+@limiter.limit("20/minute")
+def generate_content_ideas(
+    request: Request,
+    niche: str = "general",
+    count: int = 5,
+    current_user: str = Depends(get_current_user)
+):
+    """Generate AI content ideas for a specific niche."""
+    if not AIContentGenerator:
+        raise HTTPException(status_code=500, detail="AI content generator not configured.")
+    
+    try:
+        generator = AIContentGenerator()
+        ideas = generator.generate_content_ideas(niche, count=count)
+        
+        return {
+            'content_ideas': [
+                {
+                    'title': idea.title,
+                    'description': idea.description,
+                    'content_type': idea.content_type,
+                    'niche': idea.niche,
+                    'difficulty': idea.difficulty,
+                    'estimated_engagement': idea.estimated_engagement,
+                    'required_resources': idea.required_resources,
+                    'script_outline': idea.script_outline,
+                    'suggested_hashtags': idea.suggested_hashtags
+                }
+                for idea in ideas
+            ],
+            'total_ideas': len(ideas)
+        }
+    except Exception as e:
+        logger.exception(f"Error generating content ideas: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate content ideas")
+
+
+@app.get("/api/ai/generate-hooks")
+@limiter.limit("20/minute")
+def generate_hooks(
+    request: Request,
+    topic: str,
+    count: int = 5,
+    current_user: str = Depends(get_current_user)
+):
+    """Generate AI hook suggestions for a specific topic."""
+    if not AIContentGenerator:
+        raise HTTPException(status_code=500, detail="AI content generator not configured.")
+    
+    try:
+        generator = AIContentGenerator()
+        hooks = generator.generate_hooks(topic, count=count)
+        
+        return {
+            'hooks': [
+                {
+                    'hook_text': hook.hook_text,
+                    'hook_type': hook.hook_type,
+                    'estimated_retention': hook.estimated_retention,
+                    'best_for_content': hook.best_for_content
+                }
+                for hook in hooks
+            ],
+            'total_hooks': len(hooks)
+        }
+    except Exception as e:
+        logger.exception(f"Error generating hooks: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate hooks")
+
+
+@app.get("/api/ai/script-outline")
+@limiter.limit("20/minute")
+def generate_script_outline(
+    request: Request,
+    content_type: str = "reel",
+    topic: str = "general",
+    duration_seconds: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Generate an AI script outline for content."""
+    if not AIContentGenerator:
+        raise HTTPException(status_code=500, detail="AI content generator not configured.")
+    
+    try:
+        generator = AIContentGenerator()
+        script = generator.generate_script_outline(content_type, topic, duration_seconds)
+        
+        return {
+            'script_outline': script,
+            'content_type': content_type,
+            'topic': topic,
+            'duration_seconds': duration_seconds
+        }
+    except Exception as e:
+        logger.exception(f"Error generating script outline: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate script outline")
+
+
+@app.get("/api/india/regional-trends")
+@limiter.limit("30/minute")
+def get_regional_trends(
+    request: Request,
+    region: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
+):
+    """Get trends specific to Indian regions."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        trends = engine.detect_regional_trends(region=region)
+        
+        return {
+            'regional_trends': [
+                {
+                    'region': trend.region,
+                    'city': trend.city,
+                    'language': trend.language,
+                    'trend_name': trend.trend_name,
+                    'viral_score': trend.viral_score,
+                    'cultural_context': trend.cultural_context,
+                    'peak_hours': trend.peak_hours,
+                    'hashtags': trend.hashtags,
+                    'content_themes': trend.content_themes
+                }
+                for trend in trends
+            ],
+            'total_trends': len(trends)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting regional trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get regional trends")
+
+
+@app.get("/api/india/regional-timing")
+@limiter.limit("30/minute")
+def get_regional_timing_optimization(
+    request: Request,
+    region: str = "north",
+    current_user: str = Depends(get_current_user)
+):
+    """Get optimal posting times for a specific Indian region."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        timing = engine.get_regional_timing_optimization(region)
+        
+        return {
+            'region': timing.region,
+            'city': timing.city,
+            'peak_hours': timing.peak_hours,
+            'secondary_hours': timing.secondary_hours,
+            'best_days': timing.best_days,
+            'timezone_offset': timing.timezone_offset,
+            'cultural_considerations': timing.cultural_considerations
+        }
+    except Exception as e:
+        logger.exception(f"Error getting regional timing: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get regional timing")
+
+
+@app.get("/api/india/cultural-events")
+@limiter.limit("30/minute")
+def get_cultural_event_automation(
+    request: Request,
+    days_ahead: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get automated recommendations for upcoming cultural events."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        events = engine.get_cultural_event_automation(days_ahead=days_ahead)
+        
+        return {
+            'cultural_events': [
+                {
+                    'event_name': event.event_name,
+                    'event_date': event.event_date.isoformat(),
+                    'region': event.region,
+                    'content_automation': event.content_automation,
+                    'hashtag_strategy': event.hashtag_strategy,
+                    'timing_recommendations': event.timing_recommendations,
+                    'content_themes': event.content_themes,
+                    'creator_opportunities': event.creator_opportunities
+                }
+                for event in events
+            ],
+            'total_events': len(events)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting cultural events: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get cultural events")
+
+
+@app.post("/api/india/detect-language")
+@limiter.limit("30/minute")
+def detect_language_crossover(
+    request: Request,
+    content: str,
+    current_user: str = Depends(get_current_user)
+):
+    """Detect which Indian languages are present in content."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        languages = engine.detect_language_crossover(content)
+        return {
+            'detected_languages': languages,
+            'content': content
+        }
+    except Exception as e:
+        logger.exception(f"Error detecting languages: {e}")
+        raise HTTPException(status_code=500, detail="Failed to detect languages")
+
+
+@app.get("/api/india/hashtag-strategy")
+@limiter.limit("30/minute")
+def get_regional_hashtag_strategy(
+    request: Request,
+    region: str = "north",
+    content_type: str = "general",
+    current_user: str = Depends(get_current_user)
+):
+    """Get hashtag strategy tailored to a specific Indian region."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        strategy = engine.get_regional_hashtag_strategy(region, content_type)
+        return strategy
+    except Exception as e:
+        logger.exception(f"Error getting regional hashtag strategy: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get regional hashtag strategy")
+
+
+@app.get("/api/india/creator-patterns")
+@limiter.limit("30/minute")
+def get_creator_pattern_analysis(
+    request: Request,
+    creator_region: str = "north",
+    current_user: str = Depends(get_current_user)
+):
+    """Get creator pattern analysis specific to a region."""
+    if not IndiaFeaturesEngine:
+        raise HTTPException(status_code=500, detail="India features engine not configured.")
+    
+    try:
+        engine = IndiaFeaturesEngine()
+        patterns = engine.get_creator_pattern_analysis(creator_region)
+        return patterns
+    except Exception as e:
+        logger.exception(f"Error getting creator patterns: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get creator patterns")
+
+
+# ── Admin User Management Endpoints ─────────────────────────────────────────────────────────
+
+@app.get("/api/admin/users")
+@limiter.limit("30/minute")
+def get_all_users_admin(
+    request: Request,
+    limit: int = 100,
+    offset: int = 0,
+    search: Optional[str] = None,
+    plan_filter: Optional[str] = None,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Get all users with pagination and filtering (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        users = UserManager.get_all_users(limit, offset, search, plan_filter)
+        return {
+            'users': users,
+            'total': len(users),
+            'limit': limit,
+            'offset': offset
+        }
+    except Exception as e:
+        logger.exception(f"Error getting all users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get users")
+
+@app.get("/api/admin/users/{email}")
+@limiter.limit("30/minute")
+def get_user_details_admin(
+    request: Request,
+    email: str,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Get detailed information about a specific user (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        user = UserManager.get_user(email)
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        # Get additional details
+        devices = UserManager.get_user_devices(email) if UserManager else []
+        usage_stats = UserManager.get_user_usage_stats(email, 30) if UserManager else {}
+        
+        return {
+            'user': user,
+            'devices': devices,
+            'usage_stats': usage_stats
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting user details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user details")
+
+@app.post("/api/admin/users/{email}/plan")
+@limiter.limit("10/minute")
+def update_user_plan_admin(
+    request: Request,
+    email: str,
+    new_plan: str,
+    reason: Optional[str] = None,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Update user's plan (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        success = UserManager.update_user_plan(email, new_plan, "admin@trendrop.ai", reason)
+        if success:
+            return {'success': True, 'message': f'Plan updated to {new_plan}'}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to update plan")
+    except Exception as e:
+        logger.exception(f"Error updating user plan: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update plan")
+
+@app.post("/api/admin/users/{email}/lock")
+@limiter.limit("10/minute")
+def lock_user_account_admin(
+    request: Request,
+    email: str,
+    reason: Optional[str] = None,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Lock user account due to suspicious activity (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        success = UserManager.lock_user_account(email, "admin@trendrop.ai", reason)
+        if success:
+            return {'success': True, 'message': 'Account locked'}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to lock account")
+    except Exception as e:
+        logger.exception(f"Error locking user account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to lock account")
+
+@app.post("/api/admin/users/{email}/unlock")
+@limiter.limit("10/minute")
+def unlock_user_account_admin(
+    request: Request,
+    email: str,
+    reason: Optional[str] = None,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Unlock user account (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        success = UserManager.unlock_user_account(email, "admin@trendrop.ai", reason)
+        if success:
+            return {'success': True, 'message': 'Account unlocked'}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to unlock account")
+    except Exception as e:
+        logger.exception(f"Error unlocking user account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unlock account")
+
+@app.get("/api/admin/business-metrics")
+@limiter.limit("30/minute")
+def get_business_metrics_admin(
+    request: Request,
+    days: int = 30,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Get business metrics for admin dashboard (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        metrics = UserManager.get_business_metrics(days)
+        return metrics
+    except Exception as e:
+        logger.exception(f"Error getting business metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get business metrics")
+
+@app.get("/api/admin/suspicious-activity")
+@limiter.limit("30/minute")
+def get_suspicious_activity_admin(
+    request: Request,
+    days: int = 7,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Get recent suspicious activity (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        activity = UserManager.get_suspicious_activity(days)
+        return {
+            'suspicious_activity': activity,
+            'total': len(activity)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting suspicious activity: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get suspicious activity")
+
+@app.post("/api/admin/suspicious-activity/{activity_id}/resolve")
+@limiter.limit("10/minute")
+def resolve_suspicious_activity_admin(
+    request: Request,
+    activity_id: int,
+    resolution: Optional[str] = None,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Mark suspicious activity as resolved (Admin only)."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User management not configured.")
+    
+    try:
+        success = UserManager.resolve_suspicious_activity(activity_id, "admin@trendrop.ai", resolution)
+        if success:
+            return {'success': True, 'message': 'Activity resolved'}
+        else:
+            raise HTTPException(status_code=500, detail="Failed to resolve activity")
+    except Exception as e:
+        logger.exception(f"Error resolving suspicious activity: {e}")
+        raise HTTPException(status_code=500, detail="Failed to resolve activity")
+
+@app.get("/api/admin/plan-features")
+@limiter.limit("30/minute")
+def get_plan_features_admin(
+    request: Request,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Get all plan features (Admin only)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured.")
+    
+    try:
+        res = supabase.table('plan_features') \
+            .select('*') \
+            .order('price_monthly') \
+            .execute()
+        
+        return {
+            'plan_features': res.data or [],
+            'total': len(res.data or [])
+        }
+    except Exception as e:
+        logger.exception(f"Error getting plan features: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get plan features")
+
+@app.post("/api/admin/plan-features")
+@limiter.limit("10/minute")
+def create_plan_feature_admin(
+    request: Request,
+    plan_name: str,
+    display_name: str,
+    price_monthly: float,
+    price_yearly: float,
+    api_limit_per_day: int,
+    trend_views_per_day: int,
+    features: list,
+    admin_user: bool = Depends(get_admin_user)
+):
+    """Create or update a plan feature (Admin only)."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured.")
+    
+    try:
+        # Upsert plan feature
+        res = supabase.table('plan_features') \
+            .upsert({
+                'plan_name': plan_name,
+                'display_name': display_name,
+                'price_monthly': price_monthly,
+                'price_yearly': price_yearly,
+                'api_limit_per_day': api_limit_per_day,
+                'trend_views_per_day': trend_views_per_day,
+                'features': features,
+                'is_active': True
+            }, on_conflict='plan_name') \
+            .execute()
+        
+        return {'success': True, 'message': 'Plan feature saved'}
+    except Exception as e:
+        logger.exception(f"Error creating plan feature: {e}")
+        raise HTTPException(status_code=500, detail="Failed to save plan feature")
+
 
 
 

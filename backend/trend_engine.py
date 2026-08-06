@@ -181,6 +181,57 @@ def _aggregate_content_tone(reels: list[dict]) -> str:
     ranked = sorted(counts.items(), key=lambda x: -x[1])
     return ranked[0][0]
 
+
+def _classify_trend_type(title: str, artist: str, avg_velocity: float, max_velocity: float, 
+                         audio_use_count: int, oldest_age_hours: float) -> dict:
+    """
+    Classify trend type for display differentiation.
+    Returns classification and velocity pattern analysis.
+    """
+    title_lower = title.lower()
+    artist_lower = artist.lower()
+    
+    # Classic artist detection
+    classic_artists = [
+        'ar rahman', 'arijit singh', 'shreya ghoshal', 'sonu nigam', 'lata mangeshkar',
+        'kishore kumar', 'mohammed rafi', 'asha bhosle', 'udit narayan', 'kumar sanu',
+        'pritam', 'vishal-shekhar', 'shankar-ehsaan-loy', 'anu malik', 'nadeem-shravan'
+    ]
+    is_classic_artist = any(ca in artist_lower for ca in classic_artists)
+    
+    # Determine trend classification
+    classification = "new_viral"
+    
+    if is_classic_artist:
+        if avg_velocity > 50000 and max_velocity > 100000:
+            classification = "viral_revival"  # Classic artist with high velocity = revival
+        elif audio_use_count > 1000000 and avg_velocity < 20000:
+            classification = "evergreen_popular"  # High usage but low velocity = evergreen
+        else:
+            classification = "classic_hit"  # Classic artist with moderate metrics
+    elif audio_use_count > 2000000 and avg_velocity < 10000:
+        classification = "evergreen_popular"  # Very high usage, low velocity
+    elif oldest_age_hours > 48 and avg_velocity < 30000:
+        classification = "evergreen_popular"  # Old detection with low velocity
+    
+    # Determine velocity pattern
+    velocity_pattern = "sudden_spike"
+    
+    if max_velocity / (avg_velocity + 1) > 3:
+        velocity_pattern = "sudden_spike"  # Max velocity much higher than average = spike
+    elif avg_velocity > 50000 and max_velocity / (avg_velocity + 1) < 1.5:
+        velocity_pattern = "steady_popular"  # High consistent velocity
+    elif avg_velocity > 20000:
+        velocity_pattern = "gradual_growth"  # Moderate upward trend
+    elif avg_velocity < 5000 and oldest_age_hours > 24:
+        velocity_pattern = "declining"  # Low velocity, getting older
+    
+    return {
+        "trend_classification": classification,
+        "velocity_pattern": velocity_pattern,
+        "is_evergreen": classification == "evergreen_popular"
+    }
+
 def _dominant_source_hashtag_pool(reels: list[dict]) -> str | None:
     pools = [r.get("source_hashtag_pool") for r in reels if r.get("source_hashtag_pool")]
     if not pools:
@@ -924,6 +975,16 @@ class TrendEngine:
 
                 # Regional crossover detection
                 crossover_info = _detect_regional_crossover(trend.get("language") or "en", group_reels)
+                
+                # Trend classification for display differentiation
+                trend_classification = _classify_trend_type(
+                    title=trend["audio_title"],
+                    artist=trend["audio_artist"],
+                    avg_velocity=trend["avg_velocity"],
+                    max_velocity=trend["max_velocity"],
+                    audio_use_count=audio_use_count,
+                    oldest_age_hours=oldest_age_hours
+                )
 
                 trend_data = {
                     "audio_title": trend["audio_title"],
@@ -978,6 +1039,11 @@ class TrendEngine:
                     "exogenous_correlation": news_matches,
                     "content_tone": content_tone,
                     "first_detected_at": datetime.now(timezone.utc).isoformat(),
+                    # Trend classification for display differentiation
+                    "trend_classification": trend_classification["trend_classification"],
+                    "velocity_pattern": trend_classification["velocity_pattern"],
+                    "is_evergreen": trend_classification["is_evergreen"],
+                    "trend_age_hours": int(oldest_age_hours) if oldest_age_hours else 0,
                     # Crossover Detection Integration
                     "is_regional_crossover": crossover_info.get("is_crossover", False),
                     "crossover_from_language": crossover_info.get("from_language"),
