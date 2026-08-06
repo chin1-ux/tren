@@ -14,6 +14,7 @@ from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 import logging
 import tempfile
+from datetime import datetime, timezone
 is_vercel = os.getenv("VERCEL") is not None or os.getenv("VERCEL_TMP_DIR") is not None
 if is_vercel:
     log_file = os.path.join(tempfile.gettempdir(), "api.log")
@@ -241,6 +242,31 @@ try:
 except Exception as e:
     logger.warning(f"UserPerformanceTracker import failed: {e}")
     UserPerformanceTracker = None
+
+try:
+    from business_metrics import BusinessMetrics
+except Exception as e:
+    logger.warning(f"BusinessMetrics import failed: {e}")
+    BusinessMetrics = None
+
+try:
+    from revenue_tracker import RevenueTracker
+except Exception as e:
+    logger.warning(f"RevenueTracker import failed: {e}")
+    RevenueTracker = None
+
+try:
+    from case_study_templates import get_sample_case_studies
+except Exception as e:
+    logger.warning(f"Case study templates import failed: {e}")
+    get_sample_case_studies = None
+
+try:
+    from pitch_deck_structure import generate_pitch_deck_content, export_pitch_deck_to_markmark
+except Exception as e:
+    logger.warning(f"Pitch deck structure import failed: {e}")
+    generate_pitch_deck_content = None
+    export_pitch_deck_to_markmark = None
 
 load_dotenv()
 if not os.getenv("SUPABASE_URL"):
@@ -5123,6 +5149,173 @@ def get_user_top_media(
     except Exception as e:
         logger.exception(f"Error getting top media: {e}")
         raise HTTPException(status_code=500, detail="Failed to get top media")
+
+
+# ── Phase 5: Pre-Seed Preparation Endpoints ─────────────────────────────────────
+
+@app.get("/api/business/metrics")
+@limiter.limit("30/minute")
+def get_business_metrics(
+    request: Request,
+    days: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get business metrics for pre-seed preparation."""
+    if not BusinessMetrics:
+        raise HTTPException(status_code=500, detail="Business metrics not configured.")
+    
+    try:
+        metrics = BusinessMetrics.get_all_metrics(days)
+        return metrics
+    except Exception as e:
+        logger.exception(f"Error getting business metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get business metrics")
+
+@app.get("/api/business/user-metrics")
+@limiter.limit("30/minute")
+def get_user_metrics_endpoint(
+    request: Request,
+    days: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get user acquisition metrics."""
+    if not BusinessMetrics:
+        raise HTTPException(status_code=500, detail="Business metrics not configured.")
+    
+    try:
+        metrics = BusinessMetrics.get_user_metrics(days)
+        return metrics
+    except Exception as e:
+        logger.exception(f"Error getting user metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get user metrics")
+
+@app.get("/api/business/revenue")
+@limiter.limit("30/minute")
+def get_revenue_metrics_endpoint(
+    request: Request,
+    days: int = 30,
+    current_user: str = Depends(get_current_user)
+):
+    """Get revenue metrics."""
+    if not RevenueTracker:
+        raise HTTPException(status_code=500, detail="Revenue tracker not configured.")
+    
+    try:
+        metrics = RevenueTracker.get_all_revenue_metrics(days)
+        return metrics
+    except Exception as e:
+        logger.exception(f"Error getting revenue metrics: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get revenue metrics")
+
+@app.get("/api/business/mrr")
+@limiter.limit("30/minute")
+def get_mrr_endpoint(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get Monthly Recurring Revenue (MRR)."""
+    if not RevenueTracker:
+        raise HTTPException(status_code=500, detail="Revenue tracker not configured.")
+    
+    try:
+        mrr = RevenueTracker.calculate_mrr()
+        return mrr
+    except Exception as e:
+        logger.exception(f"Error calculating MRR: {e}")
+        raise HTTPException(status_code=500, detail="Failed to calculate MRR")
+
+@app.get("/api/business/subscription-breakdown")
+@limiter.limit("30/minute")
+def get_subscription_breakdown_endpoint(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get subscription breakdown by plan."""
+    if not RevenueTracker:
+        raise HTTPException(status_code=500, detail="Revenue tracker not configured.")
+    
+    try:
+        breakdown = RevenueTracker.get_subscription_breakdown()
+        return breakdown
+    except Exception as e:
+        logger.exception(f"Error getting subscription breakdown: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get subscription breakdown")
+
+@app.get("/api/business/cac-ltv")
+@limiter.limit("30/minute")
+def get_cac_ltv_endpoint(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get Customer Acquisition Cost (CAC) and Lifetime Value (LTV)."""
+    if not BusinessMetrics:
+        raise HTTPException(status_code=500, detail="Business metrics not configured.")
+    
+    try:
+        metrics = BusinessMetrics.calculate_cac_ltv()
+        return metrics
+    except Exception as e:
+        logger.exception(f"Error calculating CAC/LTV: {e}")
+        raise HTTPException(status_code=500, detail="Failed to calculate CAC/LTV")
+
+@app.get("/api/case-studies")
+@limiter.limit("30/minute")
+def get_case_studies(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get sample case studies for pre-seed preparation."""
+    if not get_sample_case_studies:
+        raise HTTPException(status_code=500, detail="Case study templates not configured.")
+    
+    try:
+        case_studies = get_sample_case_studies()
+        return {
+            'case_studies': case_studies,
+            'total': len(case_studies)
+        }
+    except Exception as e:
+        logger.exception(f"Error getting case studies: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get case studies")
+
+@app.get("/api/pitch-deck")
+@limiter.limit("30/minute")
+def get_pitch_deck(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get pitch deck structure for pre-seed preparation."""
+    if not generate_pitch_deck_content:
+        raise HTTPException(status_code=500, detail="Pitch deck structure not configured.")
+    
+    try:
+        pitch_deck = generate_pitch_deck_content()
+        return pitch_deck
+    except Exception as e:
+        logger.exception(f"Error getting pitch deck: {e}")
+        raise HTTPException(status_code=500, detail="Failed to get pitch deck")
+
+@app.get("/api/pitch-deck/markdown")
+@limiter.limit("30/minute")
+def get_pitch_deck_markdown(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get pitch deck in markdown format."""
+    if not export_pitch_deck_to_markmark:
+        raise HTTPException(status_code=500, detail="Pitch deck structure not configured.")
+    
+    try:
+        markdown = export_pitch_deck_to_markmark()
+        return {
+            'markdown': markdown,
+            'exported_at': datetime.now(timezone.utc).isoformat()
+        }
+    except Exception as e:
+        logger.exception(f"Error exporting pitch deck to markdown: {e}")
+        raise HTTPException(status_code=500, detail="Failed to export pitch deck")
+
+
 
 
 
