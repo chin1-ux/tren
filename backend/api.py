@@ -1638,6 +1638,11 @@ def signup(request: Request, req: SignupRequest):
                 "language": req.language
             }
         }
+        if session_token:
+            response["session_token"] = session_token
+            response["expires_at"] = expires_at
+
+        return response
     except Exception as e:
         logger.error(f"Signup failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
