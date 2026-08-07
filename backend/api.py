@@ -329,7 +329,7 @@ os.makedirs(uploads_path, exist_ok=True)
 os.makedirs(outputs_path, exist_ok=True)
 
 # Rate limiter
-limiter = Limiter(key_func=get_remote_address)
+limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -1573,8 +1573,18 @@ def subscribe(request: Request, req: SubscribeRequest):
 def signup(request: Request, req: SignupRequest):
     """Create a new user with email and password via Supabase Auth"""
     try:
-        # Create user in Supabase Auth
-        auth_res = supabase.auth.sign_up({"email": req.email, "password": req.password})
+        auth_res = None
+        # Try to use admin API to auto-confirm user and bypass email limits
+        try:
+            auth_res = supabase.auth.admin.create_user({
+                "email": req.email,
+                "password": req.password,
+                "email_confirm": True
+            })
+            logger.info("Successfully created and confirmed user via admin auth API.")
+        except Exception as admin_err:
+            logger.warning(f"Admin auth signup failed or service key missing: {admin_err}, falling back to standard sign_up")
+            auth_res = supabase.auth.sign_up({"email": req.email, "password": req.password})
         
         if not auth_res or not auth_res.user:
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
@@ -1590,7 +1600,7 @@ def signup(request: Request, req: SignupRequest):
 
         return {
             "success": True, 
-            "message": "Account created successfully. Please check your email for verification link.", 
+            "message": "Account created successfully.", 
             "user": {
                 "email": req.email,
                 "niche": req.niche,
@@ -1602,6 +1612,7 @@ def signup(request: Request, req: SignupRequest):
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=500, detail=str(e))
+
 
 
 @app.post("/api/auth/login")
