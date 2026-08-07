@@ -185,10 +185,13 @@ def init_auth_tables():
 
     # Add password_hash column to users table
     print("Adding password_hash column to users table...")
-    cursor.execute("""
-        ALTER TABLE users
-        ADD COLUMN IF NOT EXISTS password_hash TEXT;
-    """)
+    try:
+        cursor.execute("""
+            ALTER TABLE users
+            ADD COLUMN IF NOT EXISTS password_hash TEXT;
+        """)
+    except Exception as e:
+        print(f"Password hash column already exists or error: {e}")
 
     # Create user_sessions table
     print("Creating user_sessions table...")

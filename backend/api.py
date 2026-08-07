@@ -1580,7 +1580,13 @@ def logout(request: Request, req: LogoutRequest):
 def verify(request: Request, req: VerifyRequest):
     """Verify session token and return user info"""
     try:
-        from auth_system import verify_session
+        from auth_system import verify_session, init_auth_tables
+        # Ensure auth tables exist
+        try:
+            init_auth_tables()
+        except Exception as e:
+            logger.warning(f"Auth tables initialization warning: {e}")
+        
         result = verify_session(req.session_token)
 
         if result.get('valid'):
