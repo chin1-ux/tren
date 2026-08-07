@@ -902,13 +902,13 @@ class TrendEngine:
 
                 # Window hours - calculate based on saturation and velocity
                 # Low saturation trends should not have 0 window hours
-                if global_saturation_pct >= 90:
+                if global_sat >= 90:
                     window_h = 0
-                elif global_saturation_pct >= 75:
+                elif global_sat >= 75:
                     window_h = 8
-                elif global_saturation_pct >= 50:
+                elif global_sat >= 50:
                     window_h = 16
-                elif global_saturation_pct >= 20:
+                elif global_sat >= 20:
                     window_h = 24
                 else:
                     # Early saturation trends have more time
