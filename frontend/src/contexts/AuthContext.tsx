@@ -1,6 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
-import { setAuthToken } from "@/lib/api";
+import { setAuthToken, API_URL } from "@/lib/api";
 
 interface User {
   email: string;
@@ -35,7 +35,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/verify`, {
+      const response = await fetch(`${API_URL}/api/auth/verify`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -75,7 +75,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/login`, {
+    const response = await fetch(`${API_URL}/api/auth/login`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -100,7 +100,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const signup = async (email: string, password: string, niche: string, language: string) => {
-    const response = await fetch(`${import.meta.env.VITE_API_URL}/api/auth/signup`, {
+    const response = await fetch(`${API_URL}/api/auth/signup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -129,12 +129,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     
     if (sessionToken) {
       try {
-        await fetch(`${import.meta.env.VITE_API_URL}/api/auth/logout`, {
+        await fetch(`${API_URL}/api/auth/logout`, {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
           },
-          body: JSON.stringify({ session_token }),
+          body: JSON.stringify({ session_token: sessionToken }),
         });
       } catch (error) {
         console.error("Logout failed:", error);
