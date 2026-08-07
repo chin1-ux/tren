@@ -762,6 +762,26 @@ class CalendarRequest(BaseModel):
     frequency: str
 
 
+class SignupRequest(BaseModel):
+    email: EmailStr
+    password: str
+    niche: str = "all"
+    language: str = "en"
+
+
+class LoginRequest(BaseModel):
+    email: EmailStr
+    password: str
+
+
+class LogoutRequest(BaseModel):
+    session_token: str
+
+
+class VerifyRequest(BaseModel):
+    session_token: str
+
+
 class CreatorProfileRequest(BaseModel):
     user_email: Optional[str] = None
     instagram_username: str
@@ -1481,7 +1501,7 @@ def subscribe(request: Request, req: SubscribeRequest):
         token = None
         if res.data and len(res.data) > 0:
             token = res.data[0].get("auth_token")
-        
+
         if not token:
             token = secrets.token_hex(16)
 
@@ -1495,6 +1515,80 @@ def subscribe(request: Request, req: SubscribeRequest):
         return {"success": True, "message": "You are subscribed!", "auth_token": token, "email": req.email}
     except Exception as e:
         logger.error(f"Subscribe failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+# ── Authentication Endpoints ───────────────────────────────────────────────────────
+
+@app.post("/api/auth/signup")
+@limiter.limit("5/hour")
+def signup(request: Request, req: SignupRequest):
+    """Create a new user with email and password"""
+    try:
+        from auth_system import create_user
+        result = create_user(req.email, req.password, req.niche, req.language)
+
+        if result.get('success'):
+            return {"success": True, "message": "Account created successfully", "user": result.get('user')}
+        else:
+            raise HTTPException(status_code=400, detail=result.get('error', 'Signup failed'))
+    except Exception as e:
+        logger.error(f"Signup failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/auth/login")
+@limiter.limit("10/hour")
+def login(request: Request, req: LoginRequest):
+    """Login user with email and password"""
+    try:
+        from auth_system import login_user
+        result = login_user(req.email, req.password)
+
+        if result.get('success'):
+            return {
+                "success": True,
+                "message": "Login successful",
+                "session_token": result.get('session_token'),
+                "expires_at": result.get('expires_at'),
+                "user": result.get('user')
+            }
+        else:
+            raise HTTPException(status_code=401, detail=result.get('error', 'Login failed'))
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Login failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/auth/logout")
+@limiter.limit("20/hour")
+def logout(request: Request, req: LogoutRequest):
+    """Logout user by deleting session"""
+    try:
+        from auth_system import logout_user
+        result = logout_user(req.session_token)
+        return {"success": True, "message": "Logout successful"}
+    except Exception as e:
+        logger.error(f"Logout failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/auth/verify")
+@limiter.limit("30/hour")
+def verify(request: Request, req: VerifyRequest):
+    """Verify session token and return user info"""
+    try:
+        from auth_system import verify_session
+        result = verify_session(req.session_token)
+
+        if result.get('valid'):
+            return {"success": True, "valid": True, "user": result.get('user')}
+        else:
+            return {"success": False, "valid": False, "error": result.get('error')}
+    except Exception as e:
+        logger.error(f"Verify failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 

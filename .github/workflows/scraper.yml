@@ -40,6 +40,13 @@ jobs:
         run: |
           python backend/migrate_creator_growth.py
 
+      - name: Initialize auth system
+        continue-on-error: true
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/auth_system.py
+
       - name: Run pipeline script
         env:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}

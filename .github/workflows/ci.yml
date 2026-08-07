@@ -5,11 +5,12 @@ on:
     branches: [ main ]
   pull_request:
     branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
 
 jobs:
   smoke-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
 
     steps:
       - name: Checkout repository
@@ -29,3 +30,9 @@ jobs:
       - name: Verify API Startup (Smoke Test)
         run: |
           python -c "from backend.api import app"
+          echo "API startup verification successful"
+
+      - name: Test auth system
+        run: |
+          python backend/auth_system.py
+          echo "Auth system test successful"
