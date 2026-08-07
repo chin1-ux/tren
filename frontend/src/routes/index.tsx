@@ -198,7 +198,18 @@ function TrendsFeed() {
     };
   }, [risingData, emergingData, peakedData, expiredData]);
 
-  const activeData = feedTab === "rising" ? deduplicatedTrends.rising : feedTab === "emerging" ? deduplicatedTrends.emerging : feedTab === "peaked" ? deduplicatedTrends.peaked : deduplicatedTrends.expired;
+  // When rising tab is empty but peaked has data, fall back to peaked so the app isn't empty
+  const risingFallbackToPeaked =
+    feedTab === "rising" &&
+    !risingLoading &&
+    deduplicatedTrends.rising.length === 0 &&
+    deduplicatedTrends.peaked.length > 0;
+
+  const activeData = feedTab === "rising"
+    ? (risingFallbackToPeaked ? deduplicatedTrends.peaked : deduplicatedTrends.rising)
+    : feedTab === "emerging" ? deduplicatedTrends.emerging
+    : feedTab === "peaked" ? deduplicatedTrends.peaked
+    : deduplicatedTrends.expired;
   const isLoading = feedTab === "rising" ? risingLoading : feedTab === "emerging" ? emergingLoading : feedTab === "peaked" ? peakedLoading : expiredLoading;
   const isError = feedTab === "rising" ? risingError : feedTab === "emerging" ? emergingError : feedTab === "peaked" ? peakedError : expiredError;
 
@@ -367,6 +378,13 @@ function TrendsFeed() {
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
       <div className="space-y-4 px-4 pt-4">
+        {feedTab === "rising" && risingFallbackToPeaked && (
+          <div className="rounded-xl border border-primary/30 bg-[rgba(230,57,70,0.06)] p-3">
+            <p className="text-xs text-primary font-semibold">
+              🔄 <strong>Trend engine is warming up</strong> — Showing recently peaked trends while new rising trends are being detected. Fresh trends will appear here automatically.
+            </p>
+          </div>
+        )}
         {feedTab === "emerging" && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
