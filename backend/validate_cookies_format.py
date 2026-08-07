@@ -12,6 +12,10 @@ def validate_cookies_format(json_file):
     print("COOKIE VALIDATION")
     print("="*60)
     
+    # Handle relative paths
+    if not os.path.isabs(json_file):
+        json_file = os.path.join(os.path.dirname(__file__), json_file)
+    
     # Check if file exists
     if not os.path.exists(json_file):
         print(f"[FAIL] {json_file} does not exist")
