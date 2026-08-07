@@ -13,19 +13,8 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const currentPath = routerState.location.pathname;
   const isRedirecting = useRef(false);
 
-  // Show loading state
-  if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-background">
-        <div className="flex flex-col items-center gap-4">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
-          <p className="text-slate-600 dark:text-slate-400">Loading...</p>
-        </div>
-      </div>
-    );
-  }
-
   // Handle authentication redirects
+  // NOTE: useEffect must be called before any conditional return (Rules of Hooks)
   useEffect(() => {
     if (!loading && !isRedirecting.current) {
       // If user is authenticated and trying to access login/signup, redirect to home
@@ -40,6 +29,18 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
       }
     }
   }, [user, loading, navigate, currentPath]);
+
+  // Show loading state (must be after all hooks)
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="flex flex-col items-center gap-4">
+          <Loader2 className="h-8 w-8 animate-spin text-indigo-600" />
+          <p className="text-slate-600 dark:text-slate-400">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   // For public routes, show content directly
   if (PUBLIC_ROUTES.includes(currentPath)) {
