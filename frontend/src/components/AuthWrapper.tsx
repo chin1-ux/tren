@@ -1,7 +1,7 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 
 // Public routes that don't require authentication
 const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
@@ -11,6 +11,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const navigate = useNavigate();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const isRedirecting = useRef(false);
 
   // Show loading state
   if (loading) {
@@ -26,13 +27,15 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
 
   // Handle authentication redirects
   useEffect(() => {
-    if (!loading) {
+    if (!loading && !isRedirecting.current) {
       // If user is authenticated and trying to access login/signup, redirect to home
       if (user && (currentPath === "/login" || currentPath === "/signup")) {
+        isRedirecting.current = true;
         navigate({ to: "/" });
       }
       // If user is not authenticated and trying to access protected route, redirect to login
       else if (!user && !PUBLIC_ROUTES.includes(currentPath)) {
+        isRedirecting.current = true;
         navigate({ to: "/login" });
       }
     }

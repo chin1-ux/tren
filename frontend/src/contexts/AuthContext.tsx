@@ -1,4 +1,5 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { useNavigate } from "@tanstack/react-router";
 
 interface User {
   email: string;
@@ -20,6 +21,7 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
+  const navigate = useNavigate();
 
   const checkAuth = async () => {
     setLoading(true);
@@ -84,8 +86,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("trendrop_user_niche", data.user.niche);
       localStorage.setItem("trendrop_user_language", data.user.language);
       setUser(data.user);
-      // Navigate to main screen after successful auth
-      window.location.href = "/";
+      // Navigate to main screen after successful auth using React Router
+      navigate({ to: "/" });
     } else {
       throw new Error(data.error || "Login failed");
     }
@@ -108,8 +110,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("trendrop_user_niche", data.user.niche);
       localStorage.setItem("trendrop_user_language", data.user.language);
       setUser(data.user);
-      // Navigate to main screen after successful signup
-      window.location.href = "/";
+      // Navigate to main screen after successful signup using React Router
+      navigate({ to: "/" });
     } else {
       throw new Error(data.error || "Signup failed");
     }
