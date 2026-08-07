@@ -2,7 +2,8 @@ name: Cron Heartbeat Watchdog
 
 on:
   schedule:
-    - cron: '15 * * * *'
+    # Runs every 4 hours (at 00:15, 04:15, 08:15, 12:15, 16:15, 20:15 UTC)
+    - cron: '15 */4 * * *'
   workflow_dispatch:
 
 jobs:

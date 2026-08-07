@@ -2,8 +2,8 @@ name: Run Scraper & Trend Pipeline
 
 on:
   schedule:
-    # Runs every 6 hours (at minute 0 of hours 0, 6, 12, 18)
-    - cron: '0 */6 * * *'
+    # Runs every 8 hours (at 02:30, 10:30, 18:30 UTC = 08:00, 16:00, 00:00 IST)
+    - cron: '30 2,10,18 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
@@ -68,4 +68,13 @@ jobs:
         run: |
           python backend/manual_run_and_check.py
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+
+      - name: Verify scraper run
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python backend/verify_scraper_run.py
 
