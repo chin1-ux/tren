@@ -24,8 +24,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const checkAuth = async () => {
     setLoading(true);
     try {
-      const sessionToken = localStorage.getItem("trendrop_session_token");
-      if (!sessionToken) {
+      const token = localStorage.getItem("trendrop_session_token");
+      if (!token) {
         setUser(null);
         setLoading(false);
         return;
@@ -36,12 +36,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ session_token: sessionToken }),
+        body: JSON.stringify({ session_token: token }),
       });
 
       const data = await response.json();
       
-      if (data.success && data.valid) {
+      if (data && data.success && data.valid && data.user) {
         setUser(data.user);
         localStorage.setItem("trendrop_user_email", data.user.email);
         localStorage.setItem("trendrop_user_niche", data.user.niche);
