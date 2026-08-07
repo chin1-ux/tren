@@ -111,14 +111,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     
     if (data.success) {
-      setAuthToken(data.session_token);
-      localStorage.setItem("trendrop_session_token", data.session_token);
-      localStorage.setItem("trendrop_user_email", data.user.email);
-      localStorage.setItem("trendrop_user_niche", data.user.niche);
-      localStorage.setItem("trendrop_user_language", data.user.language);
-      setUser(data.user);
-      // Navigate to main screen after successful signup using React Router
-      navigate({ to: "/" });
+      if (data.session_token) {
+        // Auto-login: backend returned a session immediately (admin API path)
+        setAuthToken(data.session_token);
+        localStorage.setItem("trendrop_session_token", data.session_token);
+        localStorage.setItem("trendrop_user_email", data.user.email);
+        localStorage.setItem("trendrop_user_niche", data.user.niche);
+        localStorage.setItem("trendrop_user_language", data.user.language);
+        setUser(data.user);
+        navigate({ to: "/" });
+      } else {
+        // No session returned — redirect to login so user can sign in
+        navigate({ to: "/login" });
+      }
     } else {
       throw new Error(data.error || "Signup failed");
     }

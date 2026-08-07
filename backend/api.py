@@ -1574,7 +1574,10 @@ def signup(request: Request, req: SignupRequest):
     """Create a new user with email and password via Supabase Auth"""
     try:
         auth_res = None
-        # Try to use admin API to auto-confirm user and bypass email limits
+        session_token = None
+        expires_at = None
+
+        # Try to use admin API to auto-confirm user and bypass email confirmation
         try:
             auth_res = supabase.auth.admin.create_user({
                 "email": req.email,
@@ -1582,10 +1585,38 @@ def signup(request: Request, req: SignupRequest):
                 "email_confirm": True
             })
             logger.info("Successfully created and confirmed user via admin auth API.")
+
+            # Admin create_user doesn't return a session — sign in immediately to get one
+            if auth_res and auth_res.user:
+                try:
+                    login_res = supabase.auth.sign_in_with_password({
+                        "email": req.email,
+                        "password": req.password
+                    })
+                    if login_res and login_res.session:
+                        session_token = login_res.session.access_token
+                        expires_at = (
+                            datetime.fromtimestamp(login_res.session.expires_at, tz=timezone.utc).isoformat()
+                            if login_res.session.expires_at else None
+                        )
+                        logger.info("Auto-login after signup succeeded.")
+                    else:
+                        logger.warning("Auto-login after signup returned no session.")
+                except Exception as login_err:
+                    logger.warning(f"Auto-login after signup failed: {login_err}")
+
         except Exception as admin_err:
-            logger.warning(f"Admin auth signup failed or service key missing: {admin_err}, falling back to standard sign_up")
-            auth_res = supabase.auth.sign_up({"email": req.email, "password": req.password})
-        
+            logger.warning(f"Admin auth signup failed: {admin_err}, falling back to standard sign_up")
+            fallback = supabase.auth.sign_up({"email": req.email, "password": req.password})
+            auth_res = fallback
+            # sign_up may return a session if email confirmation is disabled in Supabase dashboard
+            if fallback and fallback.session:
+                session_token = fallback.session.access_token
+                expires_at = (
+                    datetime.fromtimestamp(fallback.session.expires_at, tz=timezone.utc).isoformat()
+                    if fallback.session.expires_at else None
+                )
+
         if not auth_res or not auth_res.user:
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
 
@@ -1598,9 +1629,9 @@ def signup(request: Request, req: SignupRequest):
         }
         supabase.table("users").upsert(user_data, on_conflict="email").execute()
 
-        return {
-            "success": True, 
-            "message": "Account created successfully.", 
+        response: dict = {
+            "success": True,
+            "message": "Account created successfully.",
             "user": {
                 "email": req.email,
                 "niche": req.niche,
