@@ -17,7 +17,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { useUserStore } from "@/store/useAppStore";
-import { AuthGuard } from "@/components/AuthGuard";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -234,8 +233,7 @@ function TrendsFeed() {
   }, [risingData, emergingData, risingLoading, emergingLoading]);
 
   return (
-    <AuthGuard>
-      <div className="flex flex-col gap-0 pb-24">
+    <div className="flex flex-col gap-0 pb-24">
         {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
         <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
           <ParticleBackground />
@@ -445,7 +443,6 @@ function TrendsFeed() {
 
 
       </div>
-    </AuthGuard>
   );
 }
 

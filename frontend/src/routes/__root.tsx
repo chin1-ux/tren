@@ -19,6 +19,7 @@ import { InstallBanner } from "../components/InstallBanner";
 import { registerPWA } from "../lib/pwa-register";
 import { useUserStore } from "../store/useAppStore";
 import { AuthProvider } from "../contexts/AuthContext";
+import { AuthWrapper } from "../components/AuthWrapper";
 
 function NotFoundComponent() {
   return (
@@ -172,37 +173,39 @@ function RootComponent() {
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
-        <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
+        <AuthWrapper>
+          <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
 
-          <AnimatePresence mode="wait">
-            <motion.div
-              key={currentPath}
-              initial={{ opacity: 0, y: 10 }}
-              animate={{ opacity: 1, y: 0 }}
-              exit={{ opacity: 0, y: -10 }}
-              transition={{ duration: 0.25, ease: "easeInOut" }}
-              className="flex flex-col w-full"
-            >
-              <Outlet />
-            </motion.div>
-          </AnimatePresence>
-        </div>
-        <BottomTabBar />
-        <InstallBanner />
-        <Toaster
-          position="top-center"
-          toastOptions={{
-            style: {
-              background: "var(--surface)",
-              backdropFilter: "blur(20px)",
-              WebkitBackdropFilter: "blur(20px)",
-              border: "1px solid var(--border)",
-              color: "var(--text-100)",
-              fontFamily: "Inter, sans-serif",
+            <AnimatePresence mode="wait">
+              <motion.div
+                key={currentPath}
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -10 }}
+                transition={{ duration: 0.25, ease: "easeInOut" }}
+                className="flex flex-col w-full"
+              >
+                <Outlet />
+              </motion.div>
+            </AnimatePresence>
+          </div>
+          <BottomTabBar />
+          <InstallBanner />
+          <Toaster
+            position="top-center"
+            toastOptions={{
+              style: {
+                background: "var(--surface)",
+                backdropFilter: "blur(20px)",
+                WebkitBackdropFilter: "blur(20px)",
+                border: "1px solid var(--border)",
+                color: "var(--text-100)",
+                fontFamily: "Inter, sans-serif",
             boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           },
         }}
-      />
+          />
+        </AuthWrapper>
       </AuthProvider>
     </QueryClientProvider>
   );

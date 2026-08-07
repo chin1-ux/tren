@@ -4,7 +4,7 @@ import { Mail, Lock, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { login, verifySession } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/login")({
@@ -19,6 +19,7 @@ export const Route = createFileRoute("/login")({
 
 function LoginPage() {
   const navigate = useNavigate();
+  const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -30,25 +31,14 @@ function LoginPage() {
     setLoading(true);
 
     try {
-      const result = await login(email, password);
-      
-      if (result.success) {
-        // Store session token
-        localStorage.setItem("trendrop_session_token", result.session_token);
-        localStorage.setItem("trendrop_user_email", result.user.email);
-        localStorage.setItem("trendrop_user_niche", result.user.niche);
-        localStorage.setItem("trendrop_user_language", result.user.language);
-        
-        toast.success("Login successful!");
-        navigate({ to: "/" });
-      } else {
-        setError(result.error || "Login failed");
-        toast.error(result.error || "Login failed");
-      }
+      await login(email, password);
+      toast.success("Login successful!");
+      // AuthContext handles navigation automatically
     } catch (err) {
       console.error("Login error:", err);
-      setError("An error occurred. Please try again.");
-      toast.error("An error occurred. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "An error occurred. Please try again.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

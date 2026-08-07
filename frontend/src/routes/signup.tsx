@@ -4,7 +4,7 @@ import { Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
-import { signup } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
 import { motion } from "framer-motion";
 
 const NICHES = [
@@ -40,6 +40,7 @@ export const Route = createFileRoute("/signup")({
 
 function SignupPage() {
   const navigate = useNavigate();
+  const { signup } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -68,19 +69,14 @@ function SignupPage() {
     setLoading(true);
 
     try {
-      const result = await signup(email, password, niche, language);
-      
-      if (result.success) {
-        toast.success("Account created successfully!");
-        navigate({ to: "/login" });
-      } else {
-        setError(result.error || "Signup failed");
-        toast.error(result.error || "Signup failed");
-      }
+      await signup(email, password, niche, language);
+      toast.success("Account created successfully!");
+      // AuthContext handles navigation automatically
     } catch (err) {
       console.error("Signup error:", err);
-      setError("An error occurred. Please try again.");
-      toast.error("An error occurred. Please try again.");
+      const errorMessage = err instanceof Error ? err.message : "An error occurred. Please try again.";
+      setError(errorMessage);
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
     }

@@ -24,6 +24,8 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as DealsIndexRouteImport } from './routes/deals.index'
 import { Route as TrendIdRouteImport } from './routes/trend.$id'
 import { Route as DealsNewRouteImport } from './routes/deals.new'
+import { Route as AdminUsersRouteImport } from './routes/admin.users'
+import { Route as AdminPlansRouteImport } from './routes/admin.plans'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 
 const TermsRoute = TermsRouteImport.update({
@@ -101,6 +103,16 @@ const DealsNewRoute = DealsNewRouteImport.update({
   path: '/deals/new',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminPlansRoute = AdminPlansRouteImport.update({
+  id: '/admin/plans',
+  path: '/admin/plans',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
   id: '/admin/analytics',
   path: '/admin/analytics',
@@ -121,6 +133,8 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
   '/deals/': typeof DealsIndexRoute
@@ -139,6 +153,8 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
   '/deals': typeof DealsIndexRoute
@@ -158,6 +174,8 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/plans': typeof AdminPlansRoute
+  '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
   '/trend/$id': typeof TrendIdRoute
   '/deals/': typeof DealsIndexRoute
@@ -178,6 +196,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/plans'
+    | '/admin/users'
     | '/deals/new'
     | '/trend/$id'
     | '/deals/'
@@ -196,6 +216,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/plans'
+    | '/admin/users'
     | '/deals/new'
     | '/trend/$id'
     | '/deals'
@@ -214,6 +236,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/plans'
+    | '/admin/users'
     | '/deals/new'
     | '/trend/$id'
     | '/deals/'
@@ -233,6 +257,8 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminPlansRoute: typeof AdminPlansRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   DealsNewRoute: typeof DealsNewRoute
   TrendIdRoute: typeof TrendIdRoute
   DealsIndexRoute: typeof DealsIndexRoute
@@ -345,6 +371,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DealsNewRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/users': {
+      id: '/admin/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/plans': {
+      id: '/admin/plans'
+      path: '/admin/plans'
+      fullPath: '/admin/plans'
+      preLoaderRoute: typeof AdminPlansRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/analytics': {
       id: '/admin/analytics'
       path: '/admin/analytics'
@@ -369,6 +409,8 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
   AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminPlansRoute: AdminPlansRoute,
+  AdminUsersRoute: AdminUsersRoute,
   DealsNewRoute: DealsNewRoute,
   TrendIdRoute: TrendIdRoute,
   DealsIndexRoute: DealsIndexRoute,
