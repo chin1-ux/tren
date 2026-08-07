@@ -597,19 +597,23 @@ class TrendEngine:
                 len(audio_groups),
             )
 
-            # STEP 3: Skip already-known trends
-            existing_res = self.supabase.table("trends") \
+            # STEP 3: Skip trends that are currently ACTIVE (emerging/rising).
+            # Expired and peaked trends CAN be re-detected if they surge again —
+            # blocking ALL historical audio caused the Rising tab to stay empty
+            # as the trend DB accumulated expired entries.
+            active_res = self.supabase.table("trends") \
                 .select("audio_title, audio_artist, audio_id") \
+                .in_("status", ["emerging", "rising"]) \
                 .execute()
             existing_named = {
                 (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())
-                for t in (existing_res.data or [])
+                for t in (active_res.data or [])
                 if t.get("audio_title")
                 and (t.get("audio_title") or "").strip().lower() != "original audio"
             }
             existing_audio_ids = {
                 (t.get("audio_id") or "").strip()
-                for t in (existing_res.data or [])
+                for t in (active_res.data or [])
                 if t.get("audio_id")
             }
 
