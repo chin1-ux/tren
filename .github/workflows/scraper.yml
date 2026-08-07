@@ -30,8 +30,16 @@ jobs:
           python -m camoufox fetch
 
       - name: Create cookies.json
+        continue-on-error: true
+        env:
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
         run: |
-          echo "${{ secrets.INSTAGRAM_COOKIES_B64 }}" | base64 -d > backend/cookies.json
+          if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
+            echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
+            echo "Cookies file created successfully"
+          else
+            echo "Instagram cookies not configured - will use username/password authentication"
+          fi
 
       - name: Run DB migrations
         continue-on-error: true
