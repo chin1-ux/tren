@@ -13,12 +13,9 @@ ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY")
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
 
-if not ADMIN_SECRET_KEY or ADMIN_SECRET_KEY == "trendrop_dev_admin_secret_key_2026":
-    # If running in local dev, allow the fallback, otherwise raise error
-    if os.getenv("VERCEL") or os.getenv("ENV") == "production":
-        raise ValueError("ADMIN_SECRET_KEY must be set to a secure secret key in production environment variables")
-    else:
-        ADMIN_SECRET_KEY = "trendrop_dev_admin_secret_key_2026"
+if not ADMIN_SECRET_KEY:
+    ADMIN_SECRET_KEY = "trendrop_dev_admin_secret_key_2026"
+
 
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
@@ -61,6 +58,12 @@ def get_admin_user(x_admin_key: str = Header(None)) -> bool:
     """
     Validates X-Admin-Key header against the ADMIN_SECRET_KEY.
     """
+    if not ADMIN_SECRET_KEY or ADMIN_SECRET_KEY == "trendrop_dev_admin_secret_key_2026":
+        if os.getenv("VERCEL") or os.getenv("ENV") == "production":
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail="ADMIN_SECRET_KEY must be set to a secure secret key in production environment variables"
+            )
     if not x_admin_key or x_admin_key != ADMIN_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
