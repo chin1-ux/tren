@@ -13,8 +13,14 @@ URGENCY_WEIGHT_SATURATION = float(os.getenv("URGENCY_WEIGHT_SATURATION", "35"))
 URGENCY_WEIGHT_TIME = float(os.getenv("URGENCY_WEIGHT_TIME", "25"))
 
 # Saturation threshold constants (Bug 7 fix)
-GLOBAL_SATURATION_THRESHOLD_REELS = int(os.getenv("GLOBAL_SATURATION_THRESHOLD_REELS", "100000"))
-INDIA_SATURATION_THRESHOLD_REELS = int(os.getenv("INDIA_SATURATION_THRESHOLD_REELS", "8000"))
+# GLOBAL: audio_use_count is Instagram's OFFICIAL platform-wide count (can be millions).
+# Old value of 100K caused every qualifying trend (emerging=150K+) to compute as >100%
+# saturated, setting window_h=0, and getting immediately expired by TrendRefresher.
+# 5M means: 150K uses = 3% sat (48h window), 800K = 16% (48h), 3M = 60% (16h), 10M = 200% (expired).
+GLOBAL_SATURATION_THRESHOLD_REELS = int(os.getenv("GLOBAL_SATURATION_THRESHOLD_REELS", "5000000"))
+# INDIA: india_use_count is our scraped reel count tagged as creator_country=IN.
+# Old value of 8K was reasonable but still too low given our 12K total reel dataset.
+INDIA_SATURATION_THRESHOLD_REELS = int(os.getenv("INDIA_SATURATION_THRESHOLD_REELS", "500"))
 
 # Viral multiplier scaling constant (Bug 8 fix)
 VIRAL_MULTIPLIER_SCALE_FACTOR = float(os.getenv("VIRAL_MULTIPLIER_SCALE_FACTOR", "10000"))
