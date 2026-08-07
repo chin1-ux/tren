@@ -8,10 +8,18 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "trendrop_dev_admin_secret_key_2026")
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
+
+if not ADMIN_SECRET_KEY or ADMIN_SECRET_KEY == "trendrop_dev_admin_secret_key_2026":
+    # If running in local dev, allow the fallback, otherwise raise error
+    if os.getenv("VERCEL") or os.getenv("ENV") == "production":
+        raise ValueError("ADMIN_SECRET_KEY must be set to a secure secret key in production environment variables")
+    else:
+        ADMIN_SECRET_KEY = "trendrop_dev_admin_secret_key_2026"
+
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 

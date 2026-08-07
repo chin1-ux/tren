@@ -191,6 +191,25 @@ class InstagramScraper:
         self._last_scrape_result = "not started"
         self._last_scrape_stats = {}
         
+        # Dynamically create cookies.json from INSTAGRAM_COOKIES_B64 env var if missing
+        cookies_path = os.path.join(script_dir, "cookies.json")
+        if not os.path.exists(cookies_path):
+            cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+            if cookies_b64:
+                import base64
+                try:
+                    decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
+                    # Validate JSON
+                    json.loads(decoded)
+                    with open(cookies_path, "w", encoding="utf-8") as f:
+                        f.write(decoded)
+                    logger.info("Successfully reconstructed cookies.json from INSTAGRAM_COOKIES_B64 environment variable.")
+                except Exception as b64_err:
+                    logger.error(f"Failed to decode or write cookies from INSTAGRAM_COOKIES_B64: {b64_err}")
+            else:
+                logger.warning("cookies.json not found and INSTAGRAM_COOKIES_B64 environment variable is empty.")
+
+        
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
         if not self.supabase_url or not self.supabase_key:
