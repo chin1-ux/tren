@@ -12,17 +12,27 @@ export function BottomTabBar() {
   const navigate = useNavigate();
   const { user, logout } = useAuth();
 
+  const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
+  const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
+
   const { data: emergingTrends } = useQuery({
     queryKey: ["trends-emerging", "all"],
     queryFn: () => fetchEmergingTrends(),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
+    enabled: !shouldHide,
   });
+
   const emergingCount = emergingTrends?.length ?? 0;
+
+  if (shouldHide) {
+    return null;
+  }
 
   const handleLogout = async () => {
     await logout();
     navigate({ to: "/login" });
+
   };
 
   const tabs = [
