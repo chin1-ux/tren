@@ -19,6 +19,22 @@ HASHTAG_POOL_MAP = {
         "viralreels", "reelsviral", "tiktok", "aesthetic", "music",
         "travel", "fashion", "beauty", "art",
     },
+    "MICRO_DANCE": {
+        "microdance", "trendingdance", "viralchallenge", "dancehacks",
+        "indiandance", "southdance", "bangaloredance", "punjabidance"
+    },
+    "MICRO_FOOD": {
+        "foodcreators", "microfood", "tastyfood", "indianfood",
+        "streetfood", "foodrecipe", "kitchenhacks", "homecooking"
+    },
+    "MICRO_FASHION": {
+        "fashionhacks", "styletips", "outfitideas", "microfashion",
+        "indianfashion", "sareestyle", "fashiondiy", "budgetfashion"
+    },
+    "MICRO_COMEDY": {
+        "funnyreels", "comedyhacks", "relatable", "microcomedy",
+        "indiancomedy", "viralcomedy", "humor", "troll"
+    },
 }
 
 HASHTAG_NICHE_MAP = {
