@@ -386,7 +386,12 @@ export function setAuthToken(token: string | null) {
 
 export function getAuthToken(): string | null {
   if (!inMemoryToken && typeof window !== "undefined") {
-    inMemoryToken = localStorage.getItem("trendrop_token");
+    // Check for new session token first
+    inMemoryToken = localStorage.getItem("trendrop_session_token");
+    // Fall back to old token for backward compatibility
+    if (!inMemoryToken) {
+      inMemoryToken = localStorage.getItem("trendrop_token");
+    }
   }
   return inMemoryToken;
 }
@@ -403,12 +408,19 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 401) {
     if (typeof window !== "undefined") {
+      // Clear both old and new auth tokens
       localStorage.removeItem("trendrop_token");
+      localStorage.removeItem("trendrop_session_token");
+      localStorage.removeItem("trendrop_user_email");
+      localStorage.removeItem("trendrop_user_niche");
+      localStorage.removeItem("trendrop_user_language");
       localStorage.removeItem("trendrop_onboarded");
       setAuthToken(null);
       import("../store/useAppStore").then(({ useUserStore }) => {
         useUserStore.getState().logout();
       });
+      // Redirect to login page
+      window.location.href = "/login";
     }
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
@@ -1152,6 +1164,103 @@ export async function subscribe(body: {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body),
+  });
+}
+
+// ── Authentication API Functions ───────────────────────────────────────────────────────
+
+export async function login(email: string, password: string): Promise<{
+  success: boolean;
+  message: string;
+  session_token?: string;
+  expires_at?: string;
+  user?: {
+    email: string;
+    niche: string;
+    language: string;
+  };
+  error?: string;
+}> {
+  return http<{
+    success: boolean;
+    message: string;
+    session_token?: string;
+    expires_at?: string;
+    user?: {
+      email: string;
+      niche: string;
+      language: string;
+    };
+    error?: string;
+  }>("/api/auth/login", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export async function signup(
+  email: string,
+  password: string,
+  niche: string,
+  language: string
+): Promise<{
+  success: boolean;
+  message: string;
+  user?: {
+    email: string;
+    niche: string;
+    language: string;
+  };
+  error?: string;
+}> {
+  return http<{
+    success: boolean;
+    message: string;
+    user?: {
+      email: string;
+      niche: string;
+      language: string;
+    };
+    error?: string;
+  }>("/api/auth/signup", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, password, niche, language }),
+  });
+}
+
+export async function logout(sessionToken: string): Promise<{ success: boolean; message: string }> {
+  return http<{ success: boolean; message: string }>("/api/auth/logout", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_token }),
+  });
+}
+
+export async function verifySession(sessionToken: string): Promise<{
+  success: boolean;
+  valid: boolean;
+  user?: {
+    email: string;
+    niche: string;
+    language: string;
+  };
+  error?: string;
+}> {
+  return http<{
+    success: boolean;
+    valid: boolean;
+    user?: {
+      email: string;
+      niche: string;
+      language: string;
+    };
+    error?: string;
+  }>("/api/auth/verify", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ session_token }),
   });
 }
 

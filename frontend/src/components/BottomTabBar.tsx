@@ -1,13 +1,16 @@
-import { Link, useRouterState } from "@tanstack/react-router";
-import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3 } from "lucide-react";
+import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
+import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchEmergingTrends } from "@/lib/api";
 import { motion } from "framer-motion";
 import { TrenddropLogo } from "@/components/TrenddropLogo";
+import { useAuth } from "@/contexts/AuthContext";
 
 export function BottomTabBar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
+  const navigate = useNavigate();
+  const { user, logout } = useAuth();
 
   const { data: emergingTrends } = useQuery({
     queryKey: ["trends-emerging", "all"],
@@ -17,13 +20,18 @@ export function BottomTabBar() {
   });
   const emergingCount = emergingTrends?.length ?? 0;
 
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/login" });
+  };
+
   const tabs = [
     { to: "/", label: "Trends", Icon: Flame },
     { to: "/dashboard", label: "Dashboard", Icon: BarChart3 },
     { to: "/generate", label: "Generate", Icon: Sparkles },
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
     { to: "/deals", label: "Deals", Icon: Handshake },
-    { to: "/profile", label: "Profile", Icon: User },
+    user ? { to: "/profile", label: "Profile", Icon: User } : { to: "/login", label: "Login", Icon: LogIn },
   ] as const;
 
   return (
@@ -33,42 +41,67 @@ export function BottomTabBar() {
           const isActive = to === "/"
             ? currentPath === "/"
             : currentPath.startsWith(to);
+          
+          // Handle logout click
+          const handleClick = label === "Profile" && user ? (e: React.MouseEvent) => {
+            e.preventDefault();
+            handleLogout();
+          } : undefined;
+
           return (
             <li key={to}>
-              <Link
-                to={to}
-                className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${
-                  isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
-                }`}
-              >
-                {/* Active indicator line at top */}
-                {isActive && (
-                  <motion.div
-                    layoutId="activeTabIndicator"
-                    className="absolute top-0 left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_rgba(230,57,70,0.5)]"
-                    transition={{ type: "spring", stiffness: 380, damping: 30 }}
-                  />
-                )}
-                <motion.div
-                  animate={isActive ? { scale: 1.15 } : { scale: 1 }}
-                  whileHover={{ scale: 1.1 }}
-                  className="relative"
+              {handleClick ? (
+                <button
+                  onClick={handleClick}
+                  className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
                 >
-                  {/* Show logo icon only on the Trends tab */}
-                  {label === "Trends" ? (
-                    <TrenddropLogo iconOnly size={20} animate={false} />
-                  ) : (
-                    <Icon className="h-5 w-5" />
+                  <motion.div
+                    animate={isActive ? { scale: 1.15 } : { scale: 1 }}
+                    whileHover={{ scale: 1.1 }}
+                    className="relative"
+                  >
+                    <LogOut className="h-5 w-5" />
+                  </motion.div>
+                  <span className="text-[10px] sm:text-[11px] font-display mt-0.5">Logout</span>
+                </button>
+              ) : (
+                <Link
+                  to={to}
+                  className={`relative flex flex-col items-center justify-center gap-0.5 py-2 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${
+                    isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
+                  }`}
+                >
+                  {/* Active indicator line at top */}
+                  {isActive && (
+                    <motion.div
+                      layoutId="activeTabIndicator"
+                      className="absolute top-0 left-1/2 h-[3px] w-8 -translate-x-1/2 rounded-full bg-primary shadow-[0_0_8px_rgba(230,57,70,0.5)]"
+                      transition={{ type: "spring", stiffness: 380, damping: 30 }}
+                    />
                   )}
-                  {/* Emerging count badge on Trends tab */}
-                  {label === "Trends" && emergingCount > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-extrabold text-white animate-pulse">
-                      {emergingCount}
-                    </span>
-                  )}
-                </motion.div>
-                <span className="text-[10px] sm:text-[11px] font-display mt-0.5">{label}</span>
-              </Link>
+                  <motion.div
+                    animate={isActive ? { scale: 1.15 } : { scale: 1 }}
+                    whileHover={{ scale: 1.1 }}
+                    className="relative"
+                  >
+                    {/* Show logo icon only on the Trends tab */}
+                    {label === "Trends" ? (
+                      <TrenddropLogo iconOnly size={20} animate={false} />
+                    ) : (
+                      <Icon className="h-5 w-5" />
+                    )}
+                    {/* Emerging count badge on Trends tab */}
+                    {label === "Trends" && emergingCount > 0 && (
+                      <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-extrabold text-white animate-pulse">
+                        {emergingCount}
+                      </span>
+                    )}
+                  </motion.div>
+                  <span className="text-[10px] sm:text-[11px] font-display mt-0.5">{label}</span>
+                </Link>
+              )}
             </li>
           );
         })}
