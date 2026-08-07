@@ -20,7 +20,6 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
-  const navigate = useNavigate();
 
   const checkAuth = async () => {
     setLoading(true);
@@ -43,8 +42,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (data.success && data.valid) {
         setUser(data.user);
-      // Navigate to main screen after successful auth
-      window.location.href = "/";
         localStorage.setItem("trendrop_user_email", data.user.email);
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
@@ -105,8 +102,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("trendrop_user_niche", data.user.niche);
       localStorage.setItem("trendrop_user_language", data.user.language);
       setUser(data.user);
-      // Navigate to main screen after successful auth
-      window.location.href = "/";
       // Navigate to main screen after successful signup
       window.location.href = "/";
     } else {
