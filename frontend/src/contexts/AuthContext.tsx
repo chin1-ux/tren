@@ -27,6 +27,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const sessionToken = localStorage.getItem("trendrop_session_token");
       if (!sessionToken) {
         setUser(null);
+        setLoading(false);
         return;
       }
 
@@ -35,7 +36,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ session_token }),
+        body: JSON.stringify({ session_token: sessionToken }),
       });
 
       const data = await response.json();
@@ -55,6 +56,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error) {
       console.error("Auth check failed:", error);
+      // Clear session on error
+      localStorage.removeItem("trendrop_session_token");
+      localStorage.removeItem("trendrop_user_email");
+      localStorage.removeItem("trendrop_user_niche");
+      localStorage.removeItem("trendrop_user_language");
       setUser(null);
     } finally {
       setLoading(false);
