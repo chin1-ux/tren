@@ -37,6 +37,7 @@ jobs:
           if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
             echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
             echo "Cookies file created successfully"
+            python backend/validate_cookies_format.py
           else
             echo "Instagram cookies not configured - will use username/password authentication"
           fi
