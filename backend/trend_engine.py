@@ -440,6 +440,11 @@ def classify_single_trend(trend):
         else:
             trend["optimal_post_hour_ist"] = 20
 
+    # The main detection loop is deterministic. Set status to not_needed
+    # so they are instantly visible in the API. The nightly batch will pick
+    # them up and upgrade them to 'completed' after the actual LLM runs.
+    trend["llm_classification_status"] = "not_needed"
+
 class TrendEngine:
     def __init__(self):
         load_dotenv()
