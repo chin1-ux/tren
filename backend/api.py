@@ -376,6 +376,54 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     return {"status": "triggered", "message": "Scraper pipeline running in background task"}
 
 
+@app.get("/api/cron/refresh", tags=["Cron"])
+async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTasks):
+    """
+    Lightweight cron: runs ONLY TrendRefresher to update trend statuses (rising/peaked/expired).
+    No scraping — completes within Vercel's serverless timeout (< 60s).
+    Runs every 2 hours to keep statuses fresh between full scrape runs.
+    """
+    cron_secret = os.getenv("CRON_SECRET")
+    auth_header = request.headers.get("Authorization")
+    secret_param = request.query_params.get("secret")
+
+    is_authorized = False
+    if cron_secret:
+        if auth_header == f"Bearer {cron_secret}" or secret_param == cron_secret:
+            is_authorized = True
+    else:
+        is_authorized = True
+
+    if not is_authorized:
+        raise HTTPException(status_code=401, detail="Unauthorized")
+
+    def _run_refresh():
+        try:
+            if TrendRefresher is None:
+                logger.error("TrendRefresher not available")
+                return
+            logger.info("=== /api/cron/refresh: Starting TrendRefresher ===")
+            refresher = TrendRefresher()
+            summary = refresher.refresh_all()
+            logger.info(f"=== /api/cron/refresh: Done: {summary} ===")
+            # Invalidate Redis cache so next API request gets fresh statuses
+            if standard_queue and standard_queue.connection:
+                try:
+                    keys = standard_queue.connection.keys("trends:*")
+                    if keys:
+                        standard_queue.connection.delete(*keys)
+                        logger.info(f"Invalidated {len(keys)} trend cache keys after refresh")
+                except Exception as cache_err:
+                    logger.warning(f"Cache invalidation failed: {cache_err}")
+        except Exception as e:
+            logger.error(f"/api/cron/refresh failed: {e}", exc_info=True)
+
+    background_tasks.add_task(_run_refresh)
+    return {"status": "triggered", "message": "TrendRefresher running in background task"}
+
+
+
+
 @app.get("/api/creator/diagnostics", tags=["Creator Tools"])
 async def get_creator_diagnostics(email: str):
     """Endpoint to run flop diagnostics on the user's synced posts."""
