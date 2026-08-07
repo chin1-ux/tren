@@ -37,7 +37,7 @@ jobs:
           if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
             echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
             echo "Cookies file created successfully"
-            python backend/validate_cookies_format.py
+            cd backend && python validate_cookies_format.py && cd ..
           else
             echo "Instagram cookies not configured - will use username/password authentication"
           fi
@@ -52,6 +52,9 @@ jobs:
       - name: Initialize auth system
         continue-on-error: true
         env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
         run: |
           python backend/auth_system.py

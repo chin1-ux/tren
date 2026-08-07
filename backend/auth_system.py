@@ -13,14 +13,19 @@ from supabase import create_client
 
 load_dotenv()
 
-# Initialize Supabase client
-url = os.getenv('SUPABASE_URL')
-key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+# Initialize Supabase client (lazy initialization for GitHub Actions compatibility)
+sb = None
 
-if not url or not key:
-    raise RuntimeError('Supabase credentials not set in environment')
-
-sb = create_client(url, key)
+def get_supabase_client():
+    """Get Supabase client with lazy initialization"""
+    global sb
+    if sb is None:
+        url = os.getenv('SUPABASE_URL')
+        key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+        if not url or not key:
+            raise RuntimeError('Supabase credentials not set in environment')
+        sb = create_client(url, key)
+    return sb
 
 # Session duration (in hours)
 SESSION_DURATION_HOURS = 24
@@ -37,8 +42,9 @@ def create_user(email: str, password: str, niche: str = "all", language: str = "
     """
     Create a new user with hashed password
     """
+    client = get_supabase_client()
     # Check if user already exists
-    existing = sb.table('users').select('*').eq('email', email).execute()
+    existing = client.table('users').select('*').eq('email', email).execute()
     if existing.data:
         return {'success': False, 'error': 'User already exists'}
 
@@ -54,7 +60,7 @@ def create_user(email: str, password: str, niche: str = "all", language: str = "
         'created_at': datetime.now().isoformat()
     }
 
-    result = sb.table('users').insert(user_data).execute()
+    result = client.table('users').insert(user_data).execute()
 
     if result.data:
         return {'success': True, 'user': result.data[0]}
@@ -66,8 +72,9 @@ def login_user(email: str, password: str) -> dict:
     Login user with email and password
     Returns session token if successful
     """
+    client = get_supabase_client()
     # Get user by email
-    result = sb.table('users').select('*').eq('email', email).execute()
+    result = client.table('users').select('*').eq('email', email).execute()
 
     if not result.data:
         return {'success': False, 'error': 'User not found'}
@@ -91,7 +98,7 @@ def login_user(email: str, password: str) -> dict:
         'created_at': datetime.now().isoformat()
     }
 
-    sb.table('user_sessions').insert(session_data).execute()
+    client.table('user_sessions').insert(session_data).execute()
 
     return {
         'success': True,
@@ -108,8 +115,9 @@ def verify_session(session_token: str) -> dict:
     """
     Verify session token and return user info if valid
     """
+    client = get_supabase_client()
     # Get session
-    result = sb.table('user_sessions').select('*').eq('session_token', session_token).execute()
+    result = client.table('user_sessions').select('*').eq('session_token', session_token).execute()
 
     if not result.data:
         return {'valid': False, 'error': 'Session not found'}
@@ -120,11 +128,11 @@ def verify_session(session_token: str) -> dict:
     # Check if session is expired
     if datetime.now() > expires_at:
         # Delete expired session
-        sb.table('user_sessions').delete().eq('session_token', session_token).execute()
+        client.table('user_sessions').delete().eq('session_token', session_token).execute()
         return {'valid': False, 'error': 'Session expired'}
 
     # Get user info
-    user_result = sb.table('users').select('*').eq('email', session['user_email']).execute()
+    user_result = client.table('users').select('*').eq('email', session['user_email']).execute()
 
     if not user_result.data:
         return {'valid': False, 'error': 'User not found'}
@@ -144,7 +152,8 @@ def logout_user(session_token: str) -> dict:
     """
     Logout user by deleting session
     """
-    result = sb.table('user_sessions').delete().eq('session_token', session_token).execute()
+    client = get_supabase_client()
+    result = client.table('user_sessions').delete().eq('session_token', session_token).execute()
 
     return {'success': True}
 
@@ -152,7 +161,8 @@ def cleanup_expired_sessions():
     """
     Clean up expired sessions
     """
-    sb.table('user_sessions').delete().lt('expires_at', datetime.now().isoformat()).execute()
+    client = get_supabase_client()
+    client.table('user_sessions').delete().lt('expires_at', datetime.now().isoformat()).execute()
     return {'success': True}
 
 # Initialize auth tables
@@ -210,21 +220,28 @@ def init_auth_tables():
     print("[PASS] Auth tables initialized")
 
 if __name__ == "__main__":
-    # Initialize tables
-    init_auth_tables()
+    try:
+        # Initialize tables
+        init_auth_tables()
 
-    # Test auth system
-    print("\nTesting auth system...")
+        # Test auth system (only if credentials are available)
+        print("\nTesting auth system...")
 
-    # Create test user
-    print("\n1. Creating test user...")
-    result = create_user("test@example.com", "password123", "dance", "hi")
-    print(f"   Result: {result}")
+        # Create test user
+        print("\n1. Creating test user...")
+        result = create_user("test@example.com", "password123", "dance", "hi")
+        print(f"   Result: {result}")
 
-    # Login user
-    print("\n2. Logging in user...")
-    result = login_user("test@example.com", "password123")
-    print(f"   Result: {result}")
+        # Login user
+        print("\n2. Logging in user...")
+        result = login_user("test@example.com", "password123")
+        print(f"   Result: {result}")
+    except RuntimeError as e:
+        if "Supabase credentials not set" in str(e):
+            print("[INFO] Supabase credentials not set - skipping auth system test")
+            print("[INFO] Auth system initialization requires SUPABASE_URL and SUPABASE_KEY")
+        else:
+            raise
 
     if result.get('success'):
         session_token = result['session_token']
