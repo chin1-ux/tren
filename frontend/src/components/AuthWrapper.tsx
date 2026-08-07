@@ -1,6 +1,6 @@
 import { useAuth } from "@/contexts/AuthContext";
 import { Loader2 } from "lucide-react";
-import { useNavigate } from "@tanstack/react-router";
+import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect } from "react";
 
 // Public routes that don't require authentication
@@ -9,7 +9,8 @@ const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
-  const currentPath = window.location.pathname;
+  const routerState = useRouterState();
+  const currentPath = routerState.location.pathname;
 
   // Show loading state
   if (loading) {
