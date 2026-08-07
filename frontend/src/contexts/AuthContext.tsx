@@ -1,5 +1,6 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
+import { setAuthToken } from "@/lib/api";
 
 interface User {
   email: string;
@@ -23,6 +24,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+
   const checkAuth = async () => {
     setLoading(true);
     try {
@@ -45,11 +47,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       
       if (data && data.success && data.valid && data.user) {
         setUser(data.user);
+        setAuthToken(token);
         localStorage.setItem("trendrop_user_email", data.user.email);
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
       } else {
         // Session invalid, clear it
+        setAuthToken(null);
         localStorage.removeItem("trendrop_session_token");
         localStorage.removeItem("trendrop_user_email");
         localStorage.removeItem("trendrop_user_niche");
@@ -59,6 +63,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     } catch (error) {
       console.error("Auth check failed:", error);
       // Clear session on error
+      setAuthToken(null);
       localStorage.removeItem("trendrop_session_token");
       localStorage.removeItem("trendrop_user_email");
       localStorage.removeItem("trendrop_user_niche");
@@ -81,6 +86,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     
     if (data.success) {
+      setAuthToken(data.session_token);
       localStorage.setItem("trendrop_session_token", data.session_token);
       localStorage.setItem("trendrop_user_email", data.user.email);
       localStorage.setItem("trendrop_user_niche", data.user.niche);
@@ -105,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     
     if (data.success) {
+      setAuthToken(data.session_token);
       localStorage.setItem("trendrop_session_token", data.session_token);
       localStorage.setItem("trendrop_user_email", data.user.email);
       localStorage.setItem("trendrop_user_niche", data.user.niche);
@@ -134,6 +141,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     }
 
+    setAuthToken(null);
     localStorage.removeItem("trendrop_session_token");
     localStorage.removeItem("trendrop_user_email");
     localStorage.removeItem("trendrop_user_niche");
