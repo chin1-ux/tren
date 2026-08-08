@@ -293,9 +293,6 @@ export interface UiTrend {
   audioOriginalReleaseYear?: number;
   audioGenre?: string;
   audioLabel?: string;
-  reelId?: string;
-  contentTone?: string;
-  nicheFitScore?: number;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
