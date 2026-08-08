@@ -277,7 +277,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   };
 
   const isEmerging = trend.isEmerging || trend.status === "emerging";
-  const isMegaTrend = trend.isMega;
+  const isMegaTrend = (trend.viralMultiplier ?? 0) >= 50;
   
   const platformMeta = getPlatformMeta(trend.bestPlatformFirst ?? "instagram");
   const creatorFit = trend.creatorFitScore ?? 0;
@@ -565,7 +565,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           );
         })}
         {remainingCount > 0 && (
-          <Chip className="bg-white/5 text-muted-foreground cursor-help" title={nichesToDisplay.slice(2).join(", ")}>
+          <Chip className="bg-white/5 text-muted-foreground cursor-help">
             +{remainingCount} more
           </Chip>
         )}
@@ -921,7 +921,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       </AnimatePresence>
       <TrendProofSection 
         trendId={trend.id} 
-        isPeaking={trend.peakingScore && trend.peakingScore >= 70} 
+        isPeaking={!!(trend.peakingScore && trend.peakingScore >= 70)}
       />
       <TrendPreviewModal
         trend={trend}
