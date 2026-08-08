@@ -1443,6 +1443,27 @@ def get_trend_timeline(request: Request, trend_id: int, current_user: str = Depe
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
+@app.get("/api/trends/targeted")
+def get_targeted_trends(authorization: Optional[str] = Header(None)):
+    """Fetch all trends currently targeted by the authenticated user. Returns [] for guests."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        user_id = _resolve_user(authorization)
+        if not user_id:
+            return []  # Guests see an empty workspace — no error
+
+        actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_id).eq("action_type", "target").execute()
+        trend_ids = [a["trend_id"] for a in actions_res.data or []]
+        if not trend_ids:
+            return []
+
+        trends_res = supabase.table("trends").select("*").in_("id", trend_ids).execute()
+        return _normalize_trends(trends_res.data or [])
+    except Exception as e:
+        logger.error(f"Error fetching targeted trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 @app.get("/api/trends/{trend_id}")
 @limiter.limit("60/minute")
@@ -1802,27 +1823,6 @@ def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, aut
         logger.error(f"Error toggling target: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-
-@app.get("/api/trends/targeted")
-def get_targeted_trends(authorization: Optional[str] = Header(None)):
-    """Fetch all trends currently targeted by the authenticated user. Returns [] for guests."""
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
-    try:
-        user_id = _resolve_user(authorization)
-        if not user_id:
-            return []  # Guests see an empty workspace — no error
-
-        actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_id).eq("action_type", "target").execute()
-        trend_ids = [a["trend_id"] for a in actions_res.data or []]
-        if not trend_ids:
-            return []
-
-        trends_res = supabase.table("trends").select("*").in_("id", trend_ids).execute()
-        return _normalize_trends(trends_res.data or [])
-    except Exception as e:
-        logger.error(f"Error fetching targeted trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # ── User / Subscribe ───────────────────────────────────────────────────────────
