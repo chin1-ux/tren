@@ -327,6 +327,41 @@ except Exception as e:
 creator_tools = CreatorTools()
 MOCK_JOBS = {}
 
+def _resolve_user(authorization: Optional[str]) -> Optional[str]:
+    """
+    Returns a stable user identifier string given an Authorization header.
+
+    Priority:
+      1. Supabase JWT  -> returns Supabase user UUID
+      2. Custom auth_token from our `users` table -> returns the user email
+      3. None if neither matches
+    """
+    if not authorization or not authorization.startswith("Bearer "):
+        return None
+    token = authorization.split("Bearer ", 1)[1].strip()
+    if not token:
+        return None
+
+    # --- Try Supabase JWT first ---
+    if supabase:
+        try:
+            user_res = supabase.auth.get_user(jwt=token)
+            if user_res and user_res.user:
+                return str(user_res.user.id)
+        except Exception:
+            pass
+
+        # --- Fall back to custom auth_token in users table ---
+        try:
+            res = supabase.table("users").select("email").eq("auth_token", token).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                return res.data[0]["email"]
+        except Exception:
+            pass
+
+    return None
+
+
 import tempfile
 base_dir = os.getenv("VERCEL_TMP_DIR", tempfile.gettempdir())
 uploads_path = os.path.join(base_dir, "uploads")
@@ -1733,79 +1768,56 @@ def save_trend_memory(request: Request, trend_id: int, req: MemoryRequest, curre
 
 @app.post("/api/trends/{trend_id}/target")
 @limiter.limit("30/minute")
-def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, authorization: str = Header(None)):
+def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, authorization: Optional[str] = Header(None)):
     """Add or remove a trend from the user's targeted list, updating saturation."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        user_uuid = None
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split("Bearer ")[1].strip()
-            try:
-                user_res = supabase.auth.get_user(jwt=token)
-                if user_res and user_res.user:
-                    user_uuid = user_res.user.id
-            except Exception:
-                pass
-        
-        if not user_uuid:
+        user_id = _resolve_user(authorization)
+        if not user_id:
             raise HTTPException(status_code=401, detail="Authentication required to target trends")
 
         if req.action == "target":
-            # Upsert target action
             supabase.table("trend_actions").upsert({
-                "user_id": user_uuid,
+                "user_id": user_id,
                 "trend_id": trend_id,
                 "action_type": "target"
             }, on_conflict="user_id,trend_id,action_type").execute()
-            
-            # Recalculate saturation_count
             count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
             sat_count = count_res.count or 0
             supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
             return {"success": True, "action": "target", "saturation_count": sat_count}
-            
+
         elif req.action == "untarget":
-            # Delete target action
-            supabase.table("trend_actions").delete().eq("user_id", user_uuid).eq("trend_id", trend_id).eq("action_type", "target").execute()
-            
-            # Recalculate saturation_count
+            supabase.table("trend_actions").delete().eq("user_id", user_id).eq("trend_id", trend_id).eq("action_type", "target").execute()
             count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
             sat_count = count_res.count or 0
             supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
             return {"success": True, "action": "untarget", "saturation_count": sat_count}
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error toggling target: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @app.get("/api/trends/targeted")
-@limiter.limit("60/minute")
-def get_targeted_trends(request: Request, authorization: str = Header(None)):
-    """Fetch all trends currently targeted by the authenticated user."""
+def get_targeted_trends(authorization: Optional[str] = Header(None)):
+    """Fetch all trends currently targeted by the authenticated user. Returns [] for guests."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        user_uuid = None
-        if authorization and authorization.startswith("Bearer "):
-            token = authorization.split("Bearer ")[1].strip()
-            try:
-                user_res = supabase.auth.get_user(jwt=token)
-                if user_res and user_res.user:
-                    user_uuid = user_res.user.id
-            except Exception:
-                pass
-        
-        if not user_uuid:
-            raise HTTPException(status_code=401, detail="Authentication required")
-            
-        actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_uuid).eq("action_type", "target").execute()
+        user_id = _resolve_user(authorization)
+        if not user_id:
+            return []  # Guests see an empty workspace — no error
+
+        actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_id).eq("action_type", "target").execute()
         trend_ids = [a["trend_id"] for a in actions_res.data or []]
         if not trend_ids:
             return []
-            
+
         trends_res = supabase.table("trends").select("*").in_("id", trend_ids).execute()
         return _normalize_trends(trends_res.data or [])
     except Exception as e:

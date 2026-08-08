@@ -56,7 +56,7 @@ class TrendRefresher:
         """
         logger.info("=== TrendRefresher starting refresh_all ===")
         now = datetime.now(timezone.utc)
-        summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0}
+        summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0, "audio_page_count_refreshed": 0}
         rising_baseline = self._get_rising_baseline()
 
         try:
@@ -82,6 +82,12 @@ class TrendRefresher:
                 # Always refresh audio use count first, regardless of status
                 if self._refresh_audio_use_count(trend):
                     summary["audio_use_count_refreshed"] += 1
+
+                # Refresh official Instagram audio page count every other run (rate limit safe)
+                audio_id = trend.get("audio_id")
+                if audio_id and current_status in ["emerging", "rising"]:
+                    if self._refresh_audio_page_count(trend_id, audio_id):
+                        summary["audio_page_count_refreshed"] += 1
 
                 # Refresh peaking score for active trends
                 if current_status in ["emerging", "rising"]:
@@ -284,6 +290,50 @@ class TrendRefresher:
         except Exception as e:
             logger.warning(f"Could not refresh peaking_score for trend_id={trend.get('id')}: {e}")
             return 0.0
+
+    def _refresh_audio_page_count(self, trend_id: int, audio_id: str) -> bool:
+        """
+        Fetches the official reel count from the Instagram Audio page for this audio_id.
+        Uses a lightweight requests-based fetch (no browser needed for meta tags).
+        Updates trends.audio_use_count if the scraped value is higher than stored.
+        Returns True if an update was written.
+        """
+        import re as _re
+        import requests as _requests
+        try:
+            url = f"https://www.instagram.com/reels/audio/{audio_id}/"
+            headers = {
+                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
+                "Accept-Language": "en-US,en;q=0.9",
+            }
+            resp = _requests.get(url, headers=headers, timeout=10)
+            if resp.status_code != 200:
+                logger.warning(f"Audio page fetch failed for {audio_id}: HTTP {resp.status_code}")
+                return False
+
+            text = resp.text
+            # Extract count from text like "1.2M reels" / "45.2K reels" / "520 reels"
+            match = _re.search(r'([\d,.]+)([KkMmBb]?)\s*(?:reels|Reels)', text)
+            if not match:
+                logger.debug(f"No reel count found on audio page for {audio_id}")
+                return False
+
+            raw, suffix = match.group(1).replace(',', ''), match.group(2).upper()
+            multiplier = {'K': 1_000, 'M': 1_000_000, 'B': 1_000_000_000}.get(suffix, 1)
+            live_count = int(float(raw) * multiplier)
+
+            # Read current value before updating
+            res = self.supabase.table("trends").select("audio_use_count").eq("id", trend_id).limit(1).execute()
+            stored = (res.data or [{}])[0].get("audio_use_count") or 0
+
+            if live_count > stored:
+                self.supabase.table("trends").update({"audio_use_count": live_count}).eq("id", trend_id).execute()
+                logger.info(f"[AUDIO_PAGE] trend_id={trend_id} audio_id={audio_id}: {stored} -> {live_count}")
+                return True
+            return False
+        except Exception as e:
+            logger.warning(f"_refresh_audio_page_count failed for trend_id={trend_id}: {e}")
+            return False
 
     def _refresh_audio_use_count(self, trend: dict) -> bool:
         """
