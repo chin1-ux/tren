@@ -1003,17 +1003,38 @@ def _normalize_trends(trends: list) -> list:
     return trends
 
 
-def _trend_priority_key(trend: dict) -> tuple[int, int, float, float]:
+def _trend_priority_key(trend: dict, user_niche: str = "all", user_lang: str = "all") -> tuple[float, int, int, float, float]:
     origin = (trend.get("trend_origin") or "").upper()
     is_cross = bool(trend.get("is_cross_cultural"))
     global_first = 1 if is_cross or origin not in {"", "IN", "UNKNOWN"} else 0
     regional = 0 if origin in {"", "IN", "UNKNOWN"} else 1
     if is_cross:
         regional = 0
+
+    # 1. Personalization Boost
+    niche_boost = 0.0
+    trend_niche = (trend.get("niche_tag") or "general").lower()
+    if user_niche != "all" and user_niche.lower() in [trend_niche, (trend.get("content_type") or "").lower()]:
+        niche_boost = 50.0  # Heavy boost for niche matching
+        
+    lang_boost = 0.0
+    trend_lang = (trend.get("language") or "").lower()
+    if user_lang != "all" and user_lang.lower() == trend_lang:
+        lang_boost = 20.0  # Boost for language match
+
+    # 2. Saturation Penalty (Game Theory Downranking)
+    # Penalize if multiple creators are actively targeting this trend
+    sat_count = trend.get("saturation_count") or 0
+    saturation_penalty = sat_count * 15.0
+
+    base_score = float(trend.get("composite_score") or trend.get("velocity_avg") or 0.0)
+    personalized_score = base_score + niche_boost + lang_boost - saturation_penalty
+
     return (
+        personalized_score,
         global_first,
         regional,
-        float(trend.get("composite_score") or trend.get("velocity_avg") or 0.0),
+        base_score,
         float(trend.get("reel_count") or 0),
     )
 
@@ -1032,7 +1053,8 @@ def get_trends(
     """
     lang_key = language or "all"
     niche_key = niche or "all"
-    cache_key = f"trends:{lang_key}:{sort}:{niche_key}"
+    user_email = current_user if current_user else "guest"
+    cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_email}"
     
     # Try fetching from Redis cache first
     if standard_queue and standard_queue.connection:
@@ -1048,6 +1070,18 @@ def get_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
+        # Load user configuration for personalization
+        user_niche = "all"
+        user_lang = "all"
+        if current_user and current_user != "guest@trendrop.app":
+            try:
+                user_res = supabase.table("users").select("niche, language_preference").eq("email", current_user).limit(1).execute()
+                if user_res.data:
+                    user_niche = user_res.data[0].get("niche") or "all"
+                    user_lang = user_res.data[0].get("language_preference") or "all"
+            except Exception as e:
+                logger.warning(f"Error querying user profile for personalization: {e}")
+
         q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed"])
 
         if language and language != "all":
@@ -1066,7 +1100,7 @@ def get_trends(
         q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -1092,6 +1126,18 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
+        # Load user config for personalization
+        user_niche = "all"
+        user_lang = "all"
+        if current_user and current_user != "guest@trendrop.app":
+            try:
+                user_res = supabase.table("users").select("niche, language_preference").eq("email", current_user).limit(1).execute()
+                if user_res.data:
+                    user_niche = user_res.data[0].get("niche") or "all"
+                    user_lang = user_res.data[0].get("language_preference") or "all"
+            except Exception as e:
+                logger.warning(f"Error querying user profile: {e}")
+
         q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed"])
         if language and language != "all":
             q = q.eq("language", language)
@@ -1099,7 +1145,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
         q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
         return trends
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)

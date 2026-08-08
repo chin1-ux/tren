@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, type UiTrend } from "@/lib/api";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -52,7 +52,7 @@ const NICHES = [
   { id: "beauty",   label: "💄 Beauty" },
 ];
 
-type FeedTab = "rising" | "emerging" | "peaked" | "expired";
+type FeedTab = "rising" | "emerging" | "peaked" | "expired" | "workspace";
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
@@ -148,6 +148,17 @@ function TrendsFeed() {
     refetchInterval: 5 * 60_000,
   });
 
+  const {
+    data: targetedData,
+    isLoading: targetedLoading,
+    isError: targetedError,
+    refetch: refetchTargeted,
+  } = useQuery({
+    queryKey: ["trends-targeted"],
+    queryFn: () => fetchTargetedTrends(),
+    staleTime: 10_000,
+  });
+
   const emergingCount = emergingData?.length ?? 0;
 
   // Notify on new emerging trends
@@ -212,11 +223,24 @@ function TrendsFeed() {
     ? (risingFallbackToPeaked ? deduplicatedTrends.peaked : deduplicatedTrends.rising)
     : feedTab === "emerging" ? deduplicatedTrends.emerging
     : feedTab === "peaked" ? deduplicatedTrends.peaked
-    : deduplicatedTrends.expired;
-  const isLoading = feedTab === "rising" ? risingLoading : feedTab === "emerging" ? emergingLoading : feedTab === "peaked" ? peakedLoading : expiredLoading;
-  const isError = feedTab === "rising" ? risingError : feedTab === "emerging" ? emergingError : feedTab === "peaked" ? peakedError : expiredError;
+    : feedTab === "expired" ? deduplicatedTrends.expired
+    : targetedData;
+  const isLoading = feedTab === "rising" ? risingLoading 
+    : feedTab === "emerging" ? emergingLoading 
+    : feedTab === "peaked" ? peakedLoading 
+    : feedTab === "expired" ? expiredLoading
+    : targetedLoading;
+  const isError = feedTab === "rising" ? risingError 
+    : feedTab === "emerging" ? emergingError 
+    : feedTab === "peaked" ? peakedError 
+    : feedTab === "expired" ? expiredError
+    : targetedError;
 
-  const refetch = feedTab === "rising" ? refetchRising : feedTab === "emerging" ? refetchEmerging : feedTab === "peaked" ? refetchPeaked : refetchExpired;
+  const refetch = feedTab === "rising" ? refetchRising 
+    : feedTab === "emerging" ? refetchEmerging 
+    : feedTab === "peaked" ? refetchPeaked 
+    : feedTab === "expired" ? refetchExpired
+    : refetchTargeted;
 
   const trends = useMemo(() => {
     const list = activeData ?? [];
@@ -306,7 +330,7 @@ function TrendsFeed() {
 
       {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
-        <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3">
+        <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3 overflow-x-auto no-scrollbar">
           <TabButton
             active={feedTab === "rising"}
             onClick={() => setFeedTab("rising")}
@@ -321,6 +345,13 @@ function TrendsFeed() {
             label="Emerging"
             count={deduplicatedTrends.emerging.length}
             urgent
+          />
+          <TabButton
+            active={feedTab === "workspace"}
+            onClick={() => setFeedTab("workspace")}
+            icon={<Target className="h-3.5 w-3.5" />}
+            label="Workspace"
+            count={targetedData?.length ?? 0}
           />
           <TabButton
             active={feedTab === "peaked"}
@@ -409,6 +440,13 @@ function TrendsFeed() {
             </p>
           </div>
         )}
+        {feedTab === "workspace" && (
+          <div className="rounded-xl border border-emerald-500/30 bg-[rgba(16,185,129,0.05)] p-3">
+            <p className="text-xs text-emerald-400 font-semibold">
+              🎯 <strong>My Workspace</strong> — Trends you are actively targeting. Follow the filming guides, download templates, and publish your content before other creators jump in.
+            </p>
+          </div>
+        )}
 
         {isError && (
           <div className="space-y-2">
@@ -427,10 +465,16 @@ function TrendsFeed() {
           </>
         ) : !isError && trends.length === 0 ? (
           <div className="glass-card p-12 text-center">
-            <p className="text-4xl mb-3">🎵</p>
-            <p className="text-base font-semibold">No trends right now</p>
+            <p className="text-4xl mb-3">
+              {feedTab === "workspace" ? "🎯" : "🎵"}
+            </p>
+            <p className="text-base font-semibold">
+              {feedTab === "workspace" ? "Your workspace is empty" : "No trends right now"}
+            </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {feedTab === "emerging"
+              {feedTab === "workspace"
+                ? "Target trends using the 'Target Trend' button on any trend card. They'll appear here for tracking."
+                : feedTab === "emerging"
                 ? "No emerging trends detected in the last 6 hours. Check back soon!"
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>

@@ -86,6 +86,18 @@ export interface ApiTrend {
   vibe_tag?: string;
   is_voiceover?: boolean;
   saturation_count?: number;
+  // v3 classification fields
+  reel_id?: string;
+  content_tone?: string;
+  niche_fit_score?: number;
+  trend_classification?: string;
+  velocity_pattern?: string;
+  is_evergreen?: boolean;
+  trend_age_hours?: number;
+  audio_release_date?: string;
+  audio_original_release_year?: number;
+  audio_genre?: string;
+  audio_label?: string;
 }
 
 export interface ApiCaptionKit {
@@ -134,6 +146,7 @@ type TrendCategory =
   | "Text Overlay"
   | "Faceless"
   | "Regional"
+  | "Global"
   | "Viral";
 
 const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }> = {
@@ -271,6 +284,18 @@ export interface UiTrend {
   vibeTag?: string;
   isVoiceover?: boolean;
   saturationCount?: number;
+  // v3 classification fields
+  trendClassification?: string;
+  velocityPattern?: string;
+  isEvergreen?: boolean;
+  trendAgeHours?: number;
+  audioReleaseDate?: string;
+  audioOriginalReleaseYear?: number;
+  audioGenre?: string;
+  audioLabel?: string;
+  reelId?: string;
+  contentTone?: string;
+  nicheFitScore?: number;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -1252,7 +1277,7 @@ export async function logout(sessionToken: string): Promise<{ success: boolean; 
   return http<{ success: boolean; message: string }>("/api/auth/logout", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_token }),
+    body: JSON.stringify({ session_token: sessionToken }),
   });
 }
 
@@ -1278,7 +1303,7 @@ export async function verifySession(sessionToken: string): Promise<{
   }>("/api/auth/verify", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ session_token }),
+    body: JSON.stringify({ session_token: sessionToken }),
   });
 }
 

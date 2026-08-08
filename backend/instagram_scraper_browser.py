@@ -261,6 +261,73 @@ class InstagramScraper:
     def _classify_caption_niches(self, caption: str, hashtags: list[str], source_hashtag_pool: str | None) -> list[str]:
         return [classify_niche(caption, hashtags, source_hashtag_pool=source_hashtag_pool)]
 
+    async def scrape_audio_page_async(self, audio_id: str) -> int | None:
+        """Navigates to Instagram Audio page and extracts the reel count."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("Failed to initialize browser session for audio page scrape.")
+                return None
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            page = await ctx.new_page()
+
+            url = f"https://www.instagram.com/reels/audio/{audio_id}/"
+            logger.info(f"Navigating to audio page: {url}")
+            await page.goto(url, wait_until="networkidle", timeout=20000)
+
+            try:
+                await page.wait_for_selector("span", timeout=5000)
+            except Exception:
+                pass
+
+            content = await page.content()
+            match = re.search(r'([\d,.\w]+)\s*(?:reels|posts|videos)', content, re.IGNORECASE)
+            if match:
+                raw_count = match.group(1).lower()
+                multiplier = 1
+                if 'k' in raw_count:
+                    multiplier = 1000
+                    raw_count = raw_count.replace('k', '')
+                elif 'm' in raw_count:
+                    multiplier = 1000000
+                    raw_count = raw_count.replace('m', '')
+                
+                raw_count = raw_count.replace(',', '').strip()
+                val = int(float(raw_count) * multiplier)
+                logger.info(f"Extracted count for audio_id {audio_id}: {val}")
+                return val
+
+            logger.warning(f"Could not extract reels count from audio page {audio_id}")
+            return None
+
+        except Exception as e:
+            logger.error(f"Error scraping audio page {audio_id}: {e}")
+            return None
+        finally:
+            if page:
+                await page.close()
+            if ctx:
+                await ctx.close()
+
     async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
         """Helper to navigate to creator profile using Playwright and intercept XHR response."""
         if not self._camoufox_browser or not self._camoufox_browser.is_connected():
