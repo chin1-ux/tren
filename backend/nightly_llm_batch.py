@@ -21,7 +21,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger("nightly_llm_batch")
 
-MAX_CALLS_PER_RUN = int(os.getenv("NIGHTLY_LLM_MAX_CALLS_PER_RUN", "5"))
+# Fix #8: Raised from 5 to 20 so all trends detected per pipeline run get enriched nightly
+MAX_CALLS_PER_RUN = int(os.getenv("NIGHTLY_LLM_MAX_CALLS_PER_RUN", "20"))
 BASE_DELAY_SECONDS = float(os.getenv("NIGHTLY_LLM_BASE_DELAY_SECONDS", "2.0"))
 MAX_DELAY_SECONDS = float(os.getenv("NIGHTLY_LLM_MAX_DELAY_SECONDS", "20.0"))
 MAX_RETRIES_PER_TREND = 3
@@ -34,21 +35,34 @@ def _sleep_backoff(attempt: int) -> None:
 
 
 def _build_prompt(trend: dict) -> tuple[str, str]:
-    system_prompt = "You are a social media trend analyst. Return ONLY valid JSON. No markdown."
+    system_prompt = "You are a viral Indian content strategy expert. Return ONLY valid JSON. No markdown."
     user_prompt = f"""
-Classify this REAL social media trend for format transfer and posting strategy.
+Analyze this trending Indian Instagram audio and provide a complete content strategy.
 
 Audio: "{trend.get('audio_title')}" by {trend.get('audio_artist')}
-Trend tone: {trend.get('content_tone')}
-Trend niche: {trend.get('niche_tag')}
-Sample captions: {trend.get('sample_captions') or ''}
+Niche: {trend.get('niche_tag') or 'general'}
+Content tone: {trend.get('content_tone') or 'unknown'}
+Vibe: {trend.get('vibe_tag') or 'general'}
+Language: {trend.get('language') or 'en'}
+Sample captions from real reels using this audio:
+{trend.get('sample_captions') or '(none available)'}
 
 Return ONLY a valid JSON object with EXACTLY these fields:
 {{
-  "optimal_post_hour_ist": 0,
+  "optimal_post_hour_ist": 20,
   "format_transferable": true,
-  "transfer_instructions": "one short sentence explaining how a creator in another niche can adapt this format"
+  "transfer_instructions": "One sentence: how a creator in a DIFFERENT niche can adapt this exact format to their content",
+  "why_this_works": "One sentence: the psychological/cultural reason this audio is spreading right now",
+  "ideal_content_description": "One sentence: the specific type of video that performs best with this audio (be concrete, not generic)",
+  "audio_cue_second": 0,
+  "text_overlay_template": "Suggested first-screen text overlay (3-7 words, scroll-stopper)",
+  "hook_brief": "One sentence: the specific hook to use in the first 2 seconds of video to maximize watch time"
 }}
+
+Rules:
+- audio_cue_second: integer seconds into the audio where a creator should START filming (0 if from the beginning)
+- optimal_post_hour_ist: integer hour in IST (0-23) when engagement is highest for this niche/tone combo
+- Be SPECIFIC to this exact audio — no generic advice
 """
     return system_prompt, user_prompt
 
@@ -67,7 +81,7 @@ def run_nightly_batch(limit: int | None = None) -> dict:
 
     rows = (
         sb.table("trends")
-        .select("id,audio_title,audio_artist,niche_tag,content_tone,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions")
+        .select("id,audio_title,audio_artist,niche_tag,content_tone,vibe_tag,language,sample_captions,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions")
         .in_("llm_classification_status", ["pending", "llm_unavailable"])
         .order("first_detected_at", desc=False)
         .limit(max_calls)
@@ -107,6 +121,12 @@ def run_nightly_batch(limit: int | None = None) -> dict:
             "optimal_post_hour_ist": int(result.get("optimal_post_hour_ist") or 18),
             "format_transferable": bool(result.get("format_transferable", False)),
             "transfer_instructions": result.get("transfer_instructions") or "",
+            # Fix #2: New fields from expanded prompt
+            "why_this_works": result.get("why_this_works") or "",
+            "ideal_content_description": result.get("ideal_content_description") or "",
+            "audio_cue_second": int(result.get("audio_cue_second") or 0),
+            "text_overlay_template": result.get("text_overlay_template") or "",
+            "hook_brief": result.get("hook_brief") or "",
             "llm_classification_status": "completed",
             "llm_classified_at": datetime.now(timezone.utc).isoformat(),
             "raw_llm_response": json.dumps(result, ensure_ascii=False),

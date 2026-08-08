@@ -384,31 +384,96 @@ def generate_fallback_content_description(trend: dict, creator_fit_score: float)
         return f"Consider whether this {category} trend aligns with your content strategy. If posting, add your unique perspective to stand out."
 
 
+# Fix #6: Extended dance word list includes Romanized Hindi/regional dance terms
+_DANCE_WORDS = [
+    "dance", "bhangra", "step", "groove", "naach", "nach", "naagin",
+    "hookstep", "thumka", "giddha", "garba", "dandiya", "choreograph"
+]
+
+# Fix #3: Script range map for South Indian language detection
+_SCRIPT_LANG_RANGES = [
+    ("hi", "\u0900", "\u097f"),  # Devanagari (Hindi, Marathi)
+    ("ta", "\u0b80", "\u0bff"),  # Tamil
+    ("te", "\u0c00", "\u0c7f"),  # Telugu
+    ("kn", "\u0c80", "\u0cff"),  # Kannada
+    ("ml", "\u0d00", "\u0d7f"),  # Malayalam
+    ("bn", "\u0980", "\u09ff"),  # Bengali
+    ("pa", "\u0a00", "\u0a7f"),  # Punjabi (Gurmukhi)
+]
+
+
+def _detect_language(captions: list[str]) -> str:
+    """Detect dominant script language from captions. Returns ISO 639-1 code."""
+    scores: dict[str, int] = {}
+    for c in captions:
+        for lang, lo, hi in _SCRIPT_LANG_RANGES:
+            count = sum(1 for ch in (c or "") if lo <= ch <= hi)
+            if count:
+                scores[lang] = scores.get(lang, 0) + count
+    if not scores:
+        return "en"
+    return max(scores, key=lambda k: scores[k])
+
+
 def classify_single_trend(trend):
     reels = trend["reels"]
     captions = [r.get("caption") for r in reels if r.get("caption")]
+    all_hashtags = [tag for r in reels for tag in (r.get("hashtags") or [])]
     source_pool = _dominant_source_hashtag_pool(reels)
-    niche_source = source_pool or classify_niche(
+
+    # Fix #4: Always run keyword analysis — don't short-circuit on INDIA_TRENDING pool.
+    # classify_niche() is updated to fall through for Indian pools instead of returning "general".
+    niche_source = classify_niche(
         " ".join(captions),
-        [tag for r in reels for tag in (r.get("hashtags") or [])],
+        all_hashtags,
         source_hashtag_pool=source_pool,
         sample_size=len(reels),
     )
     trend["niche_tag"] = niche_source if niche_source else "general"
     trend["content_tone"] = _aggregate_content_tone(reels)
     trend["content_type"] = trend.get("content_type") or trend["niche_tag"]
-    trend["is_dance"] = bool(any(word in (trend["audio_title"] or "").lower() for word in ["dance", "bhangra", "step", "groove"]))
+
+    # Fix #6: Extended Romanized dance word detection
+    title_lower = (trend["audio_title"] or "").lower()
+    trend["is_dance"] = bool(any(word in title_lower for word in _DANCE_WORDS))
+
     trend["needs_filming"] = trend["is_dance"] or trend["content_tone"] in {"wholesome", "neutral"}
     trend["edit_style"] = "fast_cuts" if trend["is_dance"] else "slow_dissolve"
     trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
     trend["text_overlay_template"] = None
-    trend["language"] = "hi" if any(any(ch >= "ऀ" and ch <= "ॿ" for ch in (c or "")) for c in captions) else "en"
+
+    # Fix #3: Multi-script language detection (Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Punjabi)
+    trend["language"] = _detect_language(captions)
+
     trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
-    trend["ideal_content_description"] = "Short creator clips that match the rhythm and caption vibe."
+
+    # Build a content-type-aware ideal description instead of the hardcoded generic sentence
+    _niche = trend["niche_tag"]
+    _NICHE_IDEAL_DESC = {
+        "dance": "Choreography clips or hookstep videos matching the beat of the audio.",
+        "comedy": "Relatable POV or reaction-style skits timed to the audio.",
+        "food": "Aesthetic cooking or food reveal clips synced to the audio rhythm.",
+        "fashion": "OOTD transitions or outfit reveals timed to the beat drop.",
+        "fitness": "Workout montage or transformation clips set to this audio.",
+        "travel": "Cinematic travel b-roll or destination reveals timed to the audio.",
+        "beauty": "Makeup transformation or skincare routine clips synced to the audio.",
+        "romance/relationship": "Couple moments or emotional photo-slideshows set to this audio.",
+        "devotional": "Temple visits, puja moments, or devotional ambiance clips.",
+        "narrative_edit": "Aesthetic photo/video edits with text overlays matching the audio energy.",
+    }
+    trend["ideal_content_description"] = _NICHE_IDEAL_DESC.get(
+        _niche,
+        f"Short creator clips that match the {_niche} niche rhythm and vibe of this audio."
+    )
+
     trend["camera_style"] = "handheld" if trend["is_dance"] else "static"
     trend["window_hours_remaining"] = trend.get("window_hours_remaining") or 24
     trend["confidence"] = 0.75
     trend["saturation_score"] = min(1.0, max(0.0, trend.get("saturation_score") or 0.2))
+
+    # Fix #5: Write top-3 reel captions as sample_captions for nightly LLM batch context
+    sample_caps = [c for c in captions[:5] if c and len(c.strip()) > 10]
+    trend["sample_captions"] = " | ".join(sample_caps[:3])[:500] if sample_caps else ""
     # Calculate dynamic optimal post time based on linked reels
     posted_hours = []
     for r in reels:
@@ -440,10 +505,10 @@ def classify_single_trend(trend):
         else:
             trend["optimal_post_hour_ist"] = 20
 
-    # The main detection loop is deterministic. Set status to not_needed
-    # so they are instantly visible in the API. The nightly batch will pick
-    # them up and upgrade them to 'completed' after the actual LLM runs.
-    trend["llm_classification_status"] = "not_needed"
+    # Fix #1: Mark as 'pending' so the nightly LLM batch picks these trends up
+    # for enrichment (why_this_works, ideal_content_description, audio_cue_second, etc.).
+    # Previously was 'not_needed' which caused the nightly batch to skip ALL trends.
+    trend["llm_classification_status"] = "pending"
     
     # Custom classifiers for premium, targeted feeds
     try:
@@ -514,12 +579,45 @@ class TrendEngine:
             "pending_backfilled": 0,
         }
 
-    def _calculate_creator_fit_score(self, title: str, artist: str, creator_count: int, avg_velocity: float, recent_6h_avg: float, recent_24h_avg: float, oldest_age_hours: float) -> float:
+    def _calculate_creator_fit_score(
+        self,
+        title: str,
+        artist: str,
+        creator_count: int,
+        avg_velocity: float,
+        recent_6h_avg: float,
+        recent_24h_avg: float,
+        oldest_age_hours: float,
+        niche_tag: str = "general",
+        vibe_tag: str = "general",
+    ) -> float:
+        # Fix #10: Use niche_tag and vibe_tag in addition to title keywords
+        # so trends with descriptive names (e.g. 'Teri Aankhon Mein') get correct classification.
         text = f"{title} {artist}".lower()
-        is_dance = any(word in text for word in ["dance", "step", "groove", "bhangra", "hookstep", "taal"])
-        is_visual = any(word in text for word in ["aesthetic", "cinematic", "vlog", "travel", "look", "style", "fashion"])
-        is_instructional = any(word in text for word in ["tutorial", "how", "learn", "tips", "guide", "hack"])
-        is_emotional = any(word in text for word in ["love", "heart", "sad", "miss", "story", "pain", "broken"])
+
+        # Dance: check extended word list + niche/vibe signals
+        is_dance = (
+            any(word in text for word in _DANCE_WORDS)
+            or niche_tag == "dance"
+            or vibe_tag in {"dance", "transition"}
+        )
+        # Visual: check title keywords + niche/vibe
+        is_visual = (
+            any(word in text for word in ["aesthetic", "cinematic", "vlog", "travel", "look", "style", "fashion"])
+            or niche_tag in {"travel", "fashion", "beauty", "narrative_edit"}
+            or vibe_tag == "aesthetic"
+        )
+        is_instructional = (
+            any(word in text for word in ["tutorial", "how", "learn", "tips", "guide", "hack"])
+            or niche_tag == "tech"
+        )
+        is_emotional = (
+            any(word in text for word in ["love", "heart", "sad", "miss", "story", "pain", "broken"])
+            or niche_tag == "romance/relationship"
+            or vibe_tag == "romantic"
+        )
+        is_comedy = niche_tag == "comedy" or vibe_tag == "comedy"
+
         base = 0.45
         if is_dance:
             base += 0.18
@@ -529,6 +627,8 @@ class TrendEngine:
             base += 0.12
         if is_emotional:
             base += 0.08
+        if is_comedy:
+            base += 0.06
         momentum = min(0.25, (avg_velocity + recent_6h_avg + recent_24h_avg) / 30)
         breadth = min(0.15, creator_count * 0.03)
         freshness = max(0.0, 0.12 - (oldest_age_hours / 400))
@@ -721,6 +821,14 @@ class TrendEngine:
                 trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus * outlier_boost
 
                 # Creator fit looks at what the trend is actually good for, not just raw momentum.
+                # Fix #10: niche_tag and vibe_tag are derived from classify_single_trend() later;
+                # use a quick keyword pass here since classify hasn't run yet for this candidate.
+                _quick_niche = classify_niche(
+                    " ".join(r.get("caption", "") for r in group_reels if r.get("caption")),
+                    [tag for r in group_reels for tag in (r.get("hashtags") or [])],
+                    source_hashtag_pool=_dominant_source_hashtag_pool(group_reels),
+                    sample_size=len(group_reels),
+                )
                 creator_fit_score = self._calculate_creator_fit_score(
                     title=title,
                     artist=artist,
@@ -729,6 +837,8 @@ class TrendEngine:
                     recent_6h_avg=recent_6h_avg,
                     recent_24h_avg=recent_24h_avg,
                     oldest_age_hours=oldest_age_hours,
+                    niche_tag=_quick_niche or "general",
+                    vibe_tag="general",  # vibe_tag computed after classify_single_trend runs
                 )
 
                 # Saturation penalty measures whether the trend is getting crowded.
@@ -956,8 +1066,8 @@ class TrendEngine:
                 global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
                 india_sat = round(min(100.0, (india_use_count / INDIA_SATURATION_THRESHOLD_REELS) * 100), 1)
 
-                # Window hours - calculate based on saturation and velocity
-                # Low saturation trends should not have 0 window hours
+                # Fix #9: Window hours — saturation-based baseline adjusted by velocity direction.
+                # A trend with falling velocity gets 30% fewer hours regardless of saturation.
                 if global_sat >= 90:
                     window_h = 0
                 elif global_sat >= 75:
@@ -967,8 +1077,14 @@ class TrendEngine:
                 elif global_sat >= 20:
                     window_h = 24
                 else:
-                    # Early saturation trends have more time
                     window_h = 48
+
+                # Velocity direction correction: if recent 6h avg is declining vs overall avg,
+                # shrink the window to reflect faster-than-expected saturation.
+                _avg_vel = trend.get("avg_velocity") or 1.0
+                _recent_vel = trend.get("recent_6h_avg") or _avg_vel
+                if window_h > 0 and _recent_vel < _avg_vel * 0.7:
+                    window_h = max(8, int(window_h * 0.7))  # 30% reduction, floor at 8h
 
                 opportunity_score = calculate_opportunity_score(
                     india_saturation_pct=india_sat,
@@ -1112,6 +1228,8 @@ class TrendEngine:
                     "vibe_tag": trend.get("vibe_tag", "general"),
                     "is_voiceover": trend.get("is_voiceover", False),
                     "saturation_count": trend.get("saturation_count", 0),
+                    # Fix #5: sample_captions written at detection time for nightly LLM batch context
+                    "sample_captions": trend.get("sample_captions", ""),
                 }
 
                 try:

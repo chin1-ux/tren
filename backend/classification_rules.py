@@ -106,25 +106,22 @@ def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str |
     # If sample size is too small, return "general" to avoid overfitting
     if sample_size > 0 and sample_size < 5:
         return "general"
-    
-    if source_hashtag_pool:
-        pool_clean = source_hashtag_pool.upper().strip()
-        pool_tags = HASHTAG_POOL_MAP.get(pool_clean, set())
-        if pool_clean == "GLOBAL_NICHES":
-            for tag in hashtags or []:
-                tag_clean = tag.lower().lstrip("#")
-                if tag_clean in HASHTAG_NICHE_MAP:
-                    niche = HASHTAG_NICHE_MAP[tag_clean]
-                    if niche != "general":
-                        return niche
-        elif pool_clean in {"INDIA_TRENDING", "INDIA_VERNACULAR"}:
-            return "general"
-        elif pool_clean in {"GLOBAL_DISCOVERY"}:
-            return "general"
-        for tag in hashtags or []:
-            tag_clean = tag.lower().lstrip("#")
-            if tag_clean in HASHTAG_NICHE_MAP and HASHTAG_NICHE_MAP[tag_clean] != "general":
-                return HASHTAG_NICHE_MAP[tag_clean]
+
+    # Try to get a specific niche from hashtags first (works for all pools)
+    for tag in hashtags or []:
+        tag_clean = tag.lower().lstrip("#")
+        if tag_clean in HASHTAG_NICHE_MAP and HASHTAG_NICHE_MAP[tag_clean] != "general":
+            return HASHTAG_NICHE_MAP[tag_clean]
+
+    # Fix #4: Previously INDIA_TRENDING / INDIA_VERNACULAR / GLOBAL_DISCOVERY all returned "general"
+    # immediately, skipping keyword analysis. Now we fall through to keyword matching so that
+    # a Hindi food reel tagged #trendingindia doesn't get niche_tag='general' forever.
+    # GLOBAL_NICHES still gets direct hashtag resolution (already handled above).
+    if source_pool := source_hashtag_pool:
+        pool_clean = source_pool.upper().strip()
+        # MICRO pools: resolve specific niche from hashtag map (already done above)
+        # For all other pools: fall through to keyword analysis below
+        _ = pool_clean  # acknowledged, no early return
 
     text = f"{caption or ''} {' '.join(hashtags or [])}".lower()
     words = re.findall(r"[a-z\u0900-\u097f]+", text)
@@ -142,16 +139,9 @@ def classify_content_tone(caption: str, hashtags: list[str] | None = None) -> st
     text = f"{caption or ''} {' '.join(hashtags or [])}".lower()
     words = re.findall(r"[a-z\u0900-\u097f]+", text)
     scores = Counter()
-    try:
-        from nltk.sentiment import SentimentIntensityAnalyzer
-        sia = SentimentIntensityAnalyzer()
-        compound = sia.polarity_scores(text).get("compound", 0.0)
-        if compound >= 0.35:
-            scores["wholesome"] += 2.0
-        elif compound <= -0.35:
-            scores["sad/emotional"] += 1.0
-    except Exception:
-        pass
+    # Fix #11: Removed NLTK/VADER dependency — unavailable in Vercel production.
+    # The Hindi tone lexicon covers the majority of Indian content correctly;
+    # VADER was only marginally useful for English captions and frequently failed.
     for tone, lexicon in HINDI_TONE_LEXICON.items():
         for w in words:
             if w in lexicon:
@@ -159,6 +149,15 @@ def classify_content_tone(caption: str, hashtags: list[str] | None = None) -> st
         for term, weight in lexicon.items():
             if term in text:
                 scores[tone] += weight * 0.5
+    # Basic English sentiment fallback without NLTK:
+    # Positive English words boost 'wholesome'; negative boost 'sad/emotional'
+    _POS_WORDS = {"amazing", "great", "love", "happy", "beautiful", "awesome", "wonderful", "blessed", "grateful", "joy"}
+    _NEG_WORDS = {"sad", "miss", "cry", "broken", "hate", "alone", "lost", "pain", "hurt", "tears"}
+    for w in words:
+        if w in _POS_WORDS:
+            scores["wholesome"] += 1.0
+        if w in _NEG_WORDS:
+            scores["sad/emotional"] += 1.0
     return scores.most_common(1)[0][0] if scores else "wholesome"
 
 def detect_voiceover(audio_title: str | None, caption: str | None) -> bool:
