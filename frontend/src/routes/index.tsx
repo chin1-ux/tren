@@ -522,7 +522,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
+      className={`flex flex-shrink-0 px-3 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
         active
           ? urgent
             ? "bg-[#ff006e] text-white shadow-sm shadow-[rgba(255,0,110,0.3)]"
