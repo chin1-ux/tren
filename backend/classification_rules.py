@@ -160,3 +160,56 @@ def classify_content_tone(caption: str, hashtags: list[str] | None = None) -> st
             if term in text:
                 scores[tone] += weight * 0.5
     return scores.most_common(1)[0][0] if scores else "wholesome"
+
+def detect_voiceover(audio_title: str | None, caption: str | None) -> bool:
+    """Detects if the audio is likely a voiceover/dialogue rather than music."""
+    title_clean = (audio_title or "").lower()
+    caption_clean = (caption or "").lower()
+    
+    # Common speech/voiceover keywords
+    voiceover_keywords = {
+        "original audio", "original voice", "dialogue", "speaking", 
+        "talking", "podcast", "speech", "interview", "monologue",
+        "voice of", "voiceover", "rant", "clips", "lip sync"
+    }
+    
+    # If the title explicitly mentions voice or dialogue
+    if any(kw in title_clean for kw in voiceover_keywords):
+        # But if it also has a song-like structure or specific artist, let's keep it
+        # unless it is clearly just "Original Audio"
+        if "original audio" in title_clean or "original voice" in title_clean:
+            return True
+            
+    # POV captions without commercial song titles are often voiceovers
+    if "pov:" in caption_clean and len(caption_clean) > 80 and not any(m in title_clean for m in ["feat", "prod", "remix", "song", "music"]):
+        if "original" in title_clean:
+            return True
+            
+    return False
+
+def classify_vibe_tag(niche: str, caption: str | None, hashtags: list[str] | None) -> str:
+    """Classifies the vibe of the trend (e.g. aesthetic, transition, high-energy, regional)."""
+    text = f"{caption or ''} {' '.join(hashtags or [])}".lower()
+    
+    # Priority 1: Check for transition keywords
+    transition_keywords = {"transition", "beat", "edit", "cut", "loop", "transformation", "glowup", "beforeafter", "capcut", "alight"}
+    if any(kw in text for kw in transition_keywords):
+        return "transition"
+        
+    # Priority 2: Aesthetic / Lifestyle
+    aesthetic_keywords = {"aesthetic", "vlog", "lifestyle", "morning", "chill", "lo-fi", "lofi", "vibe", "minimal", "grwm", "neutral"}
+    if any(kw in text for kw in aesthetic_keywords) or niche in {"travel", "fashion", "beauty"}:
+        return "aesthetic"
+        
+    # Priority 3: Comedy / Meme
+    comedy_keywords = {"comedy", "funny", "meme", "joke", "lol", "relatable", "parody", "roast", "fun"}
+    if any(kw in text for kw in comedy_keywords) or niche == "comedy":
+        return "comedy"
+        
+    # Priority 4: Regional / Local
+    regional_keywords = {"devotional", "bhakti", "bhajan", "mandir", "desi", "local", "regional", "state", "folksong", "folk"}
+    if any(kw in text for kw in regional_keywords) or niche == "devotional":
+        return "regional"
+        
+    return "general"
+

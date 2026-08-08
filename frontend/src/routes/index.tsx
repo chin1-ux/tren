@@ -72,6 +72,9 @@ function TrendsFeed() {
   // Niche filter — read from preferences
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
 
+  // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
+  const userEmail = useUserStore((s) => s.email);
+
   // Check if first visit → show onboarding
   useEffect(() => {
     if (typeof window !== "undefined") {
@@ -287,7 +290,7 @@ function TrendsFeed() {
               aria-label="Profile"
             >
               <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white uppercase">
-                {useUserStore.getState().email ? useUserStore.getState().email.charAt(0) : "T"}
+                {userEmail ? userEmail.charAt(0) : "T"}
               </div>
             </button>
           </div>
@@ -427,9 +430,7 @@ function TrendsFeed() {
             <p className="text-4xl mb-3">🎵</p>
             <p className="text-base font-semibold">No trends right now</p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {feedTab === "india"
-                ? "Our scrapers are working. New India trends will appear soon."
-                : feedTab === "emerging"
+              {feedTab === "emerging"
                 ? "No emerging trends detected in the last 6 hours. Check back soon!"
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>

@@ -16,6 +16,10 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   // Handle authentication redirects
   // NOTE: useEffect must be called before any conditional return (Rules of Hooks)
   useEffect(() => {
+    // Reset on every auth-state change so second-login-in-same-session works
+    if (!loading) {
+      isRedirecting.current = false;
+    }
     if (!loading && !isRedirecting.current) {
       // If user is authenticated and trying to access login/signup, redirect to home
       if (user && (currentPath === "/login" || currentPath === "/signup")) {

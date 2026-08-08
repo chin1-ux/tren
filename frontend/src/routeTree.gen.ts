@@ -12,10 +12,12 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as TermsRouteImport } from './routes/terms'
 import { Route as StudioRouteImport } from './routes/studio'
 import { Route as StatsRouteImport } from './routes/stats'
+import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as GenerateRouteImport } from './routes/generate'
 import { Route as DataRightsRouteImport } from './routes/data-rights'
@@ -43,6 +45,11 @@ const StatsRoute = StatsRouteImport.update({
   path: '/stats',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SignupRoute = SignupRouteImport.update({
+  id: '/signup',
+  path: '/signup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
@@ -61,6 +68,11 @@ const PrivacyRoute = PrivacyRouteImport.update({
 const MarketplaceRoute = MarketplaceRouteImport.update({
   id: '/marketplace',
   path: '/marketplace',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
   getParentRoute: () => rootRouteImport,
 } as any)
 const IdeasRoute = IdeasRouteImport.update({
@@ -125,10 +137,12 @@ export interface FileRoutesByFullPath {
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
@@ -145,10 +159,12 @@ export interface FileRoutesByTo {
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
@@ -166,10 +182,12 @@ export interface FileRoutesById {
   '/data-rights': typeof DataRightsRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
+  '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
   '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
+  '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
@@ -188,10 +206,12 @@ export interface FileRouteTypes {
     | '/data-rights'
     | '/generate'
     | '/ideas'
+    | '/login'
     | '/marketplace'
     | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
     | '/stats'
     | '/studio'
     | '/terms'
@@ -208,10 +228,12 @@ export interface FileRouteTypes {
     | '/data-rights'
     | '/generate'
     | '/ideas'
+    | '/login'
     | '/marketplace'
     | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
     | '/stats'
     | '/studio'
     | '/terms'
@@ -228,10 +250,12 @@ export interface FileRouteTypes {
     | '/data-rights'
     | '/generate'
     | '/ideas'
+    | '/login'
     | '/marketplace'
     | '/privacy'
     | '/profile'
     | '/settings'
+    | '/signup'
     | '/stats'
     | '/studio'
     | '/terms'
@@ -249,10 +273,12 @@ export interface RootRouteChildren {
   DataRightsRoute: typeof DataRightsRoute
   GenerateRoute: typeof GenerateRoute
   IdeasRoute: typeof IdeasRoute
+  LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   PrivacyRoute: typeof PrivacyRoute
   ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
+  SignupRoute: typeof SignupRoute
   StatsRoute: typeof StatsRoute
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
@@ -287,6 +313,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof StatsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/signup': {
+      id: '/signup'
+      path: '/signup'
+      fullPath: '/signup'
+      preLoaderRoute: typeof SignupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings': {
       id: '/settings'
       path: '/settings'
@@ -313,6 +346,13 @@ declare module '@tanstack/react-router' {
       path: '/marketplace'
       fullPath: '/marketplace'
       preLoaderRoute: typeof MarketplaceRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/ideas': {
@@ -401,10 +441,12 @@ const rootRouteChildren: RootRouteChildren = {
   DataRightsRoute: DataRightsRoute,
   GenerateRoute: GenerateRoute,
   IdeasRoute: IdeasRoute,
+  LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   PrivacyRoute: PrivacyRoute,
   ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
+  SignupRoute: SignupRoute,
   StatsRoute: StatsRoute,
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,

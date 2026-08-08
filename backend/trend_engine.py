@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
-from trend_scoring import calculate_opportunity_score, calculate_trend_state, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
+from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -444,6 +444,53 @@ def classify_single_trend(trend):
     # so they are instantly visible in the API. The nightly batch will pick
     # them up and upgrade them to 'completed' after the actual LLM runs.
     trend["llm_classification_status"] = "not_needed"
+    
+    # Custom classifiers for premium, targeted feeds
+    try:
+        from classification_rules import detect_voiceover, classify_vibe_tag
+        all_hashtags = [tag for r in reels for tag in (r.get("hashtags") or [])]
+        caption_combo = " ".join(captions)
+        trend["is_voiceover"] = detect_voiceover(trend.get("audio_title"), caption_combo)
+        trend["vibe_tag"] = classify_vibe_tag(trend["niche_tag"], caption_combo, all_hashtags)
+        trend["saturation_count"] = 0 # Default starting count
+        
+        # Premium visual storyboards and CapCut/Instagram templates
+        if trend["vibe_tag"] == "transition":
+            trend["template_link"] = "https://www.capcut.com/t/Zs8R8888/"
+            trend["visual_storyboard"] = [
+                {"time": "0:00 - 0:02", "instruction": "Intro Hook: Set up a low-exposure, high-contrast shot with a bold overlay explaining the transition theme."},
+                {"time": "0:02 - 0:03", "instruction": "Transition Point: Snap fingers, clap, or cover the camera lens exactly on the main beat drop."},
+                {"time": "0:03 - 0:07", "instruction": "Reveal: Rapidly cut between 3 different high-quality angles showing the end result in slow motion."}
+            ]
+        elif trend["vibe_tag"] == "aesthetic":
+            trend["template_link"] = "https://www.instagram.com/reels/templates/1234567/"
+            trend["visual_storyboard"] = [
+                {"time": "0:00 - 0:03", "instruction": "Calming Hook: A slow panning b-roll shot of your environment with warm lighting and minimal text overlay."},
+                {"time": "0:03 - 0:06", "instruction": "Focus Action: Close-up detail shots showing a satisfying action (e.g. coffee pour, typing, sketch drawing)."},
+                {"time": "0:06 - 0:10", "instruction": "Looping Outro: Pan out slowly to create a seamless loop that starts again with the intro panning."}
+            ]
+        elif trend["vibe_tag"] == "comedy":
+            trend["template_link"] = "https://www.instagram.com/reels/audio/123456/"
+            trend["visual_storyboard"] = [
+                {"time": "0:00 - 0:04", "instruction": "Setup POV: Display a highly relatable text overlay showing a daily struggle, acting it out in a comical style."},
+                {"time": "0:04 - 0:08", "instruction": "Punchline Reaction: Sync an exaggerated expression or funny reaction shot with the sound cue."}
+            ]
+        else:
+            trend["template_link"] = "https://www.instagram.com/reels/templates/"
+            trend["visual_storyboard"] = [
+                {"time": "0:00 - 0:03", "instruction": "Visual Hook: Start with a bold text card presenting a question or value proposition."},
+                {"time": "0:03 - 0:08", "instruction": "Demonstration: Steady b-roll of your activity matching the beat of the song."}
+            ]
+    except Exception as class_err:
+        logging.error(f"Error during custom vibe classification: {class_err}")
+        trend["is_voiceover"] = False
+        trend["vibe_tag"] = "general"
+        trend["saturation_count"] = 0
+        trend["template_link"] = None
+        trend["visual_storyboard"] = []
+        
+    return True
+
 
 class TrendEngine:
     def __init__(self):
@@ -1059,6 +1106,12 @@ class TrendEngine:
                     "crossover_message": crossover_info.get("message"),
                     "opportunity_score": opportunity_score,
                     "niche_fit_score": float(trend.get("creator_fit_score") or 0.6) * 100.0,
+                    "peaking_score": 0.0,  # Initial value, will be recalculated by trend_refresher when snapshots exist
+                    "template_link": trend.get("template_link"),
+                    "visual_storyboard": trend.get("visual_storyboard"),
+                    "vibe_tag": trend.get("vibe_tag", "general"),
+                    "is_voiceover": trend.get("is_voiceover", False),
+                    "saturation_count": trend.get("saturation_count", 0),
                 }
 
                 try:
@@ -1067,6 +1120,25 @@ class TrendEngine:
                         tid = res.data[0].get("id")
                         new_trend_ids.append(tid)
                         logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
+                        
+                        # Try to calculate initial peaking score if we have snapshot data
+                        # This is for existing trends that might already have snapshots
+                        try:
+                            initial_snapshots_res = self.supabase.table('trend_snapshots') \
+                                .select('velocity_avg, captured_at') \
+                                .eq('trend_id', tid) \
+                                .order('captured_at', desc=True) \
+                                .limit(10) \
+                                .execute()
+                            
+                            initial_snapshots = initial_snapshots_res.data or []
+                            if initial_snapshots and calculate_realistic_peaking_score:
+                                initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
+                                self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
+                                logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
+                        except Exception as peaking_err:
+                            logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
+                            
                 except Exception as e:
                     logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
 

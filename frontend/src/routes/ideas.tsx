@@ -32,6 +32,7 @@ import {
   CalendarDay 
 } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/ideas")({
 });
 
 function IdeasPage() {
+  const { user } = useAuth();
   const [activeTab, setActiveTab] = useState<"daily" | "score" | "hooks" | "calendar">("daily");
   const [userEmail, setUserEmail] = useState("anonymous@trendrop.app");
   const [userNiche, setUserNiche] = useState("dance");
@@ -51,6 +53,7 @@ function IdeasPage() {
   // Section 1: Daily Idea Drop States
   const [ideas, setIdeas] = useState<ApiDailyIdea[]>([]);
   const [loadingIdeas, setLoadingIdeas] = useState(false);
+  const [usingFallbackIdeas, setUsingFallbackIdeas] = useState(false);
 
   // Section 2: Pre-Post Reel Score States
   const [scoreAudio, setScoreAudio] = useState("");
@@ -75,7 +78,7 @@ function IdeasPage() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   useEffect(() => {
-    const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+    const email = user?.email || localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
     const niche = localStorage.getItem("trendrop_niche") || "dance";
     setUserEmail(email);
     setUserNiche(niche);
@@ -85,16 +88,19 @@ function IdeasPage() {
     getIdeas(email);
     // Load saved calendar from local storage or DB
     loadSavedCalendar(email);
-  }, []);
+  }, [user]);
 
   const getIdeas = async (email: string) => {
     setLoadingIdeas(true);
+    setUsingFallbackIdeas(false);
     try {
       const data = await fetchDailyIdeas(email);
       setIdeas(data);
+      setUsingFallbackIdeas(false);
     } catch (err) {
       console.error("Failed to load daily ideas", err);
       toast.error("Failed to load daily ideas. Using fallback ideas.");
+      setUsingFallbackIdeas(true);
       // Set fallback ideas
       setIdeas([
         { title: "The Ultimate Lifestyle Hack", description: "Show a 15-second hack of something in your niche.", hook: "Stop doing it the hard way!", audio_suggestion: "Upbeat trending pop", posting_time: "6:30 PM", difficulty: "Easy" },
@@ -335,6 +341,12 @@ function IdeasPage() {
                   Refresh
                 </Button>
               </div>
+
+              {usingFallbackIdeas && !loadingIdeas && (
+                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 mb-4 text-xs text-amber-400 leading-relaxed">
+                  ⚠️ <strong>Personalized Ideas Offline:</strong> We couldn't load custom ideas tailored to your niche. Showing generic fallback starting points instead.
+                </div>
+              )}
 
               {loadingIdeas ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">

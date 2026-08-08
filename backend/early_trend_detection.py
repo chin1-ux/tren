@@ -103,7 +103,10 @@ class EarlyTrendDetector:
         # Signal 3: Time since first detected (younger trends have more potential)
         first_detected = trend_data.get('first_detected_at')
         if first_detected:
-            hours_since_detection = (datetime.now(timezone.utc) - datetime.fromisoformat(first_detected)).total_seconds() / 3600
+            dt = datetime.fromisoformat(first_detected)
+            if dt.tzinfo is None:
+                dt = dt.replace(tzinfo=timezone.utc)
+            hours_since_detection = (datetime.now(timezone.utc) - dt).total_seconds() / 3600
             # Optimal window: 6-24 hours
             if 6 <= hours_since_detection <= 24:
                 signals.append(100)

@@ -10,11 +10,13 @@ import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTrendReels, analyzeContentForVirality } from "@/lib/api";
+import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
 import { AlgorithmInsightsPanel } from "./AlgorithmInsightsPanel";
+import { TrendProofSection } from "./TrendProofSection";
 
 interface Props {
   trend: UiTrend;
@@ -110,6 +112,12 @@ function getDMShareScore(trend: UiTrend): number {
     + (trend.creatorFitScore ?? 0) * 3
     + Math.min(3, (trend.viralMultiplier / 10));
   return Math.min(10, Math.round(base * 10) / 10);
+}
+
+function getTargetedSaturationMeta(count: number): { label: string; color: string; bgColor: string } {
+  if (count === 0) return { label: "0 targeting", color: "text-emerald-400 border-emerald-500/20", bgColor: "bg-emerald-500/10" };
+  if (count <= 2) return { label: `${count} targeting`, color: "text-amber-400 border-amber-500/20", bgColor: "bg-amber-500/10" };
+  return { label: `${count} targeting`, color: "text-rose-400 border-rose-500/20", bgColor: "bg-rose-500/10" };
 }
 
 const formatViews = (v: number) => {
@@ -293,6 +301,8 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const nicheTag = trend.nicheTag ?? "general";
   const audioId = trend.audioId;
   const audioUrl = buildAudioUrl(audioId, trend.song);
+  const saturationCount = trend.saturationCount ?? 0;
+  const vibeTag = trend.vibeTag ?? "general";
 
   const allNiches = Array.from(new Set([
     ...(nicheTag && nicheTag !== "general" ? [nicheTag] : []),
@@ -386,17 +396,10 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       whileHover={{ y: -4, boxShadow: "0 15px 40px rgba(0,0,0,0.4)" }}
       className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
     >
-      {/* Opportunity Score Indicator (Top-Right) */}
-      {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
-        <div className="absolute top-4 right-4 z-20">
-          <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
-            🟢 {Math.round(trend.opportunityScore)} Opportunity
-          </span>
-        </div>
-      )}
+      {/* Opportunity Score Indicator removed from absolute — now in badge row below as ml-auto item */}
 
       {/* ── 1. Top row: platform and status badges (unified tag cloud to prevent overlaps) ── */}
-      <div className="flex flex-wrap items-center gap-1.5 pt-1 pr-24 z-10">
+      <div className="flex flex-wrap items-center gap-1.5 pt-1">
         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
           <TrendingUp className="h-2.5 w-2.5" /> Trending
         </span>
@@ -442,6 +445,25 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         {trend.isRegionalCrossover && (
           <span className="inline-flex items-center gap-1 rounded-full bg-orange-500/10 text-orange-400 border border-orange-500/20 px-2 py-0.5 text-[9px] font-bold">
             🌐 CROSSOVER
+          </span>
+        )}
+
+        {/* Saturation Count Badge */}
+        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${getTargetedSaturationMeta(saturationCount).bgColor} ${getTargetedSaturationMeta(saturationCount).color}`}>
+          🎯 {getTargetedSaturationMeta(saturationCount).label}
+        </span>
+        
+        {/* Vibe Tag Badge */}
+        {vibeTag && vibeTag !== "general" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-300">
+            🎬 {vibeTag}
+          </span>
+        )}
+
+        {/* Opportunity Score — inline, at end of badge row with auto-left margin */}
+        {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
+          <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
+            🟢 {Math.round(trend.opportunityScore)}
           </span>
         )}
       </div>
@@ -867,45 +889,40 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
             {/* Action buttons */}
             <div className="space-y-2 pt-2 border-t border-border/40">
-              <Button
-                onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
-                className="h-11 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
-              >
-                <Video className="h-4 w-4" /> Generate My Reel
-              </Button>
-
-              <div className="grid grid-cols-2 gap-2">
+              {FEATURES.GENERATE_ENABLED && (
                 <Button
                   onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
-                  className="h-11 bg-teal font-bold uppercase tracking-wide text-white hover:bg-teal/90"
+                  className="h-11 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
                 >
-                  <Sparkles className="h-3.5 w-3.5" /> Faceless
+                  <Video className="h-4 w-4" /> Generate My Reel
                 </Button>
+              )}
 
-                {trend.isDance || trend.category === "Dance" ? (
+              <div className={`grid gap-2 ${FEATURES.GENERATE_ENABLED ? "grid-cols-2" : "grid-cols-1"}`}>
+                {FEATURES.GENERATE_ENABLED && (
                   <Button
-                    onClick={(e) => { e.stopPropagation(); onDanceTap(trend); }}
-                    className="h-11 bg-amber font-bold uppercase tracking-wide text-white hover:bg-amber/90"
+                    onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
+                    className="h-11 bg-teal font-bold uppercase tracking-wide text-white hover:bg-teal/90"
                   >
-                    <Film className="h-3.5 w-3.5" /> How To Film
-                  </Button>
-                ) : (
-                  <Button
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      toast.info("Filming guide", { description: trend.idealContentDescription || "Film transitions and align with the beats." });
-                    }}
-                    variant="outline"
-                    className="h-11 border-border text-xs font-bold uppercase tracking-wide hover:bg-white/5"
-                  >
-                    <HelpCircle className="h-3.5 w-3.5" /> How To Film
+                    <Sparkles className="h-3.5 w-3.5" /> Faceless
                   </Button>
                 )}
+
+                <Button
+                  onClick={(e) => { e.stopPropagation(); onDanceTap(trend); }}
+                  className="h-11 bg-amber font-bold uppercase tracking-wide text-white hover:bg-amber/90"
+                >
+                  <Film className="h-3.5 w-3.5" /> How To Film
+                </Button>
               </div>
             </div>
           </motion.div>
         )}
       </AnimatePresence>
+      <TrendProofSection 
+        trendId={trend.id} 
+        isPeaking={trend.peakingScore && trend.peakingScore >= 70} 
+      />
       <TrendPreviewModal
         trend={trend}
         isOpen={showPreviewModal}

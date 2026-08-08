@@ -19,13 +19,15 @@ function Dashboard() {
       <OnboardingTour open={isOpen} onComplete={closeOnboarding} />
       <div className="container mx-auto py-8 px-4">
         <Tabs defaultValue="early-detection" className="w-full">
-          <TabsList className="grid w-full grid-cols-5">
-            <TabsTrigger value="early-detection">Early Detection</TabsTrigger>
-            <TabsTrigger value="video-analysis">Video Analysis</TabsTrigger>
-            <TabsTrigger value="analytics">Analytics</TabsTrigger>
-            <TabsTrigger value="ai">AI Generator</TabsTrigger>
-            <TabsTrigger value="india">India Features</TabsTrigger>
-          </TabsList>
+          <div className="w-full overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
+            <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1 h-11 gap-1.5 bg-muted/60 rounded-xl">
+              <TabsTrigger value="early-detection" className="shrink-0">Early Detection</TabsTrigger>
+              <TabsTrigger value="video-analysis" className="shrink-0">Video Analysis</TabsTrigger>
+              <TabsTrigger value="analytics" className="shrink-0">Analytics</TabsTrigger>
+              <TabsTrigger value="ai" className="shrink-0">AI Generator</TabsTrigger>
+              <TabsTrigger value="india" className="shrink-0">India Features</TabsTrigger>
+            </TabsList>
+          </div>
 
           <TabsContent value="early-detection" className="mt-6">
             <EarlyDetectionPanel />

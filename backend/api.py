@@ -55,6 +55,12 @@ except Exception as e:
     TrendEngine = None
 
 try:
+    from trend_scoring import calculate_realistic_peaking_score
+except Exception as e:
+    logger.warning(f"trend_scoring import failed: {e}")
+    calculate_realistic_peaking_score = None
+
+try:
     from alert_system import AlertSystem
 except Exception as e:
     logger.warning(f"AlertSystem import failed: {e}")
@@ -756,6 +762,9 @@ app.mount("/outputs", StaticFiles(directory=outputs_path), name="outputs")
 
 # ── Pydantic Models ────────────────────────────────────────────────────────────
 
+class TargetRequest(BaseModel):
+    action: str  # "target" or "untarget"
+
 class SubscribeRequest(BaseModel):
     email: EmailStr
     niche: str
@@ -795,6 +804,10 @@ class HookRequest(BaseModel):
 class GenerateHooksRequest(BaseModel):
     trend: str
     content_description: str
+
+
+class VideoUrlRequest(BaseModel):
+    video_url: str
 
 
 
@@ -1035,7 +1048,7 @@ def get_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "rising").in_("llm_classification_status", ["completed", "not_needed"])
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed"])
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -1079,7 +1092,7 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "emerging").in_("llm_classification_status", ["completed", "not_needed"])
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed"])
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
@@ -1213,6 +1226,141 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
         return trends
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/trends/peaking")
+@limiter.limit("60/minute")
+def get_peaking_trends(request: Request, limit: int = 10, current_user: str = Depends(get_current_user)):
+    """
+    Get trends that are currently peaking based on real metrics
+    Uses velocity acceleration, window efficiency, and creator count
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    
+    try:
+        from datetime import timedelta
+        
+        # Get active trends with velocity data
+        time_threshold = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        
+        trends_res = supabase.table('trends') \
+            .select('*') \
+            .in_('status', ['emerging', 'rising']) \
+            .gte('first_detected_at', time_threshold) \
+            .order('velocity_avg', desc=True) \
+            .limit(limit * 2) \
+            .execute()
+        
+        trends = trends_res.data or []
+        
+        # BATCH QUERY: Get all snapshots in one query to avoid N+1 problem
+        trend_ids = [t['id'] for t in trends]
+        snapshots_res = supabase.table('trend_snapshots') \
+            .select('trend_id, velocity_avg, captured_at') \
+            .in_('trend_id', trend_ids) \
+            .order('captured_at', desc=True) \
+            .execute()
+        
+        # Group snapshots by trend_id
+        snapshots_by_trend = {}
+        for snap in snapshots_res.data or []:
+            trend_id = snap['trend_id']
+            if trend_id not in snapshots_by_trend:
+                snapshots_by_trend[trend_id] = []
+            snapshots_by_trend[trend_id].append(snap)
+        
+        # Calculate peaking score using real data only
+        peaking_trends = []
+        for trend in trends:
+            snapshots = snapshots_by_trend.get(trend['id'], [])
+            if calculate_realistic_peaking_score:
+                peaking_score = calculate_realistic_peaking_score(trend, snapshots)
+                if peaking_score >= 70:  # Peaking threshold
+                    trend['peaking_score'] = peaking_score
+                    peaking_trends.append(trend)
+        
+        # Sort by peaking score and return top N
+        peaking_trends.sort(key=lambda x: x['peaking_score'], reverse=True)
+        return peaking_trends[:limit]
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+
+
+@app.get("/api/trends/{trend_id}/timeline")
+@limiter.limit("60/minute")
+def get_trend_timeline(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
+    """
+    Get trend timeline proof using existing trend_snapshots data
+    Returns velocity history, timestamps, and peak detection
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    
+    try:
+        from datetime import timedelta
+        
+        # Get trend basic info
+        trend_res = supabase.table('trends').select('*').eq('id', trend_id).single().execute()
+        trend = trend_res.data
+        
+        if not trend:
+            raise HTTPException(status_code=404, detail=f"Trend {trend_id} not found")
+        
+        # Get existing snapshots (this IS the proof trail)
+        snapshots_res = supabase.table('trend_snapshots') \
+            .select('*') \
+            .eq('trend_id', trend_id) \
+            .order('captured_at', desc=True) \
+            .execute()
+        
+        snapshots = snapshots_res.data or []
+        
+        # Calculate velocity acceleration from snapshots
+        velocity_data = []
+        for i, snap in enumerate(snapshots):
+            velocity_data.append({
+                'timestamp': snap['captured_at'],
+                'velocity': snap['velocity_avg'],
+                'creator_count': snap['creator_count']
+            })
+        
+        # Calculate acceleration (recent vs older)
+        acceleration = 0
+        if len(velocity_data) >= 2:
+            recent_avg = velocity_data[0]['velocity']
+            older_avg = velocity_data[-1]['velocity']
+            if older_avg > 0:
+                acceleration = ((recent_avg - older_avg) / older_avg) * 100
+        
+        # Calculate trend age dynamically (not from stale DB column)
+        first_detected = trend.get('first_detected_at')
+        if first_detected:
+            if first_detected.endswith('Z'):
+                first_detected = first_detected[:-1] + '+00:00'
+            detected_dt = datetime.fromisoformat(first_detected)
+            # Defensive timezone handling
+            if detected_dt.tzinfo is None:
+                detected_dt = detected_dt.replace(tzinfo=timezone.utc)
+            age_hours = (datetime.now(timezone.utc) - detected_dt).total_seconds() / 3600
+        else:
+            age_hours = trend.get('trend_age_hours', 0)  # Fallback to DB value
+        
+        return {
+            'trend_id': trend_id,
+            'first_detected_at': trend.get('first_detected_at'),
+            'created_at': trend.get('created_at'),
+            'peak_velocity': trend.get('peak_velocity'),
+            'trend_age_hours': round(age_hours, 2),  # Dynamically computed
+            'window_hours_remaining': trend.get('window_hours_remaining'),
+            'velocity_history': velocity_data,
+            'velocity_acceleration_pct': round(acceleration, 2),
+            'snapshot_count': len(snapshots)
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
 
 
 @app.get("/api/trends/{trend_id}")
@@ -1534,6 +1682,88 @@ def save_trend_memory(request: Request, trend_id: int, req: MemoryRequest, curre
         return {"success": True}
     except Exception as e:
         logger.error(f"Error saving trend memory: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.post("/api/trends/{trend_id}/target")
+@limiter.limit("30/minute")
+def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, authorization: str = Header(None)):
+    """Add or remove a trend from the user's targeted list, updating saturation."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        user_uuid = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split("Bearer ")[1].strip()
+            try:
+                user_res = supabase.auth.get_user(jwt=token)
+                if user_res and user_res.user:
+                    user_uuid = user_res.user.id
+            except Exception:
+                pass
+        
+        if not user_uuid:
+            raise HTTPException(status_code=401, detail="Authentication required to target trends")
+
+        if req.action == "target":
+            # Upsert target action
+            supabase.table("trend_actions").upsert({
+                "user_id": user_uuid,
+                "trend_id": trend_id,
+                "action_type": "target"
+            }, on_conflict="user_id,trend_id,action_type").execute()
+            
+            # Recalculate saturation_count
+            count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
+            sat_count = count_res.count or 0
+            supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
+            return {"success": True, "action": "target", "saturation_count": sat_count}
+            
+        elif req.action == "untarget":
+            # Delete target action
+            supabase.table("trend_actions").delete().eq("user_id", user_uuid).eq("trend_id", trend_id).eq("action_type", "target").execute()
+            
+            # Recalculate saturation_count
+            count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
+            sat_count = count_res.count or 0
+            supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
+            return {"success": True, "action": "untarget", "saturation_count": sat_count}
+        else:
+            raise HTTPException(status_code=400, detail="Invalid action")
+    except Exception as e:
+        logger.error(f"Error toggling target: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/trends/targeted")
+@limiter.limit("60/minute")
+def get_targeted_trends(request: Request, authorization: str = Header(None)):
+    """Fetch all trends currently targeted by the authenticated user."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        user_uuid = None
+        if authorization and authorization.startswith("Bearer "):
+            token = authorization.split("Bearer ")[1].strip()
+            try:
+                user_res = supabase.auth.get_user(jwt=token)
+                if user_res and user_res.user:
+                    user_uuid = user_res.user.id
+            except Exception:
+                pass
+        
+        if not user_uuid:
+            raise HTTPException(status_code=401, detail="Authentication required")
+            
+        actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_uuid).eq("action_type", "target").execute()
+        trend_ids = [a["trend_id"] for a in actions_res.data or []]
+        if not trend_ids:
+            return []
+            
+        trends_res = supabase.table("trends").select("*").in_("id", trend_ids).execute()
+        return _normalize_trends(trends_res.data or [])
+    except Exception as e:
+        logger.error(f"Error fetching targeted trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -2721,7 +2951,7 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
 @app.get("/api/daily-ideas/{user_email}")
 @limiter.limit("10/minute")
 def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access daily ideas of another user")
 
     # 2.2 CACHING: ideas:{user_email}:{date}
@@ -2767,7 +2997,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 @app.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
 def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
         niche = "lifestyle"
@@ -3237,7 +3467,7 @@ class CollabRequest(BaseModel):
 @app.get("/api/brand-deals/{user_email}")
 @limiter.limit("30/minute")
 def get_brand_deals_marketplace(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
 
     # Get user niche
@@ -3373,7 +3603,7 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
 @app.get("/api/collab-matches/{user_email}")
 @limiter.limit("30/minute")
 def get_collab_matches(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email:
+    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's collab matches")
     try:
         # Get user's profile to match niche
@@ -4179,7 +4409,8 @@ def get_creator_metrics(
             'viral_content_count': metrics.viral_content_count,
             'growth_trend': metrics.growth_trend,
             'peak_performance_hours': metrics.peak_performance_hours,
-            'optimal_posting_times': metrics.optimal_posting_times
+            'optimal_posting_times': metrics.optimal_posting_times,
+            'is_connected': getattr(metrics, 'is_connected', True)
         }
     except Exception as e:
         logger.exception(f"Error getting creator metrics: {e}")
@@ -5091,11 +5322,12 @@ def get_cultural_event(
 @limiter.limit("5/minute")
 def analyze_video_metadata(
     request: Request,
-    video_url: str,
+    payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
     """Analyze video metadata using FFmpeg, falling back to simulated data if not available."""
     try:
+        video_url = payload.video_url
         sample_metadata = {
             'width': 1080,
             'height': 1920,
@@ -5140,11 +5372,12 @@ def analyze_video_metadata(
 @limiter.limit("5/minute")
 def analyze_video_visual(
     request: Request,
-    video_url: str,
+    payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
     """Analyze video visual content using OpenCV, falling back to simulated data if not available."""
     try:
+        video_url = payload.video_url
         if not VideoVisualAnalyzer:
             return {
                 'face_detection': {'face_present_percentage': 26.67, 'detected_faces_count': 1},
@@ -5177,11 +5410,12 @@ def analyze_video_visual(
 @limiter.limit("5/minute")
 def predict_video_virality(
     request: Request,
-    video_url: str,
+    payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
     """Predict video virality combining metadata and visual analysis."""
     try:
+        video_url = payload.video_url
         sample_metadata = {
             'scores': {
                 'duration': 90,
@@ -5228,11 +5462,12 @@ def predict_video_virality(
 @limiter.limit("5/minute")
 def get_video_improvements(
     request: Request,
-    video_url: str,
+    payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
     """Get improvement suggestions for video virality."""
     try:
+        video_url = payload.video_url
         sample_metadata = {
             'scores': {
                 'duration': 90,

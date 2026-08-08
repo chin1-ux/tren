@@ -168,3 +168,41 @@ def calculate_opportunity_score(*, india_saturation_pct: float, window_hours_rem
     win_factor = max(0.0, float(window_hours_remaining or 0.0) / 24.0)
     conf = max(0.0, float(confidence or 0.0))
     return round(((sat_factor * 60.0) + (win_factor * 40.0)) * conf, 1)
+
+
+def calculate_realistic_peaking_score(trend: dict, snapshots: list) -> float:
+    """
+    Calculate peaking score using data that actually exists:
+    - Velocity acceleration (50%): from trend_snapshots
+    - Window efficiency (30%): (window_remaining / 48) * 100
+    - Creator count score (20%): from reel_count
+    
+    Args:
+        trend: Trend data dictionary
+        snapshots: List of trend_snapshots for this trend (pre-fetched to avoid N+1)
+    
+    Returns:
+        Peaking score (0-100)
+    """
+    # Calculate velocity acceleration from snapshots
+    velocity_score = 0
+    if len(snapshots) >= 2:
+        recent_velocity = snapshots[0]['velocity_avg']
+        older_velocity = snapshots[-1]['velocity_avg']
+        if older_velocity > 0:
+            acceleration = ((recent_velocity - older_velocity) / older_velocity) * 100
+            # Normalize to 0-100 (assume 100% acceleration = 100 points)
+            velocity_score = min(100, max(0, acceleration))
+    
+    # Calculate window efficiency (strictly 0-100 scale)
+    window_remaining = trend.get('window_hours_remaining', 0)
+    window_efficiency = min(100.0, (window_remaining / 48.0) * 100.0) if window_remaining > 0 else 0
+    
+    # Calculate creator count score
+    reel_count = trend.get('reel_count', 0)
+    creator_score = min(100.0, (reel_count / 1000.0) * 100.0)  # 1000 reels = 100 points
+    
+    # Combined score
+    peaking_score = (velocity_score * 0.50) + (window_efficiency * 0.30) + (creator_score * 0.20)
+    return round(peaking_score, 2)
+

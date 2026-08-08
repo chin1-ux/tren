@@ -3,9 +3,10 @@ import React from "react";
 interface SparklineChartProps {
   data: number[];
   color?: "green" | "amber" | "red";
+  height?: number;  // NEW: Optional height prop (default 24px for sparkline, larger for proof view)
 }
 
-export const SparklineChart = ({ data, color = "green" }: SparklineChartProps) => {
+export const SparklineChart = ({ data, color = "green", height = 24 }: SparklineChartProps) => {
   if (!data || data.length < 2) {
     return (
       <div className="flex h-6 items-center justify-center text-[10px] text-white/40 italic">
@@ -15,7 +16,6 @@ export const SparklineChart = ({ data, color = "green" }: SparklineChartProps) =
   }
 
   const width = 80;
-  const height = 24;
   const padding = 2;
 
   const minVal = Math.min(...data);

@@ -14,7 +14,7 @@ if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
 
 if not ADMIN_SECRET_KEY:
-    ADMIN_SECRET_KEY = "trendrop_dev_admin_secret_key_2026"
+    raise ValueError("ADMIN_SECRET_KEY must be set in environment variables")
 
 
 
@@ -22,7 +22,7 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user(authorization: str = Header(None)) -> str:
     """
-    Validate the Supabase JWT or the custom subscription auth_token in the Authorization header.
+    Validate the Supabase JWT in the Authorization header.
     Returns the user's email if valid. Falls back to guest@trendrop.app if invalid or missing.
     """
     if not authorization or not authorization.startswith("Bearer "):
@@ -32,17 +32,7 @@ def get_current_user(authorization: str = Header(None)) -> str:
     if not token:
         return "guest@trendrop.app"
     
-    # 1. Try to validate as custom subscription auth_token
-    try:
-        res = supabase.table("users").select("email").eq("auth_token", token).execute()
-        if res.data and len(res.data) > 0:
-            email = res.data[0].get("email")
-            if email:
-                return email
-    except Exception as e:
-        pass
-
-    # 2. Fall back to validating as Supabase JWT
+    # Validate token using Supabase Auth JWT validator
     try:
         user_res = supabase.auth.get_user(jwt=token)
         if user_res and user_res.user:
@@ -58,12 +48,11 @@ def get_admin_user(x_admin_key: str = Header(None)) -> bool:
     """
     Validates X-Admin-Key header against the ADMIN_SECRET_KEY.
     """
-    if not ADMIN_SECRET_KEY or ADMIN_SECRET_KEY == "trendrop_dev_admin_secret_key_2026":
-        if os.getenv("VERCEL") or os.getenv("ENV") == "production":
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="ADMIN_SECRET_KEY must be set to a secure secret key in production environment variables"
-            )
+    if not ADMIN_SECRET_KEY:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="ADMIN_SECRET_KEY is not configured"
+        )
     if not x_admin_key or x_admin_key != ADMIN_SECRET_KEY:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,

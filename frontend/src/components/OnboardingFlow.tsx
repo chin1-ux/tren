@@ -311,7 +311,7 @@ export function OnboardingFlow({ onComplete }: Props) {
                   className="mt-0.5 h-4 w-4 rounded border-muted-foreground/30 bg-muted/60 text-primary focus:ring-primary/50 cursor-pointer"
                 />
                 <span className="text-xs text-muted-foreground leading-tight">
-                  I agree to the <a href="/terms" target="_blank" className="underline text-foreground hover:text-primary">Terms of Service</a> and <a href="/privacy" target="_blank" className="underline text-foreground hover:text-primary">Privacy Policy</a> (Required)
+                  I agree to the <a href="/terms" target="_blank" rel="noopener noreferrer" className="underline text-foreground hover:text-primary">Terms of Service</a> and <a href="/privacy" target="_blank" rel="noopener noreferrer" className="underline text-foreground hover:text-primary">Privacy Policy</a> (Required)
                 </span>
               </label>
 

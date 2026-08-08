@@ -12,6 +12,8 @@ interface ViralityPrediction {
   engagement_estimate: string;
   recommendations: string[];
   confidence: number;
+  is_simulated?: boolean;
+  note?: string;
 }
 
 export function VideoAnalysisPanel() {
@@ -104,6 +106,15 @@ export function VideoAnalysisPanel() {
           animate={{ opacity: 1, y: 0 }}
           className="space-y-4"
         >
+          {prediction.is_simulated && (
+            <div className="bg-amber-500/10 border border-amber-500/20 text-amber-600 dark:text-amber-400 p-3.5 rounded-2xl text-xs flex items-start gap-2.5">
+              <AlertCircle className="h-4 w-4 shrink-0 mt-0.5" />
+              <div>
+                <span className="font-semibold block mb-0.5">Simulated Result</span>
+                {prediction.note || "Full video analysis engine is not configured on this server. Running in fallback mode with sample predictions."}
+              </div>
+            </div>
+          )}
           {/* Score Card */}
           <div className={`bg-card border border-border p-6 rounded-2xl ${getScoreBg(prediction.combined_score)}`}>
             <div className="flex items-center justify-between mb-4">

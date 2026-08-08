@@ -123,11 +123,11 @@ export function AIContentGenerator() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="caption">Caption</TabsTrigger>
-          <TabsTrigger value="ideas">Content Ideas</TabsTrigger>
-          <TabsTrigger value="hooks">Hooks</TabsTrigger>
-          <TabsTrigger value="script">Script</TabsTrigger>
+        <TabsList className="flex w-full overflow-x-auto justify-start md:justify-center p-1 h-auto no-scrollbar gap-1.5">
+          <TabsTrigger value="caption" className="shrink-0">Caption</TabsTrigger>
+          <TabsTrigger value="ideas" className="shrink-0">Content Ideas</TabsTrigger>
+          <TabsTrigger value="hooks" className="shrink-0">Hooks</TabsTrigger>
+          <TabsTrigger value="script" className="shrink-0">Script</TabsTrigger>
         </TabsList>
 
         {/* Caption Generation */}

@@ -1,7 +1,9 @@
-import { useState } from "react";
-import { Copy, X, Check, Film, Sparkles, AlertCircle } from "lucide-react";
+import { useState, useEffect } from "react";
+import { Copy, X, Check, Film, Sparkles, Target, ExternalLink, Play, Calendar } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { toggleTrendTarget } from "@/lib/api";
+import { toast } from "sonner";
 
 interface Props {
   trend: UiTrend | null;
@@ -10,6 +12,23 @@ interface Props {
 
 export function DanceTrendModal({ trend, onClose }: Props) {
   const [copied, setCopied] = useState(false);
+  const [isTargeted, setIsTargeted] = useState(false);
+  const [targetCount, setTargetCount] = useState(0);
+  const [loadingTarget, setLoadingTarget] = useState(false);
+
+  useEffect(() => {
+    if (!trend) return;
+    setTargetCount(trend.saturationCount ?? 0);
+    
+    // Check local targeted cache
+    try {
+      const targetedArr = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
+      setIsTargeted(Array.isArray(targetedArr) && targetedArr.includes(String(trend.id)));
+    } catch {
+      setIsTargeted(false);
+    }
+  }, [trend]);
+
   if (!trend) return null;
 
   const copy = async () => {
@@ -18,119 +37,190 @@ export function DanceTrendModal({ trend, onClose }: Props) {
     setTimeout(() => setCopied(false), 1500);
   };
 
-  const steps = [
-    "Open Instagram or YouTube Shorts camera",
-    "Select the trending song from the audio library",
-    "Record yourself following the brief described below",
-    "Add a high-quality filter & follow camera hints",
-    "Post using the suggested tags and captions"
-  ];
+  const handleToggleTarget = async () => {
+    if (loadingTarget) return;
+    setLoadingTarget(true);
+    const newAction = isTargeted ? "untarget" : "target";
+    try {
+      const res = await toggleTrendTarget(trend.id, newAction);
+      if (res.success) {
+        setIsTargeted(!isTargeted);
+        setTargetCount(res.saturation_count);
+        
+        let targetedArr: string[] = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
+        if (newAction === "target") {
+          targetedArr.push(String(trend.id));
+          toast.success("Trend targeted! Added to your workspace 🎯");
+        } else {
+          targetedArr = targetedArr.filter((id) => id !== String(trend.id));
+          toast.success("Trend removed from targeted list");
+        }
+        localStorage.setItem("targeted_trends", JSON.stringify(targetedArr));
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update target status");
+    } finally {
+      setLoadingTarget(false);
+    }
+  };
+
+  // Build the storyboard items. Fallback if visualStoryboard is empty or null.
+  const storyboard = (trend.visualStoryboard && trend.visualStoryboard.length > 0) 
+    ? trend.visualStoryboard 
+    : [
+        { time: "0:00 - 0:03", instruction: "Visual Hook: Start with a high-contrast intro showing your key transition question." },
+        { time: "0:03 - 0:08", instruction: "Action Sequence: Capture the main activity aligning your movements to the beat drops." },
+        { time: "0:08 - 0:12", instruction: "End Scene: Outro transition wrapping up with a call to action." }
+      ];
+
+  const hasTemplate = !!trend.templateLink;
+  const isCapCut = trend.templateLink?.includes("capcut.com");
 
   return (
     <div className="fixed inset-0 z-[60] flex items-end justify-center bg-black/75 backdrop-blur-md animate-in fade-in duration-200">
       {/* Click outside backdrop to close */}
       <div className="absolute inset-0" onClick={onClose} />
 
-      <div className="relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t border-x border-border bg-surface px-6 pb-8 pt-4 shadow-2xl animate-in slide-in-from-bottom duration-300">
+      <div className="relative max-h-[85vh] w-full max-w-md overflow-y-auto rounded-t-3xl border-t border-x border-white/10 bg-zinc-950 px-6 pb-8 pt-4 shadow-2xl animate-in slide-in-from-bottom duration-300">
         
         {/* Pull/Drag indicator handle */}
-        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/10" />
+        <div className="mx-auto mb-4 h-1.5 w-12 rounded-full bg-white/15" />
 
         <div className="mb-5 flex items-start justify-between">
           <div>
             <h2 className="text-xl font-extrabold tracking-tight text-amber flex items-center gap-2">
-              <Film className="h-5 w-5 animate-pulse" /> Dance Film Guide
+              <Film className="h-5 w-5 text-amber animate-pulse" /> Production Playbook
             </h2>
-            <p className="mt-1 text-xs text-muted-foreground">Follow this production playbook to go viral</p>
+            <p className="mt-1 text-xs text-zinc-400">Step-by-step shooting instructions & assets</p>
           </div>
           <button
             onClick={onClose}
-            title="Close dance guide"
-            aria-label="Close dance guide"
-            className="rounded-full bg-white/5 p-2 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all"
+            aria-label="Close"
+            className="rounded-full bg-white/5 p-2 text-zinc-400 hover:bg-white/10 hover:text-white transition-all"
           >
             <X className="h-4 w-4" />
           </button>
         </div>
 
         <div className="space-y-4">
-          <Section label="Song to use">
-            <div className="flex items-center justify-between gap-3 rounded-xl border border-border bg-white/[0.02] p-3">
+          
+          {/* Action Row: Targeting & Saturation */}
+          <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
+            <div className="text-left">
+              <p className="text-xs font-semibold text-zinc-400">Platform Saturation</p>
+              <p className="text-sm font-extrabold text-foreground mt-0.5">
+                {targetCount} {targetCount === 1 ? "Creator" : "Creators"} Targeting
+              </p>
+            </div>
+            <Button
+              onClick={handleToggleTarget}
+              disabled={loadingTarget}
+              className={`h-9 px-4 rounded-lg font-bold text-xs flex items-center gap-1.5 transition-all ${
+                isTargeted 
+                  ? "bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 hover:bg-emerald-500/20" 
+                  : "bg-primary text-white hover:bg-primary/90"
+              }`}
+            >
+              <Target className={`h-4 w-4 ${isTargeted ? "animate-ping" : ""}`} />
+              {isTargeted ? "Targeted 🎯" : "Target Trend"}
+            </Button>
+          </div>
+
+          <Section label="Audio Details">
+            <div className="flex items-center justify-between gap-3 rounded-xl border border-white/5 bg-white/[0.02] p-3">
               <div className="min-w-0">
-                <p className="truncate text-sm font-bold text-foreground">{trend.song}</p>
-                <p className="truncate text-xs text-muted-foreground">by {trend.artist}</p>
+                <p className="truncate text-sm font-bold text-white">{trend.song}</p>
+                <p className="truncate text-xs text-zinc-400">by {trend.artist}</p>
               </div>
               <button
                 onClick={copy}
-                className="shrink-0 rounded-lg bg-white/5 p-2 text-muted-foreground hover:bg-white/10 hover:text-foreground transition-all flex items-center gap-1 text-xs"
+                className="shrink-0 rounded-lg bg-white/5 p-2 text-zinc-400 hover:bg-white/10 hover:text-white transition-all flex items-center gap-1 text-xs font-semibold"
               >
                 {copied ? (
                   <>
-                    <Check className="h-3.5 w-3.5 text-success" />
-                    <span className="text-success font-semibold">Copied</span>
+                    <Check className="h-3.5 w-3.5 text-emerald-400" />
+                    <span className="text-emerald-400">Copied</span>
                   </>
                 ) : (
                   <>
                     <Copy className="h-3.5 w-3.5" />
-                    <span>Copy</span>
+                    <span>Copy Info</span>
                   </>
                 )}
               </button>
             </div>
           </Section>
 
-          <Section label="What to film">
-            <div className="rounded-xl border border-border bg-white/[0.02] p-3 text-xs leading-relaxed text-foreground/90">
-              {trend.idealContentDescription || "Record transition or sync your dance movement to the beat drop."}
+          {/* Template Deep-Link */}
+          {hasTemplate && (
+            <Section label="Editing Template Available">
+              <a
+                href={trend.templateLink!}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-between rounded-xl border border-violet-500/30 bg-violet-500/10 px-4 py-3 text-xs font-bold text-violet-300 hover:bg-violet-500/20 hover:border-violet-500/50 transition-all"
+              >
+                <span className="flex items-center gap-2">
+                  <Play className="h-4 w-4 fill-current text-violet-400" />
+                  Use Template on {isCapCut ? "CapCut" : "Instagram"}
+                </span>
+                <ExternalLink className="h-3.5 w-3.5 opacity-60" />
+              </a>
+            </Section>
+          )}
+
+          <Section label="Concept Vibe">
+            <div className="flex items-center gap-2">
+              <span className="inline-flex rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] font-bold text-zinc-300 uppercase tracking-wide">
+                🎨 Vibe: {trend.vibeTag ?? "general"}
+              </span>
+              <span className="inline-flex rounded-full bg-white/5 border border-white/10 px-2.5 py-0.5 text-[10px] font-bold text-zinc-300 uppercase tracking-wide">
+                🎥 Style: {trend.cameraStyle || "general"}
+              </span>
             </div>
           </Section>
 
-          <Section label="Camera tip & setup">
-            <div className="rounded-xl border border-border bg-white/[0.02] p-3 text-xs leading-relaxed text-foreground/90 flex gap-2.5 items-start">
-              <Sparkles className="h-4 w-4 text-amber shrink-0 mt-0.5" />
-              <span>{trend.cameraStyle || "Use portrait mode, tripod setup, eye-level angle with high saturation filter."}</span>
-            </div>
-          </Section>
-
-          <Section label="Step-by-step tutorial">
-            <ol className="space-y-3">
-              {steps.map((s, i) => (
-                <li key={i} className="flex gap-3 text-xs">
-                  <span className="grid h-5 w-5 shrink-0 place-items-center rounded-full bg-amber/25 text-[10px] font-bold text-amber border border-amber/20">
-                    {i + 1}
-                  </span>
-                  <span className="pt-0.5 text-muted-foreground font-medium leading-relaxed">{s}</span>
-                </li>
+          <Section label="Visual Storyboard Timeline">
+            <div className="space-y-3 pl-1 border-l border-white/10 ml-2">
+              {storyboard.map((step, i) => (
+                <div key={i} className="relative flex gap-3.5 text-xs">
+                  {/* Dot indicator */}
+                  <div className="absolute -left-[19px] top-1.5 h-2 w-2 rounded-full bg-amber shadow-[0_0_8px_rgba(245,158,11,0.5)]" />
+                  
+                  <div className="flex-1">
+                    <p className="font-extrabold text-amber text-[10px] uppercase tracking-wider">{step.time}</p>
+                    <p className="mt-0.5 text-zinc-300 leading-relaxed font-medium">{step.instruction}</p>
+                  </div>
+                </div>
               ))}
-            </ol>
+            </div>
           </Section>
 
-          <Section label="Production hashtags">
-            <div className="flex flex-wrap gap-1.5">
-              {trend.hashtags && trend.hashtags.length > 0 ? (
-                trend.hashtags.map((h) => (
-                  <span
-                    key={h}
-                    className="rounded-full bg-white/5 border border-border px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground hover:text-foreground transition-colors"
-                  >
-                    {h}
-                  </span>
-                ))
-              ) : (
-                <>
-                  <span className="rounded-full bg-white/5 border border-border px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">#viral</span>
-                  <span className="rounded-full bg-white/5 border border-border px-2.5 py-0.5 text-[10px] font-semibold text-muted-foreground">#trendingreels</span>
-                </>
-              )}
+          <Section label="Ideal Caption Idea">
+            <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs leading-relaxed text-zinc-300">
+              {trend.idealContentDescription || "Film transitions and synchronize your video cuts perfectly to the beat drop."}
             </div>
           </Section>
         </div>
 
         <div className="mt-6 flex gap-2">
-          <Button onClick={onClose} className="h-11 w-full bg-amber font-bold text-white hover:bg-amber/90">
-            Got it, Let's Film!
-          </Button>
-          <Button onClick={onClose} className="h-11 w-full border-border hover:bg-white/5" variant="outline">
+          {hasTemplate ? (
+            <a
+              href={trend.templateLink!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex-1"
+            >
+              <Button className="h-11 w-full bg-amber font-bold text-white hover:bg-amber/90">
+                Open Template
+              </Button>
+            </a>
+          ) : (
+            <Button onClick={onClose} className="flex-1 h-11 bg-amber font-bold text-white hover:bg-amber/90">
+              Got it, Let's Film!
+            </Button>
+          )}
+          <Button onClick={onClose} className="h-11 w-24 border-white/10 hover:bg-white/5 text-zinc-400" variant="outline">
             Close
           </Button>
         </div>
@@ -141,8 +231,8 @@ export function DanceTrendModal({ trend, onClose }: Props) {
 
 function Section({ label, children }: { label: string; children: React.ReactNode }) {
   return (
-    <div className="space-y-1.5">
-      <h3 className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground/80">{label}</h3>
+    <div className="space-y-1.5 text-left">
+      <h3 className="text-[10px] font-bold uppercase tracking-wider text-zinc-400/80">{label}</h3>
       {children}
     </div>
   );

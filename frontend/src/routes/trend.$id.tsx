@@ -5,6 +5,7 @@ import {
 } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
 import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
+import { FEATURES } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { useState } from "react";
 import { toast } from "sonner";
@@ -195,16 +196,18 @@ function TrendDetailPage() {
           <Button
             onClick={shareWhatsApp}
             variant="outline"
-            className="flex-1 h-10 text-xs border-border"
+            className={`h-10 text-xs border-border ${FEATURES.GENERATE_ENABLED ? "flex-1" : "w-full"}`}
           >
             <Share2 className="h-3.5 w-3.5" /> Share on WhatsApp
           </Button>
-          <Button
-            onClick={() => navigate({ to: "/generate", search: { trendId: id } })}
-            className="flex-1 h-10 text-xs bg-primary"
-          >
-            Generate Reel →
-          </Button>
+          {FEATURES.GENERATE_ENABLED && (
+            <Button
+              onClick={() => navigate({ to: "/generate", search: { trendId: id } })}
+              className="flex-1 h-10 text-xs bg-primary"
+            >
+              Generate Reel →
+            </Button>
+          )}
         </div>
       </div>
 
@@ -438,12 +441,14 @@ function TrendDetailPage() {
       )}
 
       {/* Generate CTA */}
-      <Button
-        onClick={() => navigate({ to: "/generate", search: { trendId: id } })}
-        className="h-14 w-full bg-primary text-base font-bold uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
-      >
-        🎬 Generate My Reel For This Trend
-      </Button>
+      {FEATURES.GENERATE_ENABLED && (
+        <Button
+          onClick={() => navigate({ to: "/generate", search: { trendId: id } })}
+          className="h-14 w-full bg-primary text-base font-bold uppercase tracking-widest shadow-lg shadow-primary/20 hover:scale-[1.01] transition-transform"
+        >
+          🎤 Generate My Reel For This Trend
+        </Button>
+      )}
     </div>
   );
 }

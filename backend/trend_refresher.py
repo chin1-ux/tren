@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from trend_scoring import calculate_opportunity_score
+from trend_scoring import calculate_opportunity_score, calculate_realistic_peaking_score
 
 try:
     logging.basicConfig(
@@ -82,6 +82,10 @@ class TrendRefresher:
                 # Always refresh audio use count first, regardless of status
                 if self._refresh_audio_use_count(trend):
                     summary["audio_use_count_refreshed"] += 1
+
+                # Refresh peaking score for active trends
+                if current_status in ["emerging", "rising"]:
+                    self._refresh_peaking_score(trend)
 
                 # Only run state transitions and velocity calculations for active status
                 if current_status not in ["emerging", "rising"]:
@@ -254,6 +258,32 @@ class TrendRefresher:
         except Exception as e:
             logger.warning(f"Could not refresh opportunity_score for trend_id={trend.get('id')}: {e}")
         return score
+
+    def _refresh_peaking_score(self, trend: dict) -> float:
+        """
+        Refresh peaking score for a trend based on recent snapshots.
+        """
+        trend_id = trend["id"]
+        
+        try:
+            # Get snapshots for this trend
+            snapshots_res = self.supabase.table('trend_snapshots') \
+                .select('velocity_avg, captured_at') \
+                .eq('trend_id', trend_id) \
+                .order('captured_at', desc=True) \
+                .limit(10) \
+                .execute()
+            
+            snapshots = snapshots_res.data or []
+            peaking_score = calculate_realistic_peaking_score(trend, snapshots)
+            
+            # Update the peaking score in database
+            self.supabase.table("trends").update({"peaking_score": peaking_score}).eq("id", trend_id).execute()
+            
+            return peaking_score
+        except Exception as e:
+            logger.warning(f"Could not refresh peaking_score for trend_id={trend.get('id')}: {e}")
+            return 0.0
 
     def _refresh_audio_use_count(self, trend: dict) -> bool:
         """

@@ -52,6 +52,7 @@ class CreatorMetrics:
     growth_trend: str  # "growing", "stable", "declining"
     peak_performance_hours: List[int]  # Hours when content performs best
     optimal_posting_times: List[str]
+    is_connected: bool = True
 
 @dataclass
 class TrendAdoption:
@@ -107,9 +108,15 @@ class CreatorAnalyticsEngine:
         """
         if not self.supabase:
             logger.warning("Supabase not available for creator analytics")
-            return self._empty_metrics(creator_email)
+            return self._empty_metrics(creator_email, is_connected=False)
         
         try:
+            # Check if user is connected via instagram_tokens
+            tokens_res = self.supabase.table('instagram_tokens').select('id').eq('user_email', creator_email).execute()
+            if not tokens_res.data:
+                logger.info(f"Creator {creator_email} is not connected to Instagram")
+                return self._empty_metrics(creator_email, is_connected=False)
+            
             time_threshold = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
             
             # Get creator's reels (assuming reels have owner_email or similar field)
@@ -202,12 +209,13 @@ class CreatorAnalyticsEngine:
                 viral_content_count=viral_count,
                 growth_trend=growth_trend,
                 peak_performance_hours=peak_performance_hours,
-                optimal_posting_times=optimal_times
+                optimal_posting_times=optimal_times,
+                is_connected=True
             )
             
         except Exception as e:
             logger.error(f"Error getting creator metrics: {e}")
-            return self._empty_metrics(creator_email)
+            return self._empty_metrics(creator_email, is_connected=False)
     
     def get_trend_adoption_history(self, creator_email: str, days_back: int = 90) -> List[TrendAdoption]:
         """
@@ -253,6 +261,12 @@ class CreatorAnalyticsEngine:
             return []
         
         try:
+            # Check if user is connected via instagram_tokens
+            tokens_res = self.supabase.table('instagram_tokens').select('id').eq('user_email', creator_email).execute()
+            if not tokens_res.data:
+                logger.info(f"Creator {creator_email} is not connected to Instagram, returning empty performance data")
+                return []
+            
             time_threshold = (datetime.now(timezone.utc) - timedelta(days=days_back)).isoformat()
             
             reels_res = self.supabase.table('reels') \
@@ -361,7 +375,7 @@ class CreatorAnalyticsEngine:
         
         return recommendations
     
-    def _empty_metrics(self, creator_email: str) -> CreatorMetrics:
+    def _empty_metrics(self, creator_email: str, is_connected: bool = False) -> CreatorMetrics:
         """Return empty metrics when data is unavailable"""
         return CreatorMetrics(
             creator_email=creator_email,
@@ -378,7 +392,8 @@ class CreatorAnalyticsEngine:
             viral_content_count=0,
             growth_trend="stable",
             peak_performance_hours=[],
-            optimal_posting_times=[]
+            optimal_posting_times=[],
+            is_connected=is_connected
         )
     
     def _get_optimal_posting_times(self, peak_hours: List[int]) -> List[str]:

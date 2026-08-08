@@ -80,6 +80,12 @@ export interface ApiTrend {
   views_delta_last_run?: number;
   likes_delta_last_run?: number;
   audio_delta_last_run?: number;
+  peaking_score?: number;
+  template_link?: string | null;
+  visual_storyboard?: Array<{ time: string; instruction: string }>;
+  vibe_tag?: string;
+  is_voiceover?: boolean;
+  saturation_count?: number;
 }
 
 export interface ApiCaptionKit {
@@ -255,6 +261,16 @@ export interface UiTrend {
   crossoverMessage?: string | null;
   viewsDelta?: number;
   likesDelta?: number;
+  
+  // peaking trend detection field
+  peakingScore?: number;
+
+  // v4 premium fields
+  templateLink?: string | null;
+  visualStoryboard?: Array<{ time: string; instruction: string }>;
+  vibeTag?: string;
+  isVoiceover?: boolean;
+  saturationCount?: number;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -343,6 +359,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     crossoverMessage: t.crossover_message,
     viewsDelta: t.views_delta_last_run,
     likesDelta: t.likes_delta_last_run,
+    peakingScore: t.peaking_score,
     // Trend classification fields for display differentiation
     trendClassification: t.trend_classification ?? "new_viral",
     velocityPattern: t.velocity_pattern ?? "sudden_spike",
@@ -352,6 +369,11 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     audioOriginalReleaseYear: t.audio_original_release_year,
     audioGenre: t.audio_genre,
     audioLabel: t.audio_label,
+    templateLink: t.template_link ?? null,
+    visualStoryboard: t.visual_storyboard ?? [],
+    vibeTag: t.vibe_tag ?? "general",
+    isVoiceover: !!t.is_voiceover,
+    saturationCount: t.saturation_count ?? 0,
   };
 }
 
@@ -386,12 +408,7 @@ export function setAuthToken(token: string | null) {
 
 export function getAuthToken(): string | null {
   if (!inMemoryToken && typeof window !== "undefined") {
-    // Check for new session token first
     inMemoryToken = localStorage.getItem("trendrop_session_token");
-    // Fall back to old token for backward compatibility
-    if (!inMemoryToken) {
-      inMemoryToken = localStorage.getItem("trendrop_token");
-    }
   }
   return inMemoryToken;
 }
@@ -738,6 +755,7 @@ export interface CreatorMetrics {
   growth_trend: string;
   peak_performance_hours: number[];
   optimal_posting_times: string[];
+  is_connected?: boolean;
 }
 
 export async function getCreatorMetrics(daysBack: number = 30): Promise<CreatorMetrics> {
@@ -1298,7 +1316,14 @@ export async function getUserPlan(email: string): Promise<{ plan: string }> {
   return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
 }
 
-// ── Admin API Functions ───────────────────────────────────────────────────────────
+// Helper to safely retrieve the admin key or fail loudly
+function getAdminKey(): string {
+  const key = import.meta.env.VITE_ADMIN_KEY;
+  if (!key) {
+    throw new Error("Admin key is not configured (VITE_ADMIN_KEY missing)");
+  }
+  return key;
+}
 
 export async function getAdminUsers(search?: string, planFilter?: string): Promise<any> {
   const params = new URLSearchParams();
@@ -1307,7 +1332,7 @@ export async function getAdminUsers(search?: string, planFilter?: string): Promi
   
   return http<any>(`/api/admin/users?${params.toString()}`, {
     headers: {
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     }
   });
 }
@@ -1315,7 +1340,7 @@ export async function getAdminUsers(search?: string, planFilter?: string): Promi
 export async function getAdminUserDetails(email: string): Promise<any> {
   return http<any>(`/api/admin/users/${encodeURIComponent(email)}`, {
     headers: {
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     }
   });
 }
@@ -1325,7 +1350,7 @@ export async function updateAdminUserPlan(email: string, newPlan: string, reason
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ new_plan: newPlan, reason }),
   });
@@ -1336,7 +1361,7 @@ export async function lockAdminUserAccount(email: string, reason?: string): Prom
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ reason }),
   });
@@ -1347,7 +1372,7 @@ export async function unlockAdminUserAccount(email: string, reason?: string): Pr
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ reason }),
   });
@@ -1356,7 +1381,7 @@ export async function unlockAdminUserAccount(email: string, reason?: string): Pr
 export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
   return http<any>(`/api/admin/business-metrics?days=${days}`, {
     headers: {
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     }
   });
 }
@@ -1364,7 +1389,7 @@ export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
 export async function getAdminSuspiciousActivity(days: number = 7): Promise<any> {
   return http<any>(`/api/admin/suspicious-activity?days=${days}`, {
     headers: {
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     }
   });
 }
@@ -1374,7 +1399,7 @@ export async function resolveAdminSuspiciousActivity(activityId: number, resolut
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ resolution }),
   });
@@ -1383,7 +1408,7 @@ export async function resolveAdminSuspiciousActivity(activityId: number, resolut
 export async function getAdminPlanFeatures(): Promise<any> {
   return http<any>("/api/admin/plan-features", {
     headers: {
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     }
   });
 }
@@ -1393,7 +1418,7 @@ export async function createAdminPlanFeature(data: any): Promise<any> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": import.meta.env.VITE_ADMIN_KEY || "trendrop_dev_admin_secret_key_2026"
+      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify(data),
   });
@@ -1568,6 +1593,20 @@ export async function submitCreatorFeedback(dealId: number, rating: string, comm
     body: JSON.stringify({ deal_id: dealId, rating, comment })
   });
 }
+
+export async function toggleTrendTarget(trendId: string | number, action: "target" | "untarget"): Promise<{ success: boolean; action: string; saturation_count: number }> {
+  return http<{ success: boolean; action: string; saturation_count: number }>(`/api/trends/${trendId}/target`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ action })
+  });
+}
+
+export async function fetchTargetedTrends(): Promise<UiTrend[]> {
+  const data = await http<ApiTrend[]>("/api/trends/targeted");
+  return data.map(adaptTrend);
+}
+
 
 
 

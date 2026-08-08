@@ -1,12 +1,13 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 import {
-  User, Users, Mail, Award, Sparkles, ShieldCheck
+  User, Users, Mail, Award, Sparkles, ShieldCheck, LogOut
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { subscribe, createPaymentOrder, verifyPayment, getUserPlan } from "@/lib/api";
 import { toast } from "sonner";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/profile")({
   head: () => ({
@@ -48,6 +49,19 @@ const FREQUENCIES = [
 ];
 
 function ProfilePage() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success("Logged out successfully");
+      navigate({ to: "/login" });
+    } catch {
+      toast.error("Failed to log out");
+    }
+  };
+
   const [email, setEmail] = useState("");
   const [instagramHandle, setInstagramHandle] = useState("");
   const [followers, setFollowers] = useState("");
@@ -377,6 +391,16 @@ function ProfilePage() {
         className="h-12 w-full bg-primary hover:bg-primary/95 text-white font-bold uppercase tracking-wider shadow-lg shadow-primary/25 rounded-xl"
       >
         {saving ? "Saving Profile..." : "Save Profile ✓"}
+      </Button>
+
+      {/* Log Out Button */}
+      <Button
+        onClick={handleLogout}
+        variant="outline"
+        className="h-12 w-full border-red-500/30 text-red-500 hover:bg-red-500/10 font-bold uppercase tracking-wider rounded-xl flex items-center justify-center gap-2"
+      >
+        <LogOut className="h-4 w-4" />
+        <span>Log Out</span>
       </Button>
 
       <p className="text-center text-[10px] text-muted-foreground tracking-wide mt-2">

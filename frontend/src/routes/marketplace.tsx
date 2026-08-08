@@ -59,14 +59,10 @@ function MarketplacePage() {
   const [requestMessage, setRequestMessage] = useState("");
   const [sendingRequest, setSendingRequest] = useState(false);
 
-  // Auto-filled Creator Profile state
-  const [profile, setProfile] = useState<CreatorProfile>({
-    instagram_username: "trendrop.creator",
-    niche: "lifestyle",
-    followers: 18500,
-    engagement_rate: 5.2,
-    price_per_post: 15000
-  });
+  // Auto-filled Creator Profile state — changed default to null to prevent fake credentials
+  const [profile, setProfile] = useState<CreatorProfile | null>(null);
+  const [profileCacheStale, setProfileCacheStale] = useState(false);
+  const [profileLoadError, setProfileLoadError] = useState(false);
 
   useEffect(() => {
     loadBrandDeals();
@@ -88,6 +84,7 @@ function MarketplacePage() {
   };
 
   const loadCreatorProfile = async () => {
+    setProfileLoadError(false);
     try {
       const res = await apiFetch("/api/marketplace/profiles");
       if (res.ok) {
@@ -101,30 +98,43 @@ function MarketplacePage() {
             engagement_rate: mine.engagement_rate,
             price_per_post: mine.price_per_post
           });
+          setProfileCacheStale(false);
         } else {
           // Fallback to local storage if profile was edited there
           const cachedMine = localStorage.getItem("trendrop_marketplace_mine");
           if (cachedMine) {
             const parsed = JSON.parse(cachedMine);
-            setProfile({
-              instagram_username: parsed.instagram_username || "trendrop.creator",
-              niche: parsed.niche || "lifestyle",
-              followers: parsed.followers || 18500,
-              engagement_rate: parsed.engagement_rate || 5.2,
-              price_per_post: parsed.price_per_post || 15000
-            });
+            if (parsed.instagram_username && parsed.followers !== undefined) {
+              setProfile({
+                instagram_username: parsed.instagram_username,
+                niche: parsed.niche || "lifestyle",
+                followers: parsed.followers,
+                engagement_rate: parsed.engagement_rate || 0,
+                price_per_post: parsed.price_per_post || 0
+              });
+              setProfileCacheStale(true);
+            } else {
+              setProfileLoadError(true);
+            }
+          } else {
+            setProfileLoadError(true);
           }
         }
+      } else {
+        setProfileLoadError(true);
       }
     } catch (err) {
       console.error("Failed to load profile", err);
+      setProfileLoadError(true);
     }
   };
 
   const handleApplyClick = (deal: BrandDeal) => {
     setSelectedDeal(deal);
+    const nicheText = profile ? profile.niche : "general";
+    const followersText = profile ? `${profile.followers.toLocaleString()} followers` : "my audience";
     setPitchText(
-      `Hey ${deal.brand_name}! I love your brand and would be thrilled to collaborate. I plan to create a highly engaging transition Reel highlight-reel with a custom hook optimized for my ${profile.niche} audience of ${profile.followers.toLocaleString()} followers.`
+      `Hey ${deal.brand_name}! I love your brand and would be thrilled to collaborate. I plan to create a highly engaging transition Reel highlight-reel with a custom hook optimized for my ${nicheText} audience of ${followersText}.`
     );
   };
 
@@ -501,24 +511,38 @@ function MarketplacePage() {
                 Verified Creator Profile
               </h4>
               
-              <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
-                <div>
-                  <span className="text-text-muted block text-[9px] uppercase">Instagram handle</span>
-                  <span className="font-bold text-text">@{profile.instagram_username}</span>
+              {profileLoadError || !profile ? (
+                <div className="text-center py-2 space-y-1">
+                  <p className="text-xs text-red-400 font-bold">Profile failed to load</p>
+                  <p className="text-[10px] text-muted-foreground">Please configure your profile settings to submit applications.</p>
                 </div>
-                <div>
-                  <span className="text-text-muted block text-[9px] uppercase">Niche category</span>
-                  <span className="font-bold text-text capitalize">{profile.niche}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted block text-[9px] uppercase">Verified followers</span>
-                  <span className="font-bold text-text">{profile.followers.toLocaleString()}</span>
-                </div>
-                <div>
-                  <span className="text-text-muted block text-[9px] uppercase">Pricing rate</span>
-                  <span className="font-bold text-indigo-600 dark:text-indigo-300">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
-                </div>
-              </div>
+              ) : (
+                <>
+                  {profileCacheStale && (
+                    <div className="rounded-lg bg-amber-500/10 border border-amber-500/20 px-2 py-1.5 text-[9px] text-amber-300 font-semibold mb-2">
+                      ⚠️ Showing cached local profile — reconnect to refresh.
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-y-2 gap-x-4 text-xs">
+                    <div>
+                      <span className="text-text-muted block text-[9px] uppercase">Instagram handle</span>
+                      <span className="font-bold text-text">@{profile.instagram_username}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[9px] uppercase">Niche category</span>
+                      <span className="font-bold text-text capitalize">{profile.niche}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[9px] uppercase">Verified followers</span>
+                      <span className="font-bold text-text">{profile.followers.toLocaleString()}</span>
+                    </div>
+                    <div>
+                      <span className="text-text-muted block text-[9px] uppercase">Pricing rate</span>
+                      <span className="font-bold text-indigo-600 dark:text-indigo-300">₹{profile.price_per_post.toLocaleString("en-IN")}</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
 
             {/* Form */}
