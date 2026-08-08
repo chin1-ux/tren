@@ -345,6 +345,74 @@ function TrendDetailPage() {
         )}
       </div>
 
+      {/* Keywords Strategy & Viral Script */}
+      {captionKit?.keyword_strategy && (
+        <div className="glass-card p-5 space-y-4">
+          <h2 className="font-display text-lg font-bold flex items-center gap-2">
+            <Flame className="h-5 w-5 text-amber-500" /> Keywords Strategy & Script 🚀
+          </h2>
+          
+          {/* Target Keywords */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Target Keywords</p>
+            <div className="flex flex-wrap gap-1.5">
+              {captionKit.keyword_strategy.target_keywords?.map((keyword: string, idx: number) => (
+                <span key={idx} className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20">
+                  {keyword}
+                </span>
+              ))}
+            </div>
+          </div>
+
+          {/* Keyword Placement Guide */}
+          <div className="rounded-xl bg-white/[0.02] border border-border p-4 space-y-3">
+            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Keyword Placement Guide</p>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+              <div className="space-y-1">
+                <span className="font-bold text-primary">🗣️ Spoken in Audio</span>
+                <p className="text-muted-foreground">{captionKit.keyword_strategy.placement_guide?.spoken_audio}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="font-bold text-primary">📺 On-Screen Text (0-3s)</span>
+                <p className="text-muted-foreground">{captionKit.keyword_strategy.placement_guide?.on_screen_text}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="font-bold text-primary">📝 Caption (First line)</span>
+                <p className="text-muted-foreground">{captionKit.keyword_strategy.placement_guide?.caption}</p>
+              </div>
+              <div className="space-y-1">
+                <span className="font-bold text-primary">🖼️ Alt Text (SEO)</span>
+                <p className="text-muted-foreground">{captionKit.keyword_strategy.placement_guide?.alt_text}</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Viral Script Outline */}
+          {captionKit.viral_pattern_script && (
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">
+                  30s Viral Script Flow ({captionKit.viral_pattern_script.hook_style})
+                </p>
+              </div>
+              <div className="space-y-2 text-xs">
+                {Object.entries(captionKit.viral_pattern_script.timeline || {}).map(([phase, text]: any, idx) => {
+                  const phaseLabel = phase.replace(/_/g, " ").replace("s", "s — ");
+                  return (
+                    <div key={idx} className="flex gap-3 items-start p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.03] transition-all border border-border/50">
+                      <span className="font-mono text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
+                        {phaseLabel}
+                      </span>
+                      <p className="text-muted-foreground leading-relaxed">{text}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* What to film */}
       <div className="glass-card p-5 space-y-3">
         <h2 className="font-display text-lg font-bold">🎬 What To Film</h2>

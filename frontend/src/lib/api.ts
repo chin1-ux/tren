@@ -111,6 +111,20 @@ export interface ApiCaptionKit {
     reasoning: string;
   };
   saturation_alert: string;
+  keyword_strategy?: {
+    target_keywords: string[];
+    placement_guide: {
+      spoken_audio: string;
+      on_screen_text: string;
+      caption: string;
+      alt_text: string;
+    };
+  };
+  viral_pattern_script?: {
+    title: string;
+    hook_style: string;
+    timeline: Record<string, string>;
+  };
 }
 
 export interface ApiTrendDecision {

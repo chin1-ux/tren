@@ -95,10 +95,10 @@ Hashtags: {", ".join(hashtags)}
 Scheduled Time: {post_time}
 
 Evaluate the following categories:
-1. Hook Strength (Is it thumb-stopping? first 3 seconds)
-2. Audio Match (Is the audio trending or fit for this niche?)
-3. Caption & SEO Optimization
-4. Hashtag Quality (Mix of broad, niche, regional)
+1. Hook Strength & Type (First 3 seconds scroll-stopper. Does it fit Pain, Curiosity, Authority, or Contrarian archetypes?)
+2. Keyword Alignment & SEO (Are keywords aligned across the hook, on-screen text, and caption to build clear category signals?)
+3. Retention & Viral Structure (Does it design for watch time and shares? Is there a loop/replay trigger? Is there only one single CTA?)
+4. Hashtag Quality & Selection (Mix of broad, niche, regional)
 5. Timing (Based on Indian audience peaks)
 
 Return ONLY a JSON response in the following format:
@@ -112,9 +112,9 @@ Return ONLY a JSON response in the following format:
     "timing": 95
   }},
   "fixes": [
-    "Make the hook more active. Instead of 'X tips for...', use 'Stop doing X if you want...'",
-    "Add these 3 trending hashtags for your niche: ...",
-    "Move your main keywords to the first line of the caption for Instagram SEO."
+    "Identify as a Contrarian Hook: Challenge expectations to hook users immediately.",
+    "Keyword strategy fix: Place your primary target keyword in the first 3 seconds of spoken audio and on-screen text.",
+    "Simplify your CTA: Keep it to one action (e.g. Save) to boost completion rate."
   ],
   "estimated_reach_multiplier": "1.5x"
 }}
@@ -125,7 +125,11 @@ Return ONLY a JSON response in the following format:
             result = {
                 "overall_score": 75,
                 "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
-                "fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
+                "fixes": [
+                    "Keep the first 3 seconds extremely fast-paced to hold attention.",
+                    "Optimize the caption with 5-10 targeted keywords for search indexing.",
+                    "Align your voiceover and on-screen text with the same primary keyword."
+                ],
                 "estimated_reach_multiplier": "1.2x"
             }
         return result
@@ -140,16 +144,23 @@ Generate 5 high-converting, scroll-stopping hooks for:
 Niche: {niche}
 Topic: {topic}
 
-Provide different styles: Curiosity, Conflict, Authority, Relatability, and Fear of Missing Out (FOMO).
-Also explain why each works.
+Provide different styles strictly matching the playbook:
+- Pain Hook (problem recognition / pain relief)
+- Curiosity Hook (creates a knowledge gap)
+- Authority Hook (signals quick credibility / stats / claims)
+- Contrarian Hook (challenges expectation / surprise)
+- Relatability Hook (shared truth)
+
+Also explain why each works, and provide the primary keywords to display on screen.
 
 Return ONLY a JSON response in the following format:
 {{
   "hooks": [
     {{
-      "style": "Curiosity",
-      "text": "The hidden feature in X you didn't know existed...",
-      "why_it_works": "Creates an information gap that forces the user to keep watching."
+      "style": "Pain Hook",
+      "text": "The hook text...",
+      "why_it_works": "Why it works...",
+      "on_screen_keyword": "Target keyword for screen"
     }}
   ]
 }}
@@ -158,9 +169,10 @@ Return ONLY a JSON response in the following format:
         if not result:
             result = {
                 "hooks": [
-                    {"style": "Curiosity", "text": f"Why nobody is talking about {topic}", "why_it_works": "Intrigue"},
-                    {"style": "Authority", "text": f"The only {niche} guide you need for {topic}", "why_it_works": "Establishes immediate value"},
-                    {"style": "Relatable", "text": "I was today years old when I learned this about " + topic, "why_it_works": "Humor & connection"}
+                    {"style": "Pain Hook", "text": f"Stop failing at {topic} because of this one mistake...", "why_it_works": "Direct problem recognition", "on_screen_keyword": topic},
+                    {"style": "Curiosity Hook", "text": f"The hidden secret to mastering {topic} in 24 hours...", "why_it_works": "Creates a knowledge gap", "on_screen_keyword": f"Secret {topic}"},
+                    {"style": "Authority Hook", "text": f"How I got 71.4K followers using this exact {topic} strategy...", "why_it_works": "Builds instant trust with proof", "on_screen_keyword": f"{topic} strategy"},
+                    {"style": "Contrarian Hook", "text": f"Everything you've heard about {topic} is completely wrong...", "why_it_works": "Challenges consensus to stop scrolling", "on_screen_keyword": f"{topic} lies"}
                 ]
             }
         return result
@@ -173,8 +185,8 @@ Return ONLY a JSON response in the following format:
         user_prompt = f"""
 Create an SEO-optimized caption for a {platform} post about: {description}.
 Include:
-1. A hook-focused opening line.
-2. A keyword-rich middle section to optimize for Search/Google Indexing.
+1. A hook-focused opening line placing the primary keyword in the first sentence naturally.
+2. A keyword-rich middle section containing a natural bulleted list of 5-10 search keywords.
 3. Natural, highly targeted hashtags.
 4. Suggested Alt Text for the video/image.
 

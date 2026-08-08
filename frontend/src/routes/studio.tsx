@@ -32,6 +32,7 @@ interface Hook {
   style: string;
   text: string;
   why_it_works: string;
+  on_screen_keyword?: string;
 }
 
 interface HookResponse {
@@ -403,6 +404,9 @@ function StudioPage() {
                     </button>
                   </div>
                   <p className="text-sm text-text font-semibold">"{h.text}"</p>
+                  {h.on_screen_keyword && (
+                    <p className="text-xs font-bold text-amber-400">📺 On-screen text: {h.on_screen_keyword}</p>
+                  )}
                   <p className="text-xs text-muted-foreground">{h.why_it_works}</p>
                 </div>
               ))}

@@ -150,7 +150,27 @@ Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON o
     "platform_first": "instagram",
     "reasoning": "One sentence explaining why this timing maximizes reach for this trend type"
   }},
-  "saturation_alert": "One line warning like 'Post in the next 6 hours — this trend peaks tomorrow morning' or 'You have 2 full days — take your time'"
+  "saturation_alert": "One line warning like 'Post in the next 6 hours — this trend peaks tomorrow morning' or 'You have 2 full days — take your time'",
+  "keyword_strategy": {{
+    "target_keywords": ["5-10 highly relevant niche and broad keywords for this trend"],
+    "placement_guide": {{
+      "spoken_audio": "Instruction on how to say these keywords in the voiceover naturally",
+      "on_screen_text": "Instruction on which keyword to show on-screen in the first 3 seconds (scroll-stopper)",
+      "caption": "How to weave these keywords into the caption first line naturally",
+      "alt_text": "Detailed keyword-optimized alt-text for the reel details"
+    }}
+  }},
+  "viral_pattern_script": {{
+    "title": "Viral Pattern 30-Second Script Flow",
+    "hook_style": "Specify one of Pain, Curiosity, Authority, Contrarian",
+    "timeline": {{
+      "0_3s_hook": "Scroll-stopper hook sentence using primary target keyword",
+      "3_7s_promise": "Promise expansion / why this matters to the viewer",
+      "7_20s_body": "Context + micro-story details containing secondary keywords",
+      "20_25s_takeaway": "Specific high-value giveaway or action to save",
+      "25_30s_loop_cta": "Actionable single-choice call to action with seamless loop transition back to the start"
+    }}
+  }}
 }}
 """
 
@@ -185,13 +205,37 @@ Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON o
                 "platform_first": "instagram",
                 "reasoning": "Evening hours (7-9 PM IST) typically see peak Indian Instagram engagement"
             },
-            "saturation_alert": f"This trend has {window_hours}h remaining — post soon for best results"
+            "saturation_alert": f"This trend has {window_hours}h remaining — post soon for best results",
+            "keyword_strategy": {
+                "target_keywords": [audio_title.lower(), "instagram reels", "trending audio", "content creator tips"],
+                "placement_guide": {
+                    "spoken_audio": f"Say '{audio_title}' in the first 3 seconds of the audio.",
+                    "on_screen_text": "Put 'Listen to this trending audio' on screen.",
+                    "caption": f"Use the trend name '{audio_title}' in the first sentence.",
+                    "alt_text": f"Trending audio '{audio_title}' by {audio_artist} playing over a high retention reel."
+                }
+            },
+            "viral_pattern_script": {
+                "title": "Viral Pattern 30-Second Script Flow",
+                "hook_style": "Curiosity",
+                "timeline": {
+                    "0_3s_hook": f"You won't believe what happens when you use '{audio_title}'...",
+                    "3_7s_promise": "This new audio is blowing up accounts worldwide.",
+                    "7_20s_body": "Creators are posting simple clips and getting 10x reach because of retention loops.",
+                    "20_25s_takeaway": "Save this trend and post in the next 12 hours.",
+                    "25_30s_loop_cta": "Click follow for the next early trend alert!"
+                }
+            }
         }
 
 
 if __name__ == "__main__":
+    import json
+    import sys
     engine = CaptionEngine()
     # Test with trend_id=1 (adjust as needed)
     kit = engine.get_caption_kit(1)
-    import pprint
-    pprint.pprint(kit)
+    
+    # Avoid console encoding issues on Windows
+    sys.stdout.reconfigure(encoding='utf-8')
+    print(json.dumps(kit, indent=2, ensure_ascii=False))
