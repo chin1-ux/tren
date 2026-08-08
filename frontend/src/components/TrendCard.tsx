@@ -9,7 +9,7 @@ import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTrendReels, analyzeContentForVirality } from "@/lib/api";
+import { fetchTrendReels, analyzeContentForVirality, toggleTrendTarget } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
@@ -246,6 +246,8 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
+  const [isTargeted, setIsTargeted] = useState(false);
+  const [targetLoading, setTargetLoading] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
 
   // Saved trend tracking is hydrated after mount to avoid SSR/client text mismatch.
@@ -257,7 +259,39 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     } catch {
       setIsSaved(false);
     }
+    try {
+      const targeted = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
+      setIsTargeted(Array.isArray(targeted) && targeted.includes(String(trend.id)));
+    } catch {
+      setIsTargeted(false);
+    }
   }, [trend.id]);
+
+  const handleTarget = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (targetLoading) return;
+    setTargetLoading(true);
+    const action = isTargeted ? "untarget" : "target";
+    try {
+      const res = await toggleTrendTarget(trend.id, action);
+      if (res.success) {
+        setIsTargeted(!isTargeted);
+        let arr: string[] = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
+        if (action === "target") {
+          arr.push(String(trend.id));
+          toast.success("Trend added to Workspace 🎯");
+        } else {
+          arr = arr.filter((id) => id !== String(trend.id));
+          toast.success("Removed from Workspace");
+        }
+        localStorage.setItem("targeted_trends", JSON.stringify(arr));
+      }
+    } catch (err: any) {
+      toast.error(err.message || "Failed to update target");
+    } finally {
+      setTargetLoading(false);
+    }
+  };
 
   const toggleSave = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -889,6 +923,29 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
             {/* Action buttons */}
             <div className="space-y-2 pt-2 border-t border-border/40">
+              {/* Target Trend — primary CTA to add to Workspace */}
+              <Button
+                onClick={handleTarget}
+                disabled={targetLoading}
+                className={`h-11 w-full font-bold uppercase tracking-wide transition-all hover:scale-[1.01] ${
+                  isTargeted
+                    ? "bg-emerald-600 hover:bg-emerald-500 text-white"
+                    : "bg-gradient-to-r from-primary to-[#ff006e] text-white hover:opacity-90"
+                }`}
+              >
+                {targetLoading ? (
+                  <span className="animate-spin mr-2">⏳</span>
+                ) : isTargeted ? (
+                  <>
+                    <span className="mr-1.5">✅</span> In Workspace — Untarget
+                  </>
+                ) : (
+                  <>
+                    <span className="mr-1.5">🎯</span> Target Trend
+                  </>
+                )}
+              </Button>
+
               {FEATURES.GENERATE_ENABLED && (
                 <Button
                   onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
