@@ -118,6 +118,19 @@ except Exception as e:
         raise HTTPException(status_code=401, detail="Authentication not configured")
 
 try:
+    from plan_enforcement import PlanEnforcement, require_feature, require_quota, log_endpoint_usage
+except Exception as e:
+    logger.warning(f"Plan enforcement import failed: {e}")
+    def PlanEnforcement():
+        pass
+    def require_feature(feature):
+        return lambda: "guest@trendrop.app"
+    def require_quota(quota_type):
+        return lambda: "guest@trendrop.app"
+    def log_endpoint_usage(feature):
+        return lambda: "guest@trendrop.app"
+
+try:
     from instagram_oauth import InstagramOAuth
 except Exception as e:
     logger.warning(f"InstagramOAuth import failed: {e}")
@@ -1192,9 +1205,16 @@ def get_trends(
 
 @app.get("/api/trends/emerging")
 @limiter.limit("60/minute")
-def get_emerging_trends(request: Request, language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+def get_emerging_trends(
+    request: Request, 
+    language: Optional[str] = None, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("early_detection")),
+    _usage_log: str = Depends(log_endpoint_usage("early_detection"))
+):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
+    Pro/Agency feature only.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -1227,8 +1247,13 @@ def get_emerging_trends(request: Request, language: Optional[str] = None, curren
 
 @app.get("/api/trends/all-active")
 @limiter.limit("60/minute")
-def get_all_active_trends(request: Request, current_user: str = Depends(get_current_user)):
-    """Returns both emerging + rising trends merged."""
+def get_all_active_trends(
+    request: Request, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends")),
+    _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
+):
+    """Returns both emerging + rising trends merged. Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -1291,8 +1316,13 @@ def get_expired_trends(request: Request, language: Optional[str] = None, current
 
 @app.get("/api/trends/audio-scores")
 @limiter.limit("60/minute")
-def get_audio_trend_scores_api(request: Request, current_user: str = Depends(get_current_user)):
-    """Returns the latest audio trend scores, excluding INSUFFICIENT_DATA."""
+def get_audio_trend_scores_api(
+    request: Request, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("advanced_analytics")),
+    _usage_log: str = Depends(log_endpoint_usage("advanced_analytics"))
+):
+    """Returns the latest audio trend scores, excluding INSUFFICIENT_DATA. Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -1408,10 +1438,16 @@ def get_peaking_trends(request: Request, limit: int = 10, current_user: str = De
 
 @app.get("/api/trends/{trend_id}/timeline")
 @limiter.limit("60/minute")
-def get_trend_timeline(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
+def get_trend_timeline(
+    request: Request, 
+    trend_id: int, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("advanced_analytics")),
+    _usage_log: str = Depends(log_endpoint_usage("advanced_analytics"))
+):
     """
     Get trend timeline proof using existing trend_snapshots data
-    Returns velocity history, timestamps, and peak detection
+    Returns velocity history, timestamps, and peak detection. Pro/Agency feature only.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -1557,8 +1593,14 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
 
 @app.get("/api/trends/{trend_id}/reels")
 @limiter.limit("60/minute")
-def get_trend_reels(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
-    """Fetch reels linked to a trend (by matching audio_title + audio_artist)."""
+def get_trend_reels(
+    request: Request, 
+    trend_id: int, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends")),
+    _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
+):
+    """Fetch reels linked to a trend (by matching audio_title + audio_artist). Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -1614,7 +1656,9 @@ def analyze_content_for_virality(
     duration: int = 0,
     niche: str = "general",
     uses_trending_audio: bool = False,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("algorithm_insights")),
+    _usage_log: str = Depends(log_endpoint_usage("algorithm_insights"))
 ):
     """
     Analyze content metrics and provide Instagram algorithm insights for virality optimization.
@@ -1668,7 +1712,9 @@ def get_optimal_posting_times(
     request: Request,
     niche: str = "general",
     target_audience: str = "india",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("algorithm_insights")),
+    _usage_log: str = Depends(log_endpoint_usage("algorithm_insights"))
 ):
     """Get optimal posting times based on niche and target audience."""
     if not InstagramAlgorithmInsights:
@@ -1689,7 +1735,9 @@ def get_hashtag_strategy(
     request: Request,
     niche: str = "general",
     content_type: str = "reel",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("algorithm_insights")),
+    _usage_log: str = Depends(log_endpoint_usage("algorithm_insights"))
 ):
     """Get hashtag strategy recommendations based on niche and content type."""
     if not InstagramAlgorithmInsights:
@@ -1713,8 +1761,14 @@ def get_hashtag_strategy(
 
 @app.get("/api/trends/{trend_id}/similar")
 @limiter.limit("60/minute")
-def get_similar_trends(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
-    """Returns past trends with the same content_type and language (peaked or expired, showing history)."""
+def get_similar_trends(
+    request: Request, 
+    trend_id: int, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends")),
+    _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
+):
+    """Returns past trends with the same content_type and language (peaked or expired, showing history). Pro/Agency feature only."""
     try:
         trend_res = supabase.table("trends") \
             .select("content_type, language") \
@@ -1746,10 +1800,18 @@ def get_similar_trends(request: Request, trend_id: int, current_user: str = Depe
 
 @app.get("/api/trends/{trend_id}/decision")
 @limiter.limit("60/minute")
-def get_trend_decision(request: Request, trend_id: int, creator_niche: Optional[str] = None, creator_language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+def get_trend_decision(
+    request: Request, 
+    trend_id: int, 
+    creator_niche: Optional[str] = None, 
+    creator_language: Optional[str] = None, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends")),
+    _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
+):
     """
     Returns a simple creator decision layer for the trend:
-    post it, trial it, or skip it.
+    post it, trial it, or skip it. Pro/Agency feature only.
     """
 
     try:
@@ -2232,8 +2294,13 @@ def get_user_plan(request: Request, email: str, current_user: str = Depends(get_
 
 @app.get("/api/reels/feed")
 @limiter.limit("30/minute")
-def get_user_reels_feed(request: Request, current_user: str = Depends(get_current_user)):
-    """Fetch reels matching the user's preferred languages."""
+def get_user_reels_feed(
+    request: Request, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends")),
+    _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
+):
+    """Fetch reels matching the user's preferred languages. Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -2277,8 +2344,13 @@ def get_user_reels_feed(request: Request, current_user: str = Depends(get_curren
 
 @app.get("/api/reels/cross-cultural")
 @limiter.limit("30/minute")
-def get_cross_cultural_reels(request: Request, current_user: str = Depends(get_current_user)):
-    """Fetch global trends entering India — is_cross_cultural=True, origin != IN, india_saturation < 40%."""
+def get_cross_cultural_reels(
+    request: Request, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("india_features")),
+    _usage_log: str = Depends(log_endpoint_usage("india_features"))
+):
+    """Fetch global trends entering India — is_cross_cultural=True, origin != IN, india_saturation < 40%. Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -2541,7 +2613,9 @@ async def generate_reel_endpoint(
     files: List[UploadFile] = File(...),
     trend_id: str = Form(...),
     user_email: str = Form(...),
-    current_user_email: str = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
@@ -2631,7 +2705,9 @@ async def generate_narrative_endpoint(
     user_email: str = Form(...),
     narrative_type: str = Form(...),
     text_overlays: str = Form(...),
-    current_user_email: str = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
@@ -2734,7 +2810,9 @@ async def generate_faceless_endpoint(
     user_email: str = Form(...),
     niche: str = Form(...),
     content_description: str = Form(...),
-    current_user_email: str = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
@@ -2792,7 +2870,9 @@ async def repurpose_endpoint(
     file: UploadFile = File(...),
     trend_id: str = Form(...),
     user_email: str = Form(...),
-    current_user_email: str = Depends(get_current_user)
+    current_user_email: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
@@ -4247,7 +4327,9 @@ def get_hashtag_strategy(
     request: Request,
     niche: str = "general",
     content_type: str = "reel",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("algorithm_insights")),
+    _usage_log: str = Depends(log_endpoint_usage("algorithm_insights"))
 ):
     """Get hashtag strategy recommendations based on niche and content type."""
     if not InstagramAlgorithmInsights:
