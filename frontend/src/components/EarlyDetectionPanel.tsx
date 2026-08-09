@@ -3,6 +3,7 @@ import { motion } from "framer-motion";
 import { Sparkles, TrendingUp, Clock, AlertCircle, CheckCircle, Calendar, Flame, Zap } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { PlanGate } from "./PlanGate";
 
 interface EarlyDetectionTrend {
   id: number;
@@ -30,6 +31,7 @@ export function EarlyDetectionPanel() {
   const [culturalEvents, setCulturalEvents] = useState<CulturalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'trends' | 'events'>('trends');
+  const [userPlan, setUserPlan] = useState<string>('free');
 
   useEffect(() => {
     fetchEarlyTrends();
@@ -38,10 +40,14 @@ export function EarlyDetectionPanel() {
 
   const fetchEarlyTrends = async () => {
     try {
-      const res = await fetch('/api/early-detection/trends?limit=5');
+      const res = await fetch('/api/trends/emerging');
       if (res.ok) {
         const data = await res.json();
-        setEarlyTrends(data.trends || []);
+        setEarlyTrends(data || []);
+      } else if (res.status === 403) {
+        // Plan violation - user needs upgrade
+        setUserPlan('free');
+        setEarlyTrends([]);
       }
     } catch (err) {
       console.error('Error fetching early trends:', err);
@@ -102,39 +108,45 @@ export function EarlyDetectionPanel() {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-lg font-bold font-display flex items-center gap-2">
-            <Sparkles className="h-5 w-5 text-primary" />
-            Early Detection
-          </h2>
-          <p className="text-xs text-muted-foreground">
-            Trends before they go viral
-          </p>
+    <PlanGate 
+      feature="Early Detection" 
+      requiredPlan="pro" 
+      currentPlan={userPlan}
+      onUpgrade={() => window.location.href = '/pricing'}
+    >
+      <div className="space-y-6">
+        {/* Header */}
+        <div className="flex items-center justify-between">
+          <div>
+            <h2 className="text-lg font-bold font-display flex items-center gap-2">
+              <Sparkles className="h-5 w-5 text-primary" />
+              Early Detection
+            </h2>
+            <p className="text-xs text-muted-foreground">
+              Trends before they go viral
+            </p>
+          </div>
+          <div className="flex gap-2">
+            <Button
+              size="sm"
+              variant={activeTab === 'trends' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('trends')}
+              className="rounded-full text-xs"
+            >
+              <TrendingUp className="h-3 w-3 mr-1" />
+              Trends
+            </Button>
+            <Button
+              size="sm"
+              variant={activeTab === 'events' ? 'default' : 'outline'}
+              onClick={() => setActiveTab('events')}
+              className="rounded-full text-xs"
+            >
+              <Calendar className="h-3 w-3 mr-1" />
+              Events
+            </Button>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Button
-            size="sm"
-            variant={activeTab === 'trends' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('trends')}
-            className="rounded-full text-xs"
-          >
-            <TrendingUp className="h-3 w-3 mr-1" />
-            Trends
-          </Button>
-          <Button
-            size="sm"
-            variant={activeTab === 'events' ? 'default' : 'outline'}
-            onClick={() => setActiveTab('events')}
-            className="rounded-full text-xs"
-          >
-            <Calendar className="h-3 w-3 mr-1" />
-            Events
-          </Button>
-        </div>
-      </div>
 
       {activeTab === 'trends' ? (
         <div className="space-y-3">
@@ -257,5 +269,6 @@ export function EarlyDetectionPanel() {
         </div>
       </div>
     </div>
+    </PlanGate>
   );
 }
