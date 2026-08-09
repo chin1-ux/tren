@@ -963,7 +963,8 @@ class InstagramScraper:
                     "caption": caption_text[:500],
                     "videoUrl": video_url,
                     "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
-                    "media_dict": media
+                    "media_dict": media,
+                    "pk": media.get("pk")
                 })
                 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
@@ -1340,6 +1341,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                             "is_original_audio": is_original_audio,
                             "velocity_score": velocity,
                             "scraped_at": scraped_at,
+                            "pk": item.get("pk"),
                             # Audio backfill queue: flag rows where IG returned no audio metadata
                             "audio_backfill_status": (
                                 "needs_audio_backfill"

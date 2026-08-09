@@ -189,3 +189,59 @@ def check_keyword_overlap(trend_keywords: list[str], article: dict) -> float:
             matches += 1
             
     return matches / total_len if total_len > 0 else 0.0
+
+
+def evaluate_news_virality_batch(articles: list[dict], batch_size: int = 8) -> list[dict]:
+    """
+    Evaluate news items for virality in chunks of up to batch_size to prevent token overflow.
+    Uses unified call_llm from llm.py.
+    """
+    from llm import call_llm
+
+    scored_articles = []
+    
+    # Process articles in chunks of batch_size (default 20)
+    for chunk_start in range(0, len(articles), batch_size):
+        chunk = articles[chunk_start:chunk_start + batch_size]
+        blocks = []
+        for i, a in enumerate(chunk):
+            blocks.append(f"{i+1}. Title: {a['title']}\n   Summary: {a.get('description', '')[:200]}")
+
+        system_prompt = "You are a social media trend forecaster predicting Instagram Reels virality."
+        user_prompt = f"""Rate each news item below for its potential to go viral on Instagram Reels in India, over the next 24-48 hours.
+
+For each item return: viral_potential_score (0-100), recommended_angle (e.g. POV, greenscreen, commentary, reaction), target_niches (array of strings).
+
+Respond ONLY in JSON matching this exact structure:
+{{
+  "items": [
+    {{"index": 1, "viral_potential_score": 85, "recommended_angle": "greenscreen", "target_niches": ["sports", "comedy"]}}
+  ]
+}}
+
+Items to evaluate:
+{chr(10).join(blocks)}
+"""
+        try:
+            res = call_llm(system_prompt=system_prompt, user_prompt=user_prompt, response_mime_type="application/json")
+            items = res.get("items", [])
+            for item in items:
+                idx = item.get("index", 1) - 1
+                if 0 <= idx < len(chunk):
+                    art = chunk[idx].copy()
+                    art["viral_potential_score"] = item.get("viral_potential_score", 0)
+                    art["recommended_angle"] = item.get("recommended_angle", "")
+                    art["target_niches"] = item.get("target_niches", [])
+                    scored_articles.append(art)
+        except Exception as e:
+            logger.error(f"Error scoring news batch starting at {chunk_start}: {e}")
+            # Fallback for failed batch: default scores
+            for a in chunk:
+                art = a.copy()
+                art["viral_potential_score"] = 0
+                art["recommended_angle"] = "commentary"
+                art["target_niches"] = []
+                scored_articles.append(art)
+
+    return scored_articles
+
