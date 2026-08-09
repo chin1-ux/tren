@@ -14,7 +14,7 @@ from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
 import logging
 import tempfile
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 is_vercel = os.getenv("VERCEL") is not None or os.getenv("VERCEL_TMP_DIR") is not None
 if is_vercel:
     log_file = os.path.join(tempfile.gettempdir(), "api.log")
@@ -317,7 +317,7 @@ if supabase_url_debug and service_key_debug and create_client:
             del os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
-SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 try:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 except Exception as e:
@@ -1073,6 +1073,31 @@ def _trend_priority_key(trend: dict, user_niche: str = "all", user_lang: str = "
         float(trend.get("reel_count") or 0),
     )
 
+# --- Subscription Tiers Cache ---
+TIERS_CACHE = {}
+TIERS_CACHE_LAST_FETCH = None
+
+def get_cached_tiers():
+    global TIERS_CACHE_LAST_FETCH, TIERS_CACHE
+    now = datetime.now(timezone.utc)
+    if not TIERS_CACHE or not TIERS_CACHE_LAST_FETCH or (now - TIERS_CACHE_LAST_FETCH).total_seconds() > 300:
+        if supabase:
+            try:
+                res = supabase.table("subscription_tiers").select("*").execute()
+                if res.data:
+                    TIERS_CACHE = {row["name"]: row for row in res.data}
+                    TIERS_CACHE_LAST_FETCH = now
+            except Exception as e:
+                logger.error(f"Error fetching subscription tiers for cache: {e}")
+    return TIERS_CACHE
+
+def get_cached_tier_delay(plan_name: str) -> int:
+    tiers = get_cached_tiers()
+    tier = tiers.get(plan_name)
+    if tier:
+        return tier.get("data_delay_hours", 24)
+    return 24
+
 @app.get("/api/trends")
 @limiter.limit("60/minute")
 def get_trends(
@@ -1108,14 +1133,21 @@ def get_trends(
         # Load user configuration for personalization
         user_niche = "all"
         user_lang = "all"
-        if current_user and current_user != "guest@trendrop.app":
+        user_plan = "free"
+        
+        # Airtight guest bypass guard: Must be valid email containing @ and not default guest
+        if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
             try:
-                user_res = supabase.table("users").select("niche, language_preference").eq("email", current_user).limit(1).execute()
+                user_res = supabase.table("users").select("niche, language_preference, plan").eq("email", current_user).limit(1).execute()
                 if user_res.data:
                     user_niche = user_res.data[0].get("niche") or "all"
                     user_lang = user_res.data[0].get("language_preference") or "all"
+                    user_plan = user_res.data[0].get("plan") or "free"
             except Exception as e:
                 logger.warning(f"Error querying user profile for personalization: {e}")
+
+        # Get delay hours from module-level cached tiers
+        delay_hours = get_cached_tier_delay(user_plan)
 
         q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed"])
 
@@ -1124,6 +1156,11 @@ def get_trends(
 
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+
+        # Server-side gating data delay filter
+        if delay_hours > 0:
+            time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
+            q = q.lte("first_detected_at", time_cutoff)
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
@@ -1148,6 +1185,7 @@ def get_trends(
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching trends: {e}", exc_info=True)
+
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -1993,30 +2031,71 @@ def logout(request: Request, req: LogoutRequest):
 @app.post("/api/auth/verify")
 @limiter.limit("30/hour")
 def verify(request: Request, req: VerifyRequest):
-    """Verify Supabase JWT token and return user info"""
+    """Verify session token and enforce active session limits"""
     try:
-        user_res = supabase.auth.get_user(jwt=req.session_token)
-        if not user_res or not user_res.user:
+        email = None
+        user = None
+        
+        # 1. Try resolving session token in users database table first
+        db_user_res = supabase.table("users").select("*").eq("auth_token", req.session_token).limit(1).execute()
+        if db_user_res.data:
+            user = db_user_res.data[0]
+            email = user["email"]
+        else:
+            # 2. Try validating via Supabase JWT
+            try:
+                user_res = supabase.auth.get_user(jwt=req.session_token)
+                if user_res and user_res.user:
+                    email = user_res.user.email
+                    db_user_res2 = supabase.table("users").select("*").eq("email", email).limit(1).execute()
+                    if db_user_res2.data:
+                        user = db_user_res2.data[0]
+            except Exception:
+                pass
+                
+        if not email or not user:
             return {"success": False, "valid": False, "error": "Invalid session token"}
-
-        email = user_res.user.email
-        niche = "all"
-        language = "en"
-        try:
-            res = supabase.table("users").select("niche, language_preference").eq("email", email).execute()
-            if res.data and len(res.data) > 0:
-                niche = res.data[0].get("niche", "all")
-                language = res.data[0].get("language_preference", "en")
-        except Exception as e:
-            logger.warning(f"Failed to fetch user preferences during verify: {e}")
-
+            
+        user_id = user["id"]
+        
+        # 3. Fetch active sessions limit from user's tier
+        tier_res = supabase.table("subscription_tiers").select("max_active_sessions").eq("id", user.get("tier_id")).limit(1).execute()
+        max_active = tier_res.data[0]["max_active_sessions"] if tier_res.data else 1
+        
+        # 4. Check active sessions count
+        sessions_res = supabase.table("active_sessions").select("*").eq("user_id", user_id).order("last_active_at", desc=False).execute()
+        active_sessions = sessions_res.data or []
+        
+        device_label = "Web Session"
+        device_fingerprint = str(hash(req.session_token))
+        
+        matching_session = [s for s in active_sessions if s["device_fingerprint"] == device_fingerprint]
+        
+        if not matching_session:
+            if len(active_sessions) >= max_active:
+                # Evict oldest session
+                oldest_session_id = active_sessions[0]["id"]
+                supabase.table("active_sessions").delete().eq("id", oldest_session_id).execute()
+            
+            # Register new session
+            supabase.table("active_sessions").insert({
+                "user_id": user_id,
+                "device_fingerprint": device_fingerprint,
+                "device_label": device_label
+            }).execute()
+        else:
+            # Update last active timestamp
+            supabase.table("active_sessions").update({
+                "last_active_at": datetime.now(timezone.utc).isoformat()
+            }).eq("id", matching_session[0]["id"]).execute()
+            
         return {
             "success": True,
             "valid": True,
             "user": {
                 "email": email,
-                "niche": niche,
-                "language": language
+                "niche": user.get("niche") or "all",
+                "language": user.get("language_preference") or "all"
             }
         }
     except Exception as e:
@@ -6111,6 +6190,250 @@ def get_phone_verification_status(
     except Exception as e:
         logger.exception(f"Error checking verification status: {e}")
         raise HTTPException(status_code=500, detail="Failed to check verification status")
+
+
+# ── Admin Panel Endpoints ───────────────────────────────────────────
+
+from auth import get_admin_user
+
+def enforce_admin_check(x_admin_key: str = Header(None), current_user: str = Depends(get_current_user)):
+    """Double-check validation of Admin Key header AND check email against whitelisted ADMIN_EMAILS environment variable."""
+    # 1. Verify administrative authorization key
+    get_admin_user(x_admin_key)
+
+    # 2. Verify email belongs to whitelisted administrators
+    admin_emails_env = os.getenv("ADMIN_EMAILS", "")
+    allowed_emails = [email.strip().lower() for email in admin_emails_env.split(",") if email.strip()]
+    
+    if not current_user or current_user.lower() not in allowed_emails:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access Forbidden: Restricted administrative privilege."
+        )
+    return current_user
+
+@app.get("/api/admin/users", tags=["Admin"])
+def admin_get_users(
+    request: Request,
+    search: Optional[str] = None,
+    plan_filter: Optional[str] = None,
+    limit: int = 100,
+    offset: int = 0,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Retrieve users list for management page."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        query = supabase.table("users").select("*").order("created_at", desc=True)
+        if search:
+            query = query.ilike("email", f"%{search}%")
+        if plan_filter and plan_filter != "all":
+            query = query.eq("plan", plan_filter)
+        
+        query = query.range(offset, offset + limit - 1)
+        res = query.execute()
+        return {"users": res.data or []}
+    except Exception as e:
+        logger.exception(f"Error getting admin users: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve users")
+
+@app.get("/api/admin/users/{email}", tags=["Admin"])
+def admin_get_user_details(
+    email: str,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Get single user detailed statistics and active devices."""
+    if not supabase:
+         raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        user_res = supabase.table("users").select("*").eq("email", email).limit(1).execute()
+        if not user_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        
+        user_data = user_res.data[0]
+        
+        # Load usage stats from usage_tracker
+        stats = {}
+        if UsageTracker:
+            stats = UsageTracker.get_user_usage_stats(email, 30)
+            
+        # Get active sessions
+        sessions = supabase.table("active_sessions").select("*").eq("user_id", user_data.get("id")).execute()
+        
+        return {
+            "user": user_data,
+            "usage_stats": stats,
+            "devices": sessions.data or []
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error getting user details: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve user details")
+
+@app.post("/api/admin/users/{email}/plan", tags=["Admin"])
+def admin_update_user_plan(
+    email: str,
+    payload: dict,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Change subscription plan tier."""
+    new_plan = payload.get("new_plan")
+    reason = payload.get("reason", "Admin update")
+    if not new_plan:
+        raise HTTPException(status_code=400, detail="new_plan required")
+    
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        # Check tier exists
+        tier_res = supabase.table("subscription_tiers").select("id").eq("name", new_plan).limit(1).execute()
+        if not tier_res.data:
+            raise HTTPException(status_code=400, detail=f"Invalid plan tier: {new_plan}")
+        
+        tier_id = tier_res.data[0]["id"]
+        
+        update_res = supabase.table("users").update({
+            "plan": new_plan,
+            "tier_id": tier_id
+        }).eq("email", email).execute()
+        
+        if not update_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        # Log to audit logs
+        supabase.table("admin_audit_log").insert({
+            "admin_email": admin_user,
+            "action": "plan_change",
+            "target_user_email": email,
+            "details": {"new_plan": new_plan, "reason": reason}
+        }).execute()
+        
+        return {"success": True, "message": f"Plan updated to {new_plan}"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error updating plan: {e}")
+        raise HTTPException(status_code=500, detail="Failed to update plan")
+
+@app.post("/api/admin/users/{email}/lock", tags=["Admin"])
+def admin_lock_user(
+    email: str,
+    payload: dict,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Lock user account."""
+    reason = payload.get("reason", "Admin lock")
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        update_res = supabase.table("users").update({"status": "locked"}).eq("email", email).execute()
+        if not update_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        supabase.table("admin_audit_log").insert({
+            "admin_email": admin_user,
+            "action": "account_lock",
+            "target_user_email": email,
+            "details": {"reason": reason}
+        }).execute()
+        return {"success": True, "message": "User account locked"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error locking account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to lock account")
+
+@app.post("/api/admin/users/{email}/unlock", tags=["Admin"])
+def admin_unlock_user(
+    email: str,
+    payload: dict,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Unlock user account."""
+    reason = payload.get("reason", "Admin unlock")
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        update_res = supabase.table("users").update({"status": "active"}).eq("email", email).execute()
+        if not update_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+            
+        supabase.table("admin_audit_log").insert({
+            "admin_email": admin_user,
+            "action": "account_unlock",
+            "target_user_email": email,
+            "details": {"reason": reason}
+        }).execute()
+        return {"success": True, "message": "User account unlocked"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error unlocking account: {e}")
+        raise HTTPException(status_code=500, detail="Failed to unlock account")
+
+@app.get("/api/admin/plan-features", tags=["Admin"])
+def admin_get_plan_features(
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Fetch subscription plans config."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        res = supabase.table("subscription_tiers").select("*").execute()
+        # Remap properties to match existing frontend expectations if needed
+        frontend_plans = []
+        for tier in (res.data or []):
+            frontend_plans.append({
+                "plan_name": tier["name"],
+                "display_name": tier["name"].capitalize(),
+                "price_monthly": tier["price_inr_monthly"],
+                "price_yearly": tier["price_inr_monthly"] * 10,  # Computed fallback
+                "api_limit_per_day": -1 if tier["api_access"] else 10,
+                "trend_views_per_day": -1,
+                "features": ["Delay Hours: " + str(tier["data_delay_hours"]), "Max Saved Niches: " + str(tier["max_saved_niches"])]
+            })
+        return {"plan_features": frontend_plans}
+    except Exception as e:
+        logger.exception(f"Error listing plan features: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch plan features")
+
+@app.post("/api/admin/plan-features", tags=["Admin"])
+def admin_create_plan_feature(
+    payload: dict,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Upsert tier definitions."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        plan_name = payload.get("plan_name")
+        price_monthly = payload.get("price_monthly", 0)
+        
+        # Update price_inr_monthly inside subscription_tiers
+        update_res = supabase.table("subscription_tiers").update({
+            "price_inr_monthly": int(price_monthly)
+        }).eq("name", plan_name).execute()
+        
+        return {"success": True, "data": update_res.data}
+    except Exception as e:
+        logger.exception(f"Error creating plan feature: {e}")
+        raise HTTPException(status_code=500, detail="Failed to modify plan features")
+
+@app.get("/api/admin/business-metrics", tags=["Admin"])
+def admin_get_business_metrics(
+    days: int = 30,
+    admin_user: str = Depends(enforce_admin_check)
+):
+    """Get metrics dashboard data."""
+    if not UserManager:
+        raise HTTPException(status_code=500, detail="User manager helper not configured")
+    return UserManager.get_business_metrics(days)
+
+
+# Session cap helper functions will be defined here if needed, but endpoint removed.
+
 
 
 
