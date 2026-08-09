@@ -79,6 +79,7 @@ function LoginPage() {
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   className="pl-10"
+                  style={{ paddingLeft: '2.5rem' }}
                   required
                 />
               </div>
@@ -98,6 +99,7 @@ function LoginPage() {
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                   className="pl-10"
+                  style={{ paddingLeft: '2.5rem' }}
                   required
                 />
               </div>
