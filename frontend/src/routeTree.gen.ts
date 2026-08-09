@@ -14,7 +14,6 @@ import { Route as StudioRouteImport } from './routes/studio'
 import { Route as StatsRouteImport } from './routes/stats'
 import { Route as SignupRouteImport } from './routes/signup'
 import { Route as SettingsRouteImport } from './routes/settings'
-import { Route as ProfileRouteImport } from './routes/profile'
 import { Route as PrivacyRouteImport } from './routes/privacy'
 import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
@@ -53,11 +52,6 @@ const SignupRoute = SignupRouteImport.update({
 const SettingsRoute = SettingsRouteImport.update({
   id: '/settings',
   path: '/settings',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ProfileRoute = ProfileRouteImport.update({
-  id: '/profile',
-  path: '/profile',
   getParentRoute: () => rootRouteImport,
 } as any)
 const PrivacyRoute = PrivacyRouteImport.update({
@@ -140,7 +134,6 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
@@ -162,7 +155,6 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
@@ -185,7 +177,6 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute
   '/marketplace': typeof MarketplaceRoute
   '/privacy': typeof PrivacyRoute
-  '/profile': typeof ProfileRoute
   '/settings': typeof SettingsRoute
   '/signup': typeof SignupRoute
   '/stats': typeof StatsRoute
@@ -209,7 +200,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/privacy'
-    | '/profile'
     | '/settings'
     | '/signup'
     | '/stats'
@@ -231,7 +221,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/privacy'
-    | '/profile'
     | '/settings'
     | '/signup'
     | '/stats'
@@ -253,7 +242,6 @@ export interface FileRouteTypes {
     | '/login'
     | '/marketplace'
     | '/privacy'
-    | '/profile'
     | '/settings'
     | '/signup'
     | '/stats'
@@ -276,7 +264,6 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute
   MarketplaceRoute: typeof MarketplaceRoute
   PrivacyRoute: typeof PrivacyRoute
-  ProfileRoute: typeof ProfileRoute
   SettingsRoute: typeof SettingsRoute
   SignupRoute: typeof SignupRoute
   StatsRoute: typeof StatsRoute
@@ -325,13 +312,6 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof SettingsRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/profile': {
-      id: '/profile'
-      path: '/profile'
-      fullPath: '/profile'
-      preLoaderRoute: typeof ProfileRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/privacy': {
@@ -444,7 +424,6 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MarketplaceRoute: MarketplaceRoute,
   PrivacyRoute: PrivacyRoute,
-  ProfileRoute: ProfileRoute,
   SettingsRoute: SettingsRoute,
   SignupRoute: SignupRoute,
   StatsRoute: StatsRoute,

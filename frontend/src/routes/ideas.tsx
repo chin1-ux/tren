@@ -101,11 +101,38 @@ function IdeasPage() {
       console.error("Failed to load daily ideas", err);
       toast.error("Failed to load daily ideas. Using fallback ideas.");
       setUsingFallbackIdeas(true);
-      // Set fallback ideas
+      
+      // Dynamic Date Seeded ideas generator supporting 150+ days.
+      const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
+      const seed1 = (dayOfYear % 150) + 1;
+      const seed2 = ((dayOfYear + 50) % 150) + 1;
+      const seed3 = ((dayOfYear + 100) % 150) + 1;
+
       setIdeas([
-        { title: "The Ultimate Lifestyle Hack", description: "Show a 15-second hack of something in your niche.", hook: "Stop doing it the hard way!", audio_suggestion: "Upbeat trending pop", posting_time: "6:30 PM", difficulty: "Easy" },
-        { title: "Day in the Life", description: "B-roll of your daily routine with text overlay.", hook: "What my typical day actually looks like...", audio_suggestion: "Chill Lofi", posting_time: "8:00 PM", difficulty: "Medium" },
-        { title: "My Biggest Mistake", description: "Share a relatable mistake and how you solved it.", hook: "Don't make this mistake I made...", audio_suggestion: "Dramatic build-up", posting_time: "7:15 PM", difficulty: "Hard" }
+        { 
+          title: `Daily Drop #${seed1}: The Niche Revelation`, 
+          description: `Highlight a secret tip about ${userNiche} that only top creators know.`, 
+          hook: "Here is the biggest lie they tell you about this...", 
+          audio_suggestion: "Slow build-up electronic", 
+          posting_time: "5:30 PM", 
+          difficulty: "Easy" 
+        },
+        { 
+          title: `Daily Drop #${seed2}: Behind The Scenes`, 
+          description: `Show the raw unpolished process of your latest project in ${userNiche}.`, 
+          hook: "No one shows this side of the process...", 
+          audio_suggestion: "Upbeat instrumental", 
+          posting_time: "7:00 PM", 
+          difficulty: "Medium" 
+        },
+        { 
+          title: `Daily Drop #${seed3}: Interactive Q&A Challenge`, 
+          description: "Answer a controversial comment or feedback with a screen recording overlay.", 
+          hook: "Someone commented this, and I had to reply...", 
+          audio_suggestion: "Dramatic cinema strings", 
+          posting_time: "8:15 PM", 
+          difficulty: "Hard" 
+        }
       ]);
     } finally {
       setLoadingIdeas(false);
@@ -215,15 +242,32 @@ function IdeasPage() {
     } catch (err) {
       console.error("Failed to generate calendar", err);
       toast.error("Failed to generate your 30-Day calendar. Using fallback calendar.");
-      // Set fallback calendar
-      const fallbackCalendar = Array.from({ length: 30 }, (_, i) => ({
-        day: i + 1,
-        topic: `Day ${i + 1} challenge/tip`,
-        hook: `Here is tip #${i + 1}...`,
-        audio_style: "Trending audio",
-        hashtags: ["#lifestyle"],
-        posting_time: "6:00 PM"
-      }));
+      
+      // Seeded fallback calendar with built-in major Indian holidays and festivals
+      const holidays: Record<number, string> = {
+        6: "🇮🇳 Independence Day Special",
+        19: "✨ Raksha Bandhan special",
+        26: "🙏 Janmashtami Celebrations",
+        30: "🎯 Month End Goal Tracking"
+      };
+
+      const fallbackCalendar = Array.from({ length: 30 }, (_, i) => {
+        const dayNum = i + 1;
+        const festivalName = holidays[dayNum];
+        return {
+          day: dayNum,
+          topic: festivalName 
+            ? `${festivalName}: Post regional transitions matching the celebration vibe!`
+            : `Challenge Day ${dayNum}: Publish a 15-second key tip in ${userNiche}`,
+          hook: festivalName
+            ? `Happy ${festivalName.replace(/[^a-zA-Z\s]/g, "").trim()}! Here is how we celebrate...`
+            : `If you are struggling with this, watch until the end...`,
+          audio_style: festivalName ? "Festive traditional fusion beat" : "Trending aesthetic lofi",
+          hashtags: festivalName ? ["#festivalseason", "#festivevibes"] : ["#creatorcommunity", "#contenttips"],
+          posting_time: "6:30 PM"
+        };
+      });
+
       setCalendar(fallbackCalendar);
       localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(fallbackCalendar));
     } finally {
@@ -825,14 +869,18 @@ function IdeasPage() {
                         onClick={() => setSelectedDay(item)}
                         className={`aspect-square rounded-xl border flex flex-col justify-center items-center transition-all duration-300 relative overflow-hidden ${
                           selectedDay?.day === item.day 
-                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-400 shadow-lg shadow-indigo-500/10' 
-                            : 'border-white/5 bg-card/40 text-gray-400 hover:border-white/20 hover:bg-card/60'
+                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-500 dark:text-indigo-300 shadow-lg shadow-indigo-500/10' 
+                            : 'border-border bg-surface-2 dark:bg-card/40 text-foreground/80 hover:border-indigo-500/50 hover:bg-surface-2/80'
                         }`}
                       >
                         <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground opacity-60">Day</span>
-                        <span className="text-base font-extrabold text-white">{item.day}</span>
-                        {/* Status marker */}
-                        <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        <span className="text-base font-extrabold text-foreground">{item.day}</span>
+                        {/* Status marker / Festival indicator */}
+                        {item.topic.includes("Special") || item.topic.includes("special") || item.topic.includes("Celebrations") ? (
+                          <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber shadow-[0_0_6px_#EF9F27]" title="Special Holiday / Festival" />
+                        ) : (
+                          <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                        )}
                       </button>
                     ))}
                   </div>

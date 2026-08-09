@@ -45,7 +45,7 @@ export function BottomTabBar() {
     ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
     { to: "/ideas", label: "Ideas", Icon: Lightbulb },
     { to: "/deals", label: "Deals", Icon: Handshake },
-    user ? { to: "/profile", label: "Profile", Icon: User } : { to: "/login", label: "Login", Icon: LogIn },
+    user ? { to: "/settings", label: "Settings", Icon: Settings } : { to: "/login", label: "Login", Icon: LogIn },
   ] as const;
   const tabs = allTabs;
 

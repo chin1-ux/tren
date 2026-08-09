@@ -1,11 +1,12 @@
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { 
   Settings, User, Bell, SlidersHorizontal, ShieldCheck, 
-  HelpCircle, Eye, Moon, Sun, ChevronRight, Check, X, Search 
+  HelpCircle, Eye, Moon, Sun, ChevronRight, Check, X, Search, LogOut, Type, Palette
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -48,6 +49,13 @@ const NICHES = [
 ];
 
 function SettingsPage() {
+  const navigate = useNavigate();
+  const { logout } = useAuth();
+
+  // Dynamic style states
+  const [fontSize, setFontSize] = useState<"normal" | "large" | "largest">("normal");
+  const [themeColor, setThemeColor] = useState<"coral" | "violet" | "emerald">("coral");
+
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">("light");
 
@@ -96,40 +104,19 @@ function SettingsPage() {
     const savedNiche = localStorage.getItem("trendrop_pref_niche") ?? "all";
     setSelectedNiche(savedNiche);
     setCustomNiche(savedNiche === "all" ? "" : savedNiche);
-  }, []);
 
-  // Detect Instagram OAuth redirect result
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-    const igSuccess = params.get("ig_success");
-    const igError = params.get("ig_error");
-    const igUsername = params.get("ig_username");
-
-    if (igSuccess === "1") {
-      const handle = igUsername ? `@${igUsername}` : "your account";
-      toast.success(`✅ Instagram connected! ${handle} is now linked to Trendrop.`);
-      if (igUsername) {
-        setInstagramHandle(igUsername);
-        localStorage.setItem("trendrop_instagram_handle", igUsername);
-      }
-    } else if (igError) {
-      const errorMessages: Record<string, string> = {
-        no_code: "No authorization code received from Instagram.",
-        no_ig_account: "No Instagram Business/Creator account found. Make sure your Instagram is linked to a Facebook Page.",
-        store_failed: "Failed to save your Instagram connection. Please try again.",
-        server_error: "Something went wrong. Please try again.",
-        not_configured: "Instagram OAuth is not configured on the server.",
-      };
-      toast.error(`❌ Instagram connection failed: ${errorMessages[igError] ?? igError}`);
+    // Load custom dynamic options
+    const savedSize = localStorage.getItem("trendrop_font_size") as any;
+    if (savedSize) {
+      setFontSize(savedSize);
+      applyFontSize(savedSize);
     }
-
-    // Clean up query params from URL without reload
-    if (igSuccess || igError) {
-      const cleanUrl = window.location.pathname;
-      window.history.replaceState({}, "", cleanUrl);
+    const savedColor = localStorage.getItem("trendrop_theme_color") as any;
+    if (savedColor) {
+      setThemeColor(savedColor);
+      applyThemeColor(savedColor);
     }
   }, []);
-
 
   // Theme change
   const toggleTheme = () => {
@@ -151,6 +138,47 @@ function SettingsPage() {
       root.classList.remove("dark");
     }
     toast.success(`Switched to ${next} mode!`);
+  };
+
+  const applyFontSize = (size: "normal" | "large" | "largest") => {
+    const root = document.documentElement;
+    if (size === "normal") root.style.fontSize = "16px";
+    else if (size === "large") root.style.fontSize = "18px";
+    else if (size === "largest") root.style.fontSize = "20px";
+  };
+
+  const applyThemeColor = (color: "coral" | "violet" | "emerald") => {
+    const colors = {
+      coral: "#FF4D3D",
+      violet: "#7F77DD",
+      emerald: "#1FB87A"
+    };
+    document.documentElement.style.setProperty("--primary", colors[color]);
+    document.documentElement.style.setProperty("--color-primary", colors[color]);
+  };
+
+  const handleFontSizeChange = (size: "normal" | "large" | "largest") => {
+    setFontSize(size);
+    localStorage.setItem("trendrop_font_size", size);
+    applyFontSize(size);
+    toast.success(`Font size changed to ${size}!`);
+  };
+
+  const handleThemeColorChange = (color: "coral" | "violet" | "emerald") => {
+    setThemeColor(color);
+    localStorage.setItem("trendrop_theme_color", color);
+    applyThemeColor(color);
+    toast.success(`Theme primary color updated to ${color}!`);
+  };
+
+  const handleLogout = async () => {
+    try {
+      await logout();
+      toast.success("Logged out successfully");
+      navigate({ to: "/login" });
+    } catch {
+      toast.error("Failed to log out");
+    }
   };
 
   // Close dropdowns on outside click
@@ -189,13 +217,11 @@ function SettingsPage() {
     }, 1000);
   };
 
-  // Filter languages and niches based on search
   const filteredLanguages = ALL_LANGUAGES.filter(l => 
     (l.label ?? "").toLowerCase().includes(langSearch.toLowerCase())
   );
 
   const activeLangObj = ALL_LANGUAGES.find(l => l.code === selectedLanguage);
-  const activeNicheLabel = customNiche.trim() || (selectedNiche !== "all" ? selectedNiche : "All niches");
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-md mx-auto">
@@ -203,9 +229,9 @@ function SettingsPage() {
       <div className="flex items-center justify-between border-b border-border/20 pb-4">
         <div>
           <h1 className="font-display text-2xl font-bold text-foreground flex items-center gap-2">
-            <Settings className="h-6 w-6 text-primary" /> Settings
+            <Settings className="h-6 w-6 text-primary" /> Settings Hub
           </h1>
-          <p className="text-xs text-muted-foreground mt-1">Configure preference filters, notifications & alerts</p>
+          <p className="text-xs text-muted-foreground mt-1">Configure preference filters, profile & app styling options</p>
         </div>
       </div>
 
@@ -216,7 +242,7 @@ function SettingsPage() {
         </h2>
 
         {/* Searchable Language Selection */}
-      <div className="space-y-1.5" ref={langRef}>
+        <div className="space-y-1.5" ref={langRef}>
           <label className="text-xs font-semibold text-muted-foreground block">Default Trend Language</label>
           <div className="relative">
             <button
@@ -281,7 +307,7 @@ function SettingsPage() {
               className="w-full rounded-xl bg-muted/40 border border-border px-8 py-2.5 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
-          <p className="text-[10px] text-muted-foreground">Free-form niche value. Suggestions below are optional, not a fixed list.</p>
+          <p className="text-[10px] text-muted-foreground">Suggestions below are optional:</p>
           <div className="flex flex-wrap gap-2">
             {NICHES.map((niche) => (
               <button
@@ -300,7 +326,58 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* ── 2. Theme & Tutorial ── */}
+      {/* ── 2. Display Styles (Font & Colors) ── */}
+      <div className="glass-card p-5 space-y-4">
+        <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
+          <Palette className="h-4 w-4 text-primary" /> Display Styles
+        </h2>
+
+        {/* Font Size Preferences */}
+        <div className="space-y-2">
+          <div className="flex items-center gap-1.5 text-xs font-semibold text-foreground">
+            <Type className="h-3.5 w-3.5 text-primary" /> Font Size Options
+          </div>
+          <div className="grid grid-cols-3 gap-2">
+            {(["normal", "large", "largest"] as const).map((size) => (
+              <button
+                key={size}
+                type="button"
+                onClick={() => handleFontSizeChange(size)}
+                className={`rounded-lg py-2 text-[11px] font-bold border transition-all ${
+                  fontSize === size 
+                    ? "bg-primary text-white border-primary" 
+                    : "bg-muted/40 text-foreground border-border/30 hover:bg-muted"
+                }`}
+              >
+                {size.toUpperCase()}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Brand Theme Colors */}
+        <div className="space-y-2 border-t border-border/20 pt-3">
+          <p className="text-xs font-semibold text-foreground">App Brand Color Vibe</p>
+          <div className="grid grid-cols-3 gap-2">
+            {(["coral", "violet", "emerald"] as const).map((color) => (
+              <button
+                key={color}
+                type="button"
+                onClick={() => handleThemeColorChange(color)}
+                className={`rounded-lg py-2 text-[11px] font-bold border capitalize transition-all ${
+                  themeColor === color 
+                    ? "bg-primary text-white border-primary" 
+                    : "bg-muted/40 text-foreground border-border/30 hover:bg-muted"
+                }`}
+              >
+                {color}
+              </button>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ── 3. Theme & Tutorial ── */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
           <Eye className="h-4 w-4 text-primary" /> Application
@@ -337,7 +414,7 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* ── 3. Notification Settings ── */}
+      {/* ── 4. Notification Settings ── */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
           <Bell className="h-4 w-4 text-primary" /> Notification Alerts
@@ -371,7 +448,7 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* ── 4. Account Settings ── */}
+      {/* ── 5. Account Settings ── */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
           <User className="h-4 w-4 text-primary" /> Account details
@@ -409,9 +486,19 @@ function SettingsPage() {
             />
           </div>
         </div>
+
+        <div className="border-t border-border/20 pt-3 mt-4">
+          <Button
+            onClick={handleLogout}
+            variant="destructive"
+            className="w-full h-10 font-bold uppercase rounded-xl flex items-center justify-center gap-2 text-xs"
+          >
+            <LogOut className="h-4 w-4" /> Log out of profile
+          </Button>
+        </div>
       </div>
 
-      {/* ── 5. Legal & Data Rights (DPDP Compliant) ── */}
+      {/* ── 6. Legal & Data Rights (DPDP Compliant) ── */}
       <div className="glass-card p-5 space-y-3">
         <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
           <ShieldCheck className="h-4 w-4 text-primary" /> Legal & Privacy

@@ -68,9 +68,9 @@ export function DanceTrendModal({ trend, onClose }: Props) {
   const storyboard = (trend.visualStoryboard && trend.visualStoryboard.length > 0) 
     ? trend.visualStoryboard 
     : [
-        { time: "0:00 - 0:03", instruction: "Visual Hook: Start with a high-contrast intro showing your key transition question." },
-        { time: "0:03 - 0:08", instruction: "Action Sequence: Capture the main activity aligning your movements to the beat drops." },
-        { time: "0:08 - 0:12", instruction: "End Scene: Outro transition wrapping up with a call to action." }
+        { time: "0:00 - 0:03", instruction: `Visual Hook: Introduce "${trend.song}" with an engaging headline and match the energy of ${trend.artist || 'the artist'}.` },
+        { time: "0:03 - 0:08", instruction: `Action Sequence: Record transitions matching the beat, highlighting details fitting the ${trend.category || 'Reel'} content.` },
+        { time: "0:08 - 0:12", instruction: `End Scene: Bring it to a close with a call to action overlay matching the vibe of this audio.` }
       ];
 
   const hasTemplate = !!trend.templateLink;
@@ -198,7 +198,9 @@ export function DanceTrendModal({ trend, onClose }: Props) {
 
           <Section label="Ideal Caption Idea">
             <div className="rounded-xl border border-white/5 bg-white/[0.02] p-3 text-xs leading-relaxed text-zinc-300">
-              {trend.idealContentDescription || "Film transitions and synchronize your video cuts perfectly to the beat drop."}
+              {trend.idealContentDescription && !trend.idealContentDescription.includes("Short creator clips")
+                ? trend.idealContentDescription
+                : `Create a transition sequence synced to the beats of "${trend.song}" by ${trend.artist}. Highlight details matching the ${trend.nicheTag || 'creator'} theme.`}
             </div>
           </Section>
         </div>
@@ -216,7 +218,15 @@ export function DanceTrendModal({ trend, onClose }: Props) {
               </Button>
             </a>
           ) : (
-            <Button onClick={onClose} className="flex-1 h-11 bg-amber font-bold text-white hover:bg-amber/90">
+            <Button 
+              onClick={async () => {
+                if (!isTargeted) {
+                  await handleToggleTarget();
+                }
+                onClose();
+              }} 
+              className="flex-1 h-11 bg-amber font-bold text-white hover:bg-amber/90"
+            >
               Got it, Let's Film!
             </Button>
           )}

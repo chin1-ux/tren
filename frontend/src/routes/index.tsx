@@ -309,7 +309,7 @@ function TrendsFeed() {
 
             {/* User avatar */}
             <button
-              onClick={() => navigate({ to: "/profile" })}
+              onClick={() => navigate({ to: "/settings" })}
               className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
               aria-label="Profile"
             >
@@ -387,8 +387,8 @@ function TrendsFeed() {
           )}
         </div>
 
-        {/* Language Selection Chip Strip */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mt-2 px-1">
+        {/* Language Selection Chip Strip (Hidden temporarily) */}
+        {/* <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mt-2 px-1">
           {LANGUAGES.map((lang) => (
             <button
               key={lang.code}
@@ -407,7 +407,7 @@ function TrendsFeed() {
               {lang.label}
             </button>
           ))}
-        </div>
+        </div> */}
       </div>
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
@@ -522,7 +522,7 @@ function TabButton({
   return (
     <button
       onClick={onClick}
-      className={`flex flex-shrink-0 px-3 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
+      className={`flex flex-1 min-w-max px-3 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
         active
           ? urgent
             ? "bg-[#ff006e] text-white shadow-sm shadow-[rgba(255,0,110,0.3)]"

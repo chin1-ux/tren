@@ -428,7 +428,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.4, ease: "easeOut" }}
       whileHover={{ y: -4, boxShadow: "0 15px 40px rgba(0,0,0,0.4)" }}
-      className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
+      className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} card-glow-light dark:card-glow-dark ${isEmerging ? "animate-pulse-urgent" : ""}`}
     >
       {/* Opportunity Score Indicator removed from absolute — now in badge row below as ml-auto item */}
 
@@ -437,11 +437,11 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
           <TrendingUp className="h-2.5 w-2.5" /> Trending
         </span>
-        
-        {/* Trend Classification Badge - Display Differentiation */}
-        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${trendBadge.bgColor} ${trendBadge.color}`}>
+
+        {/* Trend Classification Badge (Hidden temporarily) */}
+        {/* <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${trendBadge.bgColor} ${trendBadge.color}`}>
           {trendBadge.icon} {trendBadge.label}
-        </span>
+        </span> */}
         
         {/* Velocity Pattern Indicator */}
         <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground" title={`Velocity Pattern: ${velocityPattern.label}`}>
@@ -878,12 +878,24 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                       onAnalyze={async () => {
                         setLoadingAnalysis(true);
                         try {
-                          // Use trend data to estimate content performance
-                          const estimatedViews = Math.floor((trend.audioUseCount || 0) * 0.1) + 1000;
-                          const estimatedLikes = Math.floor(estimatedViews * 0.05);
-                          const estimatedComments = Math.floor(estimatedViews * 0.01);
-                          const estimatedShares = Math.floor(estimatedViews * 0.005);
-                          const estimatedSaves = Math.floor(estimatedViews * 0.008);
+                          // Dynamic metrics calculations with unique variance based on trend parameters
+                          const baseMultiplier = 1 + ((trend.viralMultiplier || 10) / 100);
+                          const hookFactor = (trend.hookRetentionScore || 50) / 100;
+                          const fitFactor = (trend.creatorFitScore || 50) / 100;
+                          const oppFactor = (trend.opportunityScore || 50) / 100;
+
+                          const estimatedViews = Math.floor((trend.audioUseCount || 5000) * 0.08 * baseMultiplier) + 1200;
+                          
+                          // Varying engagement rates based on fit and hook scores so each card returns different values
+                          const likeRate = 0.02 + (hookFactor * 0.04) + (fitFactor * 0.02); // 2% to 8%
+                          const commentRate = 0.005 + (fitFactor * 0.015);                  // 0.5% to 2%
+                          const shareRate = 0.002 + (oppFactor * 0.012);                    // 0.2% to 1.4%
+                          const saveRate = 0.001 + (hookFactor * 0.009);                    // 0.1% to 1%
+
+                          const estimatedLikes = Math.floor(estimatedViews * likeRate);
+                          const estimatedComments = Math.floor(estimatedViews * commentRate);
+                          const estimatedShares = Math.floor(estimatedViews * shareRate);
+                          const estimatedSaves = Math.floor(estimatedViews * saveRate);
                           
                           const analysis = await analyzeContentForVirality({
                             views: estimatedViews,
@@ -891,7 +903,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                             comments: estimatedComments,
                             shares: estimatedShares,
                             saves: estimatedSaves,
-                            duration: 20,
+                            duration: Math.max(10, Math.min(60, 15 + Math.floor(fitFactor * 30))),
                             niche: trend.nicheTag || "general",
                             uses_trending_audio: true
                           });

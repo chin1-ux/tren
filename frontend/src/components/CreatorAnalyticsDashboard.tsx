@@ -84,9 +84,9 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           </div>
           <Button 
             className="w-full bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider h-11 rounded-xl shadow-lg shadow-primary/20"
-            onClick={() => window.location.href = '/profile'}
+            onClick={() => window.location.href = '/settings'}
           >
-            Go to Profile Settings
+            Go to Settings
           </Button>
         </CardContent>
       </Card>

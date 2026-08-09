@@ -108,15 +108,15 @@ function SignupPage() {
               <label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Email
               </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <div className="relative flex items-center">
+                <Mail className="absolute left-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
                 <Input
                   id="email"
                   type="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
+                  className="pl-12 w-full"
                   required
                 />
               </div>
@@ -127,15 +127,15 @@ function SignupPage() {
               <label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Password
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <div className="relative flex items-center">
+                <Lock className="absolute left-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
                 <Input
                   id="password"
                   type="password"
                   placeholder="•••••••••"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
+                  className="pl-12 w-full"
                   required
                   minLength={6}
                 />
@@ -147,15 +147,15 @@ function SignupPage() {
               <label htmlFor="confirmPassword" className="text-sm font-medium text-slate-700 dark:text-slate-300">
                 Confirm Password
               </label>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
+              <div className="relative flex items-center">
+                <Lock className="absolute left-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
                 <Input
                   id="confirmPassword"
                   type="password"
                   placeholder="•••••••••"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
-                  className="pl-10"
+                  className="pl-12 w-full"
                   required
                   minLength={6}
                 />

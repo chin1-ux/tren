@@ -63,14 +63,14 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
       <div className="bg-gradient-to-br from-violet-500/10 to-purple-500/10 border border-violet-500/20 rounded-xl p-6">
         <div className="flex items-center gap-3 mb-4">
           <Lightbulb className="h-6 w-6 text-violet-400" />
-          <h3 className="text-lg font-bold text-white">Instagram Algorithm Insights</h3>
+          <h3 className="text-lg font-bold text-foreground">Instagram Algorithm Insights</h3>
         </div>
-        <p className="text-sm text-white/70 mb-4">
+        <p className="text-sm text-muted-foreground mb-4">
           Get AI-powered insights about your content's viral potential and actionable recommendations for optimization.
         </p>
         <Button 
           onClick={() => onAnalyze?.({})}
-          className="w-full bg-violet-600 hover:bg-violet-700"
+          className="w-full bg-violet-600 hover:bg-violet-700 text-white"
         >
           Analyze Content
         </Button>
@@ -114,20 +114,20 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
           <Lightbulb className="h-6 w-6 text-violet-400" />
-          <h3 className="text-lg font-bold text-white">Instagram Algorithm Insights</h3>
+          <h3 className="text-lg font-bold text-foreground">Instagram Algorithm Insights</h3>
         </div>
-        <span className={`text-xs font-bold px-2 py-1 rounded-full ${getPotentialColor(analysis.viral_potential)} bg-white/10`}>
+        <span className={`text-xs font-bold px-2 py-1 rounded-full ${getPotentialColor(analysis.viral_potential)} bg-white/10 dark:bg-black/30`}>
           {analysis.viral_potential}
         </span>
       </div>
 
       {/* Overall Score */}
-      <div className="bg-black/30 rounded-lg p-4">
+      <div className="bg-black/5 dark:bg-black/30 rounded-lg p-4 border border-border/30">
         <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-semibold text-white/80">Overall Virality Score</span>
-          <span className="text-2xl font-bold text-violet-400">{analysis.virality_score}/100</span>
+          <span className="text-sm font-semibold text-muted-foreground">Overall Virality Score</span>
+          <span className="text-2xl font-bold text-violet-500 dark:text-violet-400">{analysis.virality_score}/100</span>
         </div>
-        <div className="h-2 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-2 bg-muted/60 dark:bg-white/10 rounded-full overflow-hidden">
           <div 
             className="h-full bg-gradient-to-r from-violet-500 to-purple-500 transition-all duration-500"
             style={{ width: `${analysis.virality_score}%` }}
@@ -137,22 +137,22 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
 
       {/* Factor Scores */}
       <div className="space-y-3">
-        <h4 className="text-sm font-bold text-white/90 flex items-center gap-2">
-          <TrendingUp className="h-4 w-4" />
+        <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <TrendingUp className="h-4 w-4 text-violet-500" />
           Performance Factors
         </h4>
         <div className="space-y-2">
           {Object.entries(analysis.factor_scores).map(([factor, score]) => (
             <div key={factor} className="flex items-center justify-between">
-              <span className="text-xs text-white/70">{factorLabels[factor] || factor}</span>
+              <span className="text-xs text-muted-foreground">{factorLabels[factor] || factor}</span>
               <div className="flex items-center gap-2">
-                <div className="h-1.5 w-20 bg-white/10 rounded-full overflow-hidden">
+                <div className="h-1.5 w-20 bg-muted dark:bg-white/10 rounded-full overflow-hidden">
                   <div 
                     className="h-full bg-violet-500 transition-all duration-300"
                     style={{ width: `${score * 100}%` }}
                   />
                 </div>
-                <span className="text-xs font-mono text-white/60 w-8 text-right">{Math.round(score * 100)}%</span>
+                <span className="text-xs font-mono text-muted-foreground w-8 text-right">{Math.round(score * 100)}%</span>
               </div>
             </div>
           ))}
@@ -161,26 +161,26 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
 
       {/* Engagement Metrics */}
       <div className="space-y-3">
-        <h4 className="text-sm font-bold text-white/90 flex items-center gap-2">
-          <CheckCircle className="h-4 w-4" />
+        <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+          <CheckCircle className="h-4 w-4 text-violet-500" />
           Engagement Metrics
         </h4>
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-black/20 rounded p-2">
-            <div className="text-[10px] text-white/50 uppercase">Engagement Rate</div>
-            <div className="text-sm font-bold text-white">{analysis.engagement_metrics.engagement_rate}%</div>
+          <div className="bg-muted/40 dark:bg-black/20 border border-border/20 rounded p-2">
+            <div className="text-[10px] text-muted-foreground uppercase">Engagement Rate</div>
+            <div className="text-sm font-bold text-foreground">{analysis.engagement_metrics.engagement_rate}%</div>
           </div>
-          <div className="bg-black/20 rounded p-2">
-            <div className="text-[10px] text-white/50 uppercase">Save Rate</div>
-            <div className="text-sm font-bold text-white">{analysis.engagement_metrics.save_rate}%</div>
+          <div className="bg-muted/40 dark:bg-black/20 border border-border/20 rounded p-2">
+            <div className="text-[10px] text-muted-foreground uppercase">Save Rate</div>
+            <div className="text-sm font-bold text-foreground">{analysis.engagement_metrics.save_rate}%</div>
           </div>
-          <div className="bg-black/20 rounded p-2">
-            <div className="text-[10px] text-white/50 uppercase">Share Rate</div>
-            <div className="text-sm font-bold text-white">{analysis.engagement_metrics.share_rate}%</div>
+          <div className="bg-muted/40 dark:bg-black/20 border border-border/20 rounded p-2">
+            <div className="text-[10px] text-muted-foreground uppercase">Share Rate</div>
+            <div className="text-sm font-bold text-foreground">{analysis.engagement_metrics.share_rate}%</div>
           </div>
-          <div className="bg-black/20 rounded p-2">
-            <div className="text-[10px] text-white/50 uppercase">Comment Rate</div>
-            <div className="text-sm font-bold text-white">{analysis.engagement_metrics.comment_rate}%</div>
+          <div className="bg-muted/40 dark:bg-black/20 border border-border/20 rounded p-2">
+            <div className="text-[10px] text-muted-foreground uppercase">Comment Rate</div>
+            <div className="text-sm font-bold text-foreground">{analysis.engagement_metrics.comment_rate}%</div>
           </div>
         </div>
       </div>
@@ -188,19 +188,19 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
       {/* Recommendations */}
       {analysis.recommendations.length > 0 && (
         <div className="space-y-3">
-          <h4 className="text-sm font-bold text-white/90 flex items-center gap-2">
-            <AlertCircle className="h-4 w-4" />
+          <h4 className="text-sm font-bold text-foreground flex items-center gap-2">
+            <AlertCircle className="h-4 w-4 text-violet-500" />
             Optimization Tips
           </h4>
           <div className="space-y-2">
             {analysis.recommendations.map((rec, idx) => (
-              <div key={idx} className="bg-black/20 rounded-lg p-3 border border-white/5">
+              <div key={idx} className="bg-muted/30 dark:bg-black/20 rounded-lg p-3 border border-border/40">
                 <div className="flex items-start justify-between mb-1">
-                  <span className="text-xs font-semibold text-white">{rec.title}</span>
+                  <span className="text-xs font-semibold text-foreground">{rec.title}</span>
                   {getPriorityBadge(rec.priority)}
                 </div>
-                <p className="text-[11px] text-white/60 mb-2">{rec.description}</p>
-                <div className="flex items-center gap-3 text-[10px] text-white/40">
+                <p className="text-[11px] text-muted-foreground mb-2">{rec.description}</p>
+                <div className="flex items-center gap-3 text-[10px] text-muted-foreground/60">
                   <span>Impact: {rec.expected_impact}</span>
                   <span>Difficulty: {rec.difficulty}</span>
                 </div>
@@ -214,13 +214,13 @@ export function AlgorithmInsightsPanel({ analysis, loading, onAnalyze }: Algorit
       <div className="space-y-2">
         <button
           onClick={() => setShowExplanation(!showExplanation)}
-          className="flex items-center gap-2 text-xs text-white/50 hover:text-white/70 transition-colors"
+          className="flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground transition-colors"
         >
           <Info className="h-3 w-3" />
           {showExplanation ? "Hide" : "Show"} Algorithm Explanation
         </button>
         {showExplanation && (
-          <div className="bg-black/20 rounded-lg p-3 text-[11px] text-white/60 leading-relaxed">
+          <div className="bg-muted/30 dark:bg-black/20 border border-border/40 rounded-lg p-3 text-[11px] text-muted-foreground leading-relaxed">
             {analysis.algorithm_explanation}
           </div>
         )}

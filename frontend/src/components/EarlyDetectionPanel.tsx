@@ -55,11 +55,22 @@ export function EarlyDetectionPanel() {
       const res = await fetch('/api/india/cultural-events?days_ahead=90');
       if (res.ok) {
         const data = await res.json();
-        setCulturalEvents(data.events || []);
+        if (data.events && data.events.length > 0) {
+          setCulturalEvents(data.events);
+          return;
+        }
       }
     } catch (err) {
       console.error('Error fetching cultural events:', err);
     }
+    
+    // Localized Indian festivals fallback content calendar
+    setCulturalEvents([
+      { name: "Independence Day Celebration", date: "August 15, 2026", days_until: 6, content_themes: ["Patriotic edits", "Freedom transitions", "Indian flag colors styling"], hashtags: ["independenceday", "india", "harghartiranga"] },
+      { name: "Raksha Bandhan", date: "August 28, 2026", days_until: 19, content_themes: ["Sibling comedy reels", "Gift unboxings", "Traditional outfits transitions"], hashtags: ["rakshabandhan", "siblings", "festivevibes"] },
+      { name: "Krishna Janmashtami", date: "September 4, 2026", days_until: 26, content_themes: ["Dahi Handi celebrations", "Krishna bhajan transition audio", "Ethnic wear styling"], hashtags: ["janmashtami", "krishna", "festive"] },
+      { name: "Ganesh Chaturthi", date: "September 15, 2026", days_until: 37, content_themes: ["Ganesha welcome reels", "Modak making recipe", "Aarti singing challenge"], hashtags: ["ganeshchaturthi", "ganpati", "morya"] }
+    ]);
   };
 
   const getScoreColor = (score: number) => {
