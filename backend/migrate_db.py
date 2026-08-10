@@ -42,6 +42,7 @@ MIGRATIONS = [
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS pending_backfilled INTEGER;",
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS stage TEXT;",
     "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS cutoff_reason TEXT;",
+    "ALTER TABLE cron_runs ADD COLUMN IF NOT EXISTS trend_detection_skipped BOOLEAN DEFAULT false;",
 
     # reels table – new columns
     "ALTER TABLE reels ADD COLUMN IF NOT EXISTS audio_id TEXT;",

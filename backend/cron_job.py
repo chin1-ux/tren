@@ -275,7 +275,10 @@ def run_full_pipeline():
 
     # 3. Trend Engine: detect new trends
     trend_ids = []
-    if new_reels_count > 0:  # Run trend detection even for small batches; TrendEngine has its own guard
+    trend_detection_skipped = False
+    TREND_DETECTION_THRESHOLD = 10  # Skip trend detection if insufficient new data
+    
+    if new_reels_count >= TREND_DETECTION_THRESHOLD:
         # Data-quality warning: check proportion of null audio titles in recent scrape
         try:
             sb = _get_supabase()
@@ -293,7 +296,41 @@ def run_full_pipeline():
                     )
         except Exception as dq_err:
             logging.warning(f"Failed to perform data-quality check: {dq_err}")
+    else:
+        trend_detection_skipped = True
+        logging.warning(
+            f"TREND DETECTION SKIPPED: Only {new_reels_count} new reels scraped "
+            f"(below threshold {TREND_DETECTION_THRESHOLD}). "
+            f"This may indicate scraper degradation or Instagram rate limiting. "
+            f"Consecutive skips will be tracked in cron_runs table."
+        )
+        
+        # Check consecutive skips and alert if pattern detected
+        try:
+            sb = _get_supabase()
+            recent_runs = sb.table("cron_runs") \
+                .select("trend_detection_skipped") \
+                .order("run_at", desc=True) \
+                .limit(5) \
+                .execute()
+            
+            consecutive_skips = 0
+            for run in (recent_runs.data or []):
+                if run.get("trend_detection_skipped"):
+                    consecutive_skips += 1
+                else:
+                    break
+            
+            if consecutive_skips >= 3:
+                logging.error(
+                    f"ALERT: Trend detection has been skipped for {consecutive_skips} consecutive runs "
+                    f"({consecutive_skips * 8}+ hours with no new trend discovery). "
+                    f"This may indicate persistent scraper issues requiring investigation."
+                )
+        except Exception as skip_check_err:
+            logging.warning(f"Failed to check consecutive skip pattern: {skip_check_err}")
 
+    if not trend_detection_skipped:
         try:
             run_state["stage"] = "trend_engine"
             logging.info("Step 3/5: Running TrendEngine to detect new trends...")
@@ -307,8 +344,6 @@ def run_full_pipeline():
             run_state["stage"] = "trend_engine_failed"
             run_state["cutoff_reason"] = f"trend engine failed: {e}"
             logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
-    else:
-        logging.warning(f"Skipping trend detection — only {new_reels_count} new reels scraped this cycle, likely scraper failure.")
 
     # 4. Trend Refresher: update lifecycle of existing trends
     try:
@@ -376,6 +411,7 @@ def run_full_pipeline():
             "classification_failed_429": classification_failed_429,
             "uploads_skipped_oversized": uploads_skipped_oversized,
             "pending_backfilled": pending_backfilled,
+            "trend_detection_skipped": trend_detection_skipped,
         }).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")
