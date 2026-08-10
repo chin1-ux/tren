@@ -6,6 +6,10 @@ on:
     - cron: '30 2,10,18 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
+concurrency:
+  group: scraper-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
@@ -20,6 +24,22 @@ jobs:
         with:
           python-version: '3.12'
           cache: 'pip'
+
+      - name: Cache Playwright browser binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            playwright-${{ runner.os }}-
+
+      - name: Cache Camoufox browser binaries
+        uses: actions/cache@v4
+        with:
+          path: ~/.camoufox
+          key: camoufox-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            camoufox-${{ runner.os }}-
 
       - name: Install dependencies
         run: |
