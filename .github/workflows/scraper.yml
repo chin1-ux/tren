@@ -27,6 +27,7 @@ jobs:
 
       - name: Cache Playwright browser binaries
         uses: actions/cache@v4
+        id: playwright-cache
         with:
           path: ~/.cache/ms-playwright
           key: playwright-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
@@ -35,6 +36,7 @@ jobs:
 
       - name: Cache Camoufox browser binaries
         uses: actions/cache@v4
+        id: camoufox-cache
         with:
           path: ~/.camoufox
           key: camoufox-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
@@ -46,7 +48,15 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
           pip install .[worker,browser-scraper]
+
+      - name: Install Playwright browser (if cache miss)
+        if: steps.playwright-cache.outputs.cache-hit != 'true'
+        run: |
           python -m playwright install-deps firefox
+
+      - name: Install Camoufox browser (if cache miss)
+        if: steps.camoufox-cache.outputs.cache-hit != 'true'
+        run: |
           python -m camoufox fetch
 
       - name: Create cookies.json
