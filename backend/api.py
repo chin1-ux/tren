@@ -6276,23 +6276,23 @@ def get_phone_verification_status(
 
 # ── Admin Panel Endpoints ───────────────────────────────────────────
 
-from auth import get_admin_user
+from auth import require_admin
 
-def enforce_admin_check(x_admin_key: str = Header(None), current_user: str = Depends(get_current_user)):
-    """Double-check validation of Admin Key header AND check email against whitelisted ADMIN_EMAILS environment variable."""
-    # 1. Verify administrative authorization key
-    get_admin_user(x_admin_key)
-
-    # 2. Verify email belongs to whitelisted administrators
-    admin_emails_env = os.getenv("ADMIN_EMAILS", "")
-    allowed_emails = [email.strip().lower() for email in admin_emails_env.split(",") if email.strip()]
-    
-    if not current_user or current_user.lower() not in allowed_emails:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Access Forbidden: Restricted administrative privilege."
-        )
-    return current_user
+def log_admin_action(admin_email: str, action: str, target_user_id: int = None, details: dict = None):
+    """Log admin action to admin_actions table."""
+    try:
+        # Get admin user ID
+        admin_res = supabase.table("users").select("id").eq("email", admin_email).single().execute()
+        admin_id = admin_res.data.get("id") if admin_res.data else None
+        
+        supabase.table("admin_actions").insert({
+            "admin_id": admin_id,
+            "target_user_id": target_user_id,
+            "action": action,
+            "details": details or {}
+        }).execute()
+    except Exception as e:
+        logger.error(f"Failed to log admin action: {e}")
 
 @app.get("/api/admin/users", tags=["Admin"])
 def admin_get_users(
@@ -6301,7 +6301,7 @@ def admin_get_users(
     plan_filter: Optional[str] = None,
     limit: int = 100,
     offset: int = 0,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Retrieve users list for management page."""
     if not supabase:
@@ -6323,7 +6323,7 @@ def admin_get_users(
 @app.get("/api/admin/users/{email}", tags=["Admin"])
 def admin_get_user_details(
     email: str,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Get single user detailed statistics and active devices."""
     if not supabase:
@@ -6358,41 +6358,56 @@ def admin_get_user_details(
 def admin_update_user_plan(
     email: str,
     payload: dict,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
-    """Change subscription plan tier."""
+    """Change subscription plan tier via plan_overrides table."""
     new_plan = payload.get("new_plan")
     reason = payload.get("reason", "Admin update")
+    expires_in_days = payload.get("expires_in_days")  # Optional: temporary plan grant
+    
     if not new_plan:
         raise HTTPException(status_code=400, detail="new_plan required")
     
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     try:
-        # Check tier exists
-        tier_res = supabase.table("subscription_tiers").select("id").eq("name", new_plan).limit(1).execute()
-        if not tier_res.data:
-            raise HTTPException(status_code=400, detail=f"Invalid plan tier: {new_plan}")
-        
-        tier_id = tier_res.data[0]["id"]
-        
-        update_res = supabase.table("users").update({
-            "plan": new_plan,
-            "tier_id": tier_id
-        }).eq("email", email).execute()
-        
-        if not update_res.data:
+        # Get target user ID
+        target_res = supabase.table("users").select("id").eq("email", email).single().execute()
+        if not target_res.data:
             raise HTTPException(status_code=404, detail="User not found")
-            
-        # Log to audit logs
-        supabase.table("admin_audit_log").insert({
-            "admin_email": admin_user,
-            "action": "plan_change",
-            "target_user_email": email,
-            "details": {"new_plan": new_plan, "reason": reason}
+        target_user_id = target_res.data.get("id")
+        
+        # Get admin user ID
+        admin_res = supabase.table("users").select("id").eq("email", admin_user).single().execute()
+        admin_id = admin_res.data.get("id") if admin_res.data else None
+        
+        # Calculate expiration date if provided
+        expires_at = None
+        if expires_in_days:
+            from datetime import datetime, timezone, timedelta
+            expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
+        
+        # Insert or update plan override
+        supabase.table("plan_overrides").upsert({
+            "user_id": target_user_id,
+            "tier": new_plan,
+            "granted_by": admin_id,
+            "expires_at": expires_at
         }).execute()
         
-        return {"success": True, "message": f"Plan updated to {new_plan}"}
+        # Log admin action
+        log_admin_action(
+            admin_email=admin_user,
+            action="plan_override",
+            target_user_id=target_user_id,
+            details={
+                "new_plan": new_plan,
+                "reason": reason,
+                "expires_at": expires_at
+            }
+        )
+        
+        return {"success": True, "message": f"Plan override set to {new_plan}"}
     except HTTPException:
         raise
     except Exception as e:
@@ -6403,23 +6418,29 @@ def admin_update_user_plan(
 def admin_lock_user(
     email: str,
     payload: dict,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Lock user account."""
     reason = payload.get("reason", "Admin lock")
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     try:
+        # Get target user ID
+        target_res = supabase.table("users").select("id").eq("email", email).single().execute()
+        if not target_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        target_user_id = target_res.data.get("id")
+        
         update_res = supabase.table("users").update({"status": "locked"}).eq("email", email).execute()
         if not update_res.data:
             raise HTTPException(status_code=404, detail="User not found")
             
-        supabase.table("admin_audit_log").insert({
-            "admin_email": admin_user,
-            "action": "account_lock",
-            "target_user_email": email,
-            "details": {"reason": reason}
-        }).execute()
+        log_admin_action(
+            admin_email=admin_user,
+            action="account_lock",
+            target_user_id=target_user_id,
+            details={"reason": reason}
+        )
         return {"success": True, "message": "User account locked"}
     except HTTPException:
         raise
@@ -6431,23 +6452,29 @@ def admin_lock_user(
 def admin_unlock_user(
     email: str,
     payload: dict,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Unlock user account."""
     reason = payload.get("reason", "Admin unlock")
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     try:
+        # Get target user ID
+        target_res = supabase.table("users").select("id").eq("email", email).single().execute()
+        if not target_res.data:
+            raise HTTPException(status_code=404, detail="User not found")
+        target_user_id = target_res.data.get("id")
+        
         update_res = supabase.table("users").update({"status": "active"}).eq("email", email).execute()
         if not update_res.data:
             raise HTTPException(status_code=404, detail="User not found")
             
-        supabase.table("admin_audit_log").insert({
-            "admin_email": admin_user,
-            "action": "account_unlock",
-            "target_user_email": email,
-            "details": {"reason": reason}
-        }).execute()
+        log_admin_action(
+            admin_email=admin_user,
+            action="account_unlock",
+            target_user_id=target_user_id,
+            details={"reason": reason}
+        )
         return {"success": True, "message": "User account unlocked"}
     except HTTPException:
         raise
@@ -6457,7 +6484,7 @@ def admin_unlock_user(
 
 @app.get("/api/admin/plan-features", tags=["Admin"])
 def admin_get_plan_features(
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Fetch subscription plans config."""
     if not supabase:
@@ -6484,7 +6511,7 @@ def admin_get_plan_features(
 @app.post("/api/admin/plan-features", tags=["Admin"])
 def admin_create_plan_feature(
     payload: dict,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Upsert tier definitions."""
     if not supabase:
@@ -6506,12 +6533,62 @@ def admin_create_plan_feature(
 @app.get("/api/admin/business-metrics", tags=["Admin"])
 def admin_get_business_metrics(
     days: int = 30,
-    admin_user: str = Depends(enforce_admin_check)
+    admin_user: str = Depends(require_admin)
 ):
     """Get metrics dashboard data."""
     if not UserManager:
         raise HTTPException(status_code=500, detail="User manager helper not configured")
     return UserManager.get_business_metrics(days)
+
+@app.get("/api/admin/audit-log", tags=["Admin"])
+def admin_get_audit_log(
+    admin_user: str = Depends(require_admin),
+    admin_email_filter: Optional[str] = None,
+    action_filter: Optional[str] = None,
+    limit: int = 100
+):
+    """Get admin audit log with optional filters."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        query = supabase.table("admin_actions").select("*").order("created_at", desc=True)
+        
+        if admin_email_filter:
+            # Get admin ID from email
+            admin_res = supabase.table("users").select("id").eq("email", admin_email_filter).single().execute()
+            if admin_res.data:
+                query = query.eq("admin_id", admin_res.data.get("id"))
+        
+        if action_filter:
+            query = query.eq("action", action_filter)
+        
+        query = query.limit(limit)
+        res = query.execute()
+        
+        # Enrich with email addresses
+        enriched_logs = []
+        for log in (res.data or []):
+            admin_email = None
+            target_email = None
+            
+            if log.get("admin_id"):
+                admin_res = supabase.table("users").select("email").eq("id", log["admin_id"]).single().execute()
+                admin_email = admin_res.data.get("email") if admin_res.data else None
+            
+            if log.get("target_user_id"):
+                target_res = supabase.table("users").select("email").eq("id", log["target_user_id"]).single().execute()
+                target_email = target_res.data.get("email") if target_res.data else None
+            
+            enriched_logs.append({
+                **log,
+                "admin_email": admin_email,
+                "target_user_email": target_email
+            })
+        
+        return {"audit_log": enriched_logs}
+    except Exception as e:
+        logger.exception(f"Error getting audit log: {e}")
+        raise HTTPException(status_code=500, detail="Failed to retrieve audit log")
 
 
 # Session cap helper functions will be defined here if needed, but endpoint removed.

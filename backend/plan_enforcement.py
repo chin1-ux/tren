@@ -46,7 +46,9 @@ class PlanEnforcement:
     @staticmethod
     def get_user_plan(user_email: str) -> str:
         """
-        Get the user's current plan from users table
+        Get the user's effective plan, considering plan_overrides first.
+        
+        Priority: plan_override (if active and not expired) → Razorpay-derived plan → free
         
         Args:
             user_email: User's email
@@ -58,15 +60,32 @@ class PlanEnforcement:
             return 'free'
         
         try:
-            res = supabase.table('users') \
-                .select('plan') \
-                .eq('email', user_email) \
-                .single() \
+            # Get user ID first
+            user_res = supabase.table('users').select('id', 'plan').eq('email', user_email).single().execute()
+            if not user_res.data:
+                return 'free'
+            
+            user_id = user_res.data.get('id')
+            razorpay_plan = user_res.data.get('plan', 'free')
+            
+            # Check for active plan override
+            from datetime import datetime, timezone
+            now = datetime.now(timezone.utc).isoformat()
+            
+            override_res = supabase.table('plan_overrides') \
+                .select('tier', 'expires_at') \
+                .eq('user_id', user_id) \
                 .execute()
             
-            if res.data:
-                return res.data.get('plan', 'free')
-            return 'free'
+            if override_res.data:
+                for override in override_res.data:
+                    expires_at = override.get('expires_at')
+                    # If no expiration or not expired yet, use override
+                    if not expires_at or expires_at > now:
+                        return override.get('tier', razorpay_plan)
+            
+            # Fall back to Razorpay plan
+            return razorpay_plan
             
         except Exception as e:
             print(f"Error getting user plan: {e}")

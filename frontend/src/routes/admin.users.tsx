@@ -9,13 +9,13 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Users, Search, Filter, Lock, Unlock, Crown, Activity, ArrowLeft, ShieldAlert, Clock, ChevronDown } from "lucide-react";
+import { Shield, Search, Lock, Unlock, ChevronDown, AlertCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/users")({
   head: () => ({
     meta: [
-      { title: "User Management — Trendrop Admin" },
+      { title: "Admin Users — Trendrop" },
     ],
   }),
   component: AdminUsersPage,
