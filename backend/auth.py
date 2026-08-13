@@ -1,6 +1,10 @@
 import os
 import logging
-from fastapi import Header, HTTPException, status, Depends
+import bcrypt
+import jwt
+from datetime import datetime, timedelta
+from typing import Optional, Dict
+from fastapi import Header, HTTPException, status, Depends, Request
 from supabase import create_client, Client
 from dotenv import load_dotenv
 
@@ -11,6 +15,9 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+JWT_ALGORITHM = "HS256"
+JWT_EXPIRATION_MINUTES = 30
 
 # Handle missing Supabase credentials gracefully for CI/testing
 if not SUPABASE_URL or not SUPABASE_KEY:
@@ -54,51 +61,216 @@ def get_current_user(authorization: str = Header(None)) -> str:
 
     return "guest@trendrop.app"
 
-def require_admin(current_user: str = Depends(get_current_user)) -> str:
-    """
-    Dependency that checks if the current user has admin role.
-    Raises 403 if user is not an admin.
-    Returns the user's email if authorized.
-    """
-    if not supabase:
-        raise HTTPException(
-            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-            detail="Auth system not configured"
-        )
-    
-    if current_user == "guest@trendrop.app":
+def hash_password(password: str) -> str:
+    """Generate bcrypt hash for password."""
+    salt = bcrypt.gensalt()
+    hashed = bcrypt.hashpw(password.encode('utf-8'), salt)
+    return hashed.decode('utf-8')
+
+def verify_password(password: str, hashed: str) -> bool:
+    """Verify password against bcrypt hash."""
+    return bcrypt.checkpw(password.encode('utf-8'), hashed.encode('utf-8'))
+
+def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -> str:
+    """Create JWT access token."""
+    to_encode = data.copy()
+    if expires_delta:
+        expire = datetime.utcnow() + expires_delta
+    else:
+        expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
+    to_encode.update({"exp": expire})
+    encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
+    return encoded_jwt
+
+def verify_token(token: str) -> Dict:
+    """Verify JWT token and return payload."""
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        return payload
+    except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
+            detail="Token expired"
         )
+    except jwt.JWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token"
+        )
+
+def get_admin_user_by_email(email: str) -> Optional[Dict]:
+    """Get admin user from admin_users table by email."""
+    if not supabase:
+        return None
+    try:
+        res = supabase.table("admin_users").select("*").eq("email", email).single().execute()
+        return res.data if res.data else None
+    except Exception as e:
+        logger.error(f"Error getting admin user: {e}")
+        return None
+
+def check_and_update_login_attempts(email: str) -> bool:
+    """Check if account is locked and update login attempts. Returns True if allowed."""
+    if not supabase:
+        return True
     
     try:
-        # Check user's role from users table
-        res = supabase.table("users").select("role", "id").eq("email", current_user).single().execute()
+        admin_user = get_admin_user_by_email(email)
+        if not admin_user:
+            return False
         
-        if not res.data:
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="User not found"
-            )
+        # Check if account is locked
+        locked_until = admin_user.get("locked_until")
+        if locked_until:
+            locked_time = datetime.fromisoformat(locked_until.replace('Z', '+00:00'))
+            if datetime.utcnow() < locked_time:
+                return False  # Account is still locked
         
-        user_role = res.data.get("role")
-        user_id = res.data.get("id")
+        # Reset failed attempts if lockout period has passed
+        if locked_until and datetime.utcnow() >= locked_time:
+            supabase.table("admin_users").update({
+                "failed_login_attempts": 0,
+                "locked_until": None
+            }).eq("email", email).execute()
         
-        if user_role != "admin":
-            raise HTTPException(
-                status_code=status.HTTP_403_FORBIDDEN,
-                detail="Admin access required"
-            )
-        
-        # Return both email and id for audit logging
-        return current_user
-        
-    except HTTPException:
-        raise
+        return True
     except Exception as e:
+        logger.error(f"Error checking login attempts: {e}")
+        return False
+
+def record_failed_login_attempt(email: str) -> bool:
+    """Record a failed login attempt and lock account if threshold reached."""
+    if not supabase:
+        return False
+    
+    try:
+        admin_user = get_admin_user_by_email(email)
+        if not admin_user:
+            return False
+        
+        failed_attempts = admin_user.get("failed_login_attempts", 0) + 1
+        update_data = {"failed_login_attempts": failed_attempts}
+        
+        # Lock account after 5 failed attempts for 15 minutes
+        if failed_attempts >= 5:
+            locked_until = datetime.utcnow() + timedelta(minutes=15)
+            update_data["locked_until"] = locked_until.isoformat()
+        
+        supabase.table("admin_users").update(update_data).eq("email", email).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error recording failed login: {e}")
+        return False
+
+def reset_login_attempts(email: str) -> bool:
+    """Reset failed login attempts after successful login."""
+    if not supabase:
+        return False
+    
+    try:
+        supabase.table("admin_users").update({
+            "failed_login_attempts": 0,
+            "locked_until": None,
+            "last_login": datetime.utcnow().isoformat()
+        }).eq("email", email).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error resetting login attempts: {e}")
+        return False
+
+def log_admin_login_attempt(email: str, success: bool, ip_address: Optional[str] = None, user_agent: Optional[str] = None) -> bool:
+    """Log admin login attempt to admin_audit_log_enhanced."""
+    if not supabase:
+        return False
+    
+    try:
+        supabase.table("admin_audit_log_enhanced").insert({
+            "admin_email": email,
+            "action": "login_attempt",
+            "details": {"success": success},
+            "ip_address": ip_address,
+            "user_agent": user_agent,
+            "timestamp": datetime.utcnow().isoformat()
+        }).execute()
+        return True
+    except Exception as e:
+        logger.error(f"Error logging admin login attempt: {e}")
+        return False
+
+def require_admin(request: Request) -> Dict:
+    """
+    FastAPI dependency that validates JWT token and admin role.
+    Decodes JWT from Authorization header, verifies role in ('admin','super_admin'),
+    raises 401/403 otherwise, returns the admin's email + role.
+    """
+    authorization = request.headers.get("Authorization")
+    if not authorization or not authorization.startswith("Bearer "):
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to verify admin status"
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
         )
+    
+    token = authorization.split("Bearer ")[1].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing token"
+        )
+    
+    # Verify token
+    payload = verify_token(token)
+    email = payload.get("sub")
+    role = payload.get("role")
+    
+    if not email or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+    
+    if role not in ("admin", "super_admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Admin access required"
+        )
+    
+    return {"email": email, "role": role}
+
+def require_super_admin(request: Request) -> Dict:
+    """
+    FastAPI dependency that validates JWT token and super_admin role.
+    Requires role == 'super_admin', raises 403 otherwise.
+    """
+    authorization = request.headers.get("Authorization")
+    if not authorization or not authorization.startswith("Bearer "):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing or invalid authorization header"
+        )
+    
+    token = authorization.split("Bearer ")[1].strip()
+    if not token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Missing token"
+        )
+    
+    # Verify token
+    payload = verify_token(token)
+    email = payload.get("sub")
+    role = payload.get("role")
+    
+    if not email or not role:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid token payload"
+        )
+    
+    if role != "super_admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Super admin access required"
+        )
+    
+    return {"email": email, "role": role}
 
