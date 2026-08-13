@@ -60,7 +60,11 @@ class CreatorTools:
             logger.warning("Supabase credentials missing; Supabase-dependent features disabled.")
             self.supabase = None
         else:
-            self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            try:
+                self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+            except Exception as e:
+                logger.warning(f"Failed to create Supabase client: {e}. Supabase-dependent features disabled.")
+                self.supabase = None
 
     def _call_gemini(self, system_prompt: str, user_prompt: str) -> dict:
         """Helper to invoke LLM API and return a JSON dictionary."""

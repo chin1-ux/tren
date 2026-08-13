@@ -1,7 +1,10 @@
 import os
+import logging
 from fastapi import Header, HTTPException, status, Depends
 from supabase import create_client, Client
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
 
 # Load environment variables early to ensure they are available for authentication
 load_dotenv()
@@ -9,16 +12,21 @@ load_dotenv()
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
 
+# Handle missing Supabase credentials gracefully for CI/testing
 if not SUPABASE_URL or not SUPABASE_KEY:
-    raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
-
-supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
+    logger.warning("SUPABASE_URL and SUPABASE_KEY not set - auth system will be disabled")
+    supabase = None
+else:
+    supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 def get_current_user(authorization: str = Header(None)) -> str:
     """
     Validate the Supabase JWT or custom auth_token in the Authorization header.
     Returns the user's email if valid. Falls back to guest@trendrop.app if invalid or missing.
     """
+    if not supabase:
+        return "guest@trendrop.app"
+    
     if not authorization or not authorization.startswith("Bearer "):
         return "guest@trendrop.app"
     
@@ -52,6 +60,12 @@ def require_admin(current_user: str = Depends(get_current_user)) -> str:
     Raises 403 if user is not an admin.
     Returns the user's email if authorized.
     """
+    if not supabase:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Auth system not configured"
+        )
+    
     if current_user == "guest@trendrop.app":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
