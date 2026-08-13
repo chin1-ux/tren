@@ -71,3 +71,6 @@ dist/
 *.exe
 *.dll
 ffmpeg*
+
+# OmniRoute (large node_modules)
+OmniRoute/
