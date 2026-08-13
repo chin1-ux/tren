@@ -13,12 +13,43 @@ import { Shield, Search, Lock, Unlock, ChevronDown, AlertCircle } from "lucide-r
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/users")({
+  beforeLoad: async ({ location }) => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      throw new Error("No admin token found");
+    }
+    
+    // Validate token with backend
+    try {
+      const response = await fetch("/api/admin/validate-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error("Invalid token");
+      }
+    } catch (err) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_email");
+      localStorage.removeItem("admin_role");
+      throw new Error("Authentication required");
+    }
+  },
   head: () => ({
     meta: [
       { title: "Admin Users — Trendrop" },
     ],
   }),
   component: AdminUsersPage,
+  onError: (error) => {
+    if (error.message === "Authentication required" || error.message === "No admin token found") {
+      return { redirect: "/admin/login" };
+    }
+  },
 });
 
 function AdminUsersPage() {

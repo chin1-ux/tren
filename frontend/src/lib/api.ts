@@ -1352,25 +1352,38 @@ export async function getUserPlan(email: string): Promise<{ plan: string }> {
   return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
 }
 
-// Admin API functions - now use Supabase Auth instead of admin key
+// Admin API functions - now use JWT token from localStorage
+function getAdminHeaders() {
+  const token = localStorage.getItem("admin_token");
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+  if (token) {
+    headers["Authorization"] = `Bearer ${token}`;
+  }
+  return headers;
+}
+
 export async function getAdminUsers(search?: string, planFilter?: string): Promise<any> {
   const params = new URLSearchParams();
   if (search) params.append("search", search);
   if (planFilter && planFilter !== "all") params.append("plan_filter", planFilter);
   
-  return http<any>(`/api/admin/users?${params.toString()}`);
+  return http<any>(`/api/admin/users?${params.toString()}`, {
+    headers: getAdminHeaders(),
+  });
 }
 
 export async function getAdminUserDetails(email: string): Promise<any> {
-  return http<any>(`/api/admin/users/${encodeURIComponent(email)}`);
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}`, {
+    headers: getAdminHeaders(),
+  });
 }
 
 export async function updateAdminUserPlan(email: string, newPlan: string, reason?: string, expires_in_days?: number): Promise<any> {
   return http<any>(`/api/admin/users/${encodeURIComponent(email)}/plan`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAdminHeaders(),
     body: JSON.stringify({ new_plan: newPlan, reason, expires_in_days }),
   });
 }
@@ -1378,9 +1391,7 @@ export async function updateAdminUserPlan(email: string, newPlan: string, reason
 export async function lockAdminUserAccount(email: string, reason?: string): Promise<any> {
   return http<any>(`/api/admin/users/${encodeURIComponent(email)}/lock`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAdminHeaders(),
     body: JSON.stringify({ reason }),
   });
 }
@@ -1388,15 +1399,15 @@ export async function lockAdminUserAccount(email: string, reason?: string): Prom
 export async function unlockAdminUserAccount(email: string, reason?: string): Promise<any> {
   return http<any>(`/api/admin/users/${encodeURIComponent(email)}/unlock`, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAdminHeaders(),
     body: JSON.stringify({ reason }),
   });
 }
 
 export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
-  return http<any>(`/api/admin/business-metrics?days=${days}`);
+  return http<any>(`/api/admin/business-metrics?days=${days}`, {
+    headers: getAdminHeaders(),
+  });
 }
 
 export async function getAdminAuditLog(admin_email_filter?: string, action_filter?: string, limit: number = 100): Promise<any> {
@@ -1405,19 +1416,21 @@ export async function getAdminAuditLog(admin_email_filter?: string, action_filte
   if (action_filter) params.append("action_filter", action_filter);
   params.append("limit", limit.toString());
   
-  return http<any>(`/api/admin/audit-log?${params.toString()}`);
+  return http<any>(`/api/admin/audit-log?${params.toString()}`, {
+    headers: getAdminHeaders(),
+  });
 }
 
 export async function getAdminPlanFeatures(): Promise<any> {
-  return http<any>("/api/admin/plan-features");
+  return http<any>("/api/admin/plan-features", {
+    headers: getAdminHeaders(),
+  });
 }
 
 export async function createAdminPlanFeature(data: any): Promise<any> {
   return http<any>("/api/admin/plan-features", {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
+    headers: getAdminHeaders(),
     body: JSON.stringify(data),
   });
 }

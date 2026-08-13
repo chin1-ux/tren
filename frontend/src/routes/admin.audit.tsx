@@ -7,12 +7,43 @@ import { Shield, ArrowLeft, Search, Calendar, User, Activity, Download, Filter }
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/audit")({
+  beforeLoad: async ({ location }) => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      throw new Error("No admin token found");
+    }
+    
+    // Validate token with backend
+    try {
+      const response = await fetch("/api/admin/validate-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error("Invalid token");
+      }
+    } catch (err) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_email");
+      localStorage.removeItem("admin_role");
+      throw new Error("Authentication required");
+    }
+  },
   head: () => ({
     meta: [
       { title: "Audit Log — Trendrop Admin" },
     ],
   }),
   component: AdminAuditPage,
+  onError: (error) => {
+    if (error.message === "Authentication required" || error.message === "No admin token found") {
+      return { redirect: "/admin/login" };
+    }
+  },
 });
 
 function AdminAuditPage() {
@@ -36,7 +67,7 @@ function AdminAuditPage() {
   const fetchAuditLogs = async () => {
     setLoading(true);
     try {
-      const response = await getAdminAuditLog(debouncedSearch, actionFilter, limit);
+      const response = await getAdminAuditLog(debouncedSearch, actionFilter, 100);
       setLogs(response.audit_log || []);
     } catch (err: any) {
       console.error(err);

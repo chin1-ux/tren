@@ -7,12 +7,43 @@ import { Shield, ArrowLeft, Plus, Save, X } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/plans")({
+  beforeLoad: async ({ location }) => {
+    const token = localStorage.getItem("admin_token");
+    if (!token) {
+      throw new Error("No admin token found");
+    }
+    
+    // Validate token with backend
+    try {
+      const response = await fetch("/api/admin/validate-token", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+        },
+      });
+      
+      if (!response.ok) {
+        throw new Error("Invalid token");
+      }
+    } catch (err) {
+      localStorage.removeItem("admin_token");
+      localStorage.removeItem("admin_email");
+      localStorage.removeItem("admin_role");
+      throw new Error("Authentication required");
+    }
+  },
   head: () => ({
     meta: [
       { title: "Admin Plans — Trendrop" },
     ],
   }),
   component: AdminPlansPage,
+  onError: (error) => {
+    if (error.message === "Authentication required" || error.message === "No admin token found") {
+      return { redirect: "/admin/login" };
+    }
+  },
 });
 
 function AdminPlansPage() {

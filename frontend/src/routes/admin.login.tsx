@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { Shield, ArrowLeft, AlertCircle } from "lucide-react";
+import { Shield, ArrowLeft, AlertCircle, Lock, Mail } from "lucide-react";
 import { motion } from "framer-motion";
+import { useState } from "react";
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({
@@ -13,6 +14,44 @@ export const Route = createFileRoute("/admin/login")({
 
 function AdminLoginPage() {
   const navigate = useNavigate();
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      const response = await fetch("/api/admin/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ email, password }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.detail || "Login failed");
+      }
+
+      // Store JWT token
+      localStorage.setItem("admin_token", data.access_token);
+      localStorage.setItem("admin_email", data.email);
+      localStorage.setItem("admin_role", data.role);
+
+      // Redirect to admin dashboard
+      navigate({ to: "/admin/users" });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Login failed");
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 bg-background text-foreground">
@@ -28,25 +67,68 @@ function AdminLoginPage() {
           </div>
           <h1 className="text-2xl font-bold font-display mb-2">Admin Access</h1>
           <p className="text-sm text-muted-foreground">
-            Admin panel now uses Supabase Auth
+            Sign in to access the admin panel
           </p>
         </div>
 
-        {/* Info Card */}
+        {/* Login Form */}
         <div className="bg-card border border-border rounded-3xl p-8 shadow-xl">
-          <div className="flex items-start gap-3 p-4 bg-blue-500/10 border border-blue-500/20 rounded-xl mb-6">
-            <AlertCircle className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-sm text-blue-500">
-              The admin panel now uses your existing Supabase authentication. 
-              Simply log in with your regular account if you have admin privileges.
-            </p>
-          </div>
+          <form onSubmit={handleLogin} className="space-y-4">
+            {/* Email */}
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium mb-2">
+                Email
+              </label>
+              <div className="relative">
+                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <input
+                  id="email"
+                  type="email"
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="admin@example.com"
+                  required
+                />
+              </div>
+            </div>
 
-          <div className="text-center">
-            <p className="text-sm text-muted-foreground mb-4">
-              Contact the system administrator to request admin access.
-            </p>
-          </div>
+            {/* Password */}
+            <div>
+              <label htmlFor="password" className="block text-sm font-medium mb-2">
+                Password
+              </label>
+              <div className="relative">
+                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-muted-foreground" />
+                <input
+                  id="password"
+                  type="password"
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="••••••••"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Error */}
+            {error && (
+              <div className="flex items-start gap-2 p-3 bg-red-500/10 border border-red-500/20 rounded-lg">
+                <AlertCircle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                <p className="text-sm text-red-500">{error}</p>
+              </div>
+            )}
+
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              className="w-full py-2 bg-primary text-primary-foreground rounded-lg font-medium hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {loading ? "Signing in..." : "Sign In"}
+            </button>
+          </form>
         </div>
 
         {/* Back Button */}

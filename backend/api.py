@@ -5161,6 +5161,12 @@ def admin_change_password(request: Request, req: AdminChangePasswordRequest, adm
             detail="Failed to change password"
         )
 
+@app.post("/api/admin/validate-token")
+@limiter.limit("30/minute")
+def admin_validate_token(request: Request, admin_info: dict = Depends(require_admin)):
+    """Validate admin JWT token."""
+    return {"valid": True, "email": admin_info["email"], "role": admin_info["role"]}
+
 # ── Admin User Management Endpoints ─────────────────────────────────────────────────────────
 
 @app.get("/api/admin/users", tags=["Admin"])
