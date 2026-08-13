@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { FEATURES } from "@/lib/features";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -427,18 +428,22 @@ function SettingsPage() {
             active={notifyTrendAlerts}
             onChange={setNotifyTrendAlerts}
           />
-          <ToggleSwitch
-            title="Daily Content Ideas"
-            description="Daily personalized content scripts and hook ideas"
-            active={notifyDailyIdeas}
-            onChange={setNotifyDailyIdeas}
-          />
-          <ToggleSwitch
-            title="Brand Collaboration Alerts"
-            description="Instant updates when high-paying brand campaigns launch"
-            active={notifyBrandDeals}
-            onChange={setNotifyBrandDeals}
-          />
+          {FEATURES.IDEAS_ENABLED && (
+            <ToggleSwitch
+              title="Daily Content Ideas"
+              description="Daily personalized content scripts and hook ideas"
+              active={notifyDailyIdeas}
+              onChange={setNotifyDailyIdeas}
+            />
+          )}
+          {FEATURES.DEALS_ENABLED && (
+            <ToggleSwitch
+              title="Brand Collaboration Alerts"
+              description="Instant updates when high-paying brand campaigns launch"
+              active={notifyBrandDeals}
+              onChange={setNotifyBrandDeals}
+            />
+          )}
           <ToggleSwitch
             title="Weekly Trend Analysis"
             description="Detailed compilation report of the past week's performance"
@@ -465,26 +470,30 @@ function SettingsPage() {
               className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
             />
           </div>
-          <div>
-            <label className="text-[10px] font-semibold text-muted-foreground block mb-1">Instagram Handle</label>
-            <input
-              type="text"
-              value={instagramHandle}
-              onChange={(e) => setInstagramHandle(e.target.value)}
-              placeholder="handle"
-              className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
-          </div>
-          <div>
-            <label className="text-[10px] font-semibold text-muted-foreground block mb-1">Follower Count</label>
-            <input
-              type="number"
-              value={followers}
-              onChange={(e) => setFollowers(e.target.value)}
-              placeholder="0"
-              className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-            />
-          </div>
+          {FEATURES.INSTAGRAM_OAUTH_ENABLED && (
+            <>
+              <div>
+                <label className="text-[10px] font-semibold text-muted-foreground block mb-1">Instagram Handle</label>
+                <input
+                  type="text"
+                  value={instagramHandle}
+                  onChange={(e) => setInstagramHandle(e.target.value)}
+                  placeholder="handle"
+                  className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+              <div>
+                <label className="text-[10px] font-semibold text-muted-foreground block mb-1">Follower Count</label>
+                <input
+                  type="number"
+                  value={followers}
+                  onChange={(e) => setFollowers(e.target.value)}
+                  placeholder="0"
+                  className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2 text-xs text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+                />
+              </div>
+            </>
+          )}
         </div>
 
         <div className="border-t border-border/20 pt-3 mt-4">

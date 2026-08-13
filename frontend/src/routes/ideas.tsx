@@ -33,6 +33,7 @@ import {
 } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { FEATURES } from "@/lib/features";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
@@ -46,7 +47,30 @@ export const Route = createFileRoute("/ideas")({
 
 function IdeasPage() {
   const { user } = useAuth();
+  
+  // Feature disabled check
+  if (!FEATURES.IDEAS_ENABLED) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-screen px-4 pb-28 pt-6">
+        <div className="text-center space-y-4">
+          <div className="h-16 w-16 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground mx-auto">
+            <Lightbulb className="h-8 w-8" />
+          </div>
+          <h1 className="text-xl font-bold text-foreground">Feature Temporarily Disabled</h1>
+          <p className="text-sm text-muted-foreground max-w-xs">
+            The Ideation Hub is currently unavailable. Focus on the core trend detection dashboard for now.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   const [activeTab, setActiveTab] = useState<"daily" | "score" | "hooks" | "calendar">("daily");
+
+  // Hide calendar tab if feature disabled
+  const availableTabs = FEATURES.CALENDAR_ENABLED 
+    ? ["daily", "score", "hooks", "calendar"] as const
+    : ["daily", "score", "hooks"] as const;
   const [userEmail, setUserEmail] = useState("anonymous@trendrop.app");
   const [userNiche, setUserNiche] = useState("dance");
 
@@ -302,7 +326,7 @@ function IdeasPage() {
       </header>
 
       {/* Modern High-End Tab Swapper */}
-      <div className="grid grid-cols-4 gap-1 rounded-xl bg-surface-2 border border-border p-1 backdrop-blur-md">
+      <div className={`grid gap-1 rounded-xl bg-surface-2 border border-border p-1 backdrop-blur-md ${FEATURES.CALENDAR_ENABLED ? 'grid-cols-4' : 'grid-cols-3'}`}>
         <button
           onClick={() => setActiveTab("daily")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
@@ -342,18 +366,20 @@ function IdeasPage() {
           <span className="sm:hidden">Hooks</span>
         </button>
 
-        <button
-          onClick={() => setActiveTab("calendar")}
-          className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
-            activeTab === "calendar" 
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
-              : "text-muted-foreground hover:text-foreground"
-          }`}
-        >
-          <CalendarIcon className="h-3.5 w-3.5" />
-          <span className="hidden sm:inline">Calendar</span>
-          <span className="sm:hidden">Calendar</span>
-        </button>
+        {FEATURES.CALENDAR_ENABLED && (
+          <button
+            onClick={() => setActiveTab("calendar")}
+            className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
+              activeTab === "calendar" 
+                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <CalendarIcon className="h-3.5 w-3.5" />
+            <span className="hidden sm:inline">Calendar</span>
+            <span className="sm:hidden">Calendar</span>
+          </button>
+        )}
       </div>
 
       {/* Main Tab Contents */}
@@ -811,7 +837,7 @@ function IdeasPage() {
           )}
 
           {/* TAB 4: CONTENT CALENDAR */}
-          {activeTab === "calendar" && (
+          {FEATURES.CALENDAR_ENABLED && activeTab === "calendar" && (
             <motion.div 
               key="calendar"
               initial={{ opacity: 0, y: 15 }}

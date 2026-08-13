@@ -27,6 +27,8 @@ import { Route as TrendIdRouteImport } from './routes/trend.$id'
 import { Route as DealsNewRouteImport } from './routes/deals.new'
 import { Route as AdminUsersRouteImport } from './routes/admin.users'
 import { Route as AdminPlansRouteImport } from './routes/admin.plans'
+import { Route as AdminLoginRouteImport } from './routes/admin.login'
+import { Route as AdminAuditRouteImport } from './routes/admin.audit'
 import { Route as AdminAnalyticsRouteImport } from './routes/admin.analytics'
 
 const TermsRoute = TermsRouteImport.update({
@@ -119,6 +121,16 @@ const AdminPlansRoute = AdminPlansRouteImport.update({
   path: '/admin/plans',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminLoginRoute = AdminLoginRouteImport.update({
+  id: '/admin/login',
+  path: '/admin/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin/audit',
+  path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAnalyticsRoute = AdminAnalyticsRouteImport.update({
   id: '/admin/analytics',
   path: '/admin/analytics',
@@ -140,6 +152,8 @@ export interface FileRoutesByFullPath {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
@@ -161,6 +175,8 @@ export interface FileRoutesByTo {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
@@ -183,6 +199,8 @@ export interface FileRoutesById {
   '/studio': typeof StudioRoute
   '/terms': typeof TermsRoute
   '/admin/analytics': typeof AdminAnalyticsRoute
+  '/admin/audit': typeof AdminAuditRoute
+  '/admin/login': typeof AdminLoginRoute
   '/admin/plans': typeof AdminPlansRoute
   '/admin/users': typeof AdminUsersRoute
   '/deals/new': typeof DealsNewRoute
@@ -206,6 +224,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/login'
     | '/admin/plans'
     | '/admin/users'
     | '/deals/new'
@@ -227,6 +247,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/login'
     | '/admin/plans'
     | '/admin/users'
     | '/deals/new'
@@ -248,6 +270,8 @@ export interface FileRouteTypes {
     | '/studio'
     | '/terms'
     | '/admin/analytics'
+    | '/admin/audit'
+    | '/admin/login'
     | '/admin/plans'
     | '/admin/users'
     | '/deals/new'
@@ -270,6 +294,8 @@ export interface RootRouteChildren {
   StudioRoute: typeof StudioRoute
   TermsRoute: typeof TermsRoute
   AdminAnalyticsRoute: typeof AdminAnalyticsRoute
+  AdminAuditRoute: typeof AdminAuditRoute
+  AdminLoginRoute: typeof AdminLoginRoute
   AdminPlansRoute: typeof AdminPlansRoute
   AdminUsersRoute: typeof AdminUsersRoute
   DealsNewRoute: typeof DealsNewRoute
@@ -405,6 +431,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminPlansRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin/login': {
+      id: '/admin/login'
+      path: '/admin/login'
+      fullPath: '/admin/login'
+      preLoaderRoute: typeof AdminLoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin/audit': {
+      id: '/admin/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin/analytics': {
       id: '/admin/analytics'
       path: '/admin/analytics'
@@ -430,6 +470,8 @@ const rootRouteChildren: RootRouteChildren = {
   StudioRoute: StudioRoute,
   TermsRoute: TermsRoute,
   AdminAnalyticsRoute: AdminAnalyticsRoute,
+  AdminAuditRoute: AdminAuditRoute,
+  AdminLoginRoute: AdminLoginRoute,
   AdminPlansRoute: AdminPlansRoute,
   AdminUsersRoute: AdminUsersRoute,
   DealsNewRoute: DealsNewRoute,

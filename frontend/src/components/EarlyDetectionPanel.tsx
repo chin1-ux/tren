@@ -4,6 +4,7 @@ import { Sparkles, TrendingUp, Clock, AlertCircle, CheckCircle, Calendar, Flame,
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { PlanGate } from "./PlanGate";
+import { FEATURES } from "@/lib/features";
 
 interface EarlyDetectionTrend {
   id: number;
@@ -136,15 +137,17 @@ export function EarlyDetectionPanel() {
               <TrendingUp className="h-3 w-3 mr-1" />
               Trends
             </Button>
-            <Button
-              size="sm"
-              variant={activeTab === 'events' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('events')}
-              className="rounded-full text-xs"
-            >
-              <Calendar className="h-3 w-3 mr-1" />
-              Events
-            </Button>
+            {FEATURES.CALENDAR_ENABLED && (
+              <Button
+                size="sm"
+                variant={activeTab === 'events' ? 'default' : 'outline'}
+                onClick={() => setActiveTab('events')}
+                className="rounded-full text-xs"
+              >
+                <Calendar className="h-3 w-3 mr-1" />
+                Events
+              </Button>
+            )}
           </div>
         </div>
 
@@ -195,7 +198,7 @@ export function EarlyDetectionPanel() {
             ))
           )}
         </div>
-      ) : (
+      ) : FEATURES.CALENDAR_ENABLED ? (
         <div className="space-y-3">
           {culturalEvents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
@@ -251,7 +254,7 @@ export function EarlyDetectionPanel() {
             ))
           )}
         </div>
-      )}
+      ) : null}
 
       {/* Info Banner */}
       <div className="bg-gradient-to-r from-primary/10 to-rose-500/10 border border-primary/20 p-4 rounded-2xl">

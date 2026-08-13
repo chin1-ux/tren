@@ -43,15 +43,21 @@ export function BottomTabBar() {
     // so active state shows primary colour consistently. Swap back to TrenddropLogo
     // once brand finalises nav icon treatment.
     ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
-    { to: "/ideas", label: "Ideas", Icon: Lightbulb },
-    { to: "/deals", label: "Deals", Icon: Handshake },
+    ...(FEATURES.IDEAS_ENABLED ? [{ to: "/ideas", label: "Ideas", Icon: Lightbulb }] : []),
+    ...(FEATURES.DEALS_ENABLED ? [{ to: "/deals", label: "Deals", Icon: Handshake }] : []),
     user ? { to: "/settings", label: "Settings", Icon: Settings } : { to: "/login", label: "Login", Icon: LogIn },
   ] as const;
   const tabs = allTabs;
 
+  const gridCols = [
+    FEATURES.GENERATE_ENABLED,
+    FEATURES.IDEAS_ENABLED,
+    FEATURES.DEALS_ENABLED
+  ].filter(Boolean).length + 3; // Base 3 (Trends, Dashboard, Settings/Login)
+
   return (
     <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
-      <ul className={`grid relative ${FEATURES.GENERATE_ENABLED ? "grid-cols-6" : "grid-cols-5"}`}>
+      <ul className={`grid relative grid-cols-${gridCols}`}>
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
             ? currentPath === "/"
