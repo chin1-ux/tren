@@ -61,3 +61,13 @@ artifacts/scratch/
 
 # Build Output
 dist/
+.env*
+
+# Vercel build output (large binary files)
+.vercel_build_output/
+
+# Large database and binary files
+*.mmdb
+*.exe
+*.dll
+ffmpeg*
