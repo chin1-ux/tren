@@ -109,16 +109,16 @@ except Exception as e:
     CreatorTools = None
 
 try:
-    from auth import get_current_user, get_admin_user, require_admin, require_super_admin, hash_password, verify_password, create_access_token, verify_token, get_admin_user_by_email, check_and_update_login_attempts, record_failed_login_attempt, reset_login_attempts, log_admin_login_attempt
+    from auth import get_current_user, require_admin, require_super_admin, hash_password, verify_password, create_access_token, verify_token, get_admin_user_by_email, check_and_update_login_attempts, record_failed_login_attempt, reset_login_attempts, log_admin_login_attempt
 except Exception as e:
     logger.warning(f"Auth functions import failed: {e}")
     def get_current_user():
         return "guest@trendrop.app"
-    def get_admin_user():
-        raise HTTPException(status_code=401, detail="Authentication not configured")
     def require_admin():
         raise HTTPException(status_code=503, detail="Auth system not configured")
     def require_super_admin():
+        raise HTTPException(status_code=503, detail="Auth system not configured")
+    def get_admin_user():
         raise HTTPException(status_code=503, detail="Auth system not configured")
     def hash_password(password):
         return ""
@@ -3050,7 +3050,7 @@ def run_scrapers_background(job_id: str = None):
 
 @app.post("/api/run-scraper")
 @limiter.limit("2/minute")
-def trigger_scraper(request: Request, background_tasks: BackgroundTasks, is_admin: bool = Depends(get_admin_user)):
+def trigger_scraper(request: Request, background_tasks: BackgroundTasks, admin_info: dict = Depends(require_admin)):
     """Manually trigger the full scraper + trend detection pipeline. Protected by Admin API Key."""
     try:
         job_id = create_job_record("scraper", "admin@trendrop.ai", {})
@@ -5051,8 +5051,6 @@ def admin_login(request: Request, req: AdminLoginRequest):
     user_agent = request.headers.get("user-agent", "unknown")
     
     try:
-        logger.info(f"Login attempt for email: {req.email}")
-        
         # Check if login attempts are allowed (not locked out)
         if not check_and_update_login_attempts(req.email):
             log_admin_login_attempt(req.email, False, client_ip, user_agent)
@@ -5063,7 +5061,6 @@ def admin_login(request: Request, req: AdminLoginRequest):
         
         # Get admin user
         admin_user = get_admin_user_by_email(req.email)
-        logger.info(f"Admin user lookup result: {admin_user}")
         
         if not admin_user:
             log_admin_login_attempt(req.email, False, client_ip, user_agent)
@@ -5074,9 +5071,7 @@ def admin_login(request: Request, req: AdminLoginRequest):
             )
         
         # Verify password
-        logger.info(f"Attempting password verification")
         if not verify_password(req.password, admin_user["password_hash"]):
-            logger.error(f"Password verification failed for {req.email}")
             log_admin_login_attempt(req.email, False, client_ip, user_agent)
             record_failed_login_attempt(req.email)
             raise HTTPException(
