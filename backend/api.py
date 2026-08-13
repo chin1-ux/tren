@@ -5373,6 +5373,61 @@ def admin_unlock_user(
         raise HTTPException(status_code=500, detail="Failed to unlock account")
 
 
+# ── Admin Plan Management Endpoints ─────────────────────────────────────────────────────
+
+@app.get("/api/admin/plan-features", tags=["Admin"])
+@limiter.limit("30/minute")
+def admin_get_plan_features(
+    request: Request,
+    admin_info: dict = Depends(require_admin)
+):
+    """Fetch subscription plans config."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        res = supabase.table("subscription_tiers").select("*").execute()
+        # Remap properties to match existing frontend expectations if needed
+        frontend_plans = []
+        for tier in (res.data or []):
+            frontend_plans.append({
+                "plan_name": tier["name"],
+                "display_name": tier["name"].capitalize(),
+                "price_monthly": tier["price_inr_monthly"],
+                "price_yearly": tier["price_inr_monthly"] * 10,  # Computed fallback
+                "api_limit_per_day": -1 if tier["api_access"] else 10,
+                "trend_views_per_day": -1,
+                "features": ["Delay Hours: " + str(tier["data_delay_hours"]), "Max Saved Niches: " + str(tier["max_saved_niches"])]
+            })
+        return {"plan_features": frontend_plans}
+    except Exception as e:
+        logger.exception(f"Error listing plan features: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch plan features")
+
+@app.post("/api/admin/plan-features", tags=["Admin"])
+@limiter.limit("10/minute")
+def admin_create_plan_feature(
+    request: Request,
+    payload: dict,
+    admin_info: dict = Depends(require_admin)
+):
+    """Upsert tier definitions."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        plan_name = payload.get("plan_name")
+        price_monthly = payload.get("price_monthly", 0)
+        
+        # Update price_inr_monthly inside subscription_tiers
+        update_res = supabase.table("subscription_tiers").update({
+            "price_inr_monthly": int(price_monthly)
+        }).eq("name", plan_name).execute()
+        
+        return {"success": True, "data": update_res.data}
+    except Exception as e:
+        logger.exception(f"Error creating plan feature: {e}")
+        raise HTTPException(status_code=500, detail="Failed to modify plan features")
+
+
 # ── Phase 2: Unique Value Proposition Endpoints ─────────────────────────────────────
 
 @app.get("/api/early-detection/trends")
