@@ -8,15 +8,9 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY") or os.getenv("ADMIN_KEY")
 
 if not SUPABASE_URL or not SUPABASE_KEY:
     raise ValueError("SUPABASE_URL and SUPABASE_KEY must be set in environment variables")
-
-if not ADMIN_SECRET_KEY:
-    raise ValueError("ADMIN_SECRET_KEY or ADMIN_KEY must be set in environment variables")
-
-
 
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
@@ -52,23 +46,45 @@ def get_current_user(authorization: str = Header(None)) -> str:
 
     return "guest@trendrop.app"
 
-def get_admin_user(x_admin_key: str = Header(None)) -> bool:
+def require_admin(current_user: str = Depends(get_current_user)) -> str:
     """
-    Validates X-Admin-Key header against the ADMIN_SECRET_KEY.
+    Dependency that checks if the current user has admin role.
+    Raises 403 if user is not an admin.
+    Returns the user's email if authorized.
     """
-    admin_key = os.getenv("ADMIN_KEY")
-    if not admin_key:
-         # Fallback to legacy key name if any
-         admin_key = os.getenv("ADMIN_SECRET_KEY")
-    if not admin_key:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Admin key is not configured on the backend"
-        )
-    if not x_admin_key or x_admin_key != admin_key:
+    if current_user == "guest@trendrop.app":
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Unauthorized administrative request"
+            detail="Authentication required"
         )
-    return True
+    
+    try:
+        # Check user's role from users table
+        res = supabase.table("users").select("role", "id").eq("email", current_user).single().execute()
+        
+        if not res.data:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="User not found"
+            )
+        
+        user_role = res.data.get("role")
+        user_id = res.data.get("id")
+        
+        if user_role != "admin":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Admin access required"
+            )
+        
+        # Return both email and id for audit logging
+        return current_user
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to verify admin status"
+        )
 

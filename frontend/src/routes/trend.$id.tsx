@@ -7,6 +7,7 @@ import { useQuery } from "@tanstack/react-query";
 import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { Button } from "@/components/ui/button";
+import { PlanGate } from "@/components/PlanGate";
 import { useState } from "react";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -27,6 +28,7 @@ function TrendDetailPage() {
   const [copiedCaption, setCopiedCaption] = useState<number | null>(null);
   const [copiedHashtags, setCopiedHashtags] = useState(false);
   const [selectedVibe, setSelectedVibe] = useState(0);
+  const userPlan = typeof window !== 'undefined' ? localStorage.getItem('trendrop_plan') || 'free' : 'free';
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["trend", id],
@@ -240,23 +242,30 @@ function TrendDetailPage() {
 
       {/* Decision Layer */}
       {decision && (
-        <div className="glass-card p-5 space-y-3">
-          <h2 className="font-display text-lg font-bold">🧠 Decision Layer</h2>
-          <div className="grid grid-cols-3 gap-2">
-            <DecisionPill label="Decision" value={decision.decision.toUpperCase()} />
-            <DecisionPill label="Fit" value={`${Math.round((decision.trend.creator_fit_score || 0) * 100)}%`} />
-            <DecisionPill label="Hook" value={`${Math.round((decision.trend.hook_retention_score || 0) * 100)}%`} />
+        <PlanGate
+          feature="AI Decision Support"
+          requiredPlan="pro"
+          currentPlan={userPlan}
+          onUpgrade={() => window.location.href = '/pricing'}
+        >
+          <div className="glass-card p-5 space-y-3">
+            <h2 className="font-display text-lg font-bold">🧠 Decision Layer</h2>
+            <div className="grid grid-cols-3 gap-2">
+              <DecisionPill label="Decision" value={decision.decision.toUpperCase()} />
+              <DecisionPill label="Fit" value={`${Math.round((decision.trend.creator_fit_score || 0) * 100)}%`} />
+              <DecisionPill label="Hook" value={`${Math.round((decision.trend.hook_retention_score || 0) * 100)}%`} />
+            </div>
+            <p className="text-sm text-muted-foreground">{decision.rationale}</p>
+            <div className="rounded-xl bg-muted/40 p-3 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Trial hook</p>
+              <p className="text-sm">{decision.test_hook}</p>
+            </div>
+            <div className="rounded-xl bg-muted/40 p-3 space-y-2">
+              <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Public hook</p>
+              <p className="text-sm">{decision.public_hook}</p>
+            </div>
           </div>
-          <p className="text-sm text-muted-foreground">{decision.rationale}</p>
-          <div className="rounded-xl bg-muted/40 p-3 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Trial hook</p>
-            <p className="text-sm">{decision.test_hook}</p>
-          </div>
-          <div className="rounded-xl bg-muted/40 p-3 space-y-2">
-            <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Public hook</p>
-            <p className="text-sm">{decision.public_hook}</p>
-          </div>
-        </div>
+        </PlanGate>
       )}
 
       {/* Audio Cue */}
@@ -277,73 +286,80 @@ function TrendDetailPage() {
       )}
 
       {/* Caption Kit */}
-      <div className="glass-card p-5 space-y-4">
-        <h2 className="font-display text-lg font-bold flex items-center gap-2">
-          <Zap className="h-5 w-5 text-primary" /> Caption Kit
-        </h2>
+      <PlanGate
+        feature="AI Caption Generation"
+        requiredPlan="pro"
+        currentPlan={userPlan}
+        onUpgrade={() => window.location.href = '/pricing'}
+      >
+        <div className="glass-card p-5 space-y-4">
+          <h2 className="font-display text-lg font-bold flex items-center gap-2">
+            <Zap className="h-5 w-5 text-primary" /> Caption Kit
+          </h2>
 
-        {captionLoading ? (
-          <div className="space-y-3">
-            <div className="h-20 rounded-xl shimmer" />
-            <div className="h-20 rounded-xl shimmer" />
-          </div>
-        ) : captionKit ? (
-          <>
-            {/* Vibe tabs */}
-            <div className="flex gap-2">
-              {captionKit.captions.map((c, i) => (
-                <button
-                  key={i}
-                  onClick={() => setSelectedVibe(i)}
-                  className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
-                    selectedVibe === i
-                      ? "bg-primary text-white"
-                      : "bg-muted text-muted-foreground hover:text-foreground"
-                  }`}
-                >
-                  {c.vibe}
-                </button>
-              ))}
+          {captionLoading ? (
+            <div className="space-y-3">
+              <div className="h-20 rounded-xl shimmer" />
+              <div className="h-20 rounded-xl shimmer" />
             </div>
-
-            {/* Active caption */}
-            <div className="relative rounded-xl bg-white/[0.03] border border-border p-4">
-              <p className="text-sm leading-relaxed pr-8">{captionKit.captions[selectedVibe]?.text}</p>
-              <button
-                onClick={() => copyCaption(selectedVibe)}
-                className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
-              >
-                {copiedCaption === selectedVibe
-                  ? <CheckCheck className="h-4 w-4 text-success" />
-                  : <Copy className="h-4 w-4" />}
-              </button>
-            </div>
-
-            {/* Hashtags */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Hashtags</p>
-                <button
-                  onClick={copyHashtags}
-                  className="flex items-center gap-1 text-xs text-primary hover:underline"
-                >
-                  {copiedHashtags ? <CheckCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
-                  Copy all
-                </button>
-              </div>
-              <div className="flex flex-wrap gap-1.5">
-                {captionKit.hashtags.map((tag, i) => (
-                  <span key={i} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
-                    #{tag.replace(/^#/, "")}
-                  </span>
+          ) : captionKit ? (
+            <>
+              {/* Vibe tabs */}
+              <div className="flex gap-2">
+                {captionKit.captions.map((c, i) => (
+                  <button
+                    key={i}
+                    onClick={() => setSelectedVibe(i)}
+                    className={`rounded-full px-3 py-1.5 text-xs font-semibold capitalize transition-all ${
+                      selectedVibe === i
+                        ? "bg-primary text-white"
+                        : "bg-muted text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    {c.vibe}
+                  </button>
                 ))}
               </div>
-            </div>
-          </>
-        ) : (
-          <p className="text-sm text-muted-foreground">Caption kit generation failed. Try again later.</p>
-        )}
-      </div>
+
+              {/* Active caption */}
+              <div className="relative rounded-xl bg-white/[0.03] border border-border p-4">
+                <p className="text-sm leading-relaxed pr-8">{captionKit.captions[selectedVibe]?.text}</p>
+                <button
+                  onClick={() => copyCaption(selectedVibe)}
+                  className="absolute right-3 top-3 text-muted-foreground hover:text-foreground"
+                >
+                  {copiedCaption === selectedVibe
+                    ? <CheckCheck className="h-4 w-4 text-success" />
+                    : <Copy className="h-4 w-4" />}
+                </button>
+              </div>
+
+              {/* Hashtags */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Hashtags</p>
+                  <button
+                    onClick={copyHashtags}
+                    className="flex items-center gap-1 text-xs text-primary hover:underline"
+                  >
+                    {copiedHashtags ? <CheckCheck className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+                    Copy all
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-1.5">
+                  {captionKit.hashtags.map((tag, i) => (
+                    <span key={i} className="rounded-full bg-primary/10 px-2.5 py-1 text-xs font-semibold text-primary">
+                      #{tag.replace(/^#/, "")}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">Caption kit generation failed. Try again later.</p>
+          )}
+        </div>
+      </PlanGate>
 
       {/* Keywords Strategy & Viral Script */}
       {captionKit?.keyword_strategy && (
@@ -436,50 +452,57 @@ function TrendDetailPage() {
           : `https://www.instagram.com/explore/tags/${encodeURIComponent(audioTitle || "")}/`;
 
         return (
-          <div className="glass-card p-5 space-y-3">
-            <div className="flex items-center justify-between">
-              <h2 className="font-display text-lg font-bold">📱 Source Reels</h2>
-              <span className="text-xs font-semibold text-muted-foreground">{reels.length} found</span>
-            </div>
+          <PlanGate
+            feature="Trend Reels Analysis"
+            requiredPlan="pro"
+            currentPlan={userPlan}
+            onUpgrade={() => window.location.href = '/pricing'}
+          >
+            <div className="glass-card p-5 space-y-3">
+              <div className="flex items-center justify-between">
+                <h2 className="font-display text-lg font-bold">📱 Source Reels</h2>
+                <span className="text-xs font-semibold text-muted-foreground">{reels.length} found</span>
+              </div>
 
-            {/* Save Audio deep-link — the only external CTA */}
-            <a
-              href={audioUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-sm font-bold text-primary hover:bg-primary/20 transition-all"
-            >
-              <Music2 className="h-4 w-4" />
-              {audioId ? "Save Audio on Instagram →" : "Search Audio on Instagram →"}
-              <ExternalLink className="h-3 w-3 opacity-60" />
-            </a>
+              {/* Save Audio deep-link — the only external CTA */}
+              <a
+                href={audioUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="flex w-full items-center justify-center gap-2 rounded-xl border border-primary/40 bg-primary/10 px-3 py-2.5 text-sm font-bold text-primary hover:bg-primary/20 transition-all"
+              >
+                <Music2 className="h-4 w-4" />
+                {audioId ? "Save Audio on Instagram →" : "Search Audio on Instagram →"}
+                <ExternalLink className="h-3 w-3 opacity-60" />
+              </a>
 
-            <div className="space-y-2">
-              {reels.slice(0, 15).map((reel) => (
-                <div
-                  key={reel.id}
-                  className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5 border border-transparent"
-                >
-                  <div>
-                    <div className="flex items-center gap-1.5">
-                      <p className="text-xs font-bold text-foreground">@{reel.owner_username}</p>
-                      {reel.is_creator_outlier && (
-                        <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-1.5 py-0.5">
-                          🎯 Breakout
-                        </span>
+              <div className="space-y-2">
+                {reels.slice(0, 15).map((reel) => (
+                  <div
+                    key={reel.id}
+                    className="flex items-center justify-between rounded-xl bg-muted/40 px-3 py-2.5 border border-transparent"
+                  >
+                    <div>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-xs font-bold text-foreground">@{reel.owner_username}</p>
+                        {reel.is_creator_outlier && (
+                          <span className="text-[9px] font-bold text-emerald-400 bg-emerald-500/15 border border-emerald-500/30 rounded-full px-1.5 py-0.5">
+                            🎯 Breakout
+                          </span>
+                        )}
+                      </div>
+                      {reel.caption && (
+                        <p className="text-xs text-muted-foreground line-clamp-1 italic mt-0.5">"{reel.caption}"</p>
                       )}
                     </div>
-                    {reel.caption && (
-                      <p className="text-xs text-muted-foreground line-clamp-1 italic mt-0.5">"{reel.caption}"</p>
-                    )}
+                    <p className="text-xs font-semibold text-muted-foreground shrink-0">
+                      {reel.view_count >= 1000 ? `${(reel.view_count / 1000).toFixed(0)}K` : reel.view_count} views
+                    </p>
                   </div>
-                  <p className="text-xs font-semibold text-muted-foreground shrink-0">
-                    {reel.view_count >= 1000 ? `${(reel.view_count / 1000).toFixed(0)}K` : reel.view_count} views
-                  </p>
-                </div>
-              ))}
+                ))}
+              </div>
             </div>
-          </div>
+          </PlanGate>
         );
       })()}
 

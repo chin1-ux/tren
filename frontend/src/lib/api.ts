@@ -1352,43 +1352,26 @@ export async function getUserPlan(email: string): Promise<{ plan: string }> {
   return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
 }
 
-// Helper to safely retrieve the admin key or fail loudly
-function getAdminKey(): string {
-  const key = import.meta.env.VITE_ADMIN_KEY;
-  if (!key) {
-    throw new Error("Admin key is not configured (VITE_ADMIN_KEY missing)");
-  }
-  return key;
-}
-
+// Admin API functions - now use Supabase Auth instead of admin key
 export async function getAdminUsers(search?: string, planFilter?: string): Promise<any> {
   const params = new URLSearchParams();
   if (search) params.append("search", search);
   if (planFilter && planFilter !== "all") params.append("plan_filter", planFilter);
   
-  return http<any>(`/api/admin/users?${params.toString()}`, {
-    headers: {
-      "X-Admin-Key": getAdminKey()
-    }
-  });
+  return http<any>(`/api/admin/users?${params.toString()}`);
 }
 
 export async function getAdminUserDetails(email: string): Promise<any> {
-  return http<any>(`/api/admin/users/${encodeURIComponent(email)}`, {
-    headers: {
-      "X-Admin-Key": getAdminKey()
-    }
-  });
+  return http<any>(`/api/admin/users/${encodeURIComponent(email)}`);
 }
 
-export async function updateAdminUserPlan(email: string, newPlan: string, reason?: string): Promise<any> {
+export async function updateAdminUserPlan(email: string, newPlan: string, reason?: string, expires_in_days?: number): Promise<any> {
   return http<any>(`/api/admin/users/${encodeURIComponent(email)}/plan`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": getAdminKey()
     },
-    body: JSON.stringify({ new_plan: newPlan, reason }),
+    body: JSON.stringify({ new_plan: newPlan, reason, expires_in_days }),
   });
 }
 
@@ -1397,7 +1380,6 @@ export async function lockAdminUserAccount(email: string, reason?: string): Prom
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ reason }),
   });
@@ -1408,45 +1390,26 @@ export async function unlockAdminUserAccount(email: string, reason?: string): Pr
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify({ reason }),
   });
 }
 
 export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
-  return http<any>(`/api/admin/business-metrics?days=${days}`, {
-    headers: {
-      "X-Admin-Key": getAdminKey()
-    }
-  });
+  return http<any>(`/api/admin/business-metrics?days=${days}`);
 }
 
-export async function getAdminSuspiciousActivity(days: number = 7): Promise<any> {
-  return http<any>(`/api/admin/suspicious-activity?days=${days}`, {
-    headers: {
-      "X-Admin-Key": getAdminKey()
-    }
-  });
-}
-
-export async function resolveAdminSuspiciousActivity(activityId: number, resolution?: string): Promise<any> {
-  return http<any>(`/api/admin/suspicious-activity/${activityId}/resolve`, {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "X-Admin-Key": getAdminKey()
-    },
-    body: JSON.stringify({ resolution }),
-  });
+export async function getAdminAuditLog(admin_email_filter?: string, action_filter?: string, limit: number = 100): Promise<any> {
+  const params = new URLSearchParams();
+  if (admin_email_filter) params.append("admin_email_filter", admin_email_filter);
+  if (action_filter) params.append("action_filter", action_filter);
+  params.append("limit", limit.toString());
+  
+  return http<any>(`/api/admin/audit-log?${params.toString()}`);
 }
 
 export async function getAdminPlanFeatures(): Promise<any> {
-  return http<any>("/api/admin/plan-features", {
-    headers: {
-      "X-Admin-Key": getAdminKey()
-    }
-  });
+  return http<any>("/api/admin/plan-features");
 }
 
 export async function createAdminPlanFeature(data: any): Promise<any> {
@@ -1454,7 +1417,6 @@ export async function createAdminPlanFeature(data: any): Promise<any> {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "X-Admin-Key": getAdminKey()
     },
     body: JSON.stringify(data),
   });

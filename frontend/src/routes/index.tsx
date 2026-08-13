@@ -74,6 +74,7 @@ function TrendsFeed() {
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
   const userEmail = useUserStore((s) => s.email);
+  const userPlan = typeof window !== 'undefined' ? localStorage.getItem('trendrop_plan') || 'free' : 'free';
 
   // Check if first visit → show onboarding
   useEffect(() => {
@@ -420,11 +421,18 @@ function TrendsFeed() {
           </div>
         )}
         {feedTab === "emerging" && (
-          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
-            <p className="text-xs text-[#ff006e] font-semibold">
-              ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
-            </p>
-          </div>
+          <PlanGate
+            feature="Early Detection Feed"
+            requiredPlan="pro"
+            currentPlan={userPlan}
+            onUpgrade={() => window.location.href = '/pricing'}
+          >
+            <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
+              <p className="text-xs text-[#ff006e] font-semibold">
+                ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
+              </p>
+            </div>
+          </PlanGate>
         )}
         {feedTab === "peaked" && (
           <div className="rounded-xl border border-amber-500/30 bg-[rgba(245,158,11,0.05)] p-3">
@@ -474,8 +482,6 @@ function TrendsFeed() {
             <p className="mt-1 text-sm text-muted-foreground">
               {feedTab === "workspace"
                 ? "Target trends using the 'Target Trend' button on any trend card. They'll appear here for tracking."
-                : feedTab === "emerging"
-                ? "No emerging trends detected in the last 6 hours. Check back soon!"
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>

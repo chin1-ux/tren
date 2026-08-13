@@ -1,6 +1,7 @@
 import base64
 from datetime import datetime
 from fpdf import FPDF
+from io import BytesIO
 
 class CreatorContractPDF(FPDF):
     def header(self):
@@ -195,6 +196,6 @@ def generate_contract_pdf(
     pdf.cell(90, 5, f"For: {brand_name}", ln=True)
     
     # Output to Bytes and Encode to Base64
-    pdf_bytes = pdf.output()
+    pdf_bytes = pdf.output(dest='S').encode('latin-1')
     b64_encoded = base64.b64encode(pdf_bytes).decode("utf-8")
     return b64_encoded
