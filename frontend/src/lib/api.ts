@@ -1452,6 +1452,13 @@ export async function createAdminPlanFeature(data: any): Promise<any> {
   });
 }
 
+export async function getAdminAnalyticsSummary(): Promise<any> {
+  return http<any>("/api/admin/analytics-summary", {
+    headers: getAdminHeaders(),
+  });
+}
+
+
 
 export async function submitFeedback(body: {
   trend_id: number;

@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { getAdminPlanFeatures, createAdminPlanFeature } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Shield, ArrowLeft, Plus, Save, X } from "lucide-react";
+import { Shield, ArrowLeft, Plus, Save, X, DollarSign, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/plans")({

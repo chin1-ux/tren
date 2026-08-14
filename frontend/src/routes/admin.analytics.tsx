@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { apiFetch } from "@/lib/api";
+import { getAdminAnalyticsSummary } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { BarChart2, RefreshCw, ShieldAlert, ArrowLeft, Activity } from "lucide-react";
@@ -59,22 +59,17 @@ function AdminAnalyticsPage() {
   const fetchAnalytics = async () => {
     setLoading(true);
     try {
-      const res = await apiFetch("/api/admin/analytics-summary");
-      if (res.ok) {
-        const data = await res.json();
-        setCounts(data.event_counts || {});
-        setAuthorized(true);
-      } else {
-        if (res.status === 403) {
-          setAuthorized(false);
-          toast.error("Access Forbidden: Admin privileges required.");
-        } else {
-          toast.error("Failed to load analytics data.");
-        }
-      }
-    } catch (err) {
+      const data = await getAdminAnalyticsSummary();
+      setCounts(data.event_counts || {});
+      setAuthorized(true);
+    } catch (err: any) {
       console.error(err);
-      toast.error("Network error fetching analytics.");
+      if (err.message?.includes("403")) {
+        setAuthorized(false);
+        toast.error("Access Forbidden: Admin privileges required.");
+      } else {
+        toast.error("Failed to load analytics data.");
+      }
     } finally {
       setLoading(false);
     }
