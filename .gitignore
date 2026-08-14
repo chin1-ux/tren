@@ -52,6 +52,12 @@ import_session.py
 test_ig_api.py
 check_db.py
 
+# Credential files (prevent accidental commits)
+push_env.py
+*.key
+*.pem
+credentials.json
+
 
 # Diagnostic scratch scripts (not for production)
 scratch/*.py
