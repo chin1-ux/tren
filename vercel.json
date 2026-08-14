@@ -3,7 +3,9 @@
   "buildCommand": "cd frontend && npm run build",
   "installCommand": "pip install -r requirements.txt --break-system-packages && cd frontend && npm install",
   "framework": null,
-  "rewrites": [{ "source": "/api/(.*)", "destination": "/api/index.py" }],
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
+  ],
   "crons": [
     {
       "path": "/api/cron/trigger",
@@ -15,8 +17,9 @@
     }
   ],
   "functions": {
-    "api/**/*.py": {
-      "maxDuration": 30
+    "api/index.py": {
+      "maxDuration": 30,
+      "runtime": "python3.12"
     }
   }
 }
