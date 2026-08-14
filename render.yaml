@@ -1,60 +1,46 @@
 services:
   - type: web
     name: trendrop-backend
-    runtime: python
-    rootDir: backend
+    env: python
+    plan: free
     buildCommand: pip install -r requirements.txt
-    startCommand: python database_setup.py && uvicorn api:app --host 0.0.0.0 --port $PORT
+    startCommand: uvicorn backend.api:app --host 0.0.0.0 --port $PORT
     envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: TWILIO_ACCOUNT_SID
+      - key: SUPABASE_URL
         sync: false
-      - key: TWILIO_AUTH_TOKEN
+      - key: SUPABASE_KEY
         sync: false
-      - key: TWILIO_PHONE_NUMBER
+      - key: SUPABASE_SERVICE_ROLE_KEY
         sync: false
-      - key: DEMO_ALLOWLIST
+      - key: JWT_SECRET_KEY
         sync: false
-      - key: CRON_HEARTBEAT_WEBHOOK_URL
+      - key: ADMIN_SECRET_KEY
         sync: false
-      - key: CRON_HEARTBEAT_ALERT_EMAIL
+      - key: GROQ_API_KEY
         sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
+      - key: GEMINI_API_KEY
         sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
+      - key: REDIS_URL
         sync: false
-      - key: WHATSAPP_MOCK_MODE
-        value: "true"
-
-  # RQ background worker — consumes reel-generation jobs from Upstash Redis.
-  # Without this, every enqueued job hangs in "processing" forever.
-  - type: worker
-    name: trendrop-rq-worker
-    runtime: python
-    rootDir: backend
-    buildCommand: pip install -r requirements.txt
-    startCommand: python worker_runner.py
-    envVars:
-      - key: PYTHON_VERSION
-        value: 3.11.0
-      - key: TWILIO_ACCOUNT_SID
+      - key: YOUTUBE_API_KEY
         sync: false
-      - key: TWILIO_AUTH_TOKEN
+      - key: INSTAGRAM_USERNAME
         sync: false
-      - key: TWILIO_PHONE_NUMBER
+      - key: INSTAGRAM_PASSWORD
         sync: false
-      - key: DEMO_ALLOWLIST
+      - key: INSTAGRAM_APP_ID
         sync: false
-      - key: CRON_HEARTBEAT_WEBHOOK_URL
+      - key: INSTAGRAM_REDIRECT_URI
         sync: false
-      - key: CRON_HEARTBEAT_ALERT_EMAIL
+      - key: APIFY_API_TOKEN
         sync: false
-      - key: WHATSAPP_PHONE_NUMBER_ID
+      - key: RESEND_API_KEY
         sync: false
-      - key: WHATSAPP_ACCESS_TOKEN
+      - key: RESEND_FROM_EMAIL
         sync: false
-      - key: WHATSAPP_MOCK_MODE
-        value: "true"
-
-
+      - key: RAZORPAY_KEY_ID
+        sync: false
+      - key: RAZORPAY_KEY_SECRET
+        sync: false
+      - key: VITE_ADMIN_KEY
+        sync: false
