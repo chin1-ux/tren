@@ -14,6 +14,8 @@ services:
         sync: false
       - key: TWILIO_PHONE_NUMBER
         sync: false
+      - key: DEMO_ALLOWLIST
+        sync: false
 
   # RQ background worker — consumes reel-generation jobs from Upstash Redis.
   # Without this, every enqueued job hangs in "processing" forever.
@@ -31,6 +33,8 @@ services:
       - key: TWILIO_AUTH_TOKEN
         sync: false
       - key: TWILIO_PHONE_NUMBER
+        sync: false
+      - key: DEMO_ALLOWLIST
         sync: false
 
 

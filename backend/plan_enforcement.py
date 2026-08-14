@@ -210,6 +210,26 @@ class PlanEnforcement:
             }
     
     @staticmethod
+    def is_demo_allowlisted(user_email: str) -> bool:
+        """
+        Check if user is on the demo allowlist (configured via environment variable)
+        
+        Args:
+            user_email: User's email address
+        
+        Returns:
+            True if user is on the demo allowlist, False otherwise
+        """
+        # Get demo allowlist from environment variable (comma-separated)
+        demo_allowlist = os.getenv("DEMO_ALLOWLIST", "")
+        if not demo_allowlist:
+            return False
+        
+        # Parse allowlist and check for exact match
+        allowed_emails = [email.strip().lower() for email in demo_allowlist.split(",")]
+        return user_email.lower() in allowed_emails
+    
+    @staticmethod
     def check_feature_access(user_email: str, required_feature: str) -> None:
         """
         Check if user has access to a feature, raise 403 if not
@@ -221,8 +241,9 @@ class PlanEnforcement:
         Raises:
             HTTPException 403 if user doesn't have access
         """
-        # Skip check for demo accounts (pro/agency demo accounts)
-        if user_email in ['agency-demo@trendrop.app', 'creator-demo@trendrop.app']:
+        # Skip check for demo allowlisted accounts (configured via DEMO_ALLOWLIST env var)
+        if PlanEnforcement.is_demo_allowlisted(user_email):
+            logger.info(f"Allowlisted demo account bypassing feature check: {user_email}")
             return
         
         user_plan = PlanEnforcement.get_user_plan(user_email)
@@ -269,8 +290,9 @@ class PlanEnforcement:
         Raises:
             HTTPException 429 if quota exceeded
         """
-        # Skip quota check for demo accounts
-        if user_email in ['agency-demo@trendrop.app', 'creator-demo@trendrop.app']:
+        # Skip quota check for demo allowlisted accounts (configured via DEMO_ALLOWLIST env var)
+        if PlanEnforcement.is_demo_allowlisted(user_email):
+            logger.info(f"Allowlisted demo account bypassing quota check: {user_email}")
             return
         
         from datetime import datetime, timezone, timedelta
