@@ -9,3 +9,8 @@ if backend_path not in sys.path:
 
 # Import the real module
 from backend.auth import *
+
+# Re-export everything to make this module work as a drop-in replacement
+__all__ = ['get_current_user', 'hash_password', 'verify_password', 'create_access_token',
+           'verify_token', 'get_admin_user_by_email', 'require_admin', 'log_admin_login_attempt',
+           'check_and_update_login_attempts', 'record_failed_login_attempt', 'reset_login_attempts']

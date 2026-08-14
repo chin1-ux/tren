@@ -59,6 +59,14 @@ def get_current_user(authorization: str = Header(None)) -> str:
     except Exception as e:
         pass
 
+    # 3. Try custom JWT verification (for admin tokens)
+    try:
+        payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
+        if "sub" in payload:
+            return payload["sub"]
+    except Exception:
+        pass
+
     return "guest@trendrop.app"
 
 def hash_password(password: str) -> str:
