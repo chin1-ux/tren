@@ -1,48 +1,27 @@
-# Virtual environments
+# Exclude everything except essential production files
+.git
+.gitignore
+.agents
 .venv
 .venv_temp
 venv
-**/venv
-**/.venv
-**/.venv_temp
-**/node_modules
-node_modules
-
-# Package manager lockfiles/configs to prevent Vercel from installing heavy dev/local dependencies
-uv.lock
-pyproject.toml
-
-# Local build artifacts
-.vercel
-.vercel_build_output
-**/dist
-
-# Python cache and logs
-**/__pycache__/
-**/*.pyc
-**/*.pyo
-**/*.log
+__pycache__
+*.pyc
+*.pyo
 *.log
-
-# Uploaded/generated/test data
-**/uploads/
-**/outputs/
-health_check.json
-trends_output.json
-
-# Git metadata
-.git
-
-# Large database and binary files  
 *.mmdb
 *.exe
 *.dll
 ffmpeg*
+.uv-cache
+.uv
+.uv-tool
+node_modules
+dist
+.vercel
+.vercel_build_output
 
-# Specific diagnostic and test files  
-empirical_audit_results.txt
-
-# Large test and diagnostic scripts
+# All diagnostic/test files (exclude everything except core production code)
 backend/check_*.py
 backend/test_*.py
 backend/verify_*.py
@@ -54,14 +33,28 @@ backend/final_*.py
 backend/reset_*.py
 backend/create_*.py
 backend/migrate_*.py
+backend/external_*.py
+backend/alert_*.py
+backend/admin_*.py
+backend/monitor_*.py
+*_audit_*.py
+deals_migration.py
+backend/pending_timeout_fallback.py
+backend/pending_trends_monitor.py
+backend/check_pending_count.py
 
 # Documentation and setup files
 *.md
 add_github_secrets.sh
 set_vercel_env.bat
 check_*.py
-ensure_*.py
-re_audit_*.py
 test_*.py
 verify_*.py
+*_audit_*.py
+deals_migration.py
 
+# Data files
+health_check.json
+trends_output.json
+uploads/
+outputs/
