@@ -5132,8 +5132,6 @@ def generate_script_outline(
     current_user: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("ai_generation"))
 ):
-    current_user: str = Depends(get_current_user)
-):
     """Generate an AI script outline for content."""
     if not AIContentGenerator:
         raise HTTPException(status_code=500, detail="AI content generator not configured.")
