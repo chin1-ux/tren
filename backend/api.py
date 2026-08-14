@@ -5298,6 +5298,33 @@ class AdminChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+@app.get("/api/admin/debug")
+def admin_debug():
+    """Debug endpoint to check auth system status."""
+    try:
+        debug_info = {
+            "supabase_available": supabase is not None,
+            "supabase_url_set": bool(SUPABASE_URL),
+            "supabase_key_set": bool(SUPABASE_KEY),
+            "admin_user_lookup": "test"
+        }
+        
+        # Try to fetch admin user
+        if supabase:
+            try:
+                admin_user = get_admin_user_by_email("chinmay.feb03@gmail.com")
+                debug_info["admin_user_found"] = admin_user is not None
+                if admin_user:
+                    debug_info["admin_email"] = admin_user.get("email")
+                    debug_info["admin_role"] = admin_user.get("role")
+                    debug_info["password_hash_prefix"] = admin_user.get("password_hash", "")[:10] + "..."
+            except Exception as e:
+                debug_info["admin_lookup_error"] = str(e)
+        
+        return debug_info
+    except Exception as e:
+        return {"error": str(e), "supabase_available": supabase is not None}
+
 @app.post("/api/admin/login")
 @limiter.limit("5/minute")
 def admin_login(request: Request, req: AdminLoginRequest):
