@@ -13,7 +13,13 @@ class LoggingMiddleware:
     async def __call__(self, scope, receive, send):
         if scope["type"] == "http":
             print(f"DEBUG ASGI SCOPE PATH: {scope.get('path')} | RAW PATH: {scope.get('raw_path')}")
-        await self.app(scope, receive, send)
+        try:
+            await self.app(scope, receive, send)
+        except Exception as e:
+            print(f"ERROR in ASGI middleware: {e}")
+            import traceback
+            traceback.print_exc()
+            raise
 
 # Export the wrapped app
 app = LoggingMiddleware(app)
