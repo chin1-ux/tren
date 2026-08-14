@@ -9,6 +9,7 @@ import { FEATURES } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { PlanGate } from "@/components/PlanGate";
 import { useState } from "react";
+import { useUserStore } from "@/store/useAppStore";
 import { toast } from "sonner";
 import { z } from "zod";
 
@@ -28,7 +29,7 @@ function TrendDetailPage() {
   const [copiedCaption, setCopiedCaption] = useState<number | null>(null);
   const [copiedHashtags, setCopiedHashtags] = useState(false);
   const [selectedVibe, setSelectedVibe] = useState(0);
-  const userPlan = typeof window !== 'undefined' ? localStorage.getItem('trendrop_plan') || 'free' : 'free';
+  const userPlan = useUserStore((s) => s.plan) || 'free';
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["trend", id],

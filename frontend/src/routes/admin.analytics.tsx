@@ -8,6 +8,10 @@ import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/analytics")({
   beforeLoad: async ({ location }) => {
+    // beforeLoad runs server-side in SSR — localStorage only exists in the browser
+    if (typeof window === "undefined") {
+      throw new Error("No admin token found");
+    }
     const token = localStorage.getItem("admin_token");
     if (!token) {
       throw new Error("No admin token found");

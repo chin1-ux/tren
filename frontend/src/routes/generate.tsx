@@ -11,6 +11,8 @@ import {
   resolveOutputUrl, scoreReel, type UiTrend 
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
+import { PlanGate } from "@/components/PlanGate";
+import { useUserStore } from "@/store/useAppStore";
 
 const searchSchema = z.object({ trendId: z.string().optional() });
 
@@ -68,6 +70,7 @@ const NICHES = [
 function GeneratePage() {
   const { trendId } = Route.useSearch();
   const navigate = useNavigate();
+  const userPlan = useUserStore((s) => s.plan) || 'free';
 
   const { data: trends } = useQuery<UiTrend[]>({
     queryKey: ["trends"],
@@ -305,6 +308,12 @@ function GeneratePage() {
   };
 
   return (
+    <PlanGate
+      feature="AI Generation Studio"
+      requiredPlan="pro"
+      currentPlan={userPlan}
+      onUpgrade={() => window.location.href = '/pricing'}
+    >
     <div className="flex flex-col min-h-screen bg-bg text-text font-sans">
       
       {/* ── STAGE 1: UPLOAD & SETUP ── */}
@@ -968,5 +977,6 @@ function GeneratePage() {
         </div>
       )}
     </div>
+    </PlanGate>
   );
 }

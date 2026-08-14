@@ -431,12 +431,29 @@ export const createDefaultPreferences = async (userId: string) => {
 if (typeof window !== "undefined") {
   supabase.auth.getSession().then(({ data: { session } }) => {
     inMemoryToken = session?.access_token || null;
+    if (session) {
+      // Enable Supabase JS v2's built-in proactive token refresh.
+      // Without this, access tokens expire after ~1h and every gated API call
+      // returns 401 until the user manually re-logs in.
+      supabase.auth.startAutoRefresh();
+    }
   });
 
   supabase.auth.onAuthStateChange(async (event, session) => {
     inMemoryToken = session?.access_token || null;
+    // Persist refreshed token to localStorage so the getAuthToken() fallback
+    // also picks up the latest value (covers hard-reloads between refresh cycles).
+    if (session?.access_token && typeof window !== "undefined") {
+      localStorage.setItem("trendrop_session_token", session.access_token);
+    } else if (!session && typeof window !== "undefined") {
+      localStorage.removeItem("trendrop_session_token");
+    }
+    if (event === "TOKEN_REFRESHED") {
+      console.debug("[auth] Supabase token refreshed successfully");
+    }
   });
 }
+
 
 export function setAuthToken(token: string | null) {
   inMemoryToken = token;

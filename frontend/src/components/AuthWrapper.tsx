@@ -3,8 +3,19 @@ import { Loader2 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
-// Public routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights", "/admin/login"];
+// Public routes that don't require standard user authentication (admin routes have their own beforeLoad check)
+const PUBLIC_ROUTES = [
+  "/login", 
+  "/signup", 
+  "/terms", 
+  "/privacy", 
+  "/data-rights", 
+  "/admin/login",
+  "/admin/users",
+  "/admin/audit",
+  "/admin/analytics",
+  "/admin/plans"
+];
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();

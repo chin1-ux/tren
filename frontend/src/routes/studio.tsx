@@ -26,6 +26,8 @@ interface AnalysisResult {
   };
   fixes: string[];
   estimated_reach_multiplier: string;
+  /** True when the LLM call failed and the backend returned rule-based defaults */
+  is_simulated?: boolean;
 }
 
 interface Hook {
@@ -303,6 +305,17 @@ function StudioPage() {
 
           {analysisResult && (
             <div className="glass-card p-5 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in">
+              {/* Simulated-data warning — shown only when backend LLM call failed */}
+              {analysisResult.is_simulated && (
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
+                  <Info className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
+                  <p className="text-xs text-amber-300">
+                    <span className="font-bold">Estimated result</span> — AI scoring is temporarily unavailable.
+                    These numbers are rule-based defaults, not personalised analysis.
+                    Results will update automatically once the AI service recovers.
+                  </p>
+                </div>
+              )}
               <div className="flex justify-between items-center">
                 <span className="font-bold text-emerald-400 text-sm">Analysis Results</span>
                 <span className="text-xs bg-emerald-500/20 text-emerald-400 px-2 py-0.5 rounded-full font-bold">Est. Reach: {analysisResult.estimated_reach_multiplier}</span>

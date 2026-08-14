@@ -5,6 +5,8 @@ import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { PlanGate } from "./PlanGate";
 import { FEATURES } from "@/lib/features";
+import { apiFetch } from "@/lib/api";
+import { useUserStore } from "@/store/useAppStore";
 
 interface EarlyDetectionTrend {
   id: number;
@@ -32,7 +34,10 @@ export function EarlyDetectionPanel() {
   const [culturalEvents, setCulturalEvents] = useState<CulturalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'trends' | 'events'>('trends');
-  const [userPlan, setUserPlan] = useState<string>('free');
+  // Read plan from the Zustand store — same source as the rest of the app.
+  // The verify endpoint now normalises 'creator'/'agency' → 'pro'/'business'
+  // so PlanGate's === 'pro' check will pass correctly.
+  const userPlan = useUserStore((s) => s.plan) || 'free';
 
   useEffect(() => {
     fetchEarlyTrends();
@@ -41,13 +46,17 @@ export function EarlyDetectionPanel() {
 
   const fetchEarlyTrends = async () => {
     try {
-      const res = await fetch('/api/trends/emerging');
+      // Use apiFetch (not bare fetch) so the Authorization: Bearer <token> header
+      // is injected automatically from inMemoryToken / trendrop_session_token.
+      // Without this, get_current_user returns guest@trendrop.app and
+      // require_feature("early_detection") raises 401 for every user.
+      const res = await apiFetch('/api/trends/emerging');
       if (res.ok) {
         const data = await res.json();
         setEarlyTrends(data || []);
-      } else if (res.status === 403) {
-        // Plan violation - user needs upgrade
-        setUserPlan('free');
+      } else if (res.status === 401 || res.status === 403) {
+        // 401 = unauthenticated (token missing/expired), 403 = plan gate
+        // Both mean we cannot show early trends — PlanGate will handle the UI.
         setEarlyTrends([]);
       }
     } catch (err) {

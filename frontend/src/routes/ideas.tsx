@@ -34,6 +34,8 @@ import {
 import { motion, AnimatePresence } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { FEATURES } from "@/lib/features";
+import { PlanGate } from "@/components/PlanGate";
+import { useUserStore } from "@/store/useAppStore";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
@@ -47,6 +49,7 @@ export const Route = createFileRoute("/ideas")({
 
 function IdeasPage() {
   const { user } = useAuth();
+  const userPlan = useUserStore((s) => s.plan) || 'free';
   
   // Feature disabled check
   if (!FEATURES.IDEAS_ENABLED) {
@@ -838,6 +841,12 @@ function IdeasPage() {
 
           {/* TAB 4: CONTENT CALENDAR */}
           {FEATURES.CALENDAR_ENABLED && activeTab === "calendar" && (
+            <PlanGate
+              feature="30-Day Autopilot Calendar"
+              requiredPlan="pro"
+              currentPlan={userPlan}
+              onUpgrade={() => window.location.href = '/pricing'}
+            >
             <motion.div 
               key="calendar"
               initial={{ opacity: 0, y: 15 }}
@@ -984,6 +993,7 @@ function IdeasPage() {
                 </div>
               )}
             </motion.div>
+            </PlanGate>
           )}
         </AnimatePresence>
       </div>

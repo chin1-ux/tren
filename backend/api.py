@@ -2267,7 +2267,7 @@ def verify(request: Request, req: VerifyRequest):
                 "email": email,
                 "niche": user.get("niche") or "all",
                 "language": user.get("language_preference") or "all",
-                "plan": user.get("plan") or "free"
+                "plan": PlanEnforcement.normalize_plan_name(user.get("plan") or "free")
             }
         }
     except Exception as e:
@@ -3467,7 +3467,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 
 @app.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
-def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
+def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
@@ -3577,7 +3577,7 @@ def get_daily_ideas(request: Request, current_user_email: str = Depends(get_curr
 
 @app.post("/api/calendar")
 @limiter.limit("5/minute")
-def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user)):
+def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
     try:
         try:
             res = creator_tools.generate_calendar(
@@ -3612,7 +3612,7 @@ def create_calendar(request: Request, req: CalendarRequest, current_user_email: 
 
 @app.get("/api/calendar")
 @limiter.limit("10/minute")
-def get_calendar(request: Request, current_user_email: str = Depends(get_current_user)):
+def get_calendar(request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
     try:
         res = supabase.table("calendar_plans").select("*").eq("user_email", current_user_email).execute()
         if res.data:

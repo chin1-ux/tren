@@ -125,7 +125,8 @@ Return ONLY a JSON response in the following format:
 """
         result = self._call_gemini(system_prompt, user_prompt)
         if not result:
-            # Fallback
+            # Fallback — LLM call failed, returning estimated defaults.
+            # is_simulated: True so the frontend can show a clear warning.
             result = {
                 "overall_score": 75,
                 "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
@@ -134,8 +135,13 @@ Return ONLY a JSON response in the following format:
                     "Optimize the caption with 5-10 targeted keywords for search indexing.",
                     "Align your voiceover and on-screen text with the same primary keyword."
                 ],
-                "estimated_reach_multiplier": "1.2x"
+                "estimated_reach_multiplier": "1.2x",
+                "is_simulated": True
             }
+        else:
+            # LLM returned real analysis — mark as real
+            if isinstance(result, dict):
+                result.setdefault("is_simulated", False)
         return result
 
     def generate_hooks(self, niche: str, topic: str) -> dict:
