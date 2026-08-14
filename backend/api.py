@@ -5819,7 +5819,15 @@ def analyze_video_metadata(
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
-    """Analyze video metadata using FFmpeg, falling back to simulated data if not available."""
+    """
+    Analyze video metadata using FFmpeg, falling back to simulated data if not available.
+    
+    TODO: [BACKLOG] Wire real FFmpeg dependency or remove this endpoint
+    - Currently returns simulated data when FFmpeg not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake analysis results
+    - Action: Install FFmpeg on server or remove endpoint until real implementation
+    """
     try:
         video_url = payload.video_url
         sample_metadata = {
@@ -5869,7 +5877,15 @@ def analyze_video_visual(
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
-    """Analyze video visual content using OpenCV, falling back to simulated data if not available."""
+    """
+    Analyze video visual content using OpenCV, falling back to simulated data if not available.
+    
+    TODO: [BACKLOG] Wire real OpenCV/pytesseract dependency or remove this endpoint
+    - Currently returns simulated data when OpenCV not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake visual analysis
+    - Action: Install OpenCV/pytesseract on server or remove endpoint until real implementation
+    """
     try:
         video_url = payload.video_url
         if not VideoVisualAnalyzer:
@@ -5907,7 +5923,21 @@ def predict_video_virality(
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
-    """Predict video virality combining metadata and visual analysis."""
+    """
+    Predict video virality combining metadata and visual analysis.
+    
+    USER-FACING WARNING: This endpoint IS called from frontend VideoAnalysisPanel (dashboard.tsx)
+    - Currently returns simulated data when ViralityScorer not configured
+    - Frontend DOES show warning banner when is_simulated: true (good practice)
+    - TRUST ISSUE: Paying customers may see fake virality scores
+    
+    TODO: [HIGH PRIORITY] Either:
+    1. Wire real ViralityScorer dependency (FFmpeg + OpenCV + ML model)
+    2. Hide this feature behind "Coming Soon" until real implementation
+    3. Remove simulated fallback entirely and return 503 with clear message
+    
+    Current behavior: Frontend shows amber warning banner with "Simulated Result" when fallback active
+    """
     try:
         video_url = payload.video_url
         sample_metadata = {
@@ -5959,7 +5989,15 @@ def get_video_improvements(
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user)
 ):
-    """Get improvement suggestions for video virality."""
+    """
+    Get improvement suggestions for video virality.
+    
+    TODO: [BACKLOG] Wire real ViralityScorer dependency or remove this endpoint
+    - Currently returns simulated data when ViralityScorer not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake improvement suggestions
+    - Action: Install ViralityScorer dependencies or remove endpoint
+    """
     try:
         video_url = payload.video_url
         sample_metadata = {
@@ -6016,7 +6054,15 @@ def get_instagram_user_profile(
     user_id: str,
     current_user: str = Depends(get_current_user)
 ):
-    """Get Instagram user profile data, falling back to simulated data if token is invalid or module is missing."""
+    """
+    Get Instagram user profile data, falling back to simulated data if token is invalid or module is missing.
+    
+    TODO: [BACKLOG] Wire real Instagram Graph API or remove this endpoint
+    - Currently returns simulated data when InstagramDataFetcher not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake Instagram profile data
+    - Action: Configure INSTAGRAM_APP_ID/INSTAGRAM_APP_SECRET or remove endpoint
+    """
     try:
         if not InstagramDataFetcher or not os.getenv("INSTAGRAM_APP_ID"):
             return {
@@ -6055,7 +6101,15 @@ def get_instagram_user_insights(
     period: str = "day",
     current_user: str = Depends(get_current_user)
 ):
-    """Get Instagram user insights with simulated fallback."""
+    """
+    Get Instagram user insights with simulated fallback.
+    
+    TODO: [BACKLOG] Wire real Instagram Graph API or remove this endpoint
+    - Currently returns simulated data when InstagramDataFetcher not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake Instagram insights
+    - Action: Configure Instagram Graph API credentials or remove endpoint
+    """
     try:
         if not InstagramDataFetcher or not os.getenv("INSTAGRAM_APP_ID"):
             return {
@@ -6090,7 +6144,15 @@ def get_instagram_user_media(
     limit: int = 25,
     current_user: str = Depends(get_current_user)
 ):
-    """Get Instagram user media with simulated fallback."""
+    """
+    Get Instagram user media with simulated fallback.
+    
+    TODO: [BACKLOG] Wire real Instagram Graph API or remove this endpoint
+    - Currently returns simulated data when InstagramDataFetcher not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake Instagram media data
+    - Action: Configure Instagram Graph API credentials or remove endpoint
+    """
     try:
         if not InstagramDataFetcher or not os.getenv("INSTAGRAM_APP_ID"):
             return {
@@ -6125,7 +6187,15 @@ def get_youtube_trending(
     max_results: int = 25,
     current_user: str = Depends(get_current_user)
 ):
-    """Get YouTube trending videos, falling back to simulated data if no API key is set."""
+    """
+    Get YouTube trending videos, falling back to simulated data if no API key is set.
+    
+    TODO: [BACKLOG] Wire real YouTube Data API or remove this endpoint
+    - Currently returns simulated data when YOUTUBE_API_KEY not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake YouTube trending data
+    - Action: Configure YOUTUBE_API_KEY or remove endpoint
+    """
     try:
         if not YouTubeDataFetcher or not os.getenv("YOUTUBE_API_KEY"):
             return {
@@ -6158,7 +6228,15 @@ def get_youtube_trending_music(
     max_results: int = 25,
     current_user: str = Depends(get_current_user)
 ):
-    """Get YouTube trending music in India with simulated fallback."""
+    """
+    Get YouTube trending music in India with simulated fallback.
+    
+    TODO: [BACKLOG] Wire real YouTube Data API or remove this endpoint
+    - Currently returns simulated data when YOUTUBE_API_KEY not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake YouTube trending music data
+    - Action: Configure YOUTUBE_API_KEY or remove endpoint
+    """
     try:
         if not YouTubeDataFetcher or not os.getenv("YOUTUBE_API_KEY"):
             return {
@@ -6191,6 +6269,15 @@ def get_realtime_trends(
     india_focus: bool = True,
     current_user: str = Depends(get_current_user)
 ):
+    """
+    Get real-time trending topics with fallback.
+    
+    TODO: [BACKLOG] Wire real RealTimeTrendDetector or remove this endpoint
+    - Currently returns simulated data when RealTimeTrendDetector not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake real-time trend data
+    - Action: Configure YOUTUBE_API_KEY and RealTimeTrendDetector or remove endpoint
+    """
     """Get real-time trending topics across platforms with fallback."""
     try:
         if not RealTimeTrendDetector or not os.getenv("YOUTUBE_API_KEY"):
@@ -6223,7 +6310,15 @@ def get_cross_platform_trends(
     request: Request,
     current_user: str = Depends(get_current_user)
 ):
-    """Get cross-platform trending topics with fallback."""
+    """
+    Get cross-platform trending topics with fallback.
+    
+    TODO: [BACKLOG] Wire real RealTimeTrendDetector or remove this endpoint
+    - Currently returns simulated data when RealTimeTrendDetector not configured
+    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
+    - Risk: If accidentally exposed, users will see fake cross-platform trend data
+    - Action: Configure YOUTUBE_API_KEY and RealTimeTrendDetector or remove endpoint
+    """
     try:
         if not RealTimeTrendDetector or not os.getenv("YOUTUBE_API_KEY"):
             return {
