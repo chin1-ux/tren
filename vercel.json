@@ -1,8 +1,11 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd frontend && npm run build",
-  "installCommand": "cd frontend && npm install",
+  "installCommand": "pip install -r requirements.txt --break-system-packages && cd frontend && npm install",
   "framework": null,
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.py" }
+  ],
   "crons": [
     {
       "path": "/api/cron/trigger",
@@ -12,5 +15,10 @@
       "path": "/api/cron/refresh",
       "schedule": "0 12 * * *"
     }
-  ]
+  ],
+  "functions": {
+    "api/index.py": {
+      "maxDuration": 30
+    }
+  }
 }
