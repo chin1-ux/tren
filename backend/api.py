@@ -2328,6 +2328,10 @@ class SubscriptionWebhookRequest(BaseModel):
     razorpay_signature: str
 
 
+class CancellationReasonRequest(BaseModel):
+    reason: str  # Free text or multiple choice
+
+
 @app.post("/api/payment/create-order")
 @limiter.limit("10/minute")
 def create_payment_order(request: Request, req: CreateOrderRequest):
@@ -2452,6 +2456,7 @@ def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
         email = None
         subscription_id = None
         current_period_end = None
+        cancellation_reason = None
         
         if event_type in ["subscription.cancelled", "subscription.halted"]:
             subscription = payload.get("subscription", {})
@@ -2459,6 +2464,7 @@ def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
             email = notes.get("email")
             subscription_id = subscription.get("id")
             current_period_end = subscription.get("current_end")
+            cancellation_reason = notes.get("cancellation_reason")  # Capture cancellation reason
         elif event_type == "payment.failed":
             payment = payload.get("payment", {})
             notes = payment.get("notes", {})
@@ -2492,6 +2498,12 @@ def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
         if subscription_id:
             update_data["subscription_id"] = subscription_id
         
+        # Capture cancellation reason and date for churn analysis
+        if cancellation_reason:
+            update_data["cancellation_reason"] = cancellation_reason
+            update_data["cancellation_date"] = datetime.now(timezone.utc).isoformat()
+            logger.info(f"Cancellation reason for {email}: {cancellation_reason}")
+        
         supabase.table("users").upsert(update_data, on_conflict="email").execute()
         
         logger.info(f"Subscription event {event_type} for {email} | grace period until {grace_period_end}")
@@ -2500,6 +2512,40 @@ def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
     except Exception as e:
         logger.error(f"Subscription webhook processing failed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Webhook processing failed.")
+
+
+@app.post("/api/user/cancellation-reason")
+@limiter.limit("5/hour")
+def submit_cancellation_reason(
+    request: Request,
+    req: CancellationReasonRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Allow users to submit cancellation reason when cancelling subscription.
+    Stores reason in users table for churn analysis.
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not configured.")
+        
+        # Update user record with cancellation reason and date
+        update_data = {
+            "cancellation_reason": req.reason,
+            "cancellation_date": datetime.now(timezone.utc).isoformat()
+        }
+        
+        supabase.table("users").update(update_data).eq("email", current_user).execute()
+        
+        logger.info(f"Cancellation reason submitted by {current_user}: {req.reason}")
+        
+        return {
+            "success": True,
+            "message": "Cancellation reason recorded. Thank you for your feedback."
+        }
+    except Exception as e:
+        logger.error(f"Failed to record cancellation reason: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Failed to record cancellation reason.")
 
 
 @app.get("/api/user/plan")
