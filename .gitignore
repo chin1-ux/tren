@@ -43,6 +43,8 @@ api.log
 
 # Sessions & Auth (Private)
 *cookies.json
+*cookies.tsv
+*cookies_base64.txt
 *session_*
 login_instagram.py
 login_cli.py
