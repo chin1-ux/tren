@@ -1273,6 +1273,7 @@ export async function login(email: string, password: string): Promise<{
 export async function signup(
   email: string,
   password: string,
+  phoneNumber: string,
   niche: string,
   language: string
 ): Promise<{
@@ -1297,7 +1298,7 @@ export async function signup(
   }>("/api/auth/signup", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, password, niche, language }),
+    body: JSON.stringify({ email, password, phone_number: phoneNumber, niche, language }),
   });
 }
 

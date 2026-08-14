@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
-import { Mail, Lock, User, ArrowRight, AlertCircle } from "lucide-react";
+import { Mail, Lock, User, ArrowRight, AlertCircle, Phone } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
@@ -44,6 +44,7 @@ function SignupPage() {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [niche, setNiche] = useState("all");
   const [language, setLanguage] = useState("en");
   const [loading, setLoading] = useState(false);
@@ -66,10 +67,16 @@ function SignupPage() {
       return;
     }
 
+    if (!phoneNumber || phoneNumber.length < 10) {
+      setError("Please enter a valid phone number");
+      toast.error("Please enter a valid phone number");
+      return;
+    }
+
     setLoading(true);
 
     try {
-      await signup(email, password, niche, language);
+      await signup(email, password, phoneNumber, niche, language);
       toast.success("Account created successfully!");
       // AuthContext handles navigation automatically
     } catch (err) {
@@ -116,6 +123,25 @@ function SignupPage() {
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
+                  className="pl-12 w-full"
+                  required
+                />
+              </div>
+            </div>
+
+            {/* Phone Number */}
+            <div className="space-y-2">
+              <label htmlFor="phoneNumber" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Phone Number
+              </label>
+              <div className="relative flex items-center">
+                <Phone className="absolute left-3.5 h-5 w-5 text-slate-400 pointer-events-none" />
+                <Input
+                  id="phoneNumber"
+                  type="tel"
+                  placeholder="+91 98765 43210"
+                  value={phoneNumber}
+                  onChange={(e) => setPhoneNumber(e.target.value)}
                   className="pl-12 w-full"
                   required
                 />

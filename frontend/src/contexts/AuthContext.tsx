@@ -13,7 +13,7 @@ interface AuthContextType {
   user: User | null;
   loading: boolean;
   login: (email: string, password: string) => Promise<void>;
-  signup: (email: string, password: string, niche: string, language: string) => Promise<void>;
+  signup: (email: string, password: string, phoneNumber: string, niche: string, language: string) => Promise<void>;
   logout: () => void;
   checkAuth: () => Promise<void>;
 }
@@ -104,13 +104,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   };
 
-  const signup = async (email: string, password: string, niche: string, language: string) => {
+  const signup = async (email: string, password: string, phoneNumber: string, niche: string, language: string) => {
     const response = await fetch(`${API_URL}/api/auth/signup`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
       },
-      body: JSON.stringify({ email, password, niche, language }),
+      body: JSON.stringify({ email, password, phone_number: phoneNumber, niche, language }),
     });
 
     const data = await response.json();
