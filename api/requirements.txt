@@ -1,0 +1,5 @@
+mangum
+fastapi
+python-dotenv
+supabase
+pydantic
