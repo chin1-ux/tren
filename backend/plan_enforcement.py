@@ -35,7 +35,17 @@ class PlanEnforcement:
     Shared plan enforcement logic for all endpoints
     """
     
+    # Plan name mapping: normalize internal names to display names
+    # Internal: pro, business | Display: creator, agency
+    PLAN_NAME_MAPPING = {
+        'pro': 'creator',
+        'business': 'agency',
+        'creator': 'pro',  # Reverse mapping for Razorpay compatibility
+        'agency': 'business'  # Reverse mapping for Razorpay compatibility
+    }
+    
     # Feature to plan mapping based on plan_features table
+    # Uses internal names (pro, business) for database compatibility
     PAID_FEATURES = {
         'early_detection': ['pro', 'business'],
         'unlimited_trends': ['pro', 'business'],
@@ -47,6 +57,55 @@ class PlanEnforcement:
         'api_access': ['business'],
         'priority_support': ['business']
     }
+    
+    @staticmethod
+    def normalize_plan_name(plan_name: str) -> str:
+        """
+        Normalize plan name to internal format (pro, business)
+        Handles both display names (creator, agency) and internal names
+        
+        Args:
+            plan_name: Plan name (creator, agency, pro, business, free)
+        
+        Returns:
+            Normalized internal plan name (pro, business, free)
+        """
+        if not plan_name:
+            return 'free'
+        
+        plan_lower = plan_name.lower()
+        
+        # If already in internal format, return as-is
+        if plan_lower in ['pro', 'business', 'free']:
+            return plan_lower
+        
+        # Map display names to internal names
+        return PlanEnforcement.PLAN_NAME_MAPPING.get(plan_lower, 'free')
+    
+    @staticmethod
+    def to_display_plan_name(plan_name: str) -> str:
+        """
+        Convert internal plan name to display name
+        
+        Args:
+            plan_name: Internal plan name (pro, business, free)
+        
+        Returns:
+            Display plan name (creator, agency, free)
+        """
+        if not plan_name:
+            return 'free'
+        
+        plan_lower = plan_name.lower()
+        
+        # Only convert internal names to display names
+        # Keep display names as-is
+        if plan_lower == 'pro':
+            return 'creator'
+        elif plan_lower == 'business':
+            return 'agency'
+        else:
+            return plan_lower  # free, creator, agency stay as-is
     
     # Quota-based features
     QUOTA_FEATURES = {
@@ -104,6 +163,8 @@ class PlanEnforcement:
             
             user_id = user_res.data.get('id')
             razorpay_plan = user_res.data.get('plan', 'free')
+            # Normalize plan name to internal format (handles creator/agency → pro/business)
+            razorpay_plan = PlanEnforcement.normalize_plan_name(razorpay_plan)
             subscription_status = user_res.data.get('subscription_status')
             grace_period_ends_at = user_res.data.get('grace_period_ends_at')
             
@@ -175,15 +236,18 @@ class PlanEnforcement:
         Get feature configuration for a plan from plan_features table
         
         Args:
-            plan_name: Plan name (free, pro, business)
+            plan_name: Plan name (free, pro, business, creator, agency)
         
         Returns:
             Dict with plan configuration
         """
+        # Normalize plan name to internal format
+        normalized_plan = PlanEnforcement.normalize_plan_name(plan_name)
+        
         try:
             res = supabase.table('plan_features') \
                 .select('*') \
-                .eq('plan_name', plan_name) \
+                .eq('plan_name', normalized_plan) \
                 .single() \
                 .execute()
             
@@ -247,6 +311,8 @@ class PlanEnforcement:
             return
         
         user_plan = PlanEnforcement.get_user_plan(user_email)
+        # Normalize plan name to internal format for comparison
+        user_plan = PlanEnforcement.normalize_plan_name(user_plan)
         
         # Free tier has limited features
         if user_plan == 'free':
@@ -257,9 +323,9 @@ class PlanEnforcement:
                     detail={
                         "error": "plan_upgrade_required",
                         "feature": required_feature,
-                        "message": f"The '{required_feature}' feature requires a Pro or Business plan",
+                        "message": f"The '{required_feature}' feature requires a Creator or Agency plan",
                         "upgrade_url": "/pricing",
-                        "current_plan": user_plan
+                        "current_plan": PlanEnforcement.to_display_plan_name(user_plan)
                     }
                 )
         
@@ -267,14 +333,16 @@ class PlanEnforcement:
         if required_feature in PlanEnforcement.PAID_FEATURES:
             allowed_plans = PlanEnforcement.PAID_FEATURES[required_feature]
             if user_plan not in allowed_plans:
+                # Convert internal plan names to display names for error message
+                display_plan = PlanEnforcement.to_display_plan_name(allowed_plans[-1])
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail={
                         "error": "plan_upgrade_required",
                         "feature": required_feature,
-                        "message": f"The '{required_feature}' feature requires a {allowed_plans[-1].upper()} plan",
+                        "message": f"The '{required_feature}' feature requires a {display_plan.upper()} plan",
                         "upgrade_url": "/pricing",
-                        "current_plan": user_plan
+                        "current_plan": PlanEnforcement.to_display_plan_name(user_plan)
                     }
                 )
     

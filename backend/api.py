@@ -2099,19 +2099,21 @@ def signup(request: Request, req: SignupRequest):
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
 
         # Step 2: Send phone verification code
-        if PhoneVerification:
-            verification_result = PhoneVerification.send_verification_code(req.phone_number)
-            if not verification_result.get('success'):
-                logger.error(f"Failed to send verification code: {verification_result.get('error')}")
-                raise HTTPException(
-                    status_code=500,
-                    detail=f"Failed to send verification code: {verification_result.get('error')}"
-                )
-            logger.info(f"Verification code sent to: {req.phone_number}")
-        else:
-            logger.warning("PhoneVerification not available - skipping phone verification requirement")
-            # Fallback: allow signup without phone verification if PhoneVerification not configured
-            verification_result = None
+        if not PhoneVerification:
+            logger.error("PhoneVerification not available - cannot complete signup")
+            raise HTTPException(
+                status_code=503,
+                detail="Phone verification service not configured. Please contact support."
+            )
+        
+        verification_result = PhoneVerification.send_verification_code(req.phone_number)
+        if not verification_result.get('success'):
+            logger.error(f"Failed to send verification code: {verification_result.get('error')}")
+            raise HTTPException(
+                status_code=500,
+                detail=f"Failed to send verification code: {verification_result.get('error')}"
+            )
+        logger.info(f"Verification code sent to: {req.phone_number}")
 
         # Step 3: Save user metadata to users table (with phone_number, not yet verified)
         import random
