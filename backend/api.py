@@ -438,52 +438,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-def rate_limit(limit: int, window_seconds: int = 60, key_func=None):
-    """
-    Custom rate limit decorator that uses Redis when available, falls back to slowapi
-    
-    Args:
-        limit: Maximum requests allowed
-        window_seconds: Time window in seconds
-        key_func: Function to generate rate limit key (defaults to IP address)
-    """
-    def decorator(func):
-        def wrapper(*args, **kwargs):
-            # Try Redis-backed rate limiting first
-            if REDIS_RATE_LIMITER_AVAILABLE and redis_limiter:
-                # Generate key from request if available
-                request = None
-                for arg in args:
-                    if hasattr(arg, 'client'):  # FastAPI Request object
-                        request = arg
-                        break
-                
-                if request:
-                    identifier = key_func(request) if key_func else get_remote_address(request)
-                else:
-                    identifier = "global"
-                
-                allowed, info = check_rate_limit(identifier, limit, window_seconds)
-                
-                if not allowed:
-                    from fastapi import HTTPException, status
-                    raise HTTPException(
-                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                        detail={
-                            "error": "rate_limit_exceeded",
-                            "limit": limit,
-                            "window_seconds": window_seconds,
-                            "reset_at": info["reset_at"],
-                            "remaining": info["remaining"]
-                        }
-                    )
-            
-            # Fall back to original function
-            return func(*args, **kwargs)
-        return wrapper
-    return decorator
-
-
 
 @app.get("/api/health", tags=["Health"]) 
 async def health_check_api():

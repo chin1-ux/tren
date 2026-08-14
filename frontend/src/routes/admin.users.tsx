@@ -9,7 +9,7 @@ import {
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Shield, Search, Lock, Unlock, ChevronDown, AlertCircle } from "lucide-react";
+import { Shield, Search, Lock, Unlock, ChevronDown, AlertCircle, ArrowLeft } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/users")({
