@@ -8,6 +8,12 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
 
   # RQ background worker — consumes reel-generation jobs from Upstash Redis.
   # Without this, every enqueued job hangs in "processing" forever.
@@ -20,5 +26,11 @@ services:
     envVars:
       - key: PYTHON_VERSION
         value: 3.11.0
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_PHONE_NUMBER
+        sync: false
 
 

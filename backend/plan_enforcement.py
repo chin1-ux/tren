@@ -47,6 +47,26 @@ class PlanEnforcement:
     }
     
     @staticmethod
+    def is_phone_verified(user_email: str) -> bool:
+        """
+        Check if user's phone is verified
+        
+        Args:
+            user_email: User's email address
+        
+        Returns:
+            True if phone is verified, False otherwise
+        """
+        try:
+            res = supabase.table("users").select("phone_verified").eq("email", user_email).limit(1).execute()
+            if res.data:
+                return res.data[0].get("phone_verified", False)
+            return False
+        except Exception as e:
+            logger.error(f"Error checking phone verification status: {e}")
+            return False
+    
+    @staticmethod
     def get_user_plan(user_email: str) -> str:
         """
         Get the user's effective plan, considering plan_overrides first.
@@ -339,6 +359,34 @@ class PlanEnforcement:
             
         except Exception as e:
             print(f"Error logging usage: {e}")
+
+
+def require_phone_verified(current_user: str = Depends(lambda: "guest@trendrop.app")) -> str:
+    """
+    Dependency to require phone verification for gated features
+    
+    Args:
+        current_user: Current authenticated user email
+    
+    Returns:
+        User email if phone is verified
+    
+    Raises:
+        HTTPException if phone is not verified
+    """
+    if current_user == "guest@trendrop.app":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    
+    if not PlanEnforcement.is_phone_verified(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Phone verification required. Please verify your phone number to access this feature."
+        )
+    
+    return current_user
 
 
 def require_feature(feature: str):

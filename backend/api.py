@@ -148,7 +148,7 @@ except Exception as e:
         return False
 
 try:
-    from plan_enforcement import PlanEnforcement, require_feature, require_quota, log_endpoint_usage
+    from plan_enforcement import PlanEnforcement, require_feature, require_quota, log_endpoint_usage, require_phone_verified
 except Exception as e:
     logger.warning(f"Plan enforcement import failed: {e}")
     def PlanEnforcement():
@@ -213,6 +213,12 @@ try:
 except Exception as e:
     logger.warning(f"DeviceFingerprint import failed: {e}")
     DeviceFingerprint = None
+
+try:
+    from phone_verification import PhoneVerification
+except Exception as e:
+    logger.warning(f"PhoneVerification import failed: {e}")
+    PhoneVerification = None
 
 try:
     from usage_tracker import UsageTracker
@@ -956,6 +962,7 @@ class CalendarRequest(BaseModel):
 class SignupRequest(BaseModel):
     email: EmailStr
     password: str
+    phone_number: str
     niche: str = "all"
     language: str = "en"
 
@@ -1338,6 +1345,7 @@ def get_emerging_trends(
 def get_all_active_trends(
     request: Request, 
     current_user: str = Depends(get_current_user),
+    _phone_check: str = Depends(require_phone_verified),
     _plan_check: str = Depends(require_feature("unlimited_trends")),
     _usage_log: str = Depends(log_endpoint_usage("unlimited_trends"))
 ):
@@ -2047,76 +2055,71 @@ def subscribe(request: Request, req: SubscribeRequest):
 @app.post("/api/auth/signup")
 @limiter.limit("5/hour")
 def signup(request: Request, req: SignupRequest):
-    """Create a new user with email and password via Supabase Auth"""
+    """
+    Initiate signup process with phone verification.
+    Creates user in Supabase Auth but requires phone verification before full access.
+    """
     try:
+        # Step 1: Create user in Supabase Auth (auto-confirmed, but not fully verified)
         auth_res = None
-        session_token = None
-        expires_at = None
-
-        # Try to use admin API to auto-confirm user and bypass email confirmation
         try:
             auth_res = supabase.auth.admin.create_user({
                 "email": req.email,
                 "password": req.password,
                 "email_confirm": True
             })
-            logger.info("Successfully created and confirmed user via admin auth API.")
-
-            # Admin create_user doesn't return a session — sign in immediately to get one
-            if auth_res and auth_res.user:
-                try:
-                    login_res = supabase.auth.sign_in_with_password({
-                        "email": req.email,
-                        "password": req.password
-                    })
-                    if login_res and login_res.session:
-                        session_token = login_res.session.access_token
-                        expires_at = (
-                            datetime.fromtimestamp(login_res.session.expires_at, tz=timezone.utc).isoformat()
-                            if login_res.session.expires_at else None
-                        )
-                        logger.info("Auto-login after signup succeeded.")
-                    else:
-                        logger.warning("Auto-login after signup returned no session.")
-                except Exception as login_err:
-                    logger.warning(f"Auto-login after signup failed: {login_err}")
-
+            logger.info(f"User created via admin auth API: {req.email}")
         except Exception as admin_err:
             logger.warning(f"Admin auth signup failed: {admin_err}, falling back to standard sign_up")
             fallback = supabase.auth.sign_up({"email": req.email, "password": req.password})
             auth_res = fallback
-            # sign_up may return a session if email confirmation is disabled in Supabase dashboard
-            if fallback and fallback.session:
-                session_token = fallback.session.access_token
-                expires_at = (
-                    datetime.fromtimestamp(fallback.session.expires_at, tz=timezone.utc).isoformat()
-                    if fallback.session.expires_at else None
-                )
 
         if not auth_res or not auth_res.user:
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
 
-        # Save metadata to users table
+        # Step 2: Send phone verification code
+        if PhoneVerification:
+            verification_result = PhoneVerification.send_verification_code(req.phone_number)
+            if not verification_result.get('success'):
+                logger.error(f"Failed to send verification code: {verification_result.get('error')}")
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to send verification code: {verification_result.get('error')}"
+                )
+            logger.info(f"Verification code sent to: {req.phone_number}")
+        else:
+            logger.warning("PhoneVerification not available - skipping phone verification requirement")
+            # Fallback: allow signup without phone verification if PhoneVerification not configured
+            verification_result = None
+
+        # Step 3: Save user metadata to users table (with phone_number, not yet verified)
+        import random
+        user_id = f"#{random.randint(1000, 9999)}"
+        
         user_data = {
             "email": req.email,
+            "user_id": user_id,
+            "phone_number": req.phone_number,
+            "phone_verified": False,  # Will be set to True after verification
             "niche": req.niche,
             "language_preference": req.language,
+            "plan": "free",
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         supabase.table("users").upsert(user_data, on_conflict="email").execute()
 
         response: dict = {
             "success": True,
-            "message": "Account created successfully.",
+            "message": "Account created. Please verify your phone number to complete signup.",
             "user": {
                 "email": req.email,
+                "phone_number": req.phone_number,
+                "phone_verified": False,
                 "niche": req.niche,
                 "language": req.language
-            }
+            },
+            "phone_verification_required": True
         }
-        if session_token:
-            response["session_token"] = session_token
-            response["expires_at"] = expires_at
 
         return response
     except Exception as e:
@@ -2125,6 +2128,47 @@ def signup(request: Request, req: SignupRequest):
             raise
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@app.post("/api/auth/verify-phone")
+@limiter.limit("10/hour")
+def verify_phone(request: Request, req: VerifyPhoneRequest):
+    """
+    Verify phone number with OTP code.
+    Completes signup process and enables full account access.
+    """
+    try:
+        if not PhoneVerification:
+            raise HTTPException(status_code=500, detail="Phone verification not configured")
+
+        # Verify the code
+        verification_result = PhoneVerification.verify_code(req.phone_number, req.code)
+        
+        if not verification_result.get('success'):
+            logger.warning(f"Phone verification failed for {req.phone_number}: {verification_result.get('error')}")
+            raise HTTPException(
+                status_code=400,
+                detail=verification_result.get('error', 'Invalid verification code')
+            )
+
+        # Update user record to mark phone as verified
+        if supabase:
+            supabase.table("users").update({"phone_verified": True}).eq("phone_number", req.phone_number).execute()
+            logger.info(f"Phone verified for: {req.phone_number}")
+
+        return {
+            "success": True,
+            "message": "Phone verified successfully. You can now access all features."
+        }
+    except Exception as e:
+        logger.error(f"Phone verification failed: {e}", exc_info=True)
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class VerifyPhoneRequest(BaseModel):
+    phone_number: str
+    code: str
 
 
 @app.post("/api/auth/login")
