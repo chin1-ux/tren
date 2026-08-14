@@ -2152,6 +2152,11 @@ def signup(request: Request, req: SignupRequest):
         raise HTTPException(status_code=500, detail=str(e))
 
 
+class VerifyPhoneRequest(BaseModel):
+    phone_number: str
+    code: str
+
+
 @app.post("/api/auth/verify-phone")
 @limiter.limit("10/hour")
 def verify_phone(request: Request, req: VerifyPhoneRequest):
@@ -2187,11 +2192,6 @@ def verify_phone(request: Request, req: VerifyPhoneRequest):
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=500, detail=str(e))
-
-
-class VerifyPhoneRequest(BaseModel):
-    phone_number: str
-    code: str
 
 
 @app.post("/api/auth/login")
