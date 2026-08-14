@@ -3,10 +3,13 @@ Plan Enforcement Middleware
 Shared dependency for checking user plan access and enforcing feature limits
 """
 import os
+import logging
 from typing import Optional, Dict, List
 from fastapi import HTTPException, Header, Depends, status
 from dotenv import load_dotenv
 from supabase import create_client, Client
+
+logger = logging.getLogger(__name__)
 
 load_dotenv()
 
@@ -50,26 +53,33 @@ class PlanEnforcement:
         
         Priority: plan_override (if active and not expired) → Razorpay-derived plan → free
         
+        Also checks subscription grace period: if subscription was cancelled/failed
+        but grace period hasn't ended, user retains paid plan. After grace period,
+        automatically downgrades to free.
+        
         Args:
             user_email: User's email
         
         Returns:
             Plan name (free, pro, business) or 'free' for guests/errors
         """
+        from datetime import datetime, timezone, timedelta
+        
         if not user_email or user_email == "guest@trendrop.app":
             return 'free'
         
         try:
             # Get user ID first
-            user_res = supabase.table('users').select('id', 'plan').eq('email', user_email).single().execute()
+            user_res = supabase.table('users').select('id', 'plan', 'subscription_status', 'grace_period_ends_at').eq('email', user_email).single().execute()
             if not user_res.data:
                 return 'free'
             
             user_id = user_res.data.get('id')
             razorpay_plan = user_res.data.get('plan', 'free')
+            subscription_status = user_res.data.get('subscription_status')
+            grace_period_ends_at = user_res.data.get('grace_period_ends_at')
             
             # Check for active plan override
-            from datetime import datetime, timezone
             now = datetime.now(timezone.utc).isoformat()
             
             override_res = supabase.table('plan_overrides') \
@@ -83,6 +93,46 @@ class PlanEnforcement:
                     # If no expiration or not expired yet, use override
                     if not expires_at or expires_at > now:
                         return override.get('tier', razorpay_plan)
+            
+            # Check subscription grace period
+            if subscription_status in ['subscription.cancelled', 'subscription.halted', 'payment.failed']:
+                if grace_period_ends_at:
+                    try:
+                        # Handle both Z suffix and +00:00 formats, and timezone-naive strings
+                        grace_end_str = grace_period_ends_at.replace('Z', '+00:00')
+                        grace_end = datetime.fromisoformat(grace_end_str)
+                        
+                        # If the parsed datetime is naive, assume UTC
+                        if grace_end.tzinfo is None:
+                            grace_end = grace_end.replace(tzinfo=timezone.utc)
+                        
+                        current_time = datetime.now(timezone.utc)
+                        
+                        if current_time < grace_end:
+                            # Still within grace period, keep paid plan
+                            logger.info(f"User {user_email} within grace period until {grace_end}")
+                            return razorpay_plan
+                        else:
+                            # Grace period ended, downgrade to free
+                            logger.info(f"Grace period ended for {user_email}, downgrading to free")
+                            try:
+                                supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
+                            except Exception as update_error:
+                                logger.error(f"Failed to downgrade plan for {user_email}: {update_error}")
+                            return 'free'
+                    except (ValueError, TypeError) as e:
+                        logger.error(f"Invalid grace_period_ends_at format for {user_email}: {e}")
+                        # On error, keep current plan to avoid breaking legitimate users
+                        return razorpay_plan
+                else:
+                    # No grace period set - default to 30 days from now for safety
+                    logger.warning(f"No grace period set for {user_email} with {subscription_status}, setting default 30-day grace")
+                    default_grace_end = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                    try:
+                        supabase.table('users').update({'grace_period_ends_at': default_grace_end}).eq('email', user_email).execute()
+                    except Exception as update_error:
+                        logger.error(f"Failed to set default grace period for {user_email}: {update_error}")
+                    return razorpay_plan
             
             # Fall back to Razorpay plan
             return razorpay_plan

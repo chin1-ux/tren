@@ -2210,6 +2210,12 @@ class PaymentWebhookRequest(BaseModel):
     email:               EmailStr
 
 
+class SubscriptionWebhookRequest(BaseModel):
+    event: str  # subscription.cancelled, subscription.halted, payment.failed
+    payload: dict
+    razorpay_signature: str
+
+
 @app.post("/api/payment/create-order")
 @limiter.limit("10/minute")
 def create_payment_order(request: Request, req: CreateOrderRequest):
@@ -2290,6 +2296,98 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
     except Exception as e:
         logger.error(f"Plan upgrade DB write failed for {req.email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Payment verified but plan upgrade failed. Contact support.")
+
+
+@app.post("/api/payment/subscription-webhook")
+@limiter.limit("20/minute")
+def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
+    """
+    Handle Razorpay subscription lifecycle events:
+    - subscription.cancelled: User cancelled subscription
+    - subscription.halted: Payment failed after retry attempts
+    - payment.failed: Individual payment attempt failed
+    
+    Implements end-of-period grace: users retain access until current billing period ends.
+    """
+    if not RAZORPAY_KEY_SECRET:
+        raise HTTPException(status_code=503, detail="Payment gateway not configured.")
+
+    # ── Signature verification (HMAC-SHA256) ───────────────────────────────────
+    # Razorpay uses webhook secret for signature verification
+    webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
+    if not webhook_secret:
+        logger.warning("RAZORPAY_WEBHOOK_SECRET not set, skipping signature verification")
+    else:
+        expected_sig = hmac.new(
+            webhook_secret.encode("utf-8"),
+            json.dumps(req.payload).encode("utf-8"),
+            hashlib.sha256
+        ).hexdigest()
+        
+        if not hmac.compare_digest(expected_sig, req.razorpay_signature):
+            logger.warning(f"Invalid Razorpay webhook signature for event {req.event}")
+            raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
+
+    # ── Process subscription events ─────────────────────────────────────────────
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured.")
+
+    try:
+        event_type = req.event
+        payload = req.payload
+        
+        # Extract user email from payload (structure varies by event type)
+        email = None
+        subscription_id = None
+        current_period_end = None
+        
+        if event_type in ["subscription.cancelled", "subscription.halted"]:
+            subscription = payload.get("subscription", {})
+            notes = subscription.get("notes", {})
+            email = notes.get("email")
+            subscription_id = subscription.get("id")
+            current_period_end = subscription.get("current_end")
+        elif event_type == "payment.failed":
+            payment = payload.get("payment", {})
+            notes = payment.get("notes", {})
+            email = notes.get("email")
+            subscription_id = payment.get("subscription_id")
+        
+        if not email:
+            logger.warning(f"No email found in webhook payload for event {event_type}")
+            return {"success": False, "message": "No email in payload"}
+        
+        # Calculate grace period end (end of current billing period)
+        from datetime import datetime, timezone, timedelta
+        if current_period_end:
+            try:
+                # Razorpay sends Unix timestamp in seconds
+                grace_period_end = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
+            except (TypeError, ValueError):
+                # Fallback to 30 days from now if timestamp invalid
+                grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+        else:
+            # Default to 30 days grace period if no current_period_end
+            grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+        
+        # Update user record with subscription status and grace period
+        update_data = {
+            "email": email,
+            "subscription_status": event_type,  # Track the specific event
+            "grace_period_ends_at": grace_period_end.isoformat()
+        }
+        
+        if subscription_id:
+            update_data["subscription_id"] = subscription_id
+        
+        supabase.table("users").upsert(update_data, on_conflict="email").execute()
+        
+        logger.info(f"Subscription event {event_type} for {email} | grace period until {grace_period_end}")
+        return {"success": True, "message": "Subscription event processed", "grace_period_ends": grace_period_end.isoformat()}
+        
+    except Exception as e:
+        logger.error(f"Subscription webhook processing failed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Webhook processing failed.")
 
 
 @app.get("/api/user/plan")
@@ -5062,6 +5160,7 @@ def admin_login(request: Request, req: AdminLoginRequest):
         admin_user = get_admin_user_by_email(req.email)
         
         if not admin_user:
+            logger.warning(f"Admin user not found for email: {req.email}")
             log_admin_login_attempt(req.email, False, client_ip, user_agent)
             record_failed_login_attempt(req.email)
             raise HTTPException(
@@ -5070,7 +5169,11 @@ def admin_login(request: Request, req: AdminLoginRequest):
             )
         
         # Verify password
-        if not verify_password(req.password, admin_user["password_hash"]):
+        password_valid = verify_password(req.password, admin_user["password_hash"])
+        logger.info(f"Password verification for {req.email}: {password_valid}")
+        
+        if not password_valid:
+            logger.warning(f"Invalid password for {req.email}")
             log_admin_login_attempt(req.email, False, client_ip, user_agent)
             record_failed_login_attempt(req.email)
             raise HTTPException(
