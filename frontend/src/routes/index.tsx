@@ -7,6 +7,7 @@ import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
+import { PlanGate } from "@/components/PlanGate";
 // import { OnboardingFlow } from "@/components/OnboardingFlow";
 // import { FeatureTutorial } from "@/components/FeatureTutorial";
 import { ParticleBackground } from "@/components/ParticleBackground";

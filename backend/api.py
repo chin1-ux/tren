@@ -1293,7 +1293,7 @@ def get_trends(
 
 
 @app.get("/api/trends/emerging")
-@rate_limit(60, 60)
+@limiter.limit("60/minute")
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
