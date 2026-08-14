@@ -42,6 +42,14 @@ from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 
+# Import Redis-backed rate limiter
+try:
+    from redis_rate_limiter import check_rate_limit, get_rate_limiter
+    REDIS_RATE_LIMITER_AVAILABLE = True
+except ImportError:
+    REDIS_RATE_LIMITER_AVAILABLE = False
+    print("Redis rate limiter not available, falling back to in-memory slowapi")
+
 import sys
 load_dotenv()
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -404,8 +412,14 @@ outputs_path = os.path.join(base_dir, "outputs")
 os.makedirs(uploads_path, exist_ok=True)
 os.makedirs(outputs_path, exist_ok=True)
 
-# Rate limiter
-limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
+# Rate limiter - use Redis if available, otherwise fall back to in-memory
+if REDIS_RATE_LIMITER_AVAILABLE:
+    # Custom Redis-backed rate limiting
+    limiter = Limiter(key_func=get_remote_address, enabled=False)  # Disable slowapi when using Redis
+    redis_limiter = get_rate_limiter()
+else:
+    limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
+    redis_limiter = None
 
 from fastapi.middleware.gzip import GZipMiddleware
 
@@ -416,6 +430,52 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+def rate_limit(limit: int, window_seconds: int = 60, key_func=None):
+    """
+    Custom rate limit decorator that uses Redis when available, falls back to slowapi
+    
+    Args:
+        limit: Maximum requests allowed
+        window_seconds: Time window in seconds
+        key_func: Function to generate rate limit key (defaults to IP address)
+    """
+    def decorator(func):
+        def wrapper(*args, **kwargs):
+            # Try Redis-backed rate limiting first
+            if REDIS_RATE_LIMITER_AVAILABLE and redis_limiter:
+                # Generate key from request if available
+                request = None
+                for arg in args:
+                    if hasattr(arg, 'client'):  # FastAPI Request object
+                        request = arg
+                        break
+                
+                if request:
+                    identifier = key_func(request) if key_func else get_remote_address(request)
+                else:
+                    identifier = "global"
+                
+                allowed, info = check_rate_limit(identifier, limit, window_seconds)
+                
+                if not allowed:
+                    from fastapi import HTTPException, status
+                    raise HTTPException(
+                        status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                        detail={
+                            "error": "rate_limit_exceeded",
+                            "limit": limit,
+                            "window_seconds": window_seconds,
+                            "reset_at": info["reset_at"],
+                            "remaining": info["remaining"]
+                        }
+                    )
+            
+            # Fall back to original function
+            return func(*args, **kwargs)
+        return wrapper
+    return decorator
 
 
 
@@ -1226,7 +1286,7 @@ def get_trends(
 
 
 @app.get("/api/trends/emerging")
-@limiter.limit("60/minute")
+@rate_limit(60, 60)
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
@@ -1242,12 +1302,14 @@ def get_emerging_trends(
         # Load user config for personalization
         user_niche = "all"
         user_lang = "all"
+        user_id = None
         if current_user and current_user != "guest@trendrop.app":
             try:
-                user_res = supabase.table("users").select("niche, language_preference").eq("email", current_user).limit(1).execute()
+                user_res = supabase.table("users").select("niche, language_preference, user_id").eq("email", current_user).limit(1).execute()
                 if user_res.data:
                     user_niche = user_res.data[0].get("niche") or "all"
                     user_lang = user_res.data[0].get("language_preference") or "all"
+                    user_id = user_res.data[0].get("user_id")
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
@@ -1259,6 +1321,12 @@ def get_emerging_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+        
+        # Add user watermark ID to each trend for leak tracing
+        if user_id:
+            for trend in trends:
+                trend["user_watermark_id"] = user_id
+        
         return trends
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)

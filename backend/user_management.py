@@ -76,8 +76,12 @@ class UserManager:
                 return existing.data[0]
             
             # Create new user
+            import random
+            user_id = f"#{random.randint(1000, 9999)}"
+            
             user_data = {
                 'email': email,
+                'user_id': user_id,  # Short ID for watermarking (e.g., "#1234")
                 'niche': niche,
                 'language_preference': language_preference,
                 'plan': 'free',
