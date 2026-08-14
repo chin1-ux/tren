@@ -101,9 +101,15 @@ def verify_token(token: str) -> Dict:
 def get_admin_user_by_email(email: str) -> Optional[Dict]:
     """Get admin user from admin_users table by email."""
     if not supabase:
+        logger.warning("Supabase client not available in get_admin_user_by_email")
         return None
     try:
+        logger.info(f"Fetching admin user for email: {email}")
         res = supabase.table("admin_users").select("*").eq("email", email).single().execute()
+        if res.data:
+            logger.info(f"Admin user found: {email}")
+        else:
+            logger.warning(f"Admin user not found: {email}")
         return res.data if res.data else None
     except Exception as e:
         logger.error(f"Error getting admin user: {e}")
