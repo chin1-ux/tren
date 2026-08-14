@@ -2179,7 +2179,8 @@ def verify(request: Request, req: VerifyRequest):
             "user": {
                 "email": email,
                 "niche": user.get("niche") or "all",
-                "language": user.get("language_preference") or "all"
+                "language": user.get("language_preference") or "all",
+                "plan": user.get("plan") or "free"
             }
         }
     except Exception as e:

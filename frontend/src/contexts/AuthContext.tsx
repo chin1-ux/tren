@@ -6,6 +6,7 @@ interface User {
   email: string;
   niche: string;
   language: string;
+  plan: string;
 }
 
 interface AuthContextType {
@@ -51,6 +52,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("trendrop_user_email", data.user.email);
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
+        localStorage.setItem("trendrop_user_plan", data.user.plan);
       } else {
         // Session invalid, clear it
         setAuthToken(null);
@@ -58,6 +60,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("trendrop_user_email");
         localStorage.removeItem("trendrop_user_niche");
         localStorage.removeItem("trendrop_user_language");
+        localStorage.removeItem("trendrop_user_plan");
         setUser(null);
       }
     } catch (error) {
@@ -68,6 +71,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.removeItem("trendrop_user_email");
       localStorage.removeItem("trendrop_user_niche");
       localStorage.removeItem("trendrop_user_language");
+      localStorage.removeItem("trendrop_user_plan");
       setUser(null);
     } finally {
       setLoading(false);
@@ -91,6 +95,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("trendrop_user_email", data.user.email);
       localStorage.setItem("trendrop_user_niche", data.user.niche);
       localStorage.setItem("trendrop_user_language", data.user.language);
+      localStorage.setItem("trendrop_user_plan", data.user.plan);
       setUser(data.user);
       // Navigate to main screen after successful auth using React Router
       navigate({ to: "/" });
@@ -118,6 +123,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("trendrop_user_email", data.user.email);
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
+        localStorage.setItem("trendrop_user_plan", data.user.plan);
         setUser(data.user);
         navigate({ to: "/" });
       } else {

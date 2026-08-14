@@ -6,6 +6,7 @@ interface UserState {
   email: string | null;
   niche: string | null;
   language: string | null;
+  plan: string | null;
   authToken: string | null;
   isOnboarded: boolean;
   initializeFromLocalStorage: () => void;
@@ -40,6 +41,7 @@ export const useUserStore = create<UserState>((set) => ({
   email: null,
   niche: null,
   language: null,
+  plan: null,
   authToken: null,
   isOnboarded: false,
 
@@ -48,9 +50,10 @@ export const useUserStore = create<UserState>((set) => ({
       const email = localStorage.getItem("trendrop_email");
       const niche = localStorage.getItem("trendrop_niche");
       const language = localStorage.getItem("trendrop_language");
+      const plan = localStorage.getItem("trendrop_user_plan");
       const authToken = localStorage.getItem("trendrop_token");
       const isOnboarded = localStorage.getItem("trendrop_onboarded") === "true";
-      set({ email, niche, language, authToken, isOnboarded });
+      set({ email, niche, language, plan, authToken, isOnboarded });
       if (authToken) setAuthToken(authToken);
     }
   },
@@ -70,6 +73,10 @@ export const useUserStore = create<UserState>((set) => ({
         if (updates.language !== undefined) {
           if (updates.language) localStorage.setItem("trendrop_language", updates.language);
           else localStorage.removeItem("trendrop_language");
+        }
+        if (updates.plan !== undefined) {
+          if (updates.plan) localStorage.setItem("trendrop_user_plan", updates.plan);
+          else localStorage.removeItem("trendrop_user_plan");
         }
         if (updates.authToken !== undefined) {
           if (updates.authToken) localStorage.setItem("trendrop_token", updates.authToken);
@@ -91,6 +98,7 @@ export const useUserStore = create<UserState>((set) => ({
       localStorage.removeItem("trendrop_email");
       localStorage.removeItem("trendrop_niche");
       localStorage.removeItem("trendrop_language");
+      localStorage.removeItem("trendrop_user_plan");
       localStorage.removeItem("trendrop_token");
       localStorage.removeItem("trendrop_onboarded");
       localStorage.removeItem("trendrop_plan");
@@ -99,6 +107,7 @@ export const useUserStore = create<UserState>((set) => ({
       email: null,
       niche: null,
       language: null,
+      plan: null,
       authToken: null,
       isOnboarded: false,
     });

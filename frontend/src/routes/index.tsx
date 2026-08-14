@@ -7,8 +7,8 @@ import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
-import { OnboardingFlow } from "@/components/OnboardingFlow";
-import { FeatureTutorial } from "@/components/FeatureTutorial";
+// import { OnboardingFlow } from "@/components/OnboardingFlow";
+// import { FeatureTutorial } from "@/components/FeatureTutorial";
 import { ParticleBackground } from "@/components/ParticleBackground";
 import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { toast } from "sonner";
@@ -62,8 +62,6 @@ function TrendsFeed() {
   const [sortMode] = useState<any>("velocity");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
-  const [showOnboarding, setShowOnboarding] = useState(false);
-  const [showTutorial, setShowTutorial] = useState(false);
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
@@ -74,24 +72,13 @@ function TrendsFeed() {
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
   const userEmail = useUserStore((s) => s.email);
-  const userPlan = typeof window !== 'undefined' ? localStorage.getItem('trendrop_plan') || 'free' : 'free';
+  const userPlan = useUserStore((s) => s.plan) || 'free';
 
-  // Check if first visit → show onboarding
+  // Load preferences from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
       setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
-    }
-
-    const visited = localStorage.getItem("trendrop_visited");
-    if (!visited) {
-      setShowOnboarding(true);
-      localStorage.setItem("trendrop_visited", "1");
-    } else {
-      const tutorialDone = localStorage.getItem("trendrop_tutorial_done");
-      if (!tutorialDone) {
-        setShowTutorial(true);
-      }
     }
   }, []);
 
@@ -500,15 +487,6 @@ function TrendsFeed() {
 
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
-      {showOnboarding && (
-        <OnboardingFlow
-          onComplete={() => {
-            setShowOnboarding(false);
-            setShowTutorial(true);
-          }}
-        />
-      )}
-      {showTutorial && <FeatureTutorial onClose={() => setShowTutorial(false)} />}
 
 
       </div>

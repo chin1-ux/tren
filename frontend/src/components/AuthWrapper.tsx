@@ -4,7 +4,7 @@ import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
 // Public routes that don't require authentication
-const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
+const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights", "/admin/login"];
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
