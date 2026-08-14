@@ -1297,7 +1297,8 @@ def get_trends(
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("early_detection"))
 ):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
@@ -1364,7 +1365,12 @@ def get_all_active_trends(
 
 @app.get("/api/trends/peaked")
 @limiter.limit("60/minute")
-def get_peaked_trends(request: Request, language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+def get_peaked_trends(
+    request: Request, 
+    language: Optional[str] = None, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends"))
+):
     """
     Fetch PEAKED trends — trends that have peaked but still have value.
     These are trends that dropped below 60% of their peak velocity.
@@ -1388,7 +1394,12 @@ def get_peaked_trends(request: Request, language: Optional[str] = None, current_
 
 @app.get("/api/trends/expired")
 @limiter.limit("60/minute")
-def get_expired_trends(request: Request, language: Optional[str] = None, current_user: str = Depends(get_current_user)):
+def get_expired_trends(
+    request: Request, 
+    language: Optional[str] = None, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends"))
+):
     """
     Fetch EXPIRED trends — trends that have passed their window or aged out.
     These are trends that are no longer active but may still have historical value.
@@ -1413,7 +1424,7 @@ def get_expired_trends(request: Request, language: Optional[str] = None, current
 @app.get("/api/trends/audio-scores")
 @limiter.limit("60/minute")
 def get_audio_trend_scores_api(
-    request: Request, 
+    request: Request,
     current_user: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("advanced_analytics")),
     _usage_log: str = Depends(log_endpoint_usage("advanced_analytics"))
@@ -1453,7 +1464,12 @@ def get_audio_trend_scores_api(
 
 @app.get("/api/trends/by-language/{lang}")
 @limiter.limit("60/minute")
-def get_trends_by_language(request: Request, lang: str, current_user: str = Depends(get_current_user)):
+def get_trends_by_language(
+    request: Request, 
+    lang: str, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("unlimited_trends"))
+):
     """Returns trends filtered by specific language code (hi, kn, ta, te, en, ...)."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -1475,7 +1491,12 @@ def get_trends_by_language(request: Request, lang: str, current_user: str = Depe
 
 @app.get("/api/trends/peaking")
 @limiter.limit("60/minute")
-def get_peaking_trends(request: Request, limit: int = 10, current_user: str = Depends(get_current_user)):
+def get_peaking_trends(
+    request: Request, 
+    limit: int = 10, 
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("advanced_analytics"))
+):
     """
     Get trends that are currently peaking based on real metrics
     Uses velocity acceleration, window efficiency, and creator count
@@ -4976,7 +4997,8 @@ def get_content_performance_over_time(
 @limiter.limit("30/minute")
 def get_success_recommendations(
     request: Request,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("advanced_analytics"))
 ):
     """Get personalized success recommendations for a creator."""
     if not CreatorAnalyticsEngine:
@@ -5001,7 +5023,8 @@ def generate_caption(
     trend_name: str,
     tone: str = "casual",
     niche: str = "general",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation"))
 ):
     """Generate an AI caption for a specific trend or topic."""
     if not AIContentGenerator:
@@ -5030,7 +5053,8 @@ def generate_content_ideas(
     request: Request,
     niche: str = "general",
     count: int = 5,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation"))
 ):
     """Generate AI content ideas for a specific niche."""
     if not AIContentGenerator:
@@ -5068,7 +5092,8 @@ def generate_hooks(
     request: Request,
     topic: str,
     count: int = 5,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation"))
 ):
     """Generate AI hook suggestions for a specific topic."""
     if not AIContentGenerator:
@@ -5102,6 +5127,9 @@ def generate_script_outline(
     content_type: str = "reel",
     topic: str = "general",
     duration_seconds: int = 30,
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("ai_generation"))
+):
     current_user: str = Depends(get_current_user)
 ):
     """Generate an AI script outline for content."""
@@ -5128,7 +5156,8 @@ def generate_script_outline(
 def get_regional_trends(
     request: Request,
     region: Optional[str] = None,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("india_features"))
 ):
     """Get trends specific to Indian regions."""
     if not IndiaFeaturesEngine:
@@ -5165,7 +5194,8 @@ def get_regional_trends(
 def get_regional_timing_optimization(
     request: Request,
     region: str = "north",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("india_features"))
 ):
     """Get optimal posting times for a specific Indian region."""
     if not IndiaFeaturesEngine:
@@ -6002,7 +6032,8 @@ def get_cultural_event(
 def analyze_video_metadata(
     request: Request,
     payload: VideoUrlRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("video_analysis"))
 ):
     """
     Analyze video metadata using FFmpeg, falling back to simulated data if not available.
@@ -6060,7 +6091,8 @@ def analyze_video_metadata(
 def analyze_video_visual(
     request: Request,
     payload: VideoUrlRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("video_analysis"))
 ):
     """
     Analyze video visual content using OpenCV, falling back to simulated data if not available.
@@ -6106,7 +6138,8 @@ def analyze_video_visual(
 def predict_video_virality(
     request: Request,
     payload: VideoUrlRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("video_analysis"))
 ):
     """
     Predict video virality combining metadata and visual analysis.
@@ -6172,7 +6205,8 @@ def predict_video_virality(
 def get_video_improvements(
     request: Request,
     payload: VideoUrlRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("video_analysis"))
 ):
     """
     Get improvement suggestions for video virality.

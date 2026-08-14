@@ -4,10 +4,18 @@ Shared dependency for checking user plan access and enforcing feature limits
 """
 import os
 import logging
-from typing import Optional, Dict, List
+from typing import Optional, Dict, List, Callable
 from fastapi import HTTPException, Header, Depends, status
 from dotenv import load_dotenv
 from supabase import create_client, Client
+
+# Import get_current_user for dependency injection
+try:
+    from auth import get_current_user
+except ImportError:
+    # Fallback if auth module not available
+    def get_current_user():
+        return "guest@trendrop.app"
 
 logger = logging.getLogger(__name__)
 
@@ -399,7 +407,12 @@ def require_feature(feature: str):
     Returns:
         Dependency function that can be used in FastAPI endpoints
     """
-    def check_feature_dependency(current_user: str = Depends(lambda: "guest@trendrop.app")):
+    def check_feature_dependency(current_user: str = Depends(get_current_user)):
+        if current_user == "guest@trendrop.app":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
         PlanEnforcement.check_feature_access(current_user, feature)
         return current_user
     
@@ -416,7 +429,12 @@ def require_quota(quota_type: str):
     Returns:
         Dependency function that can be used in FastAPI endpoints
     """
-    def check_quota_dependency(current_user: str = Depends(lambda: "guest@trendrop.app")):
+    def check_quota_dependency(current_user: str = Depends(get_current_user)):
+        if current_user == "guest@trendrop.app":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Authentication required"
+            )
         PlanEnforcement.check_quota_limit(current_user, quota_type)
         return current_user
     
@@ -433,7 +451,10 @@ def log_endpoint_usage(feature: str):
     Returns:
         Dependency function that logs usage after endpoint completes
     """
-    def log_usage_dependency(current_user: str = Depends(lambda: "guest@trendrop.app")):
+    def log_usage_dependency(current_user: str = Depends(get_current_user)):
+        if current_user == "guest@trendrop.app":
+            # Don't log usage for guests
+            return current_user
         PlanEnforcement.log_usage(current_user, feature)
         return current_user
     
