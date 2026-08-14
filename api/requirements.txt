@@ -3,3 +3,9 @@ fastapi
 python-dotenv
 supabase
 pydantic
+requests
+bcrypt
+pyjwt
+slowapi
+psycopg2-binary
+
