@@ -16,6 +16,16 @@ services:
         sync: false
       - key: DEMO_ALLOWLIST
         sync: false
+      - key: CRON_HEARTBEAT_WEBHOOK_URL
+        sync: false
+      - key: CRON_HEARTBEAT_ALERT_EMAIL
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_MOCK_MODE
+        value: "true"
 
   # RQ background worker — consumes reel-generation jobs from Upstash Redis.
   # Without this, every enqueued job hangs in "processing" forever.
@@ -36,5 +46,15 @@ services:
         sync: false
       - key: DEMO_ALLOWLIST
         sync: false
+      - key: CRON_HEARTBEAT_WEBHOOK_URL
+        sync: false
+      - key: CRON_HEARTBEAT_ALERT_EMAIL
+        sync: false
+      - key: WHATSAPP_PHONE_NUMBER_ID
+        sync: false
+      - key: WHATSAPP_ACCESS_TOKEN
+        sync: false
+      - key: WHATSAPP_MOCK_MODE
+        value: "true"
 
 
