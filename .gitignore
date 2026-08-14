@@ -15,6 +15,8 @@ backend/.venv/
 # Logs
 *.log
 backend/*.log
+backend/*.log
+**/*.log
 
 # Media / Uploads / Outputs
 uploads/

@@ -9,6 +9,7 @@ __pycache__
 *.pyc
 *.pyo
 *.log
+**/*.log
 *.mmdb
 *.exe
 *.dll
@@ -20,6 +21,7 @@ node_modules
 dist
 .vercel
 .vercel_build_output
+OmniRoute
 
 # All diagnostic/test files (exclude everything except core production code)
 backend/check_*.py
