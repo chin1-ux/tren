@@ -456,15 +456,11 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     auth_header = request.headers.get("Authorization")
     secret_param = request.query_params.get("secret")
     
-    is_authorized = False
-    if cron_secret:
-        if auth_header == f"Bearer {cron_secret}" or secret_param == cron_secret:
-            is_authorized = True
-    else:
-        # Fallback for local testing or if CRON_SECRET is not configured yet
-        is_authorized = True
+    if not cron_secret:
+        logger.error("CRON_SECRET not configured - cron access blocked")
+        raise HTTPException(status_code=500, detail="Cron configuration error")
         
-    if not is_authorized:
+    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     from cron_job import run_full_pipeline
@@ -483,14 +479,11 @@ async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTa
     auth_header = request.headers.get("Authorization")
     secret_param = request.query_params.get("secret")
 
-    is_authorized = False
-    if cron_secret:
-        if auth_header == f"Bearer {cron_secret}" or secret_param == cron_secret:
-            is_authorized = True
-    else:
-        is_authorized = True
+    if not cron_secret:
+        logger.error("CRON_SECRET not configured - cron access blocked")
+        raise HTTPException(status_code=500, detail="Cron configuration error")
 
-    if not is_authorized:
+    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     def _run_refresh():
@@ -521,8 +514,10 @@ async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTa
 
 
 @app.get("/api/creator/diagnostics", tags=["Creator Tools"])
-async def get_creator_diagnostics(email: str):
+async def get_creator_diagnostics(email: str, current_user: str = Depends(get_current_user)):
     """Endpoint to run flop diagnostics on the user's synced posts."""
+    if email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You can only view your own diagnostics")
     from creator_tools import CreatorTools
     tools = CreatorTools()
     res = tools.run_flop_diagnostics(email)
@@ -532,8 +527,10 @@ async def get_creator_diagnostics(email: str):
 
 
 @app.get("/api/creator/niche-health", tags=["Creator Tools"])
-async def get_creator_niche_health(email: str):
+async def get_creator_niche_health(email: str, current_user: str = Depends(get_current_user)):
     """Endpoint to audit category focus and alignment drift."""
+    if email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: You can only view your own niche health")
     from creator_tools import CreatorTools
     tools = CreatorTools()
     res = tools.run_niche_health_audit(email)
@@ -826,7 +823,7 @@ def start_cron_thread():
         from cron_job import run_full_pipeline
         
         logger.info("Starting background scraper cron thread...")
-        # Wait 60 seconds after startup to let Render complete the health check deployment
+        # Wait 60 seconds on startup before running the first pipeline pass
         time.sleep(60)
         
         logger.info("Running initial background scraper pipeline...")
@@ -924,6 +921,10 @@ class SignupRequest(BaseModel):
 class LoginRequest(BaseModel):
     email: EmailStr
     password: str
+
+
+class ResetPasswordRequest(BaseModel):
+    email: EmailStr
 
 
 class LogoutRequest(BaseModel):
@@ -2027,6 +2028,17 @@ def subscribe(request: Request, req: SubscribeRequest):
 
 # ── Authentication Endpoints ───────────────────────────────────────────────────────
 
+@app.post("/api/auth/reset-password")
+@limiter.limit("5/hour")
+def reset_password(request: Request, req: ResetPasswordRequest):
+    try:
+        frontend_url = os.getenv("FRONTEND_URL", "https://trendrop-black.vercel.app")
+        supabase.auth.reset_password_email(req.email, options={"redirect_to": f"{frontend_url}/update-password"})
+        return {"success": True, "message": "Password reset email sent if account exists"}
+    except Exception as e:
+        logger.error(f"Password reset error: {e}")
+        return {"success": True, "message": "Password reset email sent if account exists"}
+
 @app.post("/api/auth/signup")
 @limiter.limit("5/hour")
 def signup(request: Request, req: SignupRequest):
@@ -2052,24 +2064,25 @@ def signup(request: Request, req: SignupRequest):
         if not auth_res or not auth_res.user:
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
 
-        # Step 2: Send phone verification code
-        if not PhoneVerification:
-            logger.error("PhoneVerification not available - cannot complete signup")
-            raise HTTPException(
-                status_code=503,
-                detail="Phone verification service not configured. Please contact support."
-            )
-        
-        verification_result = PhoneVerification.send_verification_code(req.phone_number)
-        if not verification_result.get('success'):
-            logger.error(f"Failed to send verification code: {verification_result.get('error')}")
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to send verification code: {verification_result.get('error')}"
-            )
-        logger.info(f"Verification code sent to: {req.phone_number}")
+        # Step 2: Send phone verification code (optional — skip if service not configured)
+        phone_verified = False
+        phone_verification_required = False
 
-        # Step 3: Save user metadata to users table (with phone_number, not yet verified)
+        if PhoneVerification:
+            verification_result = PhoneVerification.send_verification_code(req.phone_number)
+            if verification_result.get('success'):
+                logger.info(f"Verification code sent to: {req.phone_number}")
+                phone_verification_required = True
+            else:
+                # Verification send failed — log and skip; don't block signup
+                logger.warning(f"Verification code send failed (non-fatal): {verification_result.get('error')}")
+                phone_verified = True  # Skip verification if service fails
+        else:
+            # PhoneVerification not configured — skip phone verification entirely
+            logger.info("PhoneVerification not configured — skipping phone verification for signup")
+            phone_verified = True
+
+        # Step 3: Save user metadata to users table
         import random
         user_id = f"#{random.randint(1000, 9999)}"
         
@@ -2077,7 +2090,7 @@ def signup(request: Request, req: SignupRequest):
             "email": req.email,
             "user_id": user_id,
             "phone_number": req.phone_number,
-            "phone_verified": False,  # Will be set to True after verification
+            "phone_verified": phone_verified,
             "niche": req.niche,
             "language_preference": req.language,
             "plan": "free",
@@ -2087,15 +2100,15 @@ def signup(request: Request, req: SignupRequest):
 
         response: dict = {
             "success": True,
-            "message": "Account created. Please verify your phone number to complete signup.",
+            "message": "Account created successfully!" if phone_verified else "Account created. Please verify your phone number to complete signup.",
             "user": {
                 "email": req.email,
                 "phone_number": req.phone_number,
-                "phone_verified": False,
+                "phone_verified": phone_verified,
                 "niche": req.niche,
                 "language": req.language
             },
-            "phone_verification_required": True
+            "phone_verification_required": phone_verification_required
         }
 
         return response
@@ -2159,16 +2172,29 @@ def login(request: Request, req: LoginRequest):
         if not auth_res or not auth_res.session:
             raise HTTPException(status_code=401, detail="Invalid email or password")
 
-        # Retrieve user preference metadata
-        niche = "all"
-        language = "en"
+        # ── Locked user check (C2) — must happen BEFORE issuing any token ──────
         try:
-            res = supabase.table("users").select("niche, language_preference").eq("email", req.email).execute()
-            if res.data and len(res.data) > 0:
-                niche = res.data[0].get("niche", "all")
-                language = res.data[0].get("language_preference", "en")
+            status_res = supabase.table("users").select("status, niche, language_preference").eq("email", req.email).limit(1).execute()
+            if status_res.data:
+                row = status_res.data[0]
+                if row.get("status") == "locked":
+                    # Sign back out so the Supabase session is not left open
+                    try:
+                        supabase.auth.sign_out()
+                    except Exception:
+                        pass
+                    raise HTTPException(status_code=403, detail="Account is locked. Contact support.")
+                niche = row.get("niche", "all")
+                language = row.get("language_preference", "en")
+            else:
+                niche = "all"
+                language = "en"
+        except HTTPException:
+            raise
         except Exception as e:
-            logger.warning(f"Failed to fetch user preferences: {e}")
+            logger.warning(f"Failed to fetch user preferences/status: {e}")
+            niche = "all"
+            language = "en"
 
         return {
             "success": True,
@@ -2226,6 +2252,10 @@ def verify(request: Request, req: VerifyRequest):
                 
         if not email or not user:
             return {"success": False, "valid": False, "error": "Invalid session token"}
+        
+        # ── Locked user check (C2) ─────────────────────────────────────────────
+        if user.get("status") == "locked":
+            return {"success": False, "valid": False, "error": "Account is locked. Contact support."}
             
         user_id = user["id"]
         
@@ -2302,7 +2332,6 @@ class PaymentWebhookRequest(BaseModel):
 class SubscriptionWebhookRequest(BaseModel):
     event: str  # subscription.cancelled, subscription.halted, payment.failed
     payload: dict
-    razorpay_signature: str
 
 
 class CancellationReasonRequest(BaseModel):
@@ -2375,6 +2404,17 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
         raise HTTPException(status_code=500, detail="Database not configured.")
 
     try:
+        # ── C5 Fix: Prevent Replay Attacks (Enforce payment uniqueness) ────────
+        existing_res = supabase.table("users").select("email").eq("razorpay_payment_id", req.razorpay_payment_id).limit(1).execute()
+        if existing_res.data:
+            existing_email = existing_res.data[0].get("email")
+            if existing_email != req.email:
+                logger.warning(f"Replay attack: payment {req.razorpay_payment_id} already claimed by {existing_email}")
+                raise HTTPException(status_code=400, detail="Payment has already been processed for another account.")
+            # If same email, it's an idempotent retry (network flake) — allow it to fall through or return directly
+            return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
+            
+        # If not seen before, claim it
         supabase.table("users").upsert(
             {
                 "email": req.email,
@@ -2386,6 +2426,8 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
         ).execute()
         logger.info(f"Plan upgraded to pro for {req.email} | payment {req.razorpay_payment_id}")
         return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
+    except HTTPException:
+        raise  # replay rejection and other explicit 4xx/5xx must propagate
     except Exception as e:
         logger.error(f"Plan upgrade DB write failed for {req.email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Payment verified but plan upgrade failed. Contact support.")
@@ -2393,7 +2435,7 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
 
 @app.post("/api/payment/subscription-webhook")
 @limiter.limit("20/minute")
-def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
+async def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
     """
     Handle Razorpay subscription lifecycle events:
     - subscription.cancelled: User cancelled subscription
@@ -2406,20 +2448,25 @@ def subscription_webhook(request: Request, req: SubscriptionWebhookRequest):
         raise HTTPException(status_code=503, detail="Payment gateway not configured.")
 
     # ── Signature verification (HMAC-SHA256) ───────────────────────────────────
-    # Razorpay uses webhook secret for signature verification
     webhook_secret = os.getenv("RAZORPAY_WEBHOOK_SECRET")
     if not webhook_secret:
-        logger.warning("RAZORPAY_WEBHOOK_SECRET not set, skipping signature verification")
-    else:
-        expected_sig = hmac.new(
-            webhook_secret.encode("utf-8"),
-            json.dumps(req.payload).encode("utf-8"),
-            hashlib.sha256
-        ).hexdigest()
-        
-        if not hmac.compare_digest(expected_sig, req.razorpay_signature):
-            logger.warning(f"Invalid Razorpay webhook signature for event {req.event}")
-            raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
+        logger.error("RAZORPAY_WEBHOOK_SECRET not set, rejecting webhook")
+        raise HTTPException(status_code=500, detail="Webhook configuration error.")
+
+    raw_body = await request.body()
+    expected_sig = hmac.new(
+        webhook_secret.encode("utf-8"),
+        raw_body,
+        hashlib.sha256
+    ).hexdigest()
+    
+    razorpay_signature = request.headers.get("x-razorpay-signature")
+    if not razorpay_signature:
+        raise HTTPException(status_code=400, detail="Missing X-Razorpay-Signature header.")
+    
+    if not hmac.compare_digest(expected_sig, razorpay_signature):
+        logger.warning(f"Invalid Razorpay webhook signature for event {req.event}")
+        raise HTTPException(status_code=400, detail="Webhook signature verification failed.")
 
     # ── Process subscription events ─────────────────────────────────────────────
     if not supabase:
@@ -4449,10 +4496,7 @@ def log_analytics_event(
         raise HTTPException(status_code=500, detail="Failed to log analytics event")
 
 @app.get("/api/admin/analytics-summary")
-def get_analytics_summary(current_user_email: str = Depends(get_current_user)):
-    if current_user_email not in ["chinmay.feb03@gmail.com"]:
-        raise HTTPException(status_code=403, detail="Forbidden: Admin access only")
-        
+def get_analytics_summary(admin_info: dict = Depends(require_admin)):
     try:
         res = supabase.table("analytics_events").select("event_name").execute()
         events = res.data or []
@@ -5282,32 +5326,6 @@ class AdminChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
-@app.get("/api/admin/debug")
-def admin_debug():
-    """Debug endpoint to check auth system status."""
-    try:
-        debug_info = {
-            "supabase_available": supabase is not None,
-            "supabase_url_set": bool(SUPABASE_URL),
-            "supabase_key_set": bool(SUPABASE_KEY),
-            "admin_user_lookup": "test"
-        }
-        
-        # Try to fetch admin user
-        if supabase:
-            try:
-                admin_user = get_admin_user_by_email("chinmay.feb03@gmail.com")
-                debug_info["admin_user_found"] = admin_user is not None
-                if admin_user:
-                    debug_info["admin_email"] = admin_user.get("email")
-                    debug_info["admin_role"] = admin_user.get("role")
-                    debug_info["password_hash_prefix"] = admin_user.get("password_hash", "")[:10] + "..."
-            except Exception as e:
-                debug_info["admin_lookup_error"] = str(e)
-        
-        return debug_info
-    except Exception as e:
-        return {"error": str(e), "supabase_available": supabase is not None}
 
 @app.post("/api/admin/login")
 @limiter.limit("5/minute")

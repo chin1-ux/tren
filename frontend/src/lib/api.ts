@@ -1073,6 +1073,14 @@ export async function fetchTrendDecision(trendId: string, creatorNiche?: string,
   return http<ApiTrendDecision>(`/api/trends/${encodeURIComponent(trendId)}/decision${qs}`);
 }
 
+export async function resetPassword(email: string): Promise<{ success: boolean; message: string }> {
+  return http<{ success: boolean; message: string }>("/api/auth/reset-password", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email }),
+  });
+}
+
 // ── Reel generation ────────────────────────────────────────────────────────────
 
 export interface GenerateResponse { job_id: string }

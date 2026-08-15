@@ -170,11 +170,13 @@ function RootComponent() {
     registerPWA();
   }, []);
 
+  const isAdminRoute = currentPath.startsWith("/admin");
+
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthWrapper>
-          <div className="mx-auto flex min-h-screen w-full max-w-md flex-col bg-background pb-24 overflow-x-hidden relative">
+          <div className={`mx-auto flex min-h-screen w-full flex-col bg-background overflow-x-hidden relative ${isAdminRoute ? "" : "max-w-md pb-24"}`}>
 
             <AnimatePresence mode="wait">
               <motion.div
