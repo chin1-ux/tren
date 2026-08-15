@@ -26,10 +26,25 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 else:
     supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
+def _check_user_locked(email: str) -> None:
+    """Raise 403 immediately if the user's status is 'locked'."""
+    try:
+        res = supabase.table("users").select("status").eq("email", email).limit(1).execute()
+        if res.data and res.data[0].get("status") == "locked":
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Account is locked. Contact support."
+            )
+    except HTTPException:
+        raise
+    except Exception:
+        pass  # If we can't check, don't block — but log it
+
 def get_current_user(authorization: str = Header(None)) -> str:
     """
     Validate the Supabase JWT or custom auth_token in the Authorization header.
     Returns the user's email if valid. Falls back to guest@trendrop.app if invalid or missing.
+    Raises 403 if the resolved account has status == 'locked'.
     """
     if not supabase:
         return "guest@trendrop.app"
@@ -43,9 +58,17 @@ def get_current_user(authorization: str = Header(None)) -> str:
     
     # 1. Try custom auth_token check first
     try:
-        res = supabase.table("users").select("email").eq("auth_token", token).limit(1).execute()
+        res = supabase.table("users").select("email, status").eq("auth_token", token).limit(1).execute()
         if res.data and len(res.data) > 0:
-            return res.data[0]["email"]
+            row = res.data[0]
+            if row.get("status") == "locked":
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail="Account is locked. Contact support."
+                )
+            return row["email"]
+    except HTTPException:
+        raise
     except Exception:
         pass
 
@@ -55,8 +78,11 @@ def get_current_user(authorization: str = Header(None)) -> str:
         if user_res and user_res.user:
             email = user_res.user.email
             if email:
+                _check_user_locked(email)
                 return email
-    except Exception as e:
+    except HTTPException:
+        raise
+    except Exception:
         pass
 
     # 3. Try custom JWT verification (for admin tokens)
@@ -68,6 +94,7 @@ def get_current_user(authorization: str = Header(None)) -> str:
         pass
 
     return "guest@trendrop.app"
+
 
 def hash_password(password: str) -> str:
     """Generate bcrypt hash for password."""

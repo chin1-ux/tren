@@ -459,7 +459,7 @@ class PlanEnforcement:
             print(f"Error logging usage: {e}")
 
 
-def require_phone_verified(current_user: str = Depends(lambda: "guest@trendrop.app")) -> str:
+def require_phone_verified(current_user: str = Depends(get_current_user)) -> str:
     """
     Dependency to require phone verification for gated features
     
