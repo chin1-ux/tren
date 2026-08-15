@@ -145,7 +145,16 @@ def verify_database_schema(sb):
         raise RuntimeError(error_msg)
 
 
-def run_full_pipeline():
+def run_full_pipeline(stages: list = None):
+    """Run the full trend pipeline, or only the requested stages.
+
+    stages=None runs everything (backwards-compatible with the local
+    scheduler). Stage names: schema, scrape, backfill, detect, refresh,
+    snapshots, alerts.
+    """
+    def _stage(name: str) -> bool:
+        return stages is None or name in stages
+
     start = datetime.now(timezone.utc)
     run_state = {
         "stage": "initializing",
@@ -173,32 +182,34 @@ def run_full_pipeline():
     logging.info(f"Selected scraper mode for this run: {scrape_mode} (cron run count={run_count})")
 
     # 0. Schema Validation
-    try:
-        run_state["stage"] = "schema_validation"
-        sb = _get_supabase()
-        verify_database_schema(sb)
-    except Exception as e:
-        run_state["stage"] = "schema_validation_failed"
-        run_state["cutoff_reason"] = f"schema validation failed: {e}"
-        logging.critical(f"Pipeline startup aborted due to schema mismatch: {e}")
-        raise e
+    if _stage("schema"):
+        try:
+            run_state["stage"] = "schema_validation"
+            sb = _get_supabase()
+            verify_database_schema(sb)
+        except Exception as e:
+            run_state["stage"] = "schema_validation_failed"
+            run_state["cutoff_reason"] = f"schema validation failed: {e}"
+            logging.critical(f"Pipeline startup aborted due to schema mismatch: {e}")
+            raise e
 
     # 1. Instagram Scraper
     new_reels_count = 0
-    try:
-        run_state["stage"] = "instagram_scrape"
-        logging.info("Step 1/5: Scraping Instagram trending reels...")
-        insta = InstagramScraper()
-        new_reels_count = insta.scrape_trending_reels()
-        reels_scraped = new_reels_count
-        scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}
-        reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
-        uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
-        logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
-    except Exception as e:
-        run_state["stage"] = "instagram_scrape_failed"
-        run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
-        logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
+    if _stage("scrape"):
+        try:
+            run_state["stage"] = "instagram_scrape"
+            logging.info("Step 1/5: Scraping Instagram trending reels...")
+            insta = InstagramScraper()
+            new_reels_count = insta.scrape_trending_reels()
+            reels_scraped = new_reels_count
+            scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}
+            reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
+            uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
+            logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
+        except Exception as e:
+            run_state["stage"] = "instagram_scrape_failed"
+            run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
+            logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
     # 2. YouTube Scraper (Bypassed)
     logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
@@ -206,173 +217,179 @@ def run_full_pipeline():
     # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
     audio_backfill_filled = 0
     audio_backfill_unrecoverable = 0
-    try:
-        run_state["stage"] = "audio_backfill"
-        sb = _get_supabase()
-        backfill_res = sb.table("reels") \
-            .select("reel_id, video_url, owner_username, audio_backfill_attempts") \
-            .eq("audio_backfill_status", "needs_audio_backfill") \
-            .lt("audio_backfill_attempts", 3) \
-            .limit(30) \
-            .execute()
-        backfill_reels = backfill_res.data or []
-        if backfill_reels:
-            logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
-            for r in backfill_reels:
-                rid = r["reel_id"]
-                attempts = (r.get("audio_backfill_attempts") or 0) + 1
-                # Re-fetch the reel's audio via Instagram shortcode endpoint
-                recovered = False
-                try:
-                    import requests
-                    resp = requests.get(
-                        f"https://www.instagram.com/p/{rid}/?__a=1&__d=dis",
-                        headers={"User-Agent": "Mozilla/5.0"},
-                        timeout=6,
-                    )
-                    if resp.ok:
-                        data = resp.json()
-                        item = (
-                            data.get("graphql", {}).get("shortcode_media")
-                            or data.get("items", [{}])[0]
+    if _stage("backfill"):
+        try:
+            run_state["stage"] = "audio_backfill"
+            sb = _get_supabase()
+            backfill_res = sb.table("reels") \
+                .select("reel_id, video_url, owner_username, audio_backfill_attempts") \
+                .eq("audio_backfill_status", "needs_audio_backfill") \
+                .lt("audio_backfill_attempts", 3) \
+                .limit(30) \
+                .execute()
+            backfill_reels = backfill_res.data or []
+            if backfill_reels:
+                logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
+                for r in backfill_reels:
+                    rid = r["reel_id"]
+                    attempts = (r.get("audio_backfill_attempts") or 0) + 1
+                    # Re-fetch the reel's audio via Instagram shortcode endpoint
+                    recovered = False
+                    try:
+                        import requests
+                        resp = requests.get(
+                            f"https://www.instagram.com/p/{rid}/?__a=1&__d=dis",
+                            headers={"User-Agent": "Mozilla/5.0"},
+                            timeout=6,
                         )
-                        clips_metadata = item.get("clips_metadata", {}) or {}
-                        audio_info = clips_metadata.get("original_sound_info") or clips_metadata.get("music_info", {}) or {}
-                        music = audio_info.get("music_asset_info") or audio_info
-                        new_title = music.get("title") or music.get("display_artist")
-                        new_audio_id = str(music.get("audio_cluster_id") or music.get("id") or "")
-                        if new_title or new_audio_id:
-                            sb.table("reels").update({
-                                "audio_title": new_title,
-                                "audio_id": new_audio_id or None,
-                                "audio_backfill_status": "backfilled",
-                                "audio_backfill_attempts": attempts,
-                            }).eq("reel_id", rid).execute()
-                            audio_backfill_filled += 1
-                            recovered = True
-                            logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}'")
-                except Exception as bf_err:
-                    logging.debug(f"Audio backfill fetch failed for reel={rid}: {bf_err}")
+                        if resp.ok:
+                            data = resp.json()
+                            item = (
+                                data.get("graphql", {}).get("shortcode_media")
+                                or data.get("items", [{}])[0]
+                            )
+                            clips_metadata = item.get("clips_metadata", {}) or {}
+                            audio_info = clips_metadata.get("original_sound_info") or clips_metadata.get("music_info", {}) or {}
+                            music = audio_info.get("music_asset_info") or audio_info
+                            new_title = music.get("title") or music.get("display_artist")
+                            new_audio_id = str(music.get("audio_cluster_id") or music.get("id") or "")
+                            if new_title or new_audio_id:
+                                sb.table("reels").update({
+                                    "audio_title": new_title,
+                                    "audio_id": new_audio_id or None,
+                                    "audio_backfill_status": "backfilled",
+                                    "audio_backfill_attempts": attempts,
+                                }).eq("reel_id", rid).execute()
+                                audio_backfill_filled += 1
+                                recovered = True
+                                logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}'")
+                    except Exception as bf_err:
+                        logging.debug(f"Audio backfill fetch failed for reel={rid}: {bf_err}")
 
-                if not recovered:
-                    new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
-                    sb.table("reels").update({
-                        "audio_backfill_status": new_status,
-                        "audio_backfill_attempts": attempts,
-                    }).eq("reel_id", rid).execute()
-                    if new_status == "unrecoverable":
-                        audio_backfill_unrecoverable += 1
-                        logging.info(f"Audio backfill UNRECOVERABLE after {attempts} attempts: reel={rid}")
-            logging.info(
-                f"Step 2b: Audio backfill done. "
-                f"filled={audio_backfill_filled} unrecoverable={audio_backfill_unrecoverable} "
-                f"still_pending={len(backfill_reels)-audio_backfill_filled-audio_backfill_unrecoverable}"
-            )
-        else:
-            logging.info("Step 2b: No reels in audio_backfill queue.")
-    except Exception as bf_step_err:
-        logging.warning(f"Step 2b audio backfill failed: {bf_step_err}")
+                    if not recovered:
+                        new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
+                        sb.table("reels").update({
+                            "audio_backfill_status": new_status,
+                            "audio_backfill_attempts": attempts,
+                        }).eq("reel_id", rid).execute()
+                        if new_status == "unrecoverable":
+                            audio_backfill_unrecoverable += 1
+                            logging.info(f"Audio backfill UNRECOVERABLE after {attempts} attempts: reel={rid}")
+                logging.info(
+                    f"Step 2b: Audio backfill done. "
+                    f"filled={audio_backfill_filled} unrecoverable={audio_backfill_unrecoverable} "
+                    f"still_pending={len(backfill_reels)-audio_backfill_filled-audio_backfill_unrecoverable}"
+                )
+            else:
+                logging.info("Step 2b: No reels in audio_backfill queue.")
+        except Exception as bf_step_err:
+            logging.warning(f"Step 2b audio backfill failed: {bf_step_err}")
 
     # 3. Trend Engine: detect new trends
     trend_ids = []
     trend_detection_skipped = False
     TREND_DETECTION_THRESHOLD = 10  # Skip trend detection if insufficient new data
-    
-    if new_reels_count >= TREND_DETECTION_THRESHOLD:
-        # Data-quality warning: check proportion of null audio titles in recent scrape
-        try:
-            sb = _get_supabase()
-            from datetime import timedelta
-            recent_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
-            recent_reels = sb.table("reels").select("audio_title").gte("scraped_at", recent_time).execute().data or []
-            if recent_reels:
-                null_titles = sum(1 for r in recent_reels if not r.get("audio_title"))
-                pct_null = null_titles / len(recent_reels)
-                if pct_null > 0.5:
-                    logging.warning(
-                        f"DATA QUALITY WARNING: {pct_null*100:.1f}% of reels ({null_titles}/{len(recent_reels)}) "
-                        f"scraped in the last 30 minutes have a NULL audio_title. "
-                        f"This suggests a potential scraper parsing failure."
-                    )
-        except Exception as dq_err:
-            logging.warning(f"Failed to perform data-quality check: {dq_err}")
-    else:
-        trend_detection_skipped = True
-        logging.warning(
-            f"TREND DETECTION SKIPPED: Only {new_reels_count} new reels scraped "
-            f"(below threshold {TREND_DETECTION_THRESHOLD}). "
-            f"This may indicate scraper degradation or Instagram rate limiting. "
-            f"Consecutive skips will be tracked in cron_runs table."
-        )
-        
-        # Check consecutive skips and alert if pattern detected
-        try:
-            sb = _get_supabase()
-            recent_runs = sb.table("cron_runs") \
-                .select("trend_detection_skipped") \
-                .order("run_at", desc=True) \
-                .limit(5) \
-                .execute()
-            
-            consecutive_skips = 0
-            for run in (recent_runs.data or []):
-                if run.get("trend_detection_skipped"):
-                    consecutive_skips += 1
-                else:
-                    break
-            
-            if consecutive_skips >= 3:
-                logging.error(
-                    f"ALERT: Trend detection has been skipped for {consecutive_skips} consecutive runs "
-                    f"({consecutive_skips * 8}+ hours with no new trend discovery). "
-                    f"This may indicate persistent scraper issues requiring investigation."
-                )
-        except Exception as skip_check_err:
-            logging.warning(f"Failed to check consecutive skip pattern: {skip_check_err}")
 
-    if not trend_detection_skipped:
-        try:
-            run_state["stage"] = "trend_engine"
-            logging.info("Step 3/5: Running TrendEngine to detect new trends...")
-            engine = TrendEngine()
+    if _stage("detect"):
+        if new_reels_count >= TREND_DETECTION_THRESHOLD:
+            # Data-quality warning: check proportion of null audio titles in recent scrape
+            try:
+                sb = _get_supabase()
+                from datetime import timedelta
+                recent_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+                recent_reels = sb.table("reels").select("audio_title").gte("scraped_at", recent_time).execute().data or []
+                if recent_reels:
+                    null_titles = sum(1 for r in recent_reels if not r.get("audio_title"))
+                    pct_null = null_titles / len(recent_reels)
+                    if pct_null > 0.5:
+                        logging.warning(
+                            f"DATA QUALITY WARNING: {pct_null*100:.1f}% of reels ({null_titles}/{len(recent_reels)}) "
+                            f"scraped in the last 30 minutes have a NULL audio_title. "
+                            f"This suggests a potential scraper parsing failure."
+                        )
+            except Exception as dq_err:
+                logging.warning(f"Failed to perform data-quality check: {dq_err}")
+        else:
+            trend_detection_skipped = True
+            logging.warning(
+                f"TREND DETECTION SKIPPED: Only {new_reels_count} new reels scraped "
+                f"(below threshold {TREND_DETECTION_THRESHOLD}). "
+                f"This may indicate scraper degradation or Instagram rate limiting. "
+                f"Consecutive skips will be tracked in cron_runs table."
+            )
             
-            trend_ids = engine.detect_trends()
-            classification_success = int(engine.last_run_stats.get("classification_success", 0) or 0)
-            classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
-            logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
-        except Exception as e:
-            run_state["stage"] = "trend_engine_failed"
-            run_state["cutoff_reason"] = f"trend engine failed: {e}"
-            logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
+            # Check consecutive skips and alert if pattern detected
+            try:
+                sb = _get_supabase()
+                recent_runs = sb.table("cron_runs") \
+                    .select("trend_detection_skipped") \
+                    .order("run_at", desc=True) \
+                    .limit(5) \
+                    .execute()
+                
+                consecutive_skips = 0
+                for run in (recent_runs.data or []):
+                    if run.get("trend_detection_skipped"):
+                        consecutive_skips += 1
+                    else:
+                        break
+                
+                if consecutive_skips >= 3:
+                    logging.error(
+                        f"ALERT: Trend detection has been skipped for {consecutive_skips} consecutive runs "
+                        f"({consecutive_skips * 8}+ hours with no new trend discovery). "
+                        f"This may indicate persistent scraper issues requiring investigation."
+                    )
+            except Exception as skip_check_err:
+                logging.warning(f"Failed to check consecutive skip pattern: {skip_check_err}")
+
+        if not trend_detection_skipped:
+            try:
+                run_state["stage"] = "trend_engine"
+                logging.info("Step 3/5: Running TrendEngine to detect new trends...")
+                engine = TrendEngine()
+                
+                trend_ids = engine.detect_trends()
+                classification_success = int(engine.last_run_stats.get("classification_success", 0) or 0)
+                classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
+                logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
+            except Exception as e:
+                run_state["stage"] = "trend_engine_failed"
+                run_state["cutoff_reason"] = f"trend engine failed: {e}"
+                logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
 
     # 4. Trend Refresher: update lifecycle of existing trends
-    try:
-        run_state["stage"] = "trend_refresher"
-        logging.info("Step 4/5: Running TrendRefresher to update trend statuses...")
-        refresher = TrendRefresher()
-        refresh_summary = refresher.refresh_all()
-        logging.info(f"Step 4/5: Refresh complete: {refresh_summary}")
-    except Exception as e:
-        run_state["stage"] = "trend_refresher_failed"
-        run_state["cutoff_reason"] = f"trend refresher failed: {e}"
-        logging.error(f"Step 4/5 FAILED (TrendRefresher): {e}", exc_info=True)
+    if _stage("refresh"):
+        try:
+            run_state["stage"] = "trend_refresher"
+            logging.info("Step 4/5: Running TrendRefresher to update trend statuses...")
+            refresher = TrendRefresher()
+            refresh_summary = refresher.refresh_all()
+            logging.info(f"Step 4/5: Refresh complete: {refresh_summary}")
+        except Exception as e:
+            run_state["stage"] = "trend_refresher_failed"
+            run_state["cutoff_reason"] = f"trend refresher failed: {e}"
+            logging.error(f"Step 4/5 FAILED (TrendRefresher): {e}", exc_info=True)
+    else:
+        refresher = None
 
     # Append one snapshot per trend for this pipeline run so velocity persistence
     # can be evaluated against real historical data on future runs.
-    try:
-        run_state["stage"] = "snapshot_write"
-        sb = _get_supabase()
-        snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
-        if snapshot_rows:
-            sb.table("trend_snapshots").insert(snapshot_rows).execute()
-            logging.info(f"Step 4/5: Recorded {len(snapshot_rows)} trend snapshot rows.")
-        else:
-            logging.info("Step 4/5: No trend snapshot rows to record.")
-    except Exception as e:
-        logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
+    if _stage("snapshots") and refresher is not None:
+        try:
+            run_state["stage"] = "snapshot_write"
+            sb = _get_supabase()
+            snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
+            if snapshot_rows:
+                sb.table("trend_snapshots").insert(snapshot_rows).execute()
+                logging.info(f"Step 4/5: Recorded {len(snapshot_rows)} trend snapshot rows.")
+            else:
+                logging.info("Step 4/5: No trend snapshot rows to record.")
+        except Exception as e:
+            logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
 
     # 5. Alert System: notify users of new rising trends
-    if trend_ids:
+    if _stage("alerts") and trend_ids:
         try:
             run_state["stage"] = "alerts"
             logging.info(f"Step 5/5: Sending alerts for {len(trend_ids)} new trend(s)...")

@@ -1,5 +1,6 @@
 import os
 import sys
+import argparse
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
@@ -22,13 +23,22 @@ def get_counts():
     return reels_cnt, trends_cnt
 
 def main():
+    parser = argparse.ArgumentParser(description='Run the Trendrop trend pipeline (or a subset of stages).')
+    parser.add_argument(
+        '--stages', default=None,
+        help='Comma-separated stage subset to run. Default runs all stages. '
+             'Valid: schema,scrape,backfill,detect,refresh,snapshots,alerts'
+    )
+    args = parser.parse_args()
+
+    stages = args.stages.split(',') if args.stages else None
     before_reels, before_trends = get_counts()
     print(f'Before run - reels: {before_reels}, trends: {before_trends}')
-    # Run the full pipeline (same as cron job)
+    # Run the full pipeline (same as cron job) or the requested stage subset
     sys.path.append(os.path.dirname(os.path.abspath(__file__)))
     from cron_job import run_full_pipeline
     try:
-        run_full_pipeline()
+        run_full_pipeline(stages=stages)
     except Exception as e:
         print(f'Pipeline execution failed: {e}', file=sys.stderr)
         sys.exit(1)

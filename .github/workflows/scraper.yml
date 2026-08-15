@@ -1,4 +1,4 @@
-name: Run Scraper & Trend Pipeline
+name: Scraper & Trend Discovery
 
 on:
   schedule:
@@ -13,7 +13,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -108,7 +108,7 @@ jobs:
           INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
           INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
         run: |
-          python backend/manual_run_and_check.py
+          python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Verify scraper run
