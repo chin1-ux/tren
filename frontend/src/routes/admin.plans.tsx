@@ -1,23 +1,20 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { getAdminPlanFeatures, createAdminPlanFeature } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { Shield, ArrowLeft, Plus, Save, X, DollarSign, CheckCircle } from "lucide-react";
+import { Shield, ShieldAlert, Crown, ArrowLeft, Plus, Save, X, DollarSign, CheckCircle } from "lucide-react";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/admin/plans")({
-  beforeLoad: async ({ location }) => {
-    // beforeLoad runs server-side in SSR — localStorage only exists in the browser
+  beforeLoad: async () => {
     if (typeof window === "undefined") {
-      throw new Error("No admin token found");
+      throw redirect({ to: "/admin/login" });
     }
     const token = localStorage.getItem("admin_token");
     if (!token) {
-      throw new Error("No admin token found");
+      throw redirect({ to: "/admin/login" });
     }
-    
-    // Validate token with backend
     try {
       const response = await fetch("/api/admin/validate-token", {
         method: "POST",
@@ -26,15 +23,20 @@ export const Route = createFileRoute("/admin/plans")({
           "Authorization": `Bearer ${token}`,
         },
       });
-      
       if (!response.ok) {
-        throw new Error("Invalid token");
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_email");
+        localStorage.removeItem("admin_role");
+        throw redirect({ to: "/admin/login" });
       }
-    } catch (err) {
-      localStorage.removeItem("admin_token");
-      localStorage.removeItem("admin_email");
-      localStorage.removeItem("admin_role");
-      throw new Error("Authentication required");
+    } catch (err: any) {
+      if (!err?.isRedirect) {
+        localStorage.removeItem("admin_token");
+        localStorage.removeItem("admin_email");
+        localStorage.removeItem("admin_role");
+        throw redirect({ to: "/admin/login" });
+      }
+      throw err;
     }
   },
   head: () => ({
@@ -43,11 +45,6 @@ export const Route = createFileRoute("/admin/plans")({
     ],
   }),
   component: AdminPlansPage,
-  onError: (error) => {
-    if (error.message === "Authentication required" || error.message === "No admin token found") {
-      return { redirect: "/admin/login" };
-    }
-  },
 });
 
 function AdminPlansPage() {

@@ -69,7 +69,13 @@ class TrendRefresher:
             logger.error(f"Failed to fetch trends: {e}", exc_info=True)
             return summary
 
-        for trend in trends:
+        import concurrent.futures
+        import threading
+        
+        summary_lock = threading.Lock()
+        
+        def process_trend(trend):
+            local_summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0, "audio_page_count_refreshed": 0}
             try:
                 trend_id = trend["id"]
                 audio_title = trend.get("audio_title", "?")
@@ -81,13 +87,13 @@ class TrendRefresher:
 
                 # Always refresh audio use count first, regardless of status
                 if self._refresh_audio_use_count(trend):
-                    summary["audio_use_count_refreshed"] += 1
+                    local_summary["audio_use_count_refreshed"] += 1
 
                 # Refresh official Instagram audio page count every other run (rate limit safe)
                 audio_id = trend.get("audio_id")
                 if audio_id and current_status in ["emerging", "rising"]:
                     if self._refresh_audio_page_count(trend_id, audio_id):
-                        summary["audio_page_count_refreshed"] += 1
+                        local_summary["audio_page_count_refreshed"] += 1
 
                 # Refresh peaking score for active trends
                 if current_status in ["emerging", "rising"]:
@@ -95,7 +101,7 @@ class TrendRefresher:
 
                 # Only run state transitions and velocity calculations for active status
                 if current_status not in ["emerging", "rising"]:
-                    continue
+                    return local_summary
 
                 if created_at_str:
                     if created_at_str.endswith("Z"):
@@ -130,8 +136,8 @@ class TrendRefresher:
                         "promotion_reason": trend.get("promotion_reason"),
                     })
                     logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
-                    summary["expired"] += 1
-                    continue
+                    local_summary["expired"] += 1
+                    return local_summary
 
                 live_velocity = self._calc_live_velocity(
                     trend.get("audio_title"), trend.get("audio_artist"), now
@@ -166,8 +172,8 @@ class TrendRefresher:
                         "promotion_reason": trend.get("promotion_reason"),
                     })
                     logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
-                    summary["peaked"] += 1
-                    continue
+                    local_summary["peaked"] += 1
+                    return local_summary
 
                 if current_status == "emerging":
                     creator_count = self._count_unique_creators(
@@ -208,7 +214,7 @@ class TrendRefresher:
                             f"velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, "
                             f"snapshot_check={snapshot_reason})"
                         )
-                        summary["risen"] += 1
+                        local_summary["risen"] += 1
                     else:
                         self._update_status(trend_id, "emerging", {
                             "window_hours_remaining": new_window,
@@ -217,7 +223,7 @@ class TrendRefresher:
                             "high_confidence": high_confidence,
                             "promotion_reason": trend.get("promotion_reason"),
                         })
-                        summary["emerged"] += 1
+                        local_summary["emerged"] += 1
                 else:
                     creator_count = self._count_unique_creators(
                         trend.get("audio_title"), trend.get("audio_artist"), now
@@ -238,11 +244,18 @@ class TrendRefresher:
                         "high_confidence": creator_count >= 5,
                         "promotion_reason": promotion_reason,
                     })
-
-
+                    
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
-                summary["errors"] += 1
+                local_summary["errors"] += 1
+                
+            return local_summary
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            for local_summary in executor.map(process_trend, trends):
+                with summary_lock:
+                    for k, v in local_summary.items():
+                        summary[k] += v
 
         logger.info(f"=== TrendRefresher done: {summary} ===")
         return summary
@@ -485,16 +498,22 @@ class TrendRefresher:
             trends = query.execute().data or []
             rows = []
             now_iso = (captured_at or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
-            for trend in trends:
+            
+            def process_snapshot(trend):
                 creator_count = self._count_unique_creators(
                     trend.get("audio_title"), trend.get("audio_artist"), datetime.now(timezone.utc)
                 )
-                rows.append({
+                return {
                     "trend_id": trend["id"],
                     "velocity_avg": trend.get("velocity_avg"),
                     "creator_count": creator_count,
                     "captured_at": now_iso,
-                })
+                }
+            
+            import concurrent.futures
+            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+                rows = list(executor.map(process_snapshot, trends))
+                
             return rows
         except Exception as e:
             logger.warning(f"Could not build trend snapshot rows: {e}")
