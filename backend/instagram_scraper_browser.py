@@ -234,10 +234,9 @@ class InstagramScraper:
                 "travelreels", "beautyreels", "artreels"
             ],
             "GLOBAL_DISCOVERY": [
-                "trending", "viral", "reels", "fyp",
-                "explore", "instareels", "viralreels", "reelsviral",
-                "tiktok", "aesthetic", "music", "travel",
-                "fashion", "beauty", "art"
+                "music", "trendingaudio", "trendingsong", "viralsong", "musictrend",
+                "viralmusic", "reelsound", "dancechallenge", "popmusic", "hiphopreels",
+                "edmmusic", "kpopreels", "viral", "trending"
             ]
         }
 
@@ -1263,7 +1262,12 @@ Return ONLY valid JSON, no markdown, no explanation:
                         
                         # Calculate velocity
                         engagement = (view * 1.0) + (likes * 3.0) + (comments * 5.0)
-                        normalized_followers = math.log(followers + 10)
+                        
+                        # Fallback for missing/0 follower count from Instagram API to prevent math explosion.
+                        # The true median for tracked creators is ~2500, so we use that as a safe floor.
+                        effective_followers = followers if followers > 0 else 2500
+                        
+                        normalized_followers = math.log(effective_followers + 10)
                         velocity = (engagement / hours_live / normalized_followers) * 100
                         
                         # Filter low-engagement
