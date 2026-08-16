@@ -56,7 +56,17 @@ class TrendRefresher:
         """
         logger.info("=== TrendRefresher starting refresh_all ===")
         now = datetime.now(timezone.utc)
-        summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0, "audio_page_count_refreshed": 0}
+        summary = {
+            "total_processed": 0,
+            "emerged": 0,
+            "risen": 0,
+            "peaked": 0,
+            "expired": 0,
+            "errors": 0,
+            "audio_use_count_refreshed": 0,
+            "audio_page_count_refreshed": 0,
+            "throttled": 0,
+        }
         rising_baseline = self._get_rising_baseline()
 
         try:
@@ -75,7 +85,7 @@ class TrendRefresher:
         summary_lock = threading.Lock()
         
         def process_trend(trend):
-            local_summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0, "audio_page_count_refreshed": 0}
+            local_summary = {"emerged": 0, "risen": 0, "peaked": 0, "expired": 0, "errors": 0, "audio_use_count_refreshed": 0, "audio_page_count_refreshed": 0, "throttled": 0}
             try:
                 trend_id = trend["id"]
                 audio_title = trend.get("audio_title", "?")
@@ -92,7 +102,10 @@ class TrendRefresher:
                 # Refresh official Instagram audio page count every other run (rate limit safe)
                 audio_id = trend.get("audio_id")
                 if audio_id and current_status in ["emerging", "rising"]:
-                    if self._refresh_audio_page_count(trend_id, audio_id):
+                    refresh_result = self._refresh_audio_page_count(trend_id, audio_id)
+                    if refresh_result == "THROTTLED":
+                        local_summary["throttled"] += 1
+                    elif refresh_result is True:
                         local_summary["audio_page_count_refreshed"] += 1
 
                 # Refresh peaking score for active trends
@@ -251,7 +264,7 @@ class TrendRefresher:
                 
             return local_summary
 
-        with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
             for local_summary in executor.map(process_trend, trends):
                 with summary_lock:
                     for k, v in local_summary.items():
@@ -313,7 +326,12 @@ class TrendRefresher:
         """
         import re as _re
         import requests as _requests
+        import time
+        import random
         try:
+            # Random sleep to avoid simultaneous connection rate limits
+            time.sleep(random.uniform(1.0, 3.0))
+            
             url = f"https://www.instagram.com/reels/audio/{audio_id}/"
             headers = {
                 "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
@@ -328,6 +346,9 @@ class TrendRefresher:
             # Extract count from text like "1.2M reels" / "45.2K reels" / "520 reels"
             match = _re.search(r'([\d,.]+)([KkMmBb]?)\s*(?:reels|Reels)', text)
             if not match:
+                if 'Please wait a few minutes before you try again' in text or 'login' in text.lower():
+                    logger.warning(f"Audio page fetch throttled/login-walled for {audio_id}")
+                    return "THROTTLED"
                 logger.debug(f"No reel count found on audio page for {audio_id}")
                 return False
 
@@ -511,7 +532,7 @@ class TrendRefresher:
                 }
             
             import concurrent.futures
-            with concurrent.futures.ThreadPoolExecutor(max_workers=8) as executor:
+            with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
                 rows = list(executor.map(process_snapshot, trends))
                 
             return rows
