@@ -1033,14 +1033,10 @@ class InstagramScraper:
             trend_origin = "IN"
             creator_country = "IN"
             confidence = 0.92
-            if source_hashtag_pool == "GLOBAL_DISCOVERY":
-                source_hashtag_pool = "INDIA_VERNACULAR"
         elif looks_indian:
             trend_origin = "IN"
             creator_country = "IN"
             confidence = 0.90
-            if source_hashtag_pool == "GLOBAL_DISCOVERY":
-                source_hashtag_pool = "INDIA_VERNACULAR"
         else:
             trend_origin = "unknown"
             creator_country = "unknown"

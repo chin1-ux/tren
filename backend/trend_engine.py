@@ -94,7 +94,7 @@ def _detect_regional_crossover(audio_language: str, reels: list[dict]) -> dict:
     # Check if any reels using this audio come from Hindi/general pools
     hindi_pool_reels = [
         r for r in reels
-        if r.get("source_hashtag_pool") in {"INDIA_TRENDING", "INDIA_VERNACULAR"}
+        if r.get("source_hashtag_pool") in {"INDIA_TRENDING", "INDIA_VERNACULAR", "GLOBAL_DISCOVERY"}
         and any(
             tag in {"hindireels", "trendingindia", "reelsindia", "reelkarofeelkaro"}
             for tag in (r.get("hashtags") or [])
