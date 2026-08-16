@@ -7,8 +7,11 @@ import { VideoAnalysisPanel } from "@/components/VideoAnalysisPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
+  errorComponent: RouteErrorBoundary,
 });
 
 function Dashboard() {

@@ -5,8 +5,8 @@
  */
 export const FEATURES = {
   GENERATE_ENABLED: true,
-  IDEAS_ENABLED: false,
-  DEALS_ENABLED: false,
+  IDEAS_ENABLED: true,
+  DEALS_ENABLED: true,
   INSTAGRAM_OAUTH_ENABLED: false,
   CALENDAR_ENABLED: true,
 } as const;

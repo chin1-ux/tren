@@ -14,6 +14,8 @@ import { Button } from "@/components/ui/button";
 import { PlanGate } from "@/components/PlanGate";
 import { useUserStore } from "@/store/useAppStore";
 
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+
 const searchSchema = z.object({ trendId: z.string().optional() });
 
 export const Route = createFileRoute("/generate")({
@@ -25,6 +27,7 @@ export const Route = createFileRoute("/generate")({
     ],
   }),
   component: GeneratePage,
+  errorComponent: RouteErrorBoundary,
 });
 
 type Tab = "photos" | "narrative" | "faceless" | "repurpose";

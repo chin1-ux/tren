@@ -317,6 +317,12 @@ function IdeasPage() {
   };
 
   return (
+    <PlanGate
+      feature="Ideation Hub"
+      requiredPlan="creator"
+      currentPlan={userPlan}
+      onUpgrade={() => window.location.href = '/pricing'}
+    >
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
       <header className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20 animate-pulse">
@@ -998,5 +1004,6 @@ function IdeasPage() {
         </AnimatePresence>
       </div>
     </div>
+    </PlanGate>
   );
 }

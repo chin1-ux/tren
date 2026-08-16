@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { setAuthToken, API_URL } from "@/lib/api";
+import { useUserStore } from "@/store/useAppStore";
 
 interface User {
   email: string;
@@ -53,6 +54,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
         localStorage.setItem("trendrop_user_plan", data.user.plan);
+        // Sync into Zustand store so components reading useUserStore get the right plan
+        useUserStore.getState().setUser({
+          email: data.user.email,
+          niche: data.user.niche,
+          language: data.user.language,
+          plan: data.user.plan,
+          authToken: token,
+        });
       } else {
         // Session invalid, clear it
         setAuthToken(null);
@@ -97,6 +106,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem("trendrop_user_language", data.user.language);
       localStorage.setItem("trendrop_user_plan", data.user.plan);
       setUser(data.user);
+      // Sync into Zustand store so components reading useUserStore get the right plan
+      useUserStore.getState().setUser({
+        email: data.user.email,
+        niche: data.user.niche,
+        language: data.user.language,
+        plan: data.user.plan,
+        authToken: data.session_token,
+      });
       // Navigate to main screen after successful auth using React Router
       navigate({ to: "/" });
     } else {
@@ -116,7 +133,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     const data = await response.json();
     
     if (data.success) {
-      if (data.session_token) {
+      if (data.phone_verification_required) {
+        navigate({ 
+          to: "/verify-phone",
+          search: { phone: phoneNumber }
+        });
+      } else if (data.session_token) {
         // Auto-login: backend returned a session immediately (admin API path)
         setAuthToken(data.session_token);
         localStorage.setItem("trendrop_session_token", data.session_token);

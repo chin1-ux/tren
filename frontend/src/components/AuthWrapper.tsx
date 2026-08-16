@@ -14,7 +14,9 @@ const PUBLIC_ROUTES = [
   "/admin/users",
   "/admin/audit",
   "/admin/analytics",
-  "/admin/plans"
+  "/admin/plans",
+  "/reset-password",
+  "/update-password"
 ];
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {

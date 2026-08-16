@@ -53,7 +53,8 @@ export function EarlyDetectionPanel() {
       const res = await apiFetch('/api/trends/emerging');
       if (res.ok) {
         const data = await res.json();
-        setEarlyTrends(data || []);
+        // Filter out items with missing prediction to avoid TypeError crashes
+        setEarlyTrends((data || []).filter((t: EarlyDetectionTrend) => t?.prediction?.combined_score != null));
       } else if (res.status === 401 || res.status === 403) {
         // 401 = unauthenticated (token missing/expired), 403 = plan gate
         // Both mean we cannot show early trends — PlanGate will handle the UI.
@@ -182,8 +183,8 @@ export function EarlyDetectionPanel() {
                       <h3 className="text-sm font-semibold font-display truncate">
                         {trend.audio_title}
                       </h3>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold ${getScoreBg(trend.prediction.combined_score)} ${getScoreColor(trend.prediction.combined_score)} rounded-full`}>
-                        {trend.prediction.combined_score.toFixed(0)}%
+                      <span className={`px-2 py-0.5 text-[10px] font-bold ${getScoreBg(trend.prediction?.combined_score ?? 0)} ${getScoreColor(trend.prediction?.combined_score ?? 0)} rounded-full`}>
+                        {(trend.prediction?.combined_score ?? 0).toFixed(0)}%
                       </span>
                     </div>
                     <p className="text-xs text-muted-foreground mb-2">
@@ -191,7 +192,7 @@ export function EarlyDetectionPanel() {
                     </p>
                     <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
                       <Clock className="h-3 w-3" />
-                      <span>{trend.prediction.optimal_timing}</span>
+                      <span>{trend.prediction?.optimal_timing ?? 'N/A'}</span>
                     </div>
                   </div>
                   <div className="flex flex-col items-end gap-2">

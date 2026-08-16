@@ -55,9 +55,16 @@ export function BottomTabBar() {
     FEATURES.DEALS_ENABLED
   ].filter(Boolean).length + 3; // Base 3 (Trends, Dashboard, Settings/Login)
 
+  const gridColsClass = {
+    3: "grid-cols-3",
+    4: "grid-cols-4",
+    5: "grid-cols-5",
+    6: "grid-cols-6",
+  }[gridCols] || "grid-cols-3";
+
   return (
     <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-md -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
-      <ul className={`grid relative grid-cols-${gridCols}`}>
+      <ul className={`grid relative ${gridColsClass}`}>
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
             ? currentPath === "/"

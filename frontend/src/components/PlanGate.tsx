@@ -18,10 +18,11 @@ export function PlanGate({
   children, 
   onUpgrade 
 }: PlanGateProps) {
-  const isPro = currentPlan === 'pro' || currentPlan === 'business';
-  const isBusiness = currentPlan === 'business';
+  // Legacy aliases: pro -> creator, business -> agency
+  const isCreatorOrHigher = ['pro', 'business', 'creator', 'agency'].includes(currentPlan);
+  const isAgency = ['business', 'agency'].includes(currentPlan);
   
-  const canAccess = requiredPlan === 'pro' ? isPro : isBusiness;
+  const canAccess = (requiredPlan === 'pro' || requiredPlan === 'creator') ? isCreatorOrHigher : isAgency;
   
   if (canAccess) {
     return <>{children}</>;
@@ -44,17 +45,17 @@ export function PlanGate({
           </div>
           
           <h3 className="text-xl font-bold text-white mb-2">
-            {feature} requires {requiredPlan === 'pro' ? 'Pro' : 'Business'} Plan
+            {feature} requires {(requiredPlan === 'pro' || requiredPlan === 'creator') ? 'Creator' : 'Agency'} Plan
           </h3>
           
           <p className="text-gray-300 mb-4 text-sm">
-            Unlock this feature and more with a {requiredPlan === 'pro' ? 'Pro' : 'Business'} subscription
+            Unlock this feature and more with a {(requiredPlan === 'pro' || requiredPlan === 'creator') ? 'Creator' : 'Agency'} subscription
           </p>
           
           <div className="flex items-center justify-center gap-2 mb-4">
             <Badge variant="secondary" className="bg-violet-500/20 text-violet-300 border-violet-500/30">
               <Sparkles className="w-3 h-3 mr-1" />
-              {requiredPlan === 'pro' ? 'Pro' : 'Business'} Feature
+              {(requiredPlan === 'pro' || requiredPlan === 'creator') ? 'Creator' : 'Agency'} Feature
             </Badge>
           </div>
           
@@ -62,7 +63,7 @@ export function PlanGate({
             onClick={onUpgrade}
             className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
           >
-            Upgrade to {requiredPlan === 'pro' ? 'Pro' : 'Business'}
+            Upgrade to {(requiredPlan === 'pro' || requiredPlan === 'creator') ? 'Creator' : 'Agency'}
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>
