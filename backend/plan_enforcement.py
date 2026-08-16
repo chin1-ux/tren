@@ -7,6 +7,15 @@ import logging
 from typing import Optional, Dict, List, Callable
 from fastapi import HTTPException, Header, Depends, status
 from dotenv import load_dotenv
+
+# In-memory cache for get_user_plan
+_PLAN_CACHE = {}
+_PLAN_CACHE_TTL = 300 # 5 minutes
+
+def invalidate_plan_cache(email: str):
+    if email in _PLAN_CACHE:
+        del _PLAN_CACHE[email]
+
 from supabase import create_client, Client
 
 # Import get_current_user for dependency injection
@@ -56,6 +65,13 @@ class PlanEnforcement:
         'team_features': ['business'],
         'api_access': ['business'],
         'priority_support': ['business']
+    }
+    
+    # Brand Deals Tier-Gating Configuration
+    BRAND_DEALS_CONFIG = {
+        'free': {'delay_hours': 48, 'max_deals': 5},
+        'creator': {'delay_hours': 24, 'max_deals': None},
+        'agency': {'delay_hours': 0, 'max_deals': None}
     }
     
     @staticmethod
@@ -135,25 +151,26 @@ class PlanEnforcement:
     
     @staticmethod
     def get_user_plan(user_email: str) -> str:
-        """
-        Get the user's effective plan, considering plan_overrides first.
-        
-        Priority: plan_override (if active and not expired) → Razorpay-derived plan → free
-        
-        Also checks subscription grace period: if subscription was cancelled/failed
-        but grace period hasn't ended, user retains paid plan. After grace period,
-        automatically downgrades to free.
-        
-        Args:
-            user_email: User's email
-        
-        Returns:
-            Plan name (free, pro, business) or 'free' for guests/errors
-        """
-        from datetime import datetime, timezone, timedelta
-        
         if not user_email or user_email == "guest@trendrop.app":
             return 'free'
+            
+        import time
+        now_ts = time.time()
+        if user_email in _PLAN_CACHE:
+            entry = _PLAN_CACHE[user_email]
+            if now_ts - entry['time'] < _PLAN_CACHE_TTL:
+                return entry['plan']
+                
+        plan = PlanEnforcement._get_user_plan_db(user_email)
+        _PLAN_CACHE[user_email] = {'time': now_ts, 'plan': plan}
+        return plan
+
+    @staticmethod
+    def _get_user_plan_db(user_email: str) -> str:
+        """
+        Internal method to get plan from database (no cache).
+        """
+        from datetime import datetime, timezone, timedelta
         
         try:
             # Get user ID first
@@ -184,7 +201,7 @@ class PlanEnforcement:
                         return override.get('tier', razorpay_plan)
             
             # Check subscription grace period
-            if subscription_status in ['subscription.cancelled', 'subscription.halted', 'payment.failed']:
+            if subscription_status in ['cancelled', 'halted', 'past_due']:
                 if grace_period_ends_at:
                     try:
                         # Handle both Z suffix and +00:00 formats, and timezone-naive strings
@@ -214,14 +231,13 @@ class PlanEnforcement:
                         # On error, keep current plan to avoid breaking legitimate users
                         return razorpay_plan
                 else:
-                    # No grace period set - default to 30 days from now for safety
-                    logger.warning(f"No grace period set for {user_email} with {subscription_status}, setting default 30-day grace")
-                    default_grace_end = (datetime.now(timezone.utc) + timedelta(days=30)).isoformat()
+                    # No grace period set - downgrade to free immediately
+                    logger.info(f"No grace period set for {user_email} with {subscription_status}, downgrading to free")
                     try:
-                        supabase.table('users').update({'grace_period_ends_at': default_grace_end}).eq('email', user_email).execute()
+                        supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
                     except Exception as update_error:
-                        logger.error(f"Failed to set default grace period for {user_email}: {update_error}")
-                    return razorpay_plan
+                        logger.error(f"Failed to downgrade plan for {user_email}: {update_error}")
+                    return 'free'
             
             # Fall back to Razorpay plan
             return razorpay_plan

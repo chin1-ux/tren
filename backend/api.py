@@ -376,6 +376,36 @@ except Exception as e:
 creator_tools = CreatorTools()
 MOCK_JOBS = {}
 
+import time
+_USER_PROFILE_CACHE = {}
+_USER_PROFILE_TTL = 300 # 5 minutes
+
+def get_cached_user_profile(email: str) -> dict:
+    now = time.time()
+    if email in _USER_PROFILE_CACHE:
+        entry = _USER_PROFILE_CACHE[email]
+        if now - entry['time'] < _USER_PROFILE_TTL:
+            return entry['data']
+    
+    # Cache miss
+    try:
+        if supabase:
+            res = supabase.table("users").select("niche, language_preference, user_id, plan").eq("email", email).limit(1).execute()
+            data = res.data[0] if res.data else {}
+            _USER_PROFILE_CACHE[email] = {'time': now, 'data': data}
+            return data
+    except Exception as e:
+        logger.warning(f"Error querying user profile for cache: {e}")
+    return {}
+
+def invalidate_cached_user_profile(email: str):
+    if email in _USER_PROFILE_CACHE:
+        del _USER_PROFILE_CACHE[email]
+    
+    # Also invalidate the plan gate cache
+    from plan_enforcement import invalidate_plan_cache
+    invalidate_plan_cache(email)
+
 def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     """
     Returns a stable user identifier string given an Authorization header.
@@ -394,7 +424,8 @@ def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     # --- Try Supabase JWT first ---
     if supabase:
         try:
-            user_res = supabase.auth.get_user(jwt=token)
+            local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+            user_res = local_supabase.auth.get_user(jwt=token)
             if user_res and user_res.user:
                 return str(user_res.user.id)
         except Exception:
@@ -428,6 +459,14 @@ else:
     redis_limiter = None
 
 from fastapi.middleware.gzip import GZipMiddleware
+import sentry_sdk
+
+sentry_sdk.init(
+    dsn="https://68bd847016cb673a5a3c45a3bb093531@o4511918964277248.ingest.de.sentry.io/4511918972469328",
+    send_default_pii=False,
+    traces_sample_rate=0.1,
+    environment=os.getenv("ENVIRONMENT", "development")
+)
 
 app = FastAPI(
     title="Trendrop Backend API",
@@ -438,6 +477,14 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
+@app.get("/sentry-debug")
+async def trigger_error():
+    # Only allow triggering this route in development mode
+    if os.getenv("ENVIRONMENT") != "development":
+        from fastapi import HTTPException
+        raise HTTPException(status_code=404, detail="Not Found")
+    
+    division_by_zero = 1 / 0
 
 @app.get("/api/health", tags=["Health"]) 
 async def health_check_api():
@@ -717,23 +764,15 @@ ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 allowed_origins = [
     "https://trendrop-black.vercel.app",
-    "https://trendrop-drop-first.vercel.app",
-    "https://trendrop-eta.vercel.app",
-    "https://trendrop.vercel.app",
-    "https://copilot-fix-issues-trendrop-backend.vercel.app",
-    "https://copilot-fix-issues-trendrop-backend-drop-first.vercel.app",
-    "http://localhost:8080",
     "http://localhost:5173",
-    "http://localhost:3000",
-    "http://127.0.0.1:8080",
     "http://127.0.0.1:5173",
-    "http://127.0.0.1:3000"
+    "http://localhost:8080",
+    "http://127.0.0.1:8080",
 ]
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
-    allow_origin_regex=r"https://trendrop-drop-first-.*\.vercel\.app",
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -1152,8 +1191,8 @@ def get_cached_tier_delay(plan_name: str) -> int:
     tiers = get_cached_tiers()
     tier = tiers.get(plan_name)
     if tier:
-        return tier.get("data_delay_hours", 24)
-    return 24
+        return tier.get("data_delay_hours", 6)
+    return 6
 
 @app.get("/api/trends")
 @limiter.limit("60/minute")
@@ -1195,11 +1234,11 @@ def get_trends(
         # Airtight guest bypass guard: Must be valid email containing @ and not default guest
         if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
             try:
-                user_res = supabase.table("users").select("niche, language_preference, plan").eq("email", current_user).limit(1).execute()
-                if user_res.data:
-                    user_niche = user_res.data[0].get("niche") or "all"
-                    user_lang = user_res.data[0].get("language_preference") or "all"
-                    user_plan = user_res.data[0].get("plan") or "free"
+                user_data = get_cached_user_profile(current_user)
+                if user_data:
+                    user_niche = user_data.get("niche") or "all"
+                    user_lang = user_data.get("language_preference") or "all"
+                    user_plan = user_data.get("plan") or "free"
             except Exception as e:
                 logger.warning(f"Error querying user profile for personalization: {e}")
 
@@ -1268,11 +1307,11 @@ def get_emerging_trends(
         user_id = None
         if current_user and current_user != "guest@trendrop.app":
             try:
-                user_res = supabase.table("users").select("niche, language_preference, user_id").eq("email", current_user).limit(1).execute()
-                if user_res.data:
-                    user_niche = user_res.data[0].get("niche") or "all"
-                    user_lang = user_res.data[0].get("language_preference") or "all"
-                    user_id = user_res.data[0].get("user_id")
+                user_data = get_cached_user_profile(current_user)
+                if user_data:
+                    user_niche = user_data.get("niche") or "all"
+                    user_lang = user_data.get("language_preference") or "all"
+                    user_id = user_data.get("user_id")
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
@@ -1318,13 +1357,14 @@ def get_all_active_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+_PEAKED_TRENDS_CACHE = {}
+
 @app.get("/api/trends/peaked")
 @limiter.limit("60/minute")
 def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
-    current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("unlimited_trends"))
+    current_user: str = Depends(get_current_user)
 ):
     """
     Fetch PEAKED trends — trends that have peaked but still have value.
@@ -1332,16 +1372,34 @@ def get_peaked_trends(
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+        
+    lang_key = language or "all"
+    cache_key = f"peaked:{lang_key}"
+    
+    # Check in-memory cache (5 minute TTL)
+    now = datetime.now().timestamp()
+    if cache_key in _PEAKED_TRENDS_CACHE:
+        entry = _PEAKED_TRENDS_CACHE[cache_key]
+        if now - entry['time'] < 300:
+            logger.info(f"Serving peaked trends from in-memory cache for key: {cache_key}")
+            headers = {"X-Cache": "HIT", "Cache-Control": "public, max-age=300"}
+            return JSONResponse(content=entry['data'], headers=headers)
+            
     try:
         q = supabase.table("trends").select("*").eq("status", "peaked").in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(100)
+        q = q.limit(15)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
-        return trends
+        
+        # Save to cache
+        _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
+        
+        headers = {"X-Cache": "MISS", "Cache-Control": "public, max-age=300"}
+        return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
@@ -2147,18 +2205,63 @@ def verify_phone(request: Request, req: VerifyPhoneRequest):
 
         # Update user record to mark phone as verified
         if supabase:
-            supabase.table("users").update({"phone_verified": True}).eq("phone_number", req.phone_number).execute()
+            user_res = supabase.table("users").select("*").eq("phone_number", req.phone_number).limit(1).execute()
+            if not user_res.data:
+                raise HTTPException(status_code=404, detail="User not found")
+            
+            user = user_res.data[0]
+            
+            supabase.table("users").update({
+                "phone_verified": True
+            }).eq("phone_number", req.phone_number).execute()
             logger.info(f"Phone verified for: {req.phone_number}")
 
+            return {
+                "success": True,
+                "message": "Phone verified successfully. Please log in to continue."
+            }
+        
         return {
             "success": True,
-            "message": "Phone verified successfully. You can now access all features."
+            "message": "Phone verified successfully."
         }
     except Exception as e:
         logger.error(f"Phone verification failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
             raise
         raise HTTPException(status_code=500, detail=str(e))
+
+class SendOtpRequest(BaseModel):
+    phone_number: str
+
+@app.post("/api/auth/send-otp")
+@limiter.limit("5/minute")
+def send_otp(request: Request, req: SendOtpRequest):
+    """Send verification code via SMS (auth endpoint, no session required)"""
+    if not PhoneVerification:
+        raise HTTPException(status_code=500, detail="Phone verification not configured.")
+    
+    try:
+        # Check 30-second cooldown in the database
+        if supabase:
+            db_res = supabase.table("phone_verifications").select("last_otp_sent_at").eq("phone_number", req.phone_number).execute()
+            if db_res.data:
+                last_sent = db_res.data[0].get("last_otp_sent_at")
+                if last_sent:
+                    last_sent_dt = datetime.fromisoformat(last_sent.replace('Z', '+00:00'))
+                    if (datetime.now(timezone.utc) - last_sent_dt).total_seconds() < 30:
+                        raise HTTPException(status_code=429, detail="Please wait 30 seconds before requesting another code.")
+
+        result = PhoneVerification.send_verification_code(req.phone_number)
+        if not result.get('success'):
+            raise HTTPException(status_code=400, detail=result.get('error', 'Failed to send verification code'))
+        return result
+    except Exception as e:
+        logger.exception(f"Error sending verification code: {e}")
+        if isinstance(e, HTTPException):
+            raise
+        raise HTTPException(status_code=500, detail="Failed to send verification code")
+
 
 
 @app.post("/api/auth/login")
@@ -2167,7 +2270,8 @@ def login(request: Request, req: LoginRequest):
     """Login user via Supabase Auth and return access token"""
     try:
         # Authenticate via Supabase Auth
-        auth_res = supabase.auth.sign_in_with_password({"email": req.email, "password": req.password})
+        local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        auth_res = local_supabase.auth.sign_in_with_password({"email": req.email, "password": req.password})
         
         if not auth_res or not auth_res.session:
             raise HTTPException(status_code=401, detail="Invalid email or password")
@@ -2180,7 +2284,7 @@ def login(request: Request, req: LoginRequest):
                 if row.get("status") == "locked":
                     # Sign back out so the Supabase session is not left open
                     try:
-                        supabase.auth.sign_out()
+                        local_supabase.auth.sign_out()
                     except Exception:
                         pass
                     raise HTTPException(status_code=403, detail="Account is locked. Contact support.")
@@ -2218,7 +2322,8 @@ def logout(request: Request, req: LogoutRequest):
     """Logout user from Supabase Auth session"""
     try:
         # Sign out from Supabase Auth
-        supabase.auth.sign_out()
+        local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+        local_supabase.auth.sign_out()
         return {"success": True, "message": "Logout successful"}
     except Exception as e:
         logger.error(f"Logout failed: {e}", exc_info=True)
@@ -2241,7 +2346,8 @@ def verify(request: Request, req: VerifyRequest):
         else:
             # 2. Try validating via Supabase JWT
             try:
-                user_res = supabase.auth.get_user(jwt=req.session_token)
+                local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
+                user_res = local_supabase.auth.get_user(jwt=req.session_token)
                 if user_res and user_res.user:
                     email = user_res.user.email
                     db_user_res2 = supabase.table("users").select("*").eq("email", email).limit(1).execute()
@@ -2260,23 +2366,33 @@ def verify(request: Request, req: VerifyRequest):
         user_id = user["id"]
         
         # 3. Fetch active sessions limit from user's tier
-        tier_res = supabase.table("subscription_tiers").select("max_active_sessions").eq("id", user.get("tier_id")).limit(1).execute()
-        max_active = tier_res.data[0]["max_active_sessions"] if tier_res.data else 1
+        tier_id = user.get("tier_id")
+        if tier_id is not None:
+            tier_res = supabase.table("subscription_tiers").select("max_active_sessions").eq("id", tier_id).limit(1).execute()
+            max_active = tier_res.data[0]["max_active_sessions"] if tier_res.data else 1
+        else:
+            max_active = 1
         
         # 4. Check active sessions count
         sessions_res = supabase.table("active_sessions").select("*").eq("user_id", user_id).order("last_active_at", desc=False).execute()
         active_sessions = sessions_res.data or []
         
         device_label = "Web Session"
-        device_fingerprint = str(hash(req.session_token))
+        import hashlib
+        device_fingerprint = hashlib.md5(req.session_token.encode('utf-8')).hexdigest()
         
         matching_session = [s for s in active_sessions if s["device_fingerprint"] == device_fingerprint]
         
         if not matching_session:
             if len(active_sessions) >= max_active:
-                # Evict oldest session
-                oldest_session_id = active_sessions[0]["id"]
-                supabase.table("active_sessions").delete().eq("id", oldest_session_id).execute()
+                # Hard reject and increment session_cap_exceeded_count
+                current_count = user.get("session_cap_exceeded_count", 0)
+                if current_count is None: current_count = 0
+                supabase.table("users").update({"session_cap_exceeded_count": current_count + 1}).eq("id", user_id).execute()
+                raise HTTPException(
+                    status_code=403, 
+                    detail="Device limit reached. Log out from another device to continue."
+                )
             
             # Register new session
             supabase.table("active_sessions").insert({
@@ -2302,6 +2418,10 @@ def verify(request: Request, req: VerifyRequest):
         }
     except Exception as e:
         logger.error(f"Verify failed: {e}", exc_info=True)
+        print(f"VERIFY EXCEPTION: {e}")
+        import traceback; traceback.print_exc()
+        if isinstance(e, HTTPException):
+            raise
         return {"success": False, "valid": False, "error": "Session verification failed"}
 
 
@@ -2424,6 +2544,9 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
             },
             on_conflict="email"
         ).execute()
+        
+        invalidate_cached_user_profile(req.email)
+        
         logger.info(f"Plan upgraded to pro for {req.email} | payment {req.razorpay_payment_id}")
         return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
     except HTTPException:
@@ -2501,15 +2624,36 @@ async def subscription_webhook(request: Request, req: SubscriptionWebhookRequest
         
         # Calculate grace period end (end of current billing period)
         from datetime import datetime, timezone, timedelta
+        existing_user = None
+        if not current_period_end:
+            # Only fetch if we need to fall back (e.g., payment.failed without current_end)
+            user_res = supabase.table("users").select("grace_period_ends_at", "cancellation_date").eq("email", email).execute()
+            if user_res.data:
+                existing_user = user_res.data[0]
+
         if current_period_end:
             try:
                 # Razorpay sends Unix timestamp in seconds
                 grace_period_end = datetime.fromtimestamp(current_period_end, tz=timezone.utc)
             except (TypeError, ValueError):
-                # Fallback to 30 days from now if timestamp invalid
+                grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+        elif existing_user and existing_user.get("grace_period_ends_at"):
+            # Preserve existing grace period to prevent indefinite free access on retries
+            try:
+                grace_str = existing_user["grace_period_ends_at"].replace('Z', '+00:00')
+                grace_period_end = datetime.fromisoformat(grace_str)
+            except (ValueError, TypeError):
+                grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
+        elif existing_user and existing_user.get("cancellation_date"):
+            # Calculate from existing cancellation date
+            try:
+                canc_str = existing_user["cancellation_date"].replace('Z', '+00:00')
+                canc_date = datetime.fromisoformat(canc_str)
+                grace_period_end = canc_date + timedelta(days=30)
+            except (ValueError, TypeError):
                 grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
         else:
-            # Default to 30 days grace period if no current_period_end
+            # Default to 30 days grace period if no current_period_end and no existing record
             grace_period_end = datetime.now(timezone.utc) + timedelta(days=30)
         
         # Update user record with subscription status and grace period
@@ -2529,6 +2673,7 @@ async def subscription_webhook(request: Request, req: SubscriptionWebhookRequest
             logger.info(f"Cancellation reason for {email}: {cancellation_reason}")
         
         supabase.table("users").upsert(update_data, on_conflict="email").execute()
+        invalidate_cached_user_profile(email)
         
         logger.info(f"Subscription event {event_type} for {email} | grace period until {grace_period_end}")
         return {"success": True, "message": "Subscription event processed", "grace_period_ends": grace_period_end.isoformat()}
@@ -3524,10 +3669,10 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
 
         if supabase:
             try:
-                res = supabase.table("users").select("niche, language_preference").eq("email", user_email).execute()
-                if res.data:
-                    niche = res.data[0].get("niche", niche)
-                    language = res.data[0].get("language_preference", language)
+                user_data = get_cached_user_profile(user_email)
+                if user_data:
+                    niche = user_data.get("niche", niche)
+                    language = user_data.get("language_preference", language)
             except Exception as db_err:
                 logger.warning(f"Error fetching user for calendar: {db_err}")
 
@@ -3984,9 +4129,34 @@ class CollabRequest(BaseModel):
 
 @app.get("/api/brand-deals/{user_email}")
 @limiter.limit("30/minute")
-def get_brand_deals_marketplace(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
+def get_brand_deals_marketplace(
+    user_email: str, 
+    request: Request, 
+    page: int = 1,
+    limit: int = 50,
+    current_user_email: str = Depends(get_current_user)
+):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
+
+    from plan_enforcement import PlanEnforcement
+    from datetime import datetime, timezone, timedelta
+
+    # Get user plan and tier config
+    user_plan = PlanEnforcement.get_user_plan(user_email)
+    user_plan = PlanEnforcement.to_display_plan_name(user_plan)
+    tier_config = PlanEnforcement.BRAND_DEALS_CONFIG.get(user_plan, PlanEnforcement.BRAND_DEALS_CONFIG['free'])
+    
+    delay_hours = tier_config['delay_hours']
+    max_deals = tier_config['max_deals']
+
+    # Adjust pagination based on max_deals
+    original_limit = limit
+    if max_deals is not None:
+        if (page - 1) * original_limit >= max_deals:
+            limit = 0 # Page is beyond max deals
+        elif page * original_limit > max_deals:
+            limit = max_deals - (page - 1) * original_limit
 
     # Get user niche
     niche = "lifestyle"
@@ -3998,7 +4168,8 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
         except Exception as e:
             logger.exception(f"Error loading niche for brand deals marketplace user {user_email}: {e}")
 
-    cache_key = f"deals:{niche}"
+    # Cache key includes plan and pagination to prevent poisoning
+    cache_key = f"deals:{niche}:{user_plan}:{page}:{original_limit}"
     if standard_queue and standard_queue.connection:
         try:
             cached_data = standard_queue.connection.get(cache_key)
@@ -4011,9 +4182,21 @@ def get_brand_deals_marketplace(user_email: str, request: Request, current_user_
     try:
         # 1. Fetch all deals from DB (both open and pending)
         deals = []
-        if supabase:
+        if supabase and limit > 0:
             try:
-                res = supabase.table("brand_deals").select("*").limit(100).execute()
+                query = supabase.table("brand_deals").select("*")
+                
+                # Apply tier-gating delay
+                if delay_hours > 0:
+                    cutoff_time = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
+                    query = query.lt("created_at", cutoff_time)
+                
+                # Apply ordering and pagination
+                query = query.order("created_at", desc=True)
+                offset = (page - 1) * original_limit
+                query = query.range(offset, offset + limit - 1)
+                
+                res = query.execute()
                 deals = res.data or []
             except Exception as e:
                 logger.exception(f"Error fetching brand deals from DB: {e}")
@@ -5577,6 +5760,8 @@ def admin_update_user_plan(
             },
             "timestamp": datetime.utcnow().isoformat()
         }).execute()
+        
+        invalidate_cached_user_profile(email)
         
         return {"success": True, "message": f"Plan override set to {new_plan}"}
     except HTTPException:

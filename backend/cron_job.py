@@ -177,9 +177,14 @@ def run_full_pipeline(stages: list = None):
     except Exception as _rc_err:
         logging.warning(f"Could not fetch cron run count (defaulting to 0, mode will be 'india'): {_rc_err}")
         run_count = 0
-    scrape_mode = "india" if run_count % 2 == 0 else "global"
-    os.environ["SCRAPER_MODE"] = scrape_mode
-    logging.info(f"Selected scraper mode for this run: {scrape_mode} (cron run count={run_count})")
+
+    if not os.environ.get("SCRAPER_MODE"):
+        scrape_mode = "india" if run_count % 2 == 0 else "global"
+        os.environ["SCRAPER_MODE"] = scrape_mode
+        logging.info(f"Selected scraper mode for this run: {scrape_mode} (fallback cron run count={run_count})")
+    else:
+        scrape_mode = os.environ["SCRAPER_MODE"]
+        logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
     # 0. Schema Validation
     if _stage("schema"):
