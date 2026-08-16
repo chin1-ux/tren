@@ -1210,7 +1210,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                     logger.error(f"Scrape global timeout ({_SCRAPE_TIMEOUT_S}s) reached at hashtag {tag_idx+1}/{len(selected)}. Aborting.")
                     break
                 if tag_idx > 0:
-                    wait_time = 3 + (tag_idx % 3)
+                    wait_time = 1 + (tag_idx % 2)
                     logger.info(f"Rate limiting: waiting {wait_time}s before next hashtag...")
                     time.sleep(wait_time)
                 

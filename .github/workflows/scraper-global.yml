@@ -1,18 +1,19 @@
-name: Scraper & Trend Discovery (RETIRED)
-# Replaced by scraper-india.yml and scraper-global.yml.
-# Schedule removed to prevent double-running. Keep for manual dispatch only.
+name: Scraper — Global Mode
 
 on:
-  workflow_dispatch: # Manual trigger only — scheduled runs now use scraper-india.yml / scraper-global.yml
+  schedule:
+    # Runs 1x/day at 08:30 UTC (14:00 IST) — between the two India runs
+    - cron: '30 8 * * *'
+  workflow_dispatch:
 
 concurrency:
-  group: scraper-${{ github.ref }}
+  group: scraper-global-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  run-pipeline:
+  run-pipeline-global:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 40
 
     steps:
       - name: Checkout repository
@@ -68,7 +69,7 @@ jobs:
             echo "Cookies file created successfully"
             cd backend && python validate_cookies_format.py && cd ..
           else
-            echo "Instagram cookies not configured - will use username/password authentication"
+            echo "Instagram cookies not configured"
           fi
 
       - name: Run DB migrations
@@ -88,8 +89,9 @@ jobs:
         run: |
           python backend/auth_system.py
 
-      - name: Run pipeline script
+      - name: Run pipeline (Global mode)
         env:
+          SCRAPER_MODE: global
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
