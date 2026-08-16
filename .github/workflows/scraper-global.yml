@@ -54,8 +54,7 @@ jobs:
         run: |
           python -m playwright install-deps firefox
 
-      - name: Install Camoufox browser (if cache miss)
-        if: steps.camoufox-cache.outputs.cache-hit != 'true'
+      - name: Install Camoufox browser
         run: |
           python -m camoufox fetch
 
