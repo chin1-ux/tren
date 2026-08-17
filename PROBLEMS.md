@@ -239,6 +239,73 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Account takeover risk. Email flooding from signup spam.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-AUTH-5 (SYSTEMIC): get_current_user never rejects guests — 66 endpoints silently open to anonymous traffic
+**Files:** `backend/auth.py:43-96` (sentinel), `backend/api.py` (108 endpoints using it)
+**Problem:** `get_current_user` returns `"guest@trendrop.app"` when no token is provided — it NEVER raises 401. Every endpoint using only `Depends(get_current_user)` with no additional guest check is silently open to anonymous traffic. This is not a bug in individual endpoints — it's a systemic design flaw in the auth dependency itself.
+
+**Evidence (live curl, localhost:8099):**
+```
+GET /api/reels/stream/1 (no auth)  → 200 + real video URL   [BEFORE require_auth fix]
+GET /api/reels/stream/1 (no auth)  → 401 Authentication req  [AFTER require_auth fix]
+POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [require_feature works]
+```
+
+**Full audit of 108 endpoints using `Depends(get_current_user)`:**
+
+| Category | Count | Detail |
+|---|---|---|
+| PROTECTED (require_feature/require_auth/require_quota/require_phone_verified/explicit guest check) | 42 | Safe |
+| OPEN (no guest check) | 66 | Vulnerable |
+
+**Of the 66 OPEN endpoints:**
+
+**8 WRITE endpoints — guests mutate DB + incur costs:**
+
+| Line | Route | Risk |
+|---|---|---|
+| 1995 | `POST /api/trends/{id}/memory` | Writes to `creator_trend_memory` as guest |
+| 2684 | `POST /api/user/cancellation-reason` | Writes to `users` table as guest |
+| 2832 | `POST /api/feedback` | Writes to `trend_feedback` as guest |
+| 3485 | `POST /api/prepost-score` | **LLM call** + writes to `pre_post_analyses` as guest |
+| 3531 | `POST /api/score-reel` | **LLM call** + writes to `pre_post_analyses` as guest |
+| 3829 | `POST /api/marketplace/profile` | Creates `creator_profiles` as guest |
+| 3851 | `POST /api/marketplace/deals` | Creates `brand_deals` as guest |
+| 6719 | `POST /api/user/performance/store` | Writes performance data as guest |
+
+**9 endpoints with FLAWED auth checks — guest can access other users' data:**
+
+| Line | Route | Flaw |
+|---|---|---|
+| 3609 | `GET /api/daily-ideas/{user_email}` | Guest can read ANY user's daily ideas |
+| 4130 | `GET /api/brand-deals/{user_email}` | Guest can read ANY user's brand deals |
+| 4274 | `POST /api/apply-deal` | Guest can apply as any user_email |
+| 4299 | `GET /api/collab-matches/{user_email}` | Guest can read any user's matches |
+| 4374 | `POST /api/send-collab-request` | Guest can impersonate any from_email |
+| 4408 | `POST /api/instagram/auth-url` | Guest can generate OAuth URL for any user |
+| 4516 | `POST /api/instagram/callback` | Guest can link Instagram for any user |
+| 557 | `GET /api/creator/diagnostics` | Auth check evaluates True for guest |
+| 570 | `GET /api/creator/niche-health` | Same pattern |
+
+**46 read-only/informational** — lower risk but still consume compute, LLM calls, and external API calls (Instagram, YouTube) for unauthenticated traffic.
+
+**3 phone verification endpoints** — guests can send SMS codes (`POST /api/phone/send-code`).
+
+**4 business metrics endpoints** — expose revenue, MRR, CAC/LTV to anonymous traffic.
+
+**Guest does NOT pollute:**
+- `usage_logs` — `log_endpoint_usage` silently skips guest (plan_enforcement.py:561)
+- `users` table — no auto-creation path for guest email
+- Quota counters — `require_quota` blocks guests before counting
+- Billing/payment flows — Razorpay-signed only, no guest reference
+
+**Guest DOES pollute:**
+- `creator_trend_memory` — accumulates guest-owned rows indefinitely
+- `pre_post_analyses` — LLM calls + rows written as guest, unattributable
+
+**Scope change disclosure:** `require_auth()` in auth.py:99 is NEW code written in this session (commit `fa81223a`). It was not in the original codebase. It was added to fix the3 stream/status endpoints I was originally asked to gate, without flagging that it was a shared-infra addition. This is a scope change that should have been flagged separately.
+
+**Does IMPLEMENTATION_PLAN.md fix this?** No. This is a systemic issue spanning 66 endpoints — not fixable by gating individual routes. Needs either: (a) change `get_current_user` to reject guests (breaking change — 46+ read endpoints would need explicit guest access), or (b) add `require_auth` to all 66 endpoints, or (c) introduce tiered auth (`get_current_user` returns guest, but a new `require_real_user` rejects it — endpoints choose which they need). Option (c) is least disruptive.
+
 ---
 
 ## 4. PAYMENT & SUBSCRIPTION PROBLEMS
