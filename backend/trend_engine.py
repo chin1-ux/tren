@@ -87,7 +87,7 @@ def _detect_regional_crossover(audio_language: str, reels: list[dict]) -> dict:
     if not audio_language or audio_language in {"en", "unknown"}:
         return {"is_crossover": False}
 
-    REGIONAL_LANGS = {"ta", "te", "kn", "mr", "ml", "bn", "pa"}
+    REGIONAL_LANGS = {"ta", "te", "kn", "mr", "ml", "bn", "pa", "bho", "hne"}
     if audio_language not in REGIONAL_LANGS:
         return {"is_crossover": False}
 
