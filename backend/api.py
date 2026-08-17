@@ -554,7 +554,7 @@ async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTa
 
 
 @app.get("/api/creator/diagnostics", tags=["Creator Tools"])
-async def get_creator_diagnostics(email: str, current_user: str = Depends(get_current_user)):
+async def get_creator_diagnostics(email: str, current_user: str = Depends(require_auth)):
     """Endpoint to run flop diagnostics on the user's synced posts."""
     if email != current_user:
         raise HTTPException(status_code=403, detail="Forbidden: You can only view your own diagnostics")
@@ -567,7 +567,7 @@ async def get_creator_diagnostics(email: str, current_user: str = Depends(get_cu
 
 
 @app.get("/api/creator/niche-health", tags=["Creator Tools"])
-async def get_creator_niche_health(email: str, current_user: str = Depends(get_current_user)):
+async def get_creator_niche_health(email: str, current_user: str = Depends(require_auth)):
     """Endpoint to audit category focus and alignment drift."""
     if email != current_user:
         raise HTTPException(status_code=403, detail="Forbidden: You can only view your own niche health")
@@ -1992,7 +1992,7 @@ def get_trend_decision(
 
 @app.post("/api/trends/{trend_id}/memory")
 @limiter.limit("30/minute")
-def save_trend_memory(request: Request, trend_id: int, req: MemoryRequest, current_user_email: str = Depends(get_current_user)):
+def save_trend_memory(request: Request, trend_id: int, req: MemoryRequest, current_user_email: str = Depends(require_auth)):
     try:
         memory = {
             "user_email": current_user_email,
@@ -2681,7 +2681,7 @@ async def subscription_webhook(request: Request, req: SubscriptionWebhookRequest
 def submit_cancellation_reason(
     request: Request,
     req: CancellationReasonRequest,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """
     Allow users to submit cancellation reason when cancelling subscription.
@@ -2829,7 +2829,7 @@ def get_cross_cultural_reels(
 
 @app.post("/api/feedback")
 @limiter.limit("20/minute")
-def submit_feedback(request: Request, req: FeedbackRequest, current_user_email: str = Depends(get_current_user)):
+def submit_feedback(request: Request, req: FeedbackRequest, current_user_email: str = Depends(require_auth)):
     """
     Creator feedback on a trend: too_late | too_early | perfect | stale.
     Stored in trend_feedback table for future ML training signal.
@@ -3482,7 +3482,7 @@ def trigger_scraper(request: Request, background_tasks: BackgroundTasks, admin_i
 
 @app.post("/api/prepost-score")
 @limiter.limit("5/minute")
-def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(get_current_user)):
+def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(require_auth)):
     try:
         res = creator_tools.get_pre_post_score(
             niche=req.niche,
@@ -3528,7 +3528,7 @@ def generate_hooks(request: Request, req: HookRequest, current_user: str = Depen
 
 @app.post("/api/score-reel")
 @limiter.limit("20/hour")
-def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str = Depends(get_current_user)):
+def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str = Depends(require_auth)):
     try:
         import re
         hashtags = re.findall(r"#\w+", req.caption)
@@ -3606,7 +3606,7 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
 
 @app.get("/api/daily-ideas/{user_email}")
 @limiter.limit("10/minute")
-def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
+def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(require_auth)):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access daily ideas of another user")
 
@@ -3826,7 +3826,7 @@ def get_creator_profiles(request: Request, niche: Optional[str] = None):
 
 @app.post("/api/marketplace/profile")
 @limiter.limit("10/minute")
-def create_or_update_profile(request: Request, req: CreatorProfileRequest, current_user_email: str = Depends(get_current_user)):
+def create_or_update_profile(request: Request, req: CreatorProfileRequest, current_user_email: str = Depends(require_auth)):
     try:
         profile_data = {
             "user_email": current_user_email,
@@ -3848,7 +3848,7 @@ def create_or_update_profile(request: Request, req: CreatorProfileRequest, curre
 
 @app.post("/api/marketplace/deals")
 @limiter.limit("10/minute")
-def create_brand_deal(request: Request, req: BrandDealRequest, current_user_email: str = Depends(get_current_user)):
+def create_brand_deal(request: Request, req: BrandDealRequest, current_user_email: str = Depends(require_auth)):
     try:
         # Calculate 15% commission
         commission = req.deal_amount * 0.15
@@ -4127,7 +4127,7 @@ def get_brand_deals_marketplace(
     request: Request, 
     page: int = 1,
     limit: int = 50,
-    current_user_email: str = Depends(get_current_user)
+    current_user_email: str = Depends(require_auth)
 ):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
@@ -4271,7 +4271,7 @@ def get_brand_deals_marketplace(
 
 @app.post("/api/apply-deal")
 @limiter.limit("15/minute")
-def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email: str = Depends(require_auth)):
     if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot apply for a brand deal on behalf of another user")
     try:
@@ -4296,7 +4296,7 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
 
 @app.get("/api/collab-matches/{user_email}")
 @limiter.limit("30/minute")
-def get_collab_matches(user_email: str, request: Request, current_user_email: str = Depends(get_current_user)):
+def get_collab_matches(user_email: str, request: Request, current_user_email: str = Depends(require_auth)):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's collab matches")
     try:
@@ -4371,7 +4371,7 @@ def get_collab_matches(user_email: str, request: Request, current_user_email: st
 
 @app.post("/api/send-collab-request")
 @limiter.limit("15/minute")
-def send_collab_request(req: CollabRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+def send_collab_request(req: CollabRequest, request: Request, current_user_email: str = Depends(require_auth)):
     if current_user_email != "guest@trendrop.app" and req.from_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot send collab requests on behalf of another user")
     try:
@@ -4405,7 +4405,7 @@ class InstagramCallbackRequest(BaseModel):
 
 @app.post("/api/instagram/auth-url")
 @limiter.limit("15/minute")
-def get_instagram_auth_url(req: InstagramAuthRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+def get_instagram_auth_url(req: InstagramAuthRequest, request: Request, current_user_email: str = Depends(require_auth)):
     """Generate Instagram OAuth authorization URL for the user."""
     if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: Cannot generate auth URL for another user")
@@ -4513,7 +4513,7 @@ def instagram_callback_get(request: Request, code: str = None, state: str = None
 
 @app.post("/api/instagram/callback")
 @limiter.limit("15/minute")
-def instagram_callback(req: InstagramCallbackRequest, request: Request, current_user_email: str = Depends(get_current_user)):
+def instagram_callback(req: InstagramCallbackRequest, request: Request, current_user_email: str = Depends(require_auth)):
     """Handle Instagram OAuth callback and store the token."""
     if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: Cannot handle callback for another user")
@@ -6716,7 +6716,7 @@ def store_user_performance(
     request: Request,
     user_email: str,
     instagram_data: dict,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Store user performance data from Instagram."""
     if not UserPerformanceTracker:
@@ -6794,7 +6794,7 @@ def get_user_top_media(
 def get_business_metrics(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get business metrics for pre-seed preparation."""
     if not BusinessMetrics:
@@ -6812,7 +6812,7 @@ def get_business_metrics(
 def get_user_metrics_endpoint(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get user acquisition metrics."""
     if not BusinessMetrics:
@@ -6830,7 +6830,7 @@ def get_user_metrics_endpoint(
 def get_revenue_metrics_endpoint(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get revenue metrics."""
     if not RevenueTracker:
@@ -6847,7 +6847,7 @@ def get_revenue_metrics_endpoint(
 @limiter.limit("30/minute")
 def get_mrr_endpoint(
     request: Request,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get Monthly Recurring Revenue (MRR)."""
     if not RevenueTracker:
@@ -6959,7 +6959,7 @@ def get_pitch_deck_markdown(
 def send_phone_verification_code(
     request: Request,
     phone_number: str,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Send verification code via SMS."""
     if not PhoneVerification:
@@ -6978,7 +6978,7 @@ def verify_phone_code(
     request: Request,
     phone_number: str,
     code: str,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Verify the submitted code."""
     if not PhoneVerification:
@@ -6996,7 +6996,7 @@ def verify_phone_code(
 def get_phone_verification_status(
     request: Request,
     phone_number: str,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Check if a phone number is verified."""
     if not PhoneVerification:
