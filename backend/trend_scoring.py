@@ -21,6 +21,11 @@ GLOBAL_SATURATION_THRESHOLD_REELS = int(os.getenv("GLOBAL_SATURATION_THRESHOLD_R
 # INDIA: india_use_count is our scraped reel count tagged as creator_country=IN.
 # Old value of 8K was reasonable but still too low given our 12K total reel dataset.
 INDIA_SATURATION_THRESHOLD_REELS = int(os.getenv("INDIA_SATURATION_THRESHOLD_REELS", "500"))
+# NOTE (Aug 18, 2026): Live DB query shows max india_use_count across ALL audio is 13.
+# Both 500 and 8K thresholds are 38-615x too high to ever trigger. This is inert until
+# scraper pagination (P-PIPE-1) increases per-audio India reel counts. The scraper's
+# calculate_saturation() at instagram_scraper_browser.py:34 uses 100K/8K — different from
+# these values. Both sets are unvalidated guesses. Revisit after pagination is implemented.
 
 # Viral multiplier scaling constant (Bug 8 fix)
 VIRAL_MULTIPLIER_SCALE_FACTOR = float(os.getenv("VIRAL_MULTIPLIER_SCALE_FACTOR", "10000"))

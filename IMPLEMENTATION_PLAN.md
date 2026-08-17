@@ -231,7 +231,7 @@
 ### Phase 2: Data pipeline (3-5 days)
 | # | Item | Effort | Impact | Addresses |
 |---|---|---|---|---|
-| 9 | **Fix saturation formula conflict** | 2 hours | Data consistency | P-PIPE-3 |
+| 9 | ~~Fix saturation formula conflict~~ | — | **DE-PRIORITIZED** — both thresholds inert (india max=13), revisit after pagination | P-PIPE-3 |
 | 10 | **Fix proxy audio_use_count** | 4 hours | Data accuracy | P-PIPE-4 |
 | 11 | **Batch DB operations** | 3 days | Performance (3,600 → ~50 queries/run) | P-PIPE-2 |
 | 12 | **Add scraper pagination** | 2 days | Data volume (1,350 → 5,000+ reels/run) | P-PIPE-1 |

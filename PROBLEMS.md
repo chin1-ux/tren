@@ -81,14 +81,19 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 **Impact:** 300 reels × 12 avg queries = ~3,600 DB round-trips per run. At 100-300ms each, that's 6-18 minutes of DB time alone. This is why runs take 10-30 minutes and hit the 15-minute timeout.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't address DB batching. This is a performance architecture issue.
 
-#### P-PIPE-3: Scraper saturation formula conflicts with engine formula
+#### P-PIPE-3: Scraper saturation formula conflicts with engine formula — DE-PRIORITIZED (Aug 18)
 **File:** Scraper `backend/instagram_scraper_browser.py:34-36` vs Engine `backend/trend_scoring.py:20-23`
 **Problem:**
 - Scraper writes: `global_pct = min(100.0, (audio_use_count / 100_000) * 100)` and `india_pct = min(100.0, (india_use_count / 8_000) * 100)`
 - Engine reads: `global_sat = round(min(100.0, (audio_use_count / 5_000_000) * 100), 1)` and `india_sat = round(min(100.0, (india_use_count / 500) * 100), 1)`
 
-**Impact:** The reel-level `global_saturation_pct` and `india_saturation_pct` written by the scraper are WRONG. They use 100K/8K thresholds. The engine recalculates using 5M/500. The reel-level values are stale/misleading if anyone reads them directly.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. This is an unaddressed data consistency bug.
+**Data-backed assessment (Aug 18 query against live DB):**
+- India_use_count max across ALL audio: **13**. Both thresholds (500 and 8K) are 38-615x too high to ever trigger. This is inert noise.
+- Audio_use_count: scraper's 100K threshold marks 24% of audio as 100% saturated; engine's 5M marks 0.6%. Neither is validated against Instagram's actual trending page.
+- Cross-cultural endpoint filter: **identical results** (1,000 reels) under both threshold sets because india_use_count never exceeds 13.
+- **Root cause:** Lack of scraper pagination (P-PIPE-1) means per-audio India counts are tiny. Thresholds are designed for a dataset 100-1000x larger than what exists.
+- **Decision:** Do NOT fix formulas until pagination is resolved and data volume increases. Both threshold sets are guesses at a proxy for "Instagram has moved on" — neither answers the product question of what "saturated" actually means.
+**Status:** Logged, de-prioritized. Revisit after P-PIPE-1 (pagination) increases data volume.
 
 #### P-PIPE-4: Proxy audio_use_count uses made-up formula
 **File:** `backend/instagram_scraper_browser.py:819-822`
@@ -463,7 +468,7 @@ These are claims made in the codebase or marketing that are not supported by the
 |---------|----------|--------|
 | P-PIPE-1: No scraper pagination | HIGH | 15K/day claim unachievable |
 | P-PIPE-2: N+1 DB queries (3,600/run) | HIGH | 10-30 min runs, timeout issues |
-| P-PIPE-3: Saturation formula conflict | HIGH | Reel-level data is wrong |
+| P-PIPE-3: Saturation formula conflict | LOW (de-prioritized) | Both thresholds inert — india max=13, needs pagination first |
 | P-PIPE-4: Proxy audio_use_count fabricated | HIGH | Unreliable trend detection |
 | P-PIPE-5: 15-min timeout cuts off hashtags | MEDIUM | Inconsistent data coverage |
 | P-PIPE-6: External discovery dead code | MEDIUM | 642 lines wasted |
