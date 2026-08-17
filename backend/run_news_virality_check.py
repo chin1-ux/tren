@@ -12,6 +12,8 @@ logger = logging.getLogger("news_virality_check")
 sys.stdout.reconfigure(encoding="utf-8")
 
 def run_news_check():
+    from dotenv import load_dotenv
+    load_dotenv("backend/.env")
     # 1. Initialize Supabase
     supabase_url = os.getenv("SUPABASE_URL")
     supabase_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")

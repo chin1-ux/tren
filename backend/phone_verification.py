@@ -87,6 +87,7 @@ class PhoneVerification:
                             'verification_code': code,
                             'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
                             'verified': False,
+                            'last_otp_sent_at': datetime.now(timezone.utc).isoformat(),
                             'created_at': datetime.now(timezone.utc).isoformat()
                         }, on_conflict='phone_number') \
                         .execute()
@@ -130,6 +131,7 @@ class PhoneVerification:
                         'verification_code': code,
                         'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
                         'verified': False,
+                        'last_otp_sent_at': datetime.now(timezone.utc).isoformat(),
                         'created_at': datetime.now(timezone.utc).isoformat()
                     }, on_conflict='phone_number') \
                     .execute()
@@ -179,7 +181,7 @@ class PhoneVerification:
                 .eq('phone_number', phone_number) \
                 .eq('verification_code', code) \
                 .eq('verified', False) \
-                .single() \
+                .limit(1) \
                 .execute()
             
             if not res.data:
@@ -188,7 +190,7 @@ class PhoneVerification:
                     'error': 'Invalid or expired verification code'
                 }
             
-            verification = res.data
+            verification = res.data[0]
             
             # Check if expired
             expires_at = datetime.fromisoformat(verification['expires_at'])
@@ -215,10 +217,15 @@ class PhoneVerification:
             }
             
         except Exception as e:
-            logger.error(f"Failed to verify code: {e}")
+            # If it's an APIError (like PGRST116 from single()), return a clean message
+            error_msg = str(e)
+            if "PGRST116" in error_msg or "Cannot coerce the result to a single JSON object" in error_msg:
+                error_msg = "Invalid verification code"
+                
+            logger.error(f"Failed to verify code: {error_msg}")
             return {
                 'success': False,
-                'error': str(e)
+                'error': error_msg
             }
     
     @staticmethod

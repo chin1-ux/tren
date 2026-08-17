@@ -445,8 +445,6 @@ if (typeof window !== "undefined") {
     // also picks up the latest value (covers hard-reloads between refresh cycles).
     if (session?.access_token && typeof window !== "undefined") {
       localStorage.setItem("trendrop_session_token", session.access_token);
-    } else if (!session && typeof window !== "undefined") {
-      localStorage.removeItem("trendrop_session_token");
     }
     if (event === "TOKEN_REFRESHED") {
       console.debug("[auth] Supabase token refreshed successfully");
@@ -477,21 +475,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     headers,
   });
   if (res.status === 401) {
+    // Dispatch a soft event — AuthWrapper will redirect via React Router.
+    // Do NOT wipe the session token or hard-redirect here: if the 401 is
+    // from a plan-gated endpoint (e.g. early_detection), we should not
+    // destroy the session for the user.
     if (typeof window !== "undefined") {
-      // Clear both old and new auth tokens
-      localStorage.removeItem("trendrop_token");
-      localStorage.removeItem("trendrop_session_token");
-      localStorage.removeItem("trendrop_user_email");
-      localStorage.removeItem("trendrop_user_niche");
-      localStorage.removeItem("trendrop_user_language");
-      localStorage.removeItem("trendrop_onboarded");
-      setAuthToken(null);
-      import("../store/useAppStore").then(({ useUserStore }) => {
-        useUserStore.getState().logout();
-      });
-      // Redirect to login page
-      window.location.href = "/login";
+      window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
     }
+    throw new Error(`401 Unauthorized`);
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<T>;

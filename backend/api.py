@@ -459,14 +459,16 @@ else:
     redis_limiter = None
 
 from fastapi.middleware.gzip import GZipMiddleware
-import sentry_sdk
-
-sentry_sdk.init(
-    dsn="https://68bd847016cb673a5a3c45a3bb093531@o4511918964277248.ingest.de.sentry.io/4511918972469328",
-    send_default_pii=False,
-    traces_sample_rate=0.1,
-    environment=os.getenv("ENVIRONMENT", "development")
-)
+try:
+    import sentry_sdk
+    sentry_sdk.init(
+        dsn="https://68bd847016cb673a5a3c45a3bb093531@o4511918964277248.ingest.de.sentry.io/4511918972469328",
+        send_default_pii=False,
+        traces_sample_rate=0.1,
+        environment=os.getenv("ENVIRONMENT", "development")
+    )
+except ImportError:
+    print("Warning: sentry_sdk not installed. Sentry reporting disabled.")
 
 app = FastAPI(
     title="Trendrop Backend API",

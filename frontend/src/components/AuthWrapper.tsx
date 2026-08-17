@@ -20,16 +20,30 @@ const PUBLIC_ROUTES = [
 ];
 
 export function AuthWrapper({ children }: { children: React.ReactNode }) {
-  const { user, loading } = useAuth();
+  const { user, loading, logout } = useAuth();
   const navigate = useNavigate();
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const isRedirecting = useRef(false);
 
+  // Listen for plan-gated 401s from api.ts http() helper.
+  // Only log the user out if they genuinely have no session.
+  useEffect(() => {
+    const handleUnauthorized = () => {
+      // A 401 from a plan-gated endpoint (e.g. early_detection) should NOT
+      // log the user out — they are authenticated, just not on the right plan.
+      // Only act if user is already null (truly unauthenticated).
+      if (!user) {
+        navigate({ to: "/login" });
+      }
+    };
+    window.addEventListener("trendrop:unauthorized", handleUnauthorized);
+    return () => window.removeEventListener("trendrop:unauthorized", handleUnauthorized);
+  }, [user, navigate]);
+
   // Handle authentication redirects
   // NOTE: useEffect must be called before any conditional return (Rules of Hooks)
   useEffect(() => {
-    // Reset on every auth-state change so second-login-in-same-session works
     if (!loading) {
       isRedirecting.current = false;
     }

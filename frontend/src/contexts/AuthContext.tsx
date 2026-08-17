@@ -2,6 +2,8 @@ import { createContext, useContext, useState, useEffect, ReactNode } from "react
 import { useNavigate } from "@tanstack/react-router";
 import { setAuthToken, API_URL } from "@/lib/api";
 import { useUserStore } from "@/store/useAppStore";
+import { supabase } from "@/lib/supabase";
+
 
 interface User {
   email: string;
@@ -88,38 +90,66 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const login = async (email: string, password: string) => {
-    const response = await fetch(`${API_URL}/api/auth/login`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({ email, password }),
+    // Sign in via Supabase client directly so the supabase-js session is
+    // established. Without this, supabase-js fires onAuthStateChange with
+    // null (because it has no local session), which was wiping the token
+    // from localStorage immediately after the custom-API login set it.
+    const { data: sbData, error: sbError } = await supabase.auth.signInWithPassword({
+      email,
+      password,
     });
 
-    const data = await response.json();
-    
-    if (data.success) {
-      setAuthToken(data.session_token);
-      localStorage.setItem("trendrop_session_token", data.session_token);
-      localStorage.setItem("trendrop_user_email", data.user.email);
-      localStorage.setItem("trendrop_user_niche", data.user.niche);
-      localStorage.setItem("trendrop_user_language", data.user.language);
-      localStorage.setItem("trendrop_user_plan", data.user.plan);
-      setUser(data.user);
-      // Sync into Zustand store so components reading useUserStore get the right plan
-      useUserStore.getState().setUser({
-        email: data.user.email,
-        niche: data.user.niche,
-        language: data.user.language,
-        plan: data.user.plan,
-        authToken: data.session_token,
-      });
-      // Navigate to main screen after successful auth using React Router
-      navigate({ to: "/" });
-    } else {
-      throw new Error(data.error || "Login failed");
+    if (sbError || !sbData.session) {
+      throw new Error(sbError?.message || "Login failed");
     }
+
+    const token = sbData.session.access_token;
+
+    // Persist token for the custom http() helper in api.ts
+    setAuthToken(token);
+    localStorage.setItem("trendrop_session_token", token);
+
+    // Fetch user profile from the backend to get niche / language / plan
+    let niche = "all";
+    let language = "en";
+    let plan = "free";
+    try {
+      const profileRes = await fetch(`${API_URL}/api/auth/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ session_token: token }),
+      });
+      const profileData = await profileRes.json();
+      if (profileData?.success && profileData.valid && profileData.user) {
+        niche = profileData.user.niche ?? "all";
+        language = profileData.user.language ?? "en";
+        plan = profileData.user.plan ?? "free";
+      }
+    } catch (err) {
+      console.warn("Could not fetch user profile after login:", err);
+    }
+
+    localStorage.setItem("trendrop_user_email", email);
+    localStorage.setItem("trendrop_user_niche", niche);
+    localStorage.setItem("trendrop_user_language", language);
+    localStorage.setItem("trendrop_user_plan", plan);
+
+    const userData: User = { email, niche, language, plan };
+    setUser(userData);
+
+    // Sync into Zustand store
+    useUserStore.getState().setUser({
+      email,
+      niche,
+      language,
+      plan,
+      authToken: token,
+    });
+
+    // Navigate to main screen
+    navigate({ to: "/" });
   };
+
 
   const signup = async (email: string, password: string, phoneNumber: string, niche: string, language: string) => {
     const response = await fetch(`${API_URL}/api/auth/signup`, {

@@ -26,3 +26,23 @@ for stmt in new_columns:
 - Never print a secret or token inline in a command string. Always load from environment variable or `.env` file.
 - Reference GitHub tokens via `$env:GH_TOKEN` (PowerShell) or `$GH_TOKEN` (bash), never hardcoded in a command.
 - If a token has been exposed in a conversation or command history, flag it for immediate revocation before any further use.
+
+## Standing Rule: Database Credential Access
+
+- **Never connect directly**: Agents must NEVER connect directly to `SUPABASE_DB_URL`, any raw Postgres connection string, or any direct database credential (psycopg2, raw SQL client, etc.) without explicit per-instance permission from Chinmay, granted in that specific conversation, for that specific action.
+- **No exceptions**: This applies regardless of justification — including "just to unblock a local test," "just to verify a fix," or any other framing that treats it as low-stakes because it's temporary or reversible.
+- **Schema changes are manual**: All schema changes (new tables, columns, constraints, indexes, RLS policies) must be delivered as a `.sql` migration file for Chinmay to review and apply himself via the Supabase UI. Agents do not apply schema changes directly, ever — not to production, not "just to test," not even idempotently.
+- **Stop on blockers**: If the agent's own test/verification process requires a schema change to proceed, the correct action is to STOP, report the blocker, and propose the migration — not silently apply it and continue.
+- **Impulse to bypass is a signal to stop**: If an agent ever finds itself about to use a direct DB credential to move faster, that impulse is itself the signal to stop and ask, not a justification to proceed.
+
+## Consolidated Key Working Rules (Persistent)
+
+- Never accept "done"/"fixed"/"verified" without actual pasted evidence — curl responses, raw SQL query results, raw logs. Summaries alone get pushed back on.
+- Never DROP or TRUNCATE a database table under any justification.
+- Never change hosting/deployment/auth architecture without flagging Chinmay first and getting explicit approval — this includes things that look like "small" internal refactors (e.g. swapping how a client/session object is instantiated) if they touch shared state or auth flow.
+- Never connect directly to any raw DB credential (SUPABASE_DB_URL, psycopg2, direct Postgres connection) without explicit per-instance permission — regardless of justification, including "just to unblock a test." All schema changes come as a .sql migration file for Chinmay to review and apply himself via the Supabase UI.
+- Absence of errors in a log is NOT proof something works correctly — push for verification that the actual outcome (data, security behavior) is correct, not just that nothing crashed.
+- One or two fix items at a time, with check-ins — not giant unsupervised batches, and no self-approving into the next task before Chinmay responds.
+- Don't accept an explanation for unexpected/suspicious results (e.g. "0 successes because X") without evidence — treat unverified explanations the same as unverified fixes.
+- Before reporting anything as "done," confirm against actual current session state — don't re-report already-closed items as outstanding, and don't assume a prior claim was accepted without checking.
+- Test/seed scripts must target a non-prod environment, or if none exists, must use an obviously-tagged, auto-cleaned dataset and confirm cleanup as part of the same task — not as a follow-up once caught.

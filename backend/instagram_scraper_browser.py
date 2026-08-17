@@ -50,45 +50,62 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
         return 24
     return 4
 
-
-_INDIAN_ORIGIN_HINTS = (
-    # Bollywood / Indian artists
-    "arijit", "alka", "pritam", "rahman", "sachin", "amit", "neha", "vishal",
-    "anirudh", "diljit", "shreya", "armaan", "badshah", "dhvani", "jubin",
-    "neh", "ap dhillon", "from \"", "(from ", "from the movie",
-    "anu malik", "hema sardesai", "sai abhyankkar", "gana muthu", "vishnu edavan",
-    "jyotica tangri", "shaarib toshi", "kumaar", "tanishk", "bagchi", "badshah",
-    "shreya ghoshal", "sonu nigam", "sunidhi", "shankar", "ehsaan", "loy", "udit narayan",
-    "kumar sanu", "lata", "asha bhosle", "kishore", "rafi", "malik", "sardesai",
-    "abhyankkar", "muthu", "edavan", "tangri", "toshi",
-    # Music labels (India-specific)
-    "t-series", "zee music", "sony music india", "tips music", "saregama",
-    "speed records", "venus music", "jio saavn", "gaana", "hungama",
-    "t series", "tseries", "lahari music", "aditya music",
-    # Film industries
-    "bollywood", "kollywood", "tollywood", "mollywood", "sandalwood",
-    # Language-explicit song names
-    "hindi song", "punjabi song", "tamil song", "telugu song", "kannada song",
-    "hindi music", "punjabi music",
-)
-
 # Maps language keywords (in audio title / caption / hashtags) → ISO 639-1 code
 LANG_KEYWORD_MAP: dict[str, str] = {
-    "hindi": "hi", "bhojpuri": "hi", "hindisong": "hi", "hindireels": "hi",
-    "hindi song": "hi", "hindi music": "hi",
-    "punjabi": "pa", "punjabisong": "pa", "punjabisongs": "pa",
-    "punjabi song": "pa", "punjabi music": "pa",
-    "tamil": "ta", "tamilreels": "ta", "kollywood": "ta",
-    "tamil song": "ta", "tamilsong": "ta",
-    "telugu": "te", "telugureels": "te", "tollywood": "te",
-    "telugu song": "te", "telugusong": "te",
-    "kannada": "kn", "kannadareels": "kn", "sandalwood": "kn",
-    "kannada song": "kn",
-    "marathi": "mr", "marathireels": "mr", "marathisong": "mr",
-    "marathi song": "mr",
-    "malayalam": "ml", "mollywood": "ml", "malayalamsong": "ml",
-    "bengali": "bn", "bengalireels": "bn", "bengalisong": "bn",
-    "english": "en",
+    # -- Bollywood / Hindi --
+    "arijit": "hi", "alka": "hi", "pritam": "hi", "rahman": "hi", "sachin": "hi", "amit": "hi", "neha": "hi", "vishal": "hi",
+    "shreya": "hi", "armaan": "hi", "badshah": "hi", "dhvani": "hi", "jubin": "hi", "anu malik": "hi", "hema sardesai": "hi", 
+    "shaarib toshi": "hi", "kumaar": "hi", "tanishk": "hi", "bagchi": "hi", "shreya ghoshal": "hi", "sonu nigam": "hi", 
+    "sunidhi": "hi", "shankar": "hi", "ehsaan": "hi", "loy": "hi", "udit narayan": "hi", "kumar sanu": "hi", "lata": "hi", 
+    "asha bhosle": "hi", "kishore": "hi", "rafi": "hi", "malik": "hi", "sardesai": "hi", "bollywood": "hi", "hindi song": "hi", 
+    "hindi music": "hi", "bhojpuri": "hi", "pawan singh": "hi", "khesari": "hi", "shilpi raj": "hi", "manoj tiger": "hi",
+    "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi",
+    "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
+    "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
+
+    # -- Tamil --
+    "anirudh": "ta", "sai abhyankkar": "ta", "gana muthu": "ta", "vishnu edavan": "ta", "edavan": "ta", "kollywood": "ta", 
+    "tamil song": "ta", "thalapathy": "ta", "thalaiva": "ta", "a.r. rahman": "ta", "yuvan": "ta", "g.v. prakash": "ta", 
+    "vijay": "ta", "suriya": "ta", "dhanush": "ta", "rajinikanth": "ta", "kamal haasan": "ta", "harris jayaraj": "ta",
+    "imman": "ta", "vidyasagar": "ta", "ilayaraja": "ta", "santhosh narayanan": "ta", "karthik": "ta", "sid sriram": "ta",
+    "tamilsong": "ta", "tamilreels": "ta", "tamil": "ta",
+    
+    # -- Telugu --
+    "tollywood": "te", "telugu song": "te", "allu arjun": "te", "mahesh babu": "te", "ram charan": "te", "thaman": "te", 
+    "dsp": "te", "devi sri prasad": "te", "ntr": "te", "prabhas": "te", "pawan kalyan": "te", "chiranjeevi": "te", 
+    "mm keeravani": "te", "keeravani": "te", "mani sharma": "te", "anantha sreeram": "te", "chandrabose": "te", 
+    "s.p. balu": "te", "spb": "te", "ramajogayya": "te",
+    "telugusong": "te", "telugureels": "te", "telugu": "te",
+    
+    # -- Punjabi --
+    "diljit": "pa", "ap dhillon": "pa", "punjabi song": "pa", "punjabi music": "pa", "sidhu moose wala": "pa", 
+    "karan aujla": "pa", "harrdy sandhu": "pa", "ammy virk": "pa", "guru randhawa": "pa", "b praak": "pa", "jaani": "pa", 
+    "parmish verma": "pa", "jass manak": "pa", "honey singh": "pa", "mankirt": "pa", "shubh": "pa", "sukhe": "pa", 
+    "gurinder gill": "pa", "brown munde": "pa",
+    "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa",
+    
+    # -- Malayalam --
+    "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
+    "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
+    "malayalamsong": "ml", "malayalam": "ml",
+    
+    # -- Kannada --
+    "sandalwood": "kn", "kannada song": "kn", "yash": "kn", "kiccha": "kn", "sudeep": "kn", "darshan": "kn", 
+    "puneeth": "kn", "ravi basrur": "kn", "v. harikrishna": "kn", "arjun janya": "kn", "sanjith hegde": "kn", 
+    "vijay prakash": "kn", "hemanth": "kn",
+    "kannadareels": "kn", "kannada": "kn",
+    
+    # -- Marathi --
+    "ajay atul": "mr", "marathi song": "mr", "avdhoot gupte": "mr", "swapnil bandodkar": "mr", "bela shende": "mr",
+    " आदर्श shinde": "mr", "anand shinde": "mr",
+    "marathisong": "mr", "marathireels": "mr", "marathi": "mr",
+    
+    # -- Bengali --
+    "bengali song": "bn", "arijit singh": "bn", "anupam roy": "bn",
+    "bengalisong": "bn", "bengalireels": "bn", "bengali": "bn",
+    
+    # -- Other --
+    "english": "en"
 }
 
 # Maps specific hashtags used as pool seeds → guaranteed language code (highest priority)
@@ -105,6 +122,24 @@ VERNACULAR_HASHTAG_LANG: dict[str, str] = {
 _INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn"}
 
 
+def _normalize_text(t: str) -> str:
+    if not t:
+        return ""
+    t = t.lower()
+    t = re.sub(r'[^a-z0-9]', ' ', t)
+    t = re.sub(r'\s+', ' ', t).strip()
+    return t
+
+_SCRIPT_RANGES = {
+    "hi": ("\u0900", "\u097F"), # Devanagari
+    "bn": ("\u0980", "\u09FF"), # Bengali
+    "pa": ("\u0A00", "\u0A7F"), # Gurmukhi
+    "te": ("\u0C00", "\u0C7F"), # Telugu
+    "kn": ("\u0C80", "\u0CFF"), # Kannada
+    "ml": ("\u0D00", "\u0D7F"), # Malayalam
+    "ta": ("\u0B80", "\u0BFF"), # Tamil
+}
+
 def _detect_audio_language(
     audio_text: str,
     caption_text: str,
@@ -115,10 +150,9 @@ def _detect_audio_language(
     Detect audio language with a reliable priority chain:
     1. Vernacular hashtag (e.g. #tamilreels → ta) — most reliable
     2. Individual hashtag keyword match
-    3. audio_text keyword match (song title / artist name)
-    4. caption_text keyword match
-    5. Devanagari script in caption → hi
-    6. Default → en
+    3. Keyword match in title/artist/caption using normalized text and word boundaries
+    4. Native script detection in caption/title → corresponding language
+    5. Default → en
     """
     # Priority 1: vernacular pool hashtag (100% reliable)
     for tag in (hashtags or []):
@@ -132,29 +166,45 @@ def _detect_audio_language(
         if clean in LANG_KEYWORD_MAP:
             return LANG_KEYWORD_MAP[clean]
 
-    # Priority 3: audio title / artist text keyword match
-    audio_lower = audio_text.lower() if audio_text else ""
+    # Priority 3: keyword match in normalized audio + caption text
+    full_text_raw = f"{audio_text or ''} {caption_text or ''}"
+    full_text_norm = _normalize_text(full_text_raw)
+    # Pre-pad with spaces to simulate word boundaries
+    padded_text = f" {full_text_norm} "
+
+    # Check for keyword matches
     for keyword, lang_code in LANG_KEYWORD_MAP.items():
-        if keyword in audio_lower:
+        norm_keyword = _normalize_text(keyword)
+        if norm_keyword and f" {norm_keyword} " in padded_text:
             return lang_code
 
-    # Priority 4: caption keyword match
-    caption_lower = caption_text.lower() if caption_text else ""
-    for keyword, lang_code in LANG_KEYWORD_MAP.items():
-        if keyword in caption_lower:
+    # Priority 4: Native script detection
+    for lang_code, (start, end) in _SCRIPT_RANGES.items():
+        if any(start <= ch <= end for ch in full_text_raw):
             return lang_code
-
-    # Priority 5: Devanagari script → Hindi
-    if any("\u0900" <= ch <= "\u097f" for ch in caption_lower):
-        return "hi"
 
     # Default
     return "en"
 
 
 def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
-    text = f"{title or ''} {artist or ''} {caption or ''}".lower()
-    return any(hint in text for hint in _INDIAN_ORIGIN_HINTS)
+    full_text_raw = f"{title or ''} {artist or ''} {caption or ''}"
+    full_text_norm = _normalize_text(full_text_raw)
+    padded_text = f" {full_text_norm} "
+    
+    # Check against LANG_KEYWORD_MAP keys that map to Indian languages
+    for keyword, lang_code in LANG_KEYWORD_MAP.items():
+        if lang_code in _INDIAN_LANG_CODES:
+            norm_keyword = _normalize_text(keyword)
+            if norm_keyword and f" {norm_keyword} " in padded_text:
+                return True
+                
+    # Also check scripts
+    for lang_code, (start, end) in _SCRIPT_RANGES.items():
+        if lang_code in _INDIAN_LANG_CODES and any(start <= ch <= end for ch in full_text_raw):
+            return True
+            
+    return False
 
 
 def _normalize_trend_origin(meta: dict, reel: dict) -> dict:
@@ -168,7 +218,7 @@ def _normalize_trend_origin(meta: dict, reel: dict) -> dict:
         meta["trend_origin"] = "IN"
         meta["creator_country"] = "IN"
         if "hindi" in caption_text or "देवनागरी" in caption_text:
-            meta["audio_language"] = "hindi"
+            meta["audio_language"] = "hi"
     elif meta.get("trend_origin") in {"KR", "BR", "RU", "US", "GB"} and "original audio" in audio_text:
         meta["trend_origin"] = "unknown"
         if meta.get("creator_country") == "unknown":
