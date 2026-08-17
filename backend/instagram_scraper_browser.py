@@ -62,6 +62,9 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi",
     "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
     "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
+    "asees kaur": "hi", "anuv jain": "hi", "des rangila": "hi", "chak de india": "hi", 
+    "o sanam": "hi", "jhalak dikhla ja": "hi",
+    "khatam nahi hoga": "hi", "ghar se bhaag": "hi",
 
     # -- Tamil --
     "anirudh": "ta", "sai abhyankkar": "ta", "gana muthu": "ta", "vishnu edavan": "ta", "edavan": "ta", "kollywood": "ta", 
@@ -83,7 +86,16 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "parmish verma": "pa", "jass manak": "pa", "honey singh": "pa", "mankirt": "pa", "shubh": "pa", "sukhe": "pa", 
     "gurinder gill": "pa", "brown munde": "pa",
     "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa",
+    "satinder sartaaj": "pa", "daler mehndi": "pa", "harsh nussi": "pa", "babbu maan": "pa",
     
+    # -- Bhojpuri --
+    "bhojpuri": "bho", "pawan singh": "bho", "khesari": "bho", "shilpi raj": "bho", "manoj tiger": "bho",
+    "tuntun yadav": "bho", "neelkamal singh": "bho", "khushi kakkar": "bho", "bhojpurisong": "bho", "bhojpurireel": "bho",
+
+    # -- Haryanvi --
+    "masoom sharma": "hne", "renuka panwar": "hne", "sapna choudhary": "hne", "pranjal dahiya": "hne",
+    "haryanvisong": "hne", "haryanvireel": "hne", "desi chore": "hne",
+
     # -- Malayalam --
     "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
     "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
@@ -110,16 +122,19 @@ LANG_KEYWORD_MAP: dict[str, str] = {
 
 # Maps specific hashtags used as pool seeds → guaranteed language code (highest priority)
 VERNACULAR_HASHTAG_LANG: dict[str, str] = {
-    "hindireels": "hi", "bhojpurisong": "hi",
+    "hindireels": "hi",
     "punjabisongs": "pa",
     "tamilreels": "ta",
     "telugureels": "te",
     "kannadareels": "kn",
     "marathireels": "mr",
     "bengalireels": "bn",
+    "bhojpurireel": "bho",
+    "haryanvireel": "hne",
+    "tirangayatra": "hi",
 }
 
-_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn"}
+_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn", "bho", "hne"}
 
 
 def _normalize_text(t: str) -> str:
