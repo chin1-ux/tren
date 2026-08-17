@@ -304,11 +304,31 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 
 **Scope change disclosure:** `require_auth()` in auth.py:99 is NEW code written in this session (commit `fa81223a`). It was not in the original codebase. It was added to fix the3 stream/status endpoints I was originally asked to gate, without flagging that it was a shared-infra addition. This is a scope change that should have been flagged separately.
 
-**Does IMPLEMENTATION_PLAN.md fix this?** No. This is a systemic issue spanning 66 endpoints — not fixable by gating individual routes. Needs either: (a) change `get_current_user` to reject guests (breaking change — 46+ read endpoints would need explicit guest access), or (b) add `require_auth` to all 66 endpoints, or (c) introduce tiered auth (`get_current_user` returns guest, but a new `require_real_user` rejects it — endpoints choose which they need). Option (c) is least disruptive.
+**Partial fix (commit `fab26f7c`):** 24 of 66 high-risk endpoints swapped to `Depends(require_auth)` — 8 write, 3 phone, 9 data-leak, 4 business. Anonymous access now blocked for these. Remaining42 read-only endpoints still open to anonymous guest traffic (lower priority — no data mutation, no PII exposure, but still consume compute/LLM/external API calls).
+
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ---
 
 ## 4. PAYMENT & SUBSCRIPTION PROBLEMS
+
+### P-AUTH-6: Business metrics (revenue/MRR/CAC) visible to any authenticated free-tier user
+**Files:** `backend/api.py:6794,6812,6830,6847`
+**Problem:** Four business metrics endpoints (`/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`) have only `Depends(require_auth)` — any authenticated user (including free-tier) can call them and see full revenue data, MRR, CAC/LTV, user acquisition, churn rates.
+**Evidence (live curl):** Free-tier token → `GET /api/business/metrics` → **200** with `{"user_metrics":{"total_users":15,"paying_users":6,"free_users":9,"conversion_rate":40.0,...},"revenue_metrics":{...},"churn_metrics":{...}}`
+**Impact:** Any signed-up free user can enumerate paying user count, conversion rate, churn, and revenue. This is internal financial data. Not an anonymous-access issue (P-AUTH-5 fixed that), but an authorization-tier issue — these should be admin-only.
+**Fix:** Add `require_admin` or `Depends(require_admin)` to these4 endpoints.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+### P-AUTH-7: Write-side IDOR — authenticated users can write to other users' resources
+**Files:** `backend/api.py` — 8 write endpoints (lines 1995, 2684, 2832, 3485, 3531, 3829, 3851, 6719)
+**Problem:** Eight write endpoints use `Depends(require_auth)` (post P-AUTH-5 fix) but perform no ownership check in the function body. An authenticated user can write data attributed to any email. Examples:
+- `store_user_performance` (L6719) accepts `user_email` as a path parameter — any auth user can store performance data for any email
+- `create_or_update_profile` (L3829) — any auth user can create/overwrite a creator profile for any email
+- `create_brand_deal` (L3851) — any auth user can create a brand deal attributed to any creator email
+**Impact:** Lower severity than P-AUTH-5 (requires authenticated account, not anonymous), but still a data integrity issue. One malicious authenticated user can pollute another user's data.
+**Fix:** Add ownership checks: `if current_user != req.user_email: raise 403` (or use the path parameter email where applicable).
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-PAY-1: Razorpay keys missing — payment flow is DEAD
 **File:** `backend/plan_enforcement.py`, `backend/api.py` — payment routes
