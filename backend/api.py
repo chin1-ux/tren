@@ -117,7 +117,7 @@ except Exception as e:
     CreatorTools = None
 
 try:
-    from auth import get_current_user, require_admin, require_super_admin, hash_password, verify_password, create_access_token, verify_token, get_admin_user_by_email, check_and_update_login_attempts, record_failed_login_attempt, reset_login_attempts, log_admin_login_attempt
+    from auth import get_current_user, require_admin, require_super_admin, require_auth, hash_password, verify_password, create_access_token, verify_token, get_admin_user_by_email, check_and_update_login_attempts, record_failed_login_attempt, reset_login_attempts, log_admin_login_attempt
 except Exception as e:
     logger.warning(f"Auth functions import failed: {e}")
     def get_current_user():
@@ -637,7 +637,7 @@ def is_safe_instagram_url(url: str) -> bool:
         return False
 
 @app.get("/api/reels/stream/{db_id}")
-async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks, current_user: str = Depends(get_current_user)):
+async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks, current_user: str = Depends(require_auth)):
     """
     Fallback: retrieves video URL directly from Instagram via session cookies
     when the cached storage preview is expired, failed, or missing.
@@ -3383,7 +3383,7 @@ async def repurpose_endpoint(
 
 @app.get("/api/job-status/{job_id}")
 @limiter.limit("60/minute")
-def get_job_status(request: Request, job_id: str, current_user: str = Depends(get_current_user)):
+def get_job_status(request: Request, job_id: str, current_user: str = Depends(require_auth)):
     try:
         job = get_job_record(job_id)
         if not job:
@@ -3401,7 +3401,7 @@ def get_job_status(request: Request, job_id: str, current_user: str = Depends(ge
 
 @app.get("/api/reel-status/{job_id}")
 @limiter.limit("60/minute")
-def get_reel_status(request: Request, job_id: str, current_user: str = Depends(get_current_user)):
+def get_reel_status(request: Request, job_id: str, current_user: str = Depends(require_auth)):
     return get_job_status(request, job_id, current_user)
 
 def run_scrapers_background(job_id: str = None):

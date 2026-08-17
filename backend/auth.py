@@ -96,6 +96,16 @@ def get_current_user(authorization: str = Header(None)) -> str:
     return "guest@trendrop.app"
 
 
+def require_auth(current_user: str = Depends(get_current_user)) -> str:
+    """Reject unauthenticated (guest) requests with 401."""
+    if current_user == "guest@trendrop.app":
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication required"
+        )
+    return current_user
+
+
 def hash_password(password: str) -> str:
     """Generate bcrypt hash for password."""
     salt = bcrypt.gensalt()
