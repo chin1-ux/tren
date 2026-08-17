@@ -355,6 +355,16 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Impact:** Form elements look different on every page. No consistent form design language.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-DATA-1: Targeted trends localStorage/API divergence — data-integrity bug
+**Files:** `frontend/src/components/TrendCard.tsx:263-287`, `frontend/src/components/DanceTrendModal.tsx:25-58`, `frontend/src/lib/api.ts:1641`
+**Problem:** Targeted trends are stored in TWO places that can disagree:
+- **localStorage** (client-only): `TrendCard.tsx` and `DanceTrendModal.tsx` toggle `localStorage.getItem("targeted_trends")`
+- **API + DB** (server): `GET /api/trends/targeted` reads from `trend_actions` table in Supabase
+
+The target/untarget toggle in TrendCard writes to localStorage but also calls `POST /api/trends/{trend_id}/target` (which writes to DB). However, the GET endpoint reads from DB, not localStorage. If the POST call fails (network error, auth issue), localStorage and DB diverge silently.
+**Impact:** User targets a trend → localStorage says targeted, DB says not targeted → `GET /api/trends/targeted` returns empty list → workspace shows no targeted trends.反之亦然.
+**Does IMPLEMENTATION_PLAN.md fix this?** No. Separate from auth question. Needs a single source of truth (preferably DB-backed).
+
 ---
 
 ## 6. DATABASE & DATA QUALITY PROBLEMS

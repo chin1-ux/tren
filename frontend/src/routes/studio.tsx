@@ -4,6 +4,9 @@ import { Sparkles, Trophy, Lightbulb, Target, Info, Check, Share2, ClipboardList
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiFetch, getAuthToken } from "@/lib/api";
+import { useAuth } from "@/contexts/AuthContext";
+import { useUserStore } from "@/store/useAppStore";
+import { PlanGate } from "@/components/PlanGate";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
@@ -49,6 +52,8 @@ interface CaptionResponse {
 }
 
 function StudioPage() {
+  const { user } = useAuth();
+  const userPlan = useUserStore((s) => s.plan) || 'free';
   const [activeTool, setActiveTool] = useState<"prepost" | "hooks" | "seo">("prepost");
 
   // Pre-Post States
@@ -183,6 +188,12 @@ function StudioPage() {
   };
 
   return (
+    <PlanGate
+      feature="Creator Studio"
+      requiredPlan="creator"
+      currentPlan={userPlan}
+      onUpgrade={() => window.location.href = '/pricing'}
+    >
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6">
       <header className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-400 to-teal-500 text-white text-xl font-bold shadow-lg shadow-teal-500/20">
@@ -510,6 +521,7 @@ function StudioPage() {
         </div>
       )}
     </div>
+    </PlanGate>
   );
 }
 

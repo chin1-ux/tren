@@ -479,15 +479,6 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 
-@app.get("/sentry-debug")
-async def trigger_error():
-    # Only allow triggering this route in development mode
-    if os.getenv("ENVIRONMENT") != "development":
-        from fastapi import HTTPException
-        raise HTTPException(status_code=404, detail="Not Found")
-    
-    division_by_zero = 1 / 0
-
 @app.get("/api/health", tags=["Health"]) 
 async def health_check_api():
     """Simple health check for API route returning status OK."""
@@ -646,7 +637,7 @@ def is_safe_instagram_url(url: str) -> bool:
         return False
 
 @app.get("/api/reels/stream/{db_id}")
-async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks):
+async def stream_reel_video(db_id: int, background_tasks: BackgroundTasks, current_user: str = Depends(get_current_user)):
     """
     Fallback: retrieves video URL directly from Instagram via session cookies
     when the cached storage preview is expired, failed, or missing.
@@ -3392,7 +3383,7 @@ async def repurpose_endpoint(
 
 @app.get("/api/job-status/{job_id}")
 @limiter.limit("60/minute")
-def get_job_status(request: Request, job_id: str):
+def get_job_status(request: Request, job_id: str, current_user: str = Depends(get_current_user)):
     try:
         job = get_job_record(job_id)
         if not job:
@@ -3410,8 +3401,8 @@ def get_job_status(request: Request, job_id: str):
 
 @app.get("/api/reel-status/{job_id}")
 @limiter.limit("60/minute")
-def get_reel_status(request: Request, job_id: str):
-    return get_job_status(request, job_id)
+def get_reel_status(request: Request, job_id: str, current_user: str = Depends(get_current_user)):
+    return get_job_status(request, job_id, current_user)
 
 def run_scrapers_background(job_id: str = None):
     logger.info("Background scraper started.")
@@ -3517,7 +3508,7 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 @app.post("/api/generate-hooks")
 @limiter.limit("10/minute")
-def generate_hooks(request: Request, req: HookRequest, authorization: Optional[str] = Header(None)):
+def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("generators"))):
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
