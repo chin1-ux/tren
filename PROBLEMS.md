@@ -622,6 +622,38 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
 | P-TRUTH-1-5: Marketing claims unprovable | HIGH | Trust/credibility |
+| P-FUND-1: Payment flow dead | CRITICAL | No revenue, no fundraising |
+| P-FUND-2: "0h delay" copy risk | HIGH | Batch pipeline can't back real-time claims |
+| P-FUND-3: Agency per-seat schema-only | HIGH | Zero enforcement, unlimited sharing |
+| P-FUND-4: Account sharing = theoretical | LOW | Solve payments first |
+
+---
+
+## 9. STRATEGIC & FUNDRAISING PROBLEMS
+
+### P-FUND-1: Payment flow is dead — no revenue, no fundraising
+**Files:** `backend/.env` (missing `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`), `backend/api.py:6884` (webhook fails without keys)
+**Problem:** Razorpay integration exists in code but has no API keys configured. `POST /api/payment/create-order` will fail for every user. `POST /api/payment/webhook` receives nothing. Zero revenue is being collected.
+**Impact:** Cannot raise funding with dead payments. This is the single highest-priority blocker.
+**Fix:** Complete Razorpay KYC (user action), add keys to Vercel env, verify webhook + order flow end-to-end.
+
+### P-FUND-2: "0h delay" copy risk — batch pipeline can't back up "real-time" claims
+**Files:** `backend/migrate_phase1_monetization.py:34,46` (`data_delay_hours=0` for creator/agency), pricing page copy
+**Problem:** Creator and Agency tiers show `data_delay_hours=0`, implying real-time or zero-delay access. The pipeline is batch-based (scrapers run 1-2x/day via GitHub Actions cron). If the scraper last ran 12 hours ago, all users — including paid ones — see 12-hour-old data. The "0h" number is technically accurate (no *added* delay beyond what the scraper already has) but functionally misleading.
+**Impact:** If this claim appears on the pricing page or in an investor pitch, anyone who checks the pipeline will see batch scraping, not real-time. That's a diligence gap.
+**Fix:** Word as "priority access" or "fastest tier" rather than "0h" or "real-time." The honest framing: free users get data 24h after scrape; paid users get it immediately after scrape. The difference is real (24h vs. whatever the scraper cycle is), but calling it "0h" overpromises.
+
+### P-FUND-3: Per-seat enforcement for Agency plan is schema-only — zero logic
+**Files:** `backend/migrate_phase1_monetization.py:46` (`max_seats=5`), no enforcement code anywhere (grep for `per.seat`, `seat_count`, `team_member` = 0 matches)
+**Problem:** The Agency plan has `max_seats=5` in the subscription tiers schema, but there is no seat counting, invitation flow, named user management, or enforcement logic. One Agency login = unlimited sharing. This is the standard SaaS fundraising question: "how do you prevent one Agency account from being an informal reseller?"
+**Impact:** Investor will ask this. The answer right now is "we don't."
+**Fix:** Implement named seats (each team member gets own login), seat counting, invitation flow, per-seat billing add-on. This is the structural fix that makes sharing economically pointless — adding a real seat is cheap and clean vs. risking termination.
+
+### P-FUND-4: Account sharing is a theoretical problem — solve payments first
+**Files:** N/A (strategic)
+**Problem:** Every anti-sharing feature (watermarking, anomaly detection, visual protection) is solving for a scale that doesn't exist yet. With ~15 users and zero paying customers, account sharing is not a real problem. The honest priority order: payments → per-seat enforcement → everything else later.
+**Impact:** Building anti-sharing features now is engineering time spent on a problem that doesn't exist while the actual blocker (dead payments) remains unsolved.
+**Fix:** None needed — this is a prioritization note. The existing session capping and time-decay features are sufficient for the current scale.
 
 ---
 
