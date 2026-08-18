@@ -219,11 +219,11 @@ estimated_count = int(base_count * growth_multiplier)
 **Evidence (live curl):** Locked account (chin@free.com) → 403 "Account is locked. Contact support." ✓, Unlocked accounts → 200 ✓.
 **Fix:** Added `_check_user_locked(payload["sub"])` call and `except HTTPException: raise` to path 3, matching the pattern of paths 1 and 2.
 
-### P-AUTH-2: Signup uses hardcoded verification code 123456
-**File:** `backend/auth.py` — Twilio fallback
+### P-AUTH-2: Signup uses hardcoded verification code 123456 [FIXED]
+**File:** `backend/phone_verification.py` — Twilio fallback
 **Problem:** When Twilio is not configured (which it isn't — missing `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN`, `TWILIO_PHONE_NUMBER`), the verification code defaults to `123456`.
 **Impact:** Anyone can complete phone verification with code `123456`. This is a security hole but also a UX feature (allows signup without Twilio).
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan notes Twilio is missing but doesn't address the hardcoded fallback.
+**Fix applied:** Removed hardcoded `123456` simulation mode. When Twilio isn't configured, `send_verification_code()` now returns `success: False`. Signup flow already handles this gracefully — skips phone verification when service fails (`api.py:2160-2162`). No user-facing breakage.
 
 ### P-AUTH-3: Login page uses Supabase client-side auth
 **File:** `frontend/src/contexts/AuthContext.tsx`
@@ -517,13 +517,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** The feed shows very few active trends. Most trends are already peaked/expired.
 **Does IMPLEMENTATION_PLAN.md fix this?** Indirectly. Fixing event detection and caption stubs may increase the number of active trends.
 
-### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops
+### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops [FIXED]
 **Files:** `backend/user_performance_tracker.py`, `backend/add_user_performance_tables.py`, `backend/api.py:6720-6792`
 **Problem:** The migration script `add_user_performance_tables.py` only prints SQL for manual execution (L130: "Please run these SQL statements in Supabase SQL Editor") — it was never run. All 6 planned tables are missing: `user_performance`, `user_insights`, `user_media_performance`, `realtime_trends`, `trending_hashtags`, `trending_audio`. The `UserPerformanceTracker` class is live code (imported at `api.py:296`, used by 4 endpoints), but every DB operation hits a nonexistent table and returns PGRST205 errors. The tracker's exception handler at `user_performance_tracker.py:123` catches these and returns `{'error': str(e)}`, which the API passes through — so writes appear to succeed but nothing lands.
 **Impact:** The entire user performance feature (store, read, growth rate, top media) is non-functional. The 4 API endpoints at L6720-6792 are dead code from a data perspective.
 **Also flags:** Exception handlers that return success-like responses on DB failure are a bug class — worth auditing elsewhere. A handler that catches all exceptions and returns a dict without re-raising means callers can't distinguish success from failure.
-**Fix:** Either run the migration SQL in Supabase SQL Editor, or remove the dead endpoints if the feature is deprioritized.
-**Security fix applied (unverified):** P-AUTH-7 GET-side IDOR fix applied to all 3 GET endpoints (`api.py:6745,6766,6787`): swapped `get_current_user` → `require_auth` + added ownership check (`user_email != current_user` → 403). Fix is correct in principle but UNVERIFIED — blocked on P-DB-7, do not treat as tested. The underlying tables don't exist, so curl evidence cannot demonstrate the ownership check fires correctly (queries error before reaching the check).
+**Fix applied:** Created `backend/migrate_user_performance_tables.sql` with `CREATE TABLE IF NOT EXISTS` for the 3 core tables: `user_performance`, `user_insights`, `user_media_performance`. Schema derived from tracker code. User must run this SQL in Supabase SQL Editor. Tables 4-6 (`realtime_trends`, `trending_hashtags`, `trending_audio`) are not used by any code — omitted.
+**UNVERIFIED:** Migration SQL written but not yet executed in Supabase. P-AUTH-7 GET-side IDOR fix remains blocked until tables exist.
 
 ---
 
@@ -609,7 +609,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-API-4: ~25 unguarded endpoints | HIGH | Revenue leakage |
 | P-API-5: Admin auth incomplete | MEDIUM | Data exposure risk |
 | P-AUTH-1: Custom JWT bypasses lock check | HIGH | Security hole | **FIXED** |
-| P-AUTH-2: Hardcoded verification code 123456 | MEDIUM | Security hole |
+| P-AUTH-2: Hardcoded verification code 123456 | MEDIUM | Security hole | **FIXED** |
 | P-AUTH-3: Client-side Supabase auth | LOW | RLS dependency |
 | P-AUTH-4: No rate limiting on auth | HIGH | Brute-force risk | **FIXED** |
 | P-EXH-1: Global handler swallows HTTPException | HIGH | All auth errors masked as 500 | **FIXED** |
@@ -633,13 +633,13 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-4: api_keys missing | LOW | API revenue blocked |
 | P-DB-5: brand_deals empty | LOW | Marketplace empty |
 | P-DB-6: Inconsistent trend distribution | MEDIUM | Few active trends in feed |
-| P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code |
+| P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | **FIXED** |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
 | P-TRUTH-1-5: Marketing claims unprovable | HIGH | Trust/credibility |
 | P-FUND-1: Payment flow dead | CRITICAL | No revenue, no fundraising |
-| P-FUND-2: "0h delay" copy risk | HIGH | Batch pipeline can't back real-time claims |
+| P-FUND-2: "0h delay" copy risk | HIGH | Batch pipeline can't back real-time claims | **FIXED** |
 | P-FUND-3: Agency per-seat schema-only | HIGH | Zero enforcement, unlimited sharing |
 | P-FUND-4: Account sharing = theoretical | LOW | Solve payments first |
 

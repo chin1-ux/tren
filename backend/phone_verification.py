@@ -76,36 +76,10 @@ class PhoneVerification:
             Result with success/failure status
         """
         if not TWILIO_ACCOUNT_SID or not TWILIO_AUTH_TOKEN or not TWILIO_PHONE_NUMBER:
-            # Fallback/Simulation Mode: Generate code and save to Supabase so it can be verified.
-            code = "123456"
-            logger.warning(f"Twilio credentials not configured. Falling back to simulation mode with code {code} for phone {phone_number}")
-            if supabase:
-                try:
-                    supabase.table('phone_verifications') \
-                        .upsert({
-                            'phone_number': phone_number,
-                            'verification_code': code,
-                            'expires_at': (datetime.now(timezone.utc) + timedelta(minutes=10)).isoformat(),
-                            'verified': False,
-                            'last_otp_sent_at': datetime.now(timezone.utc).isoformat(),
-                            'created_at': datetime.now(timezone.utc).isoformat()
-                        }, on_conflict='phone_number') \
-                        .execute()
-                    return {
-                        'success': True,
-                        'message': 'Verification code simulated (use 123456)',
-                        'expires_in': '10 minutes',
-                        'simulated': True
-                    }
-                except Exception as db_err:
-                    logger.error(f"Failed to save simulated verification: {db_err}")
-                    return {
-                        'success': False,
-                        'error': f"Database error in simulation mode: {db_err}"
-                    }
+            logger.warning(f"Twilio credentials not configured. Phone verification unavailable for {phone_number}")
             return {
                 'success': False,
-                'error': 'Supabase client not initialized'
+                'error': 'Phone verification service not configured. Please contact support.'
             }
         
         try:

@@ -505,10 +505,14 @@ def classify_single_trend(trend):
         else:
             trend["optimal_post_hour_ist"] = 20
 
-    # Fix #1: Mark as 'pending' so the nightly LLM batch picks these trends up
-    # for enrichment (why_this_works, ideal_content_description, audio_cue_second, etc.).
-    # Previously was 'not_needed' which caused the nightly batch to skip ALL trends.
-    trend["llm_classification_status"] = "pending"
+    # Use local fallback defaults for LLM-enriched fields instead of leaving them
+    # as 'pending' (which hides trends from the API until the nightly LLM batch runs).
+    # The LLM batch can still upgrade these fields later by matching on status.
+    trend.setdefault("why_this_works", f"The track {trend.get('audio_title') or 'this track'} is currently driving high engagement on short-form feeds.")
+    trend.setdefault("audio_cue_second", 0)
+    trend.setdefault("format_transferable", True)
+    trend.setdefault("transfer_instructions", f"Adapt the visual style of {trend.get('audio_title') or 'the song'} to your niche.")
+    trend["llm_classification_status"] = "skipped_local_fallback"
     
     # Custom classifiers for premium, targeted feeds
     try:

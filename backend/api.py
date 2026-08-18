@@ -5904,7 +5904,7 @@ def admin_get_plan_features(
                 "price_yearly": tier["price_inr_monthly"] * 10,  # Computed fallback
                 "api_limit_per_day": -1 if tier["api_access"] else 10,
                 "trend_views_per_day": -1,
-                "features": ["Delay Hours: " + str(tier["data_delay_hours"]), "Max Saved Niches: " + str(tier["max_saved_niches"])]
+                "features": ["Access: " + ("Immediate after scrape" if tier["data_delay_hours"] == 0 else f"{tier['data_delay_hours']}h delay after scrape"), "Max Saved Niches: " + str(tier["max_saved_niches"])]
             })
         return {"plan_features": frontend_plans}
     except Exception as e:
