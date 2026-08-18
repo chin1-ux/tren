@@ -103,7 +103,7 @@ function DataRightsPage() {
           email,
           niche: localStorage.getItem("trendrop_niche"),
           language_preference: localStorage.getItem("trendrop_language"),
-          plan: localStorage.getItem("trendrop_plan") || "free"
+          plan: localStorage.getItem("trendrop_user_plan") || "free"
         },
         jobs_history: jobsHistory || [],
         consent_records: consentRecords || []

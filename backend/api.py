@@ -1434,7 +1434,6 @@ def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("unlimited_trends"))
 ):
     """
     Fetch EXPIRED trends — trends that have passed their window or aged out.
@@ -2560,13 +2559,13 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
                 logger.warning(f"Replay attack: payment {req.razorpay_payment_id} already claimed by {existing_email}")
                 raise HTTPException(status_code=400, detail="Payment has already been processed for another account.")
             # If same email, it's an idempotent retry (network flake) — allow it to fall through or return directly
-            return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
+            return {"success": True, "plan": "creator", "message": "Welcome to Creator!"}
             
         # If not seen before, claim it
         supabase.table("users").upsert(
             {
                 "email": req.email,
-                "plan":  "pro",
+                "plan":  "creator",
                 "razorpay_payment_id": req.razorpay_payment_id,
                 "razorpay_order_id":   req.razorpay_order_id,
             },
@@ -2575,8 +2574,8 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
         
         invalidate_cached_user_profile(req.email)
         
-        logger.info(f"Plan upgraded to pro for {req.email} | payment {req.razorpay_payment_id}")
-        return {"success": True, "plan": "pro", "message": "Welcome to Pro Creator!"}
+        logger.info(f"Plan upgraded to creator for {req.email} | payment {req.razorpay_payment_id}")
+        return {"success": True, "plan": "creator", "message": "Welcome to Creator!"}
     except HTTPException:
         raise  # replay rejection and other explicit 4xx/5xx must propagate
     except Exception as e:
@@ -3073,7 +3072,7 @@ def get_job_queue(user_email: str) -> Optional["Queue"]:
         return standard_queue
     try:
         res = supabase.table("users").select("plan").eq("email", user_email).execute()
-        if res.data and res.data[0].get("plan") == "pro":
+        if res.data and res.data[0].get("plan") in ("pro", "creator"):
             return priority_queue or standard_queue
     except Exception as e:
         logger.exception(f"Job queue plan lookup failed for {user_email}: {e}")
