@@ -4,9 +4,15 @@ Replaces in-memory slowapi with distributed rate limiting using Upstash Redis
 """
 import os
 import time
-import json
-from typing import Optional
+import logging
 from dotenv import load_dotenv
+
+logger = logging.getLogger(__name__)
+if not logger.handlers:
+    _handler = logging.StreamHandler()
+    _handler.setFormatter(logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s"))
+    logger.addHandler(_handler)
+    logger.setLevel(logging.INFO)
 
 try:
     import redis
@@ -34,12 +40,12 @@ class RedisRateLimiter:
                 )
                 # Test connection
                 self.redis_client.ping()
-                print("Redis rate limiter connected successfully")
+                logger.info("redis_connected")
             except Exception as e:
-                print(f"Failed to connect to Redis for rate limiting: {e}")
+                logger.warning("redis_connect_failed", extra={"error": str(e)})
                 self.redis_client = None
         else:
-            print("Redis not available for rate limiting - rate limiting disabled")
+            logger.warning("redis_not_configured")
     
     def is_allowed(self, key: str, limit: int, window_seconds: int = 60) -> tuple[bool, dict]:
         """
@@ -103,7 +109,11 @@ class RedisRateLimiter:
                     "current": current_count
                 }
         except Exception as e:
-            print(f"Redis rate limit check failed: {e}")
+            if not hasattr(self, '_redis_error_logged'):
+                logger.error("redis_rate_limit_error", extra={"key": key, "error": str(e)})
+                self._redis_error_logged = True
+            else:
+                logger.debug("redis_rate_limit_error_suppressed", extra={"key": key, "error": str(e)})
             # Fallback: allow on error to avoid blocking legitimate users
             return True, {"remaining": limit, "reset_at": int(time.time()) + window_seconds, "current": 0}
     
@@ -121,7 +131,7 @@ class RedisRateLimiter:
             redis_key = f"rate_limit:{key}"
             self.redis_client.delete(redis_key)
         except Exception as e:
-            print(f"Failed to reset rate limit for {key}: {e}")
+            logger.warning("redis_reset_failed", extra={"key": key, "error": str(e)})
 
 
 # Global rate limiter instance
