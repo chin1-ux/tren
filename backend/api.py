@@ -6724,6 +6724,8 @@ def store_user_performance(
     current_user: str = Depends(require_auth)
 ):
     """Store user performance data from Instagram."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: cannot store performance data for another user")
     if not UserPerformanceTracker:
         raise HTTPException(status_code=500, detail="User performance tracker not configured.")
     

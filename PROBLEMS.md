@@ -504,6 +504,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** The feed shows very few active trends. Most trends are already peaked/expired.
 **Does IMPLEMENTATION_PLAN.md fix this?** Indirectly. Fixing event detection and caption stubs may increase the number of active trends.
 
+### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops
+**Files:** `backend/user_performance_tracker.py`, `backend/add_user_performance_tables.py`, `backend/api.py:6720-6792`
+**Problem:** The migration script `add_user_performance_tables.py` only prints SQL for manual execution (L130: "Please run these SQL statements in Supabase SQL Editor") — it was never run. All 6 planned tables are missing: `user_performance`, `user_insights`, `user_media_performance`, `realtime_trends`, `trending_hashtags`, `trending_audio`. The `UserPerformanceTracker` class is live code (imported at `api.py:296`, used by 4 endpoints), but every DB operation hits a nonexistent table and returns PGRST205 errors. The tracker's exception handler at `user_performance_tracker.py:123` catches these and returns `{'error': str(e)}`, which the API passes through — so writes appear to succeed but nothing lands.
+**Impact:** The entire user performance feature (store, read, growth rate, top media) is non-functional. The 4 API endpoints at L6720-6792 are dead code from a data perspective.
+**Also flags:** Exception handlers that return success-like responses on DB failure are a bug class — worth auditing elsewhere. A handler that catches all exceptions and returns a dict without re-raising means callers can't distinguish success from failure.
+**Fix:** Either run the migration SQL in Supabase SQL Editor, or remove the dead endpoints if the feature is deprioritized.
+
 ---
 
 ## 7. WORKFLOW & DEVOPS PROBLEMS
@@ -610,6 +617,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-4: api_keys missing | LOW | API revenue blocked |
 | P-DB-5: brand_deals empty | LOW | Marketplace empty |
 | P-DB-6: Inconsistent trend distribution | MEDIUM | Few active trends in feed |
+| P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
