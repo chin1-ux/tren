@@ -823,6 +823,11 @@ import traceback
 
 @app.exception_handler(Exception)
 async def global_exception_handler(request: Request, exc: Exception):
+    if isinstance(exc, HTTPException):
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={"detail": exc.detail}
+        )
     req_id = getattr(request.state, "request_id", str(uuid.uuid4()))
     
     # Log structured error in JSON format
@@ -6794,7 +6799,7 @@ def get_user_top_media(
 def get_business_metrics(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(require_auth)
+    admin_info: dict = Depends(require_admin)
 ):
     """Get business metrics for pre-seed preparation."""
     if not BusinessMetrics:
@@ -6812,7 +6817,7 @@ def get_business_metrics(
 def get_user_metrics_endpoint(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(require_auth)
+    admin_info: dict = Depends(require_admin)
 ):
     """Get user acquisition metrics."""
     if not BusinessMetrics:
@@ -6830,7 +6835,7 @@ def get_user_metrics_endpoint(
 def get_revenue_metrics_endpoint(
     request: Request,
     days: int = 30,
-    current_user: str = Depends(require_auth)
+    admin_info: dict = Depends(require_admin)
 ):
     """Get revenue metrics."""
     if not RevenueTracker:
@@ -6847,7 +6852,7 @@ def get_revenue_metrics_endpoint(
 @limiter.limit("30/minute")
 def get_mrr_endpoint(
     request: Request,
-    current_user: str = Depends(require_auth)
+    admin_info: dict = Depends(require_admin)
 ):
     """Get Monthly Recurring Revenue (MRR)."""
     if not RevenueTracker:

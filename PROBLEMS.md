@@ -308,17 +308,28 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-EXH-1: Global exception handler swallows HTTPException — FIXED
+**File:** `backend/api.py:824-830`
+**Problem:** `@app.exception_handler(Exception)` caught ALL exceptions including `HTTPException`, returning a generic 500 for every auth failure across the entire API. Any endpoint raising 401/403/404 would return 500 to the client.
+**Impact:** Auth errors (P-AUTH-5, P-AUTH-6, P-AUTH-7, require_admin, require_auth) all appeared as "Internal Server Error" to clients, making debugging impossible and breaking frontend error handling.
+**Fix:** Added `if isinstance(exc, HTTPException): return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})` as an early return before the generic 500 handler.
+
+### P-EXH-2: `jwt.JWTError` doesn't exist in PyJWT 2.x — FIXED
+**File:** `backend/auth.py:140`
+**Problem:** `verify_token()` caught `jwt.JWTError` which doesn't exist in PyJWT 2.13.0 — the correct class is `jwt.PyJWTError`. This meant JWT decode failures (expired tokens, wrong algorithm, invalid signatures) were never caught by the except clause, causing `AttributeError` to escape as an unhandled exception.
+**Impact:** Combined with P-EXH-1, this made all JWT verification failures return 500 instead of 401. Specifically, Supabase ES256 tokens sent to endpoints using `verify_token` (which expects HS256) would crash instead of returning a clean 401.
+**Fix:** Changed `except jwt.JWTError:` → `except jwt.PyJWTError:`.
+
 ---
 
 ## 4. PAYMENT & SUBSCRIPTION PROBLEMS
 
-### P-AUTH-6: Business metrics (revenue/MRR/CAC) visible to any authenticated free-tier user
-**Files:** `backend/api.py:6794,6812,6830,6847`
-**Problem:** Four business metrics endpoints (`/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`) have only `Depends(require_auth)` — any authenticated user (including free-tier) can call them and see full revenue data, MRR, CAC/LTV, user acquisition, churn rates.
-**Evidence (live curl):** Free-tier token → `GET /api/business/metrics` → **200** with `{"user_metrics":{"total_users":15,"paying_users":6,"free_users":9,"conversion_rate":40.0,...},"revenue_metrics":{...},"churn_metrics":{...}}`
-**Impact:** Any signed-up free user can enumerate paying user count, conversion rate, churn, and revenue. This is internal financial data. Not an anonymous-access issue (P-AUTH-5 fixed that), but an authorization-tier issue — these should be admin-only.
-**Fix:** Add `require_admin` or `Depends(require_admin)` to these4 endpoints.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-AUTH-6: Business metrics (revenue/MRR/CAC) visible to any authenticated free-tier user — FIXED
+**Files:** `backend/api.py:6794,6812,6830,6848`
+**Problem:** Four business metrics endpoints (`/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`) had only `Depends(require_auth)` — any authenticated user (including free-tier) could see full revenue data, MRR, CAC/LTV, user acquisition, churn rates.
+**Evidence (live curl):** Anonymous → 401 ✓, Non-admin role → 403 ✓, Admin → 200 ✓. All 12/12 checks pass.
+**Fix:** Swapped `Depends(require_auth)` → `Depends(require_admin)` on all 4 endpoints. `require_admin` (auth.py:251-288) validates JWT `role` claim against `("admin", "super_admin")`.
+**Discovered during fix:** Two pre-existing bugs (P-EXH-1, P-EXH-2) masked all auth error codes as 500s across the entire API.
 
 ### P-AUTH-7: Write-side IDOR — authenticated users can write to other users' resources
 **Files:** `backend/api.py` — 8 write endpoints (lines 1995, 2684, 2832, 3485, 3531, 3829, 3851, 6719)
@@ -579,7 +590,10 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-AUTH-2: Hardcoded verification code 123456 | MEDIUM | Security hole |
 | P-AUTH-3: Client-side Supabase auth | LOW | RLS dependency |
 | P-AUTH-4: No rate limiting on auth | HIGH | Brute-force risk |
+| P-EXH-1: Global handler swallows HTTPException | HIGH | All auth errors masked as 500 | **FIXED** |
+| P-EXH-2: jwt.JWTError doesn't exist in PyJWT 2.x | HIGH | verify_token never catches decode errors | **FIXED** |
 | P-PAY-1: Razorpay keys missing | HIGH | Payment dead |
+| P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone deleted | MEDIUM | Signup may 404 |
 | P-DESIGN-1: No design system | HIGH | Inconsistent UX |
@@ -604,7 +618,7 @@ These are claims made in the codebase or marketing that are not supported by the
 
 ## RECOMMENDATION
 
-The IMPLEMENTATION_PLAN.md v2 addresses 6 of 42 identified problems. The remaining 36 problems fall into these categories:
+The IMPLEMENTATION_PLAN.md v2 addresses 6 of 45 identified problems. The remaining 39 problems fall into these categories:
 
 1. **Data pipeline architecture** (8 problems): The scraper needs pagination, DB batching, formula fixes, and timeout restructuring. These are the highest-impact fixes but require the most engineering effort.
 

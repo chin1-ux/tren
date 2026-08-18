@@ -137,7 +137,7 @@ def verify_token(token: str) -> Dict:
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token expired"
         )
-    except jwt.JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token"
