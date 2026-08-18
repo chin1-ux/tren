@@ -212,11 +212,12 @@ estimated_count = int(base_count * growth_multiplier)
 
 ## 3. AUTH & SECURITY PROBLEMS
 
-### P-AUTH-1: Custom JWT path doesn't check locked status
+### P-AUTH-1: Custom JWT path doesn't check locked status — FIXED
 **File:** `backend/auth.py:90-93`
-**Problem:** When a JWT has a `"sub"` claim (custom path), the code returns the email without calling `_check_user_locked()`. A locked user with a valid JWT can access the API.
-**Impact:** Account lockout is bypassed for users with custom JWTs.
-**Does IMPLEMENTATION_PLAN.md fix this?** Not explicitly. The plan mentions auth hardening but doesn't cite this specific path.
+**Problem:** When a JWT has a `"sub"` claim (custom path), the code returned the email without calling `_check_user_locked()`. A locked user with a valid JWT could access the API.
+**Impact:** Account lockout was bypassed for users with custom JWTs.
+**Evidence (live curl):** Locked account (chin@free.com) → 403 "Account is locked. Contact support." ✓, Unlocked accounts → 200 ✓.
+**Fix:** Added `_check_user_locked(payload["sub"])` call and `except HTTPException: raise` to path 3, matching the pattern of paths 1 and 2.
 
 ### P-AUTH-2: Signup uses hardcoded verification code 123456
 **File:** `backend/auth.py` — Twilio fallback
@@ -586,7 +587,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-API-3: api.py is 7,088 lines | MEDIUM | Unmaintainable |
 | P-API-4: ~25 unguarded endpoints | HIGH | Revenue leakage |
 | P-API-5: Admin auth incomplete | MEDIUM | Data exposure risk |
-| P-AUTH-1: Custom JWT bypasses lock check | HIGH | Security hole |
+| P-AUTH-1: Custom JWT bypasses lock check | HIGH | Security hole | **FIXED** |
 | P-AUTH-2: Hardcoded verification code 123456 | MEDIUM | Security hole |
 | P-AUTH-3: Client-side Supabase auth | LOW | RLS dependency |
 | P-AUTH-4: No rate limiting on auth | HIGH | Brute-force risk |

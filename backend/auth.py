@@ -89,7 +89,10 @@ def get_current_user(authorization: str = Header(None)) -> str:
     try:
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         if "sub" in payload:
+            _check_user_locked(payload["sub"])
             return payload["sub"]
+    except HTTPException:
+        raise
     except Exception:
         pass
 
