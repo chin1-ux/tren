@@ -342,13 +342,18 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Fix:** Add ownership checks: `if current_user != req.user_email: raise 403` (or use the path parameter email where applicable).
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-AUTH-8: Rate limiter fails silently open — both paths
+### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
 **Files:** `backend/redis_rate_limiter.py:59-61,105-108`, `backend/api.py:452-459`
 **Problem:** Two failure paths both result in rate limiting silently degrading to "off" with no signal:
 1. **Redis connection drops at runtime** (`redis_rate_limiter.py:105-108`): bare `except` → `print()` to stdout → returns `True` (allowed). slowapi was disabled at import time (L455: `enabled=False`) and stays disabled. No rate limiting. No alert.
 2. **Env var unset on next deploy** (`api.py:458`): `REDIS_RATE_LIMITER_AVAILABLE` = `False` → slowapi in-memory limiter activates. On Vercel serverless, in-memory state resets per cold start → rate limits non-functional.
 **Impact:** Both paths are silent. `print()` output is discarded on Vercel. No 429, no error, no persisted log. Rate limiting can silently degrade to "off" with no signal during an incident.
-**Fix (not in scope for P-AUTH-4):** Replace `print()` with a real `logger.warning()` in `redis_rate_limiter.py:39,42,106`. Add a startup/periodic health check that alerts when `REDIS_RATE_LIMITER_AVAILABLE` is `False` in production. Consider a fail-closed option (reject requests when Redis is unavailable) for high-security endpoints.
+**Fix applied (P-AUTH-4):** 
+- `sys.path.insert()` moved before `from redis_rate_limiter import ...` in `api.py:41-43` — was after the import, causing silent ImportError on Vercel.
+- `check_rate_limit()` wired into 5 auth endpoints: login (5/15min/IP+email), signup (3/hour/IP), reset-password (3/hour/IP+email), send-otp (3/min/IP+phone), verify-phone (5/hour/IP+phone).
+- `UPSTASH_REDIS_URL` env var synced to Vercel production.
+- `print()` remains (not scope for this fix) — flagged as follow-up.
+**Verified:** Login: 6th request → 429 after 5 allowed. Reset-password: 4th request → 429 after 3 allowed. Debug endpoint removed → 404 confirmed.
 
 ### P-PAY-1: Razorpay keys missing — payment flow is DEAD
 **File:** `backend/plan_enforcement.py`, `backend/api.py` — payment routes
@@ -606,13 +611,13 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-AUTH-1: Custom JWT bypasses lock check | HIGH | Security hole | **FIXED** |
 | P-AUTH-2: Hardcoded verification code 123456 | MEDIUM | Security hole |
 | P-AUTH-3: Client-side Supabase auth | LOW | RLS dependency |
-| P-AUTH-4: No rate limiting on auth | HIGH | Brute-force risk |
+| P-AUTH-4: No rate limiting on auth | HIGH | Brute-force risk | **FIXED** |
 | P-EXH-1: Global handler swallows HTTPException | HIGH | All auth errors masked as 500 | **FIXED** |
 | P-EXH-2: jwt.JWTError doesn't exist in PyJWT 2.x | HIGH | verify_token never catches decode errors | **FIXED** |
 | P-PAY-1: Razorpay keys missing | HIGH | Payment dead |
 | P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** |
 | P-AUTH-7: Write-side IDOR | HIGH | Data integrity | Fix applied, unverified |
-| P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting |
+| P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone deleted | MEDIUM | Signup may 404 |
 | P-DESIGN-1: No design system | HIGH | Inconsistent UX |

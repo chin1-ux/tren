@@ -5,6 +5,7 @@ import logging
 import requests
 import secrets
 import threading
+import time
 from typing import List, Optional
 from fastapi import FastAPI, UploadFile, File, Form, BackgroundTasks, HTTPException, status, Request, Depends, Header
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,6 +39,10 @@ except Exception as e:
     create_client = None
     Client = None
 
+import sys
+load_dotenv()
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
@@ -50,9 +55,28 @@ except ImportError:
     REDIS_RATE_LIMITER_AVAILABLE = False
     print("Redis rate limiter not available, falling back to in-memory slowapi")
 
-import sys
-load_dotenv()
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+def _get_client_ip(request: Request) -> str:
+    """Extract client IP, preferring X-Forwarded-For on Vercel."""
+    forwarded = request.headers.get("x-forwarded-for")
+    if forwarded:
+        return forwarded.split(",")[0].strip()
+    return request.client.host if request.client else "unknown"
+
+
+def _enforce_rate_limit(request: Request, scope: str, limit: int, window: int, id_parts: list[str]):
+    """Check Redis rate limit; raise 429 if exceeded. No-op when Redis is unavailable."""
+    if not REDIS_RATE_LIMITER_AVAILABLE:
+        return
+    ip = _get_client_ip(request)
+    key = f"{scope}:{ip}:" + ":".join(p for p in id_parts if p and p != "unknown")
+    allowed, info = check_rate_limit(key, limit, window)
+    if not allowed:
+        raise HTTPException(
+            status_code=429,
+            detail=f"Rate limit exceeded. Try again in {max(1, info.get('reset_at', 0) - int(time.time()))} seconds.",
+        )
+
 
 # Duplicate logger initialization removed
 
@@ -1078,6 +1102,7 @@ def api_health_check():
     """Alias for /health endpoint for Vercel routing compatibility."""
     return health_check()
 
+
 # ── Trends Feed ────────────────────────────────────────────────────────────────
 
 # Normalize content_type variants → canonical keys so the frontend filter works
@@ -2087,6 +2112,7 @@ def subscribe(request: Request, req: SubscribeRequest):
 @app.post("/api/auth/reset-password")
 @limiter.limit("5/hour")
 def reset_password(request: Request, req: ResetPasswordRequest):
+    _enforce_rate_limit(request, "reset_password", 3, 3600, [req.email])
     try:
         frontend_url = os.getenv("FRONTEND_URL", "https://trendrop-black.vercel.app")
         supabase.auth.reset_password_email(req.email, options={"redirect_to": f"{frontend_url}/update-password"})
@@ -2102,6 +2128,7 @@ def signup(request: Request, req: SignupRequest):
     Initiate signup process with phone verification.
     Creates user in Supabase Auth but requires phone verification before full access.
     """
+    _enforce_rate_limit(request, "signup", 3, 3600, [])
     try:
         # Step 1: Create user in Supabase Auth (auto-confirmed, but not fully verified)
         auth_res = None
@@ -2187,6 +2214,7 @@ def verify_phone(request: Request, req: VerifyPhoneRequest):
     Verify phone number with OTP code.
     Completes signup process and enables full account access.
     """
+    _enforce_rate_limit(request, "verify_phone", 5, 3600, [req.phone_number])
     try:
         if not PhoneVerification:
             raise HTTPException(status_code=500, detail="Phone verification not configured")
@@ -2236,6 +2264,7 @@ class SendOtpRequest(BaseModel):
 @limiter.limit("5/minute")
 def send_otp(request: Request, req: SendOtpRequest):
     """Send verification code via SMS (auth endpoint, no session required)"""
+    _enforce_rate_limit(request, "send_otp", 3, 60, [req.phone_number])
     if not PhoneVerification:
         raise HTTPException(status_code=500, detail="Phone verification not configured.")
     
@@ -2266,6 +2295,7 @@ def send_otp(request: Request, req: SendOtpRequest):
 @limiter.limit("10/hour")
 def login(request: Request, req: LoginRequest):
     """Login user via Supabase Auth and return access token"""
+    _enforce_rate_limit(request, "login", 5, 900, [req.email])
     try:
         # Authenticate via Supabase Auth
         local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
