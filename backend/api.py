@@ -6742,9 +6742,11 @@ def get_user_performance(
     request: Request,
     user_email: str,
     days: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
-    """Get user performance data."""
+    """Get user performance data. UNVERIFIED — blocked on P-DB-7."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: cannot read another user's performance data")
     if not UserPerformanceTracker:
         raise HTTPException(status_code=500, detail="User performance tracker not configured.")
     
@@ -6761,9 +6763,11 @@ def get_user_growth_rate(
     request: Request,
     user_email: str,
     days: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
-    """Get user growth rate."""
+    """Get user growth rate. UNVERIFIED — blocked on P-DB-7."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: cannot read another user's growth data")
     if not UserPerformanceTracker:
         raise HTTPException(status_code=500, detail="User performance tracker not configured.")
     
@@ -6780,9 +6784,11 @@ def get_user_top_media(
     request: Request,
     user_email: str,
     limit: int = 5,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
-    """Get user's top performing media."""
+    """Get user's top performing media. UNVERIFIED — blocked on P-DB-7."""
+    if user_email != current_user:
+        raise HTTPException(status_code=403, detail="Forbidden: cannot read another user's top media")
     if not UserPerformanceTracker:
         raise HTTPException(status_code=500, detail="User performance tracker not configured.")
     

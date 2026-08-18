@@ -510,6 +510,7 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** The entire user performance feature (store, read, growth rate, top media) is non-functional. The 4 API endpoints at L6720-6792 are dead code from a data perspective.
 **Also flags:** Exception handlers that return success-like responses on DB failure are a bug class — worth auditing elsewhere. A handler that catches all exceptions and returns a dict without re-raising means callers can't distinguish success from failure.
 **Fix:** Either run the migration SQL in Supabase SQL Editor, or remove the dead endpoints if the feature is deprioritized.
+**Security fix applied (unverified):** P-AUTH-7 GET-side IDOR fix applied to all 3 GET endpoints (`api.py:6745,6766,6787`): swapped `get_current_user` → `require_auth` + added ownership check (`user_email != current_user` → 403). Fix is correct in principle but UNVERIFIED — blocked on P-DB-7, do not treat as tested. The underlying tables don't exist, so curl evidence cannot demonstrate the ownership check fires correctly (queries error before reaching the check).
 
 ---
 
