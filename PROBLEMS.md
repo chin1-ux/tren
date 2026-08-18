@@ -56,30 +56,19 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 **Real daily count:** ~500-2,000 reels per day (2-4 runs × 15 hashtags × 30-90 reels × 40-60% survival).
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't address scraper pagination. This is an architecture limitation.
 
-#### P-PIPE-2: N+1 DB query problem — 10-18 queries per reel, no batching
-**File:** `backend/instagram_scraper_browser.py:1291-1615`
-**Problem:** For each reel, the scraper executes:
-1. Duplicate check (line 1340)
-2. Audio use count DB fallback (line 773-778, conditional)
-3. Proxy audio use count fallback (line 790-793, conditional)
-4. Audio language/origin detection (line 1415)
-5. India use count by title fallback (line 1418, conditional)
-6. Creator baseline check (line 1468)
-7. Reel insert (line 1505)
-8. Previous snapshot fetch (line 1512-1517)
-9. Snapshot insert (line 1530-1537)
-10. Delta update (line 1541-1545, conditional)
-11. Unique creator count check by audio_id (line 1555)
-12. Unique creator count check by audio_title (line 1564, conditional)
-13. Tracked audio existence check (line 1583, conditional)
-14. Reel count for tracked_audio (line 1586, conditional)
-15. Tracked audio insert (line 1589, conditional)
-16. Trend lifecycle select (line 1172)
-17. Trend lifecycle insert/update (line 1174/1189)
-18. Secondary safeguard for original audio (line 1362, conditional)
-
-**Impact:** 300 reels × 12 avg queries = ~3,600 DB round-trips per run. At 100-300ms each, that's 6-18 minutes of DB time alone. This is why runs take 10-30 minutes and hit the 15-minute timeout.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't address DB batching. This is a performance architecture issue.
+#### P-PIPE-2: N+1 DB query problem — 10-18 queries per reel, no batching — FIXED (Aug 18)
+**File:** `backend/instagram_scraper_browser.py:1212-1583` (new `_process_hashtag_batch` method)
+**Problem:** For each reel, the scraper executed 10-18 individual DB queries (duplicate check, audio analysis, India saturation, creator baseline, insert, snapshot read/insert, delta update, unique creators check, tracked_audio, trend lifecycle). 300 reels × 12 avg queries = ~3,600 DB round-trips per run. At 100-300ms each, that's 6-18 minutes of DB time alone.
+**Fix:** New `_process_hashtag_batch` method consolidates per-reel queries into batched phases:
+- Phase A: Pre-filter (Python, no DB) — velocity, engagement, missing data checks
+- Phase B: Bulk DB reads (3 queries for entire batch) — duplicate check via `.in_()`, audio analysis via `.in_()`, creator baselines via `.in_()`
+- Phase C: Python processing — original audio check, India saturation, outlier detection from bulk results
+- Phase D: Bulk DB writes (2 queries) — `upsert` reels with `on_conflict=reel_id`, bulk snapshot insert
+- Post-insert: tracked_audio + trend_lifecycle remain individual (lower volume)
+**Result:** 12N queries → 5 queries per hashtag. Verified via fixture test (15 items, 12 inserted): all 12 reels match field-for-field between legacy and batched paths.
+**Rationale for upsert over catch-and-log:** India/global scrapers run on separate cron schedules (never concurrent), but shared `GLOBAL_NICHES` tags could cause rare overlaps. `upsert` with `on_conflict=reel_id` handles this cleanly. Reel data is idempotent (latest scrape is always most accurate), so silent overwrites are safe.
+**Rationale for cutting snapshot read + delta update:** After duplicate filtering (reel_id-based, globally unique per Instagram reel), all remaining reels are new. Previous snapshot for a new reel is always empty → deltas are always 0. Cut safely.
+**Unverified:** Real timing from live scrape not yet measured. `USE_BATCHED_PROCESSING = True` flag at line 1684 controls the swap; legacy path preserved for easy revert.
 
 #### P-PIPE-3: Scraper saturation formula conflicts with engine formula — DE-PRIORITIZED (Aug 18)
 **File:** Scraper `backend/instagram_scraper_browser.py:34-36` vs Engine `backend/trend_scoring.py:20-23`
@@ -618,7 +607,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | Problem | Severity | Impact |
 |---------|----------|--------|
 | P-PIPE-1: No scraper pagination | HIGH | 15K/day claim unachievable |
-| P-PIPE-2: N+1 DB queries (3,600/run) | HIGH | 10-30 min runs, timeout issues |
+| P-PIPE-2: N+1 DB queries (3,600/run) | HIGH | 10-30 min runs, timeout issues | **FIXED** |
 | P-PIPE-3: Saturation formula conflict | LOW (de-prioritized) | Both thresholds inert — india max=13, needs pagination first |
 | P-PIPE-4: Proxy audio_use_count fabricated | HIGH | Unreliable trend detection |
 | P-PIPE-5: 15-min timeout cuts off hashtags | MEDIUM | Inconsistent data coverage |

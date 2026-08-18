@@ -1209,6 +1209,384 @@ Return ONLY valid JSON, no markdown, no explanation:
         except Exception as e:
             logger.error(f"Error updating trend lifecycle: {e}", exc_info=True)
 
+    def _process_hashtag_batch(
+        self,
+        items: list[dict],
+        tag: str,
+        scraped_at: str,
+        scrape_stats: dict,
+        baseline_fetches_this_cycle: int,
+    ) -> tuple[list[dict], list[dict]]:
+        """
+        Process all items from a single hashtag using batched DB queries.
+
+        Returns (inserted_reels, audio_groups_entries) where audio_groups_entries
+        are (key, reel) tuples for downstream hook analysis.
+        """
+        now_utc = datetime.now(timezone.utc)
+
+        # ── Phase A: Pre-filter (pure Python, no DB) ──────────────────────
+        candidates = []
+        for item in items:
+            reel_id = item.get("shortCode")
+            if not reel_id:
+                scrape_stats["missing_reel_id"] += 1
+                continue
+
+            view = int(item.get("videoViewCount") or 0)
+            likes = int(item.get("likesCount") or 0)
+            comments = int(item.get("commentsCount") or 0)
+            followers = int(item.get("ownerFollowersCount") or 0)
+
+            timestamp = item.get("timestamp")
+            if not timestamp:
+                scrape_stats["missing_timestamp"] += 1
+                continue
+
+            posted = datetime.fromisoformat(timestamp)
+            hours_live = max((now_utc - posted).total_seconds() / 3600.0, 0.5)
+
+            engagement = (view * 1.0) + (likes * 3.0) + (comments * 5.0)
+            effective_followers = followers if followers > 0 else 2500
+            normalized_followers = math.log(effective_followers + 10)
+            velocity = (engagement / hours_live / normalized_followers) * 100
+
+            if view < 10000 and likes < 200:
+                scrape_stats["low_engagement"] += 1
+                continue
+
+            if not (velocity > 0.3 or (view > 15000 and hours_live < 6)):
+                scrape_stats["velocity_failed"] += 1
+                continue
+
+            owner = item.get("ownerUsername")
+            caption = (item.get("caption") or "")[:500]
+            hashtags = re.findall(r"#(\w+)", caption)
+            video_url = item.get("videoUrl")
+            thumbnail_url = item.get("thumbnailUrl")
+
+            media_dict = item.get("media_dict")
+            audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
+            audio_use = self._extract_audio_use_count(media_dict, audio_id=audio_id)
+
+            source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags) or "GLOBAL_DISCOVERY"
+
+            candidates.append({
+                "reel_id": reel_id,
+                "item": item,
+                "view": view,
+                "likes": likes,
+                "comments": comments,
+                "followers": followers,
+                "posted": posted,
+                "hours_live": hours_live,
+                "velocity": velocity,
+                "owner": owner,
+                "caption": caption,
+                "hashtags": hashtags,
+                "video_url": video_url,
+                "thumbnail_url": thumbnail_url,
+                "audio_id": audio_id,
+                "audio_title": audio_title,
+                "audio_artist": audio_artist,
+                "is_original_audio": is_original_audio,
+                "audio_use": audio_use,
+                "source_hashtag_pool": source_hashtag_pool,
+            })
+
+        if not candidates:
+            return [], []
+
+        # ── Phase B: Bulk DB reads (3 queries for entire batch) ───────────
+        all_reel_ids = [c["reel_id"] for c in candidates]
+        unique_audio_ids = list({c["audio_id"] for c in candidates if c["audio_id"]})
+        unique_audio_titles = list({c["audio_title"] for c in candidates if c["audio_title"] and not c["audio_id"]})
+        unique_owners = list({c["owner"] for c in candidates if c["owner"]})
+
+        # Q1: Duplicate check
+        existing_reel_ids = set()
+        try:
+            CHUNK = 500
+            for i in range(0, len(all_reel_ids), CHUNK):
+                chunk = all_reel_ids[i:i + CHUNK]
+                dup_res = self.supabase.table("reels").select("reel_id").in_("reel_id", chunk).execute()
+                existing_reel_ids.update(r["reel_id"] for r in dup_res.data)
+        except Exception as e:
+            logger.warning(f"Bulk duplicate check failed: {e}")
+
+        # Filter out duplicates
+        new_candidates = [c for c in candidates if c["reel_id"] not in existing_reel_ids]
+        scrape_stats["duplicate"] += len(candidates) - len(new_candidates)
+
+        if not new_candidates:
+            return [], []
+
+        # Q2: Bulk audio analysis (owners, creator_country, view_count for all unique audio_ids)
+        audio_owner_map: dict[str, set[str]] = {}  # audio_id → set of owner_usernames
+        audio_india_count: dict[str, int] = {}      # audio_id → count of IN creators
+        audio_title_india_count: dict[str, int] = {} # audio_title → count of IN creators
+        audio_views: dict[str, list[int]] = {}       # audio_id → list of view_counts (for top-20)
+
+        if unique_audio_ids:
+            try:
+                for i in range(0, len(unique_audio_ids), CHUNK):
+                    chunk = unique_audio_ids[i:i + CHUNK]
+                    audio_res = self.supabase.table("reels").select(
+                        "owner_username, audio_id, audio_title, creator_country, view_count"
+                    ).in_("audio_id", chunk).execute()
+
+                    for row in audio_res.data:
+                        aid = row.get("audio_id")
+                        if not aid:
+                            continue
+                        owner_un = row.get("owner_username")
+                        if owner_un:
+                            audio_owner_map.setdefault(aid, set()).add(owner_un)
+                        if row.get("creator_country") == "IN":
+                            audio_india_count[aid] = audio_india_count.get(aid, 0) + 1
+                        vc = row.get("view_count")
+                        if vc is not None:
+                            audio_views.setdefault(aid, []).append(int(vc))
+
+                        # Also populate audio_title counts for reels without audio_id
+                        at = row.get("audio_title")
+                        if at and not aid:
+                            if row.get("creator_country") == "IN":
+                                audio_title_india_count[at] = audio_title_india_count.get(at, 0) + 1
+            except Exception as e:
+                logger.warning(f"Bulk audio analysis failed: {e}")
+
+        # Q3: Bulk creator baselines
+        creator_baselines: dict[str, dict] = {}
+        if unique_owners:
+            try:
+                for i in range(0, len(unique_owners), CHUNK):
+                    chunk = unique_owners[i:i + CHUNK]
+                    bl_res = self.supabase.table("creator_baselines").select("*").in_("username", chunk).execute()
+                    for row in bl_res.data:
+                        username = row.get("username")
+                        if not username:
+                            continue
+                        last_scraped_str = row.get("last_scraped_at")
+                        if last_scraped_str:
+                            last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
+                            if (now_utc - last_scraped).days >= 7:
+                                continue
+                        creator_baselines[username] = row
+            except Exception as e:
+                logger.warning(f"Bulk creator baseline check failed: {e}")
+
+        # ── Phase C: Python processing (no DB queries) ────────────────────
+        multiplier = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
+        inserted_reels = []
+        audio_groups_entries = []
+
+        for c in new_candidates:
+            reel_id = c["reel_id"]
+            audio_id = c["audio_id"]
+            audio_title = c["audio_title"]
+            audio_artist = c["audio_artist"]
+            is_original_audio = c["is_original_audio"]
+            audio_use = c["audio_use"]
+            owner = c["owner"]
+            view = c["view"]
+            velocity = c["velocity"]
+            source_hashtag_pool = c["source_hashtag_pool"]
+
+            # Secondary original audio safeguard
+            if audio_id and is_original_audio:
+                owners_for_audio = audio_owner_map.get(audio_id, set())
+                all_owners = owners_for_audio | {owner}
+                if len(all_owners) >= 2:
+                    is_original_audio = False
+
+            # India saturation
+            india_use = 0
+            if audio_id:
+                india_use = audio_india_count.get(audio_id, 0)
+            elif audio_title:
+                india_use = audio_title_india_count.get(audio_title, 0)
+            if c.get("creator_country") == "IN":  # will be set by detect_reel_metadata below
+                india_use += 1
+
+            # Build reel dict
+            reel = {
+                "platform": "instagram",
+                "reel_id": reel_id,
+                "view_count": view,
+                "like_count": c["likes"],
+                "comment_count": c["comments"],
+                "posted_at": c["posted"].isoformat(),
+                "owner_username": owner,
+                "owner_follower_count": c["followers"],
+                "caption": c["caption"],
+                "hashtags": c["hashtags"],
+                "source_hashtag_pool": source_hashtag_pool,
+                "video_url": c["video_url"],
+                "thumbnail_url": c["thumbnail_url"],
+                "audio_title": audio_title,
+                "audio_artist": audio_artist,
+                "audio_id": audio_id,
+                "audio_use_count": audio_use,
+                "is_original_audio": is_original_audio,
+                "velocity_score": velocity,
+                "scraped_at": scraped_at,
+                "pk": c["item"].get("pk"),
+                "audio_backfill_status": (
+                    "needs_audio_backfill"
+                    if not audio_id or not audio_title
+                    else None
+                ),
+                "audio_backfill_attempts": 0,
+            }
+
+            # Metadata tagging
+            meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
+            source_hashtag_pool = meta.get("source_hashtag_pool", source_hashtag_pool)
+            reel["source_hashtag_pool"] = source_hashtag_pool
+            creator_country = meta.get("creator_country", "unknown")
+
+            # Recalculate India saturation with creator_country
+            if audio_id:
+                india_use = audio_india_count.get(audio_id, 0)
+            elif audio_title:
+                india_use = audio_title_india_count.get(audio_title, 0)
+            if creator_country == "IN":
+                india_use += 1
+
+            sat = calculate_saturation(audio_use, india_use)
+            window = calculate_window_hours(audio_use, velocity * 100)
+
+            reel.update({
+                "audio_language": meta.get("audio_language", "unknown"),
+                "caption_language": meta.get("caption_language", "unknown"),
+                "trend_origin": meta.get("trend_origin", "unknown"),
+                "creator_country": creator_country,
+                "is_cross_cultural": meta.get("is_cross_cultural", False),
+                "language_confidence": meta.get("confidence", 0.0),
+                "global_saturation_pct": sat["global"],
+                "india_saturation_pct": sat["india"],
+                "window_hours_remaining": window,
+                "content_tone": meta.get("content_tone", "unknown"),
+                "niche_tag": classify_niche(c["caption"], c["hashtags"], source_hashtag_pool=source_hashtag_pool),
+            })
+
+            # Video storage (permanently disabled)
+            reel["video_storage_status"] = "pending"
+            reel["preview_url"] = None
+
+            # Semantic niches
+            reel["semantic_niches"] = self._classify_caption_niches(c["caption"], c["hashtags"], source_hashtag_pool)
+
+            # Creator baseline + outlier detection
+            is_outlier = None
+            baseline = creator_baselines.get(owner)
+
+            if baseline:
+                post_count = baseline.get("post_count") or 0
+                if post_count >= 6:
+                    median_v = baseline.get("median_views") or 0.0
+                    is_outlier = view > multiplier * median_v
+
+            reel["is_creator_outlier"] = is_outlier
+
+            inserted_reels.append(reel)
+
+            # Group for hook analysis
+            if audio_title:
+                key = (audio_title.strip(), (audio_artist or "").strip())
+                audio_groups_entries.append((key, reel))
+
+        # ── Phase D: Bulk DB writes ───────────────────────────────────────
+        # Q4: Upsert reels (bulk)
+        if inserted_reels:
+            try:
+                for i in range(0, len(inserted_reels), CHUNK):
+                    chunk = inserted_reels[i:i + CHUNK]
+                    self.supabase.table("reels").upsert(chunk, on_conflict="reel_id").execute()
+                    scrape_stats["insert_attempts"] += len(chunk)
+                    scrape_stats["insert_saved"] += len(chunk)
+                    for r in chunk:
+                        logger.info(
+                            f"Saved reel {r['reel_id']} by @{r['owner_username']} "
+                            f"(velocity={r['velocity_score']:.3f}, lang={r.get('caption_language')}, "
+                            f"outlier={r.get('is_creator_outlier')})"
+                        )
+            except Exception as e:
+                logger.error(f"Bulk reel upsert failed: {e}", exc_info=True)
+
+        # Q5: Bulk snapshot insert (no delta calculation needed — all are new reels)
+        if inserted_reels:
+            try:
+                snapshots = [
+                    {
+                        "reel_id": r["reel_id"],
+                        "audio_id": r.get("audio_id"),
+                        "view_count": r["view_count"],
+                        "like_count": r["like_count"],
+                        "comment_count": r["comment_count"],
+                        "audio_use_count": r.get("audio_use_count"),
+                    }
+                    for r in inserted_reels
+                ]
+                for i in range(0, len(snapshots), CHUNK):
+                    chunk = snapshots[i:i + CHUNK]
+                    self.supabase.table("reel_snapshots").insert(chunk).execute()
+            except Exception as e:
+                logger.warning(f"Bulk snapshot insert failed: {e}")
+
+        # Post-insert: tracked_audio + trend_lifecycle (individual operations, lower volume)
+        for reel in inserted_reels:
+            audio_id = reel.get("audio_id")
+            audio_title = reel.get("audio_title")
+            audio_artist = reel.get("audio_artist")
+            creator_country = reel.get("creator_country", "unknown")
+            is_original_audio = reel.get("is_original_audio", False)
+            owner = reel.get("owner_username")
+
+            # Unique creators check for contaminant detection
+            unique_creators_count = 1
+            if audio_id:
+                owners_for_audio = audio_owner_map.get(audio_id, set())
+                unique_creators_count = len(owners_for_audio | {owner})
+            elif audio_title:
+                # Fallback: use audio_owner_map built from reels with audio_id
+                # For audio_title-only, we don't have bulk data — skip the query for batch perf
+                unique_creators_count = 1  # conservative default
+
+            is_contaminant = is_original_audio and unique_creators_count == 1
+            is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
+
+            if is_contaminant or is_unrecoverable:
+                continue
+
+            # tracked_audio check
+            if audio_id:
+                try:
+                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
+                    if not exist.data:
+                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
+                        reel_count = reels_res.count or 0
+                        if reel_count >= 2:
+                            self.supabase.table("tracked_audio").insert({
+                                "audio_id": audio_id,
+                                "audio_title": audio_title,
+                                "audio_artist": audio_artist,
+                                "first_seen_at": now_utc.isoformat(),
+                            }).execute()
+                            logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
+                except Exception as tae:
+                    logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
+
+            # Trend lifecycle
+            self._update_trend_lifecycle(
+                audio_title=audio_title or "unknown_trend",
+                creator_country=creator_country,
+                scraped_at=scraped_at,
+            )
+
+        return inserted_reels, audio_groups_entries
+
     async def scrape_trending_reels_async(self) -> int:
         if not _CAMOUFOX_AVAILABLE:
             logger.error("Camoufox not installed. Run: pip install 'camoufox[geoip]' && python -m camoufox fetch")
@@ -1302,7 +1680,29 @@ Return ONLY valid JSON, no markdown, no explanation:
                         signal.alarm(0)  # Cancel the alarm
 
                 total_scraped += len(items)
-                
+
+                USE_BATCHED_PROCESSING = True
+
+                if USE_BATCHED_PROCESSING:
+                    # ── Batched path ──────────────────────────────────────
+                    try:
+                        inserted_reels, audio_groups_entries = self._process_hashtag_batch(
+                            items=items,
+                            tag=tag,
+                            scraped_at=scraped_at,
+                            scrape_stats=scrape_stats,
+                            baseline_fetches_this_cycle=baseline_fetches_this_cycle,
+                        )
+                        saved_count += len(inserted_reels)
+                        for reel in inserted_reels:
+                            high_velocity.append(reel.get("velocity_score") or 0.0)
+                        for key, reel in audio_groups_entries:
+                            audio_groups.setdefault(key, []).append(reel)
+                    except Exception as batch_err:
+                        logger.error(f"Batch processing failed for tag {tag}: {batch_err}", exc_info=True)
+                        scrape_stats["item_errors"] += len(items)
+                    continue  # Skip legacy path
+
                 for item in items:
                     try:
                         reel_id = item.get("shortCode")
