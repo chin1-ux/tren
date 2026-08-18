@@ -234,11 +234,27 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Security depends entirely on Supabase RLS configuration. No server-side auth gateway.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-AUTH-4: No rate limiting on auth endpoints
-**File:** `backend/api.py` — login, signup, reset-password routes
-**Problem:** No rate limiting on `/api/auth/login`, `/api/auth/signup`, `/api/auth/reset-password`. An attacker can brute-force passwords or spam signup.
+### P-AUTH-4: No rate limiting on auth endpoints [FIXED]
+**Files:** `backend/api.py:70-80` (_enforce_rate_limit), `backend/redis_rate_limiter.py` (Redis-backed limiter)
+**Problem:** No rate limiting on `/api/auth/login`, `/api/auth/signup`, `/api/auth/reset-password`, `/api/auth/send-otp`, `/api/auth/verify-phone`. An attacker can brute-force passwords or spam signup.
 **Impact:** Account takeover risk. Email flooding from signup spam.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix applied:**
+- `sys.path.insert()` moved before `from redis_rate_limiter import ...` in `api.py:43` — was after the import, causing silent ImportError on Vercel.
+- `check_rate_limit()` wired into 5 auth endpoints via `_enforce_rate_limit()` helper:
+  - Login: 5/15min per IP+email
+  - Signup: 3/hour per IP
+  - Reset-password: 3/hour per IP+email
+  - Send-otp: 3/min per IP+phone
+  - Verify-phone: 5/hour per IP+phone
+- `UPSTASH_REDIS_URL` env var synced to Vercel production.
+**Verified (all 5 endpoints, deployment chcxhq2la):**
+```
+POST /api/auth/login          6th request → 429 after 5 allowed
+POST /api/auth/reset-password 4th request → 429 after 3 allowed
+POST /api/auth/signup         4th request → 429 after 3 allowed (clean window, Redis key reset)
+POST /api/auth/send-otp       4th request → 429 after 3 allowed
+POST /api/auth/verify-phone   6th request → 429 after 5 allowed
+```
 
 ### P-AUTH-5 (SYSTEMIC): get_current_user never rejects guests — 66 endpoints silently open to anonymous traffic
 **Files:** `backend/auth.py:43-96` (sentinel), `backend/api.py` (108 endpoints using it)
@@ -343,17 +359,22 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
-**Files:** `backend/redis_rate_limiter.py:59-61,105-108`, `backend/api.py:452-459`
+**Files:** `backend/redis_rate_limiter.py:59-61,106-113`, `backend/api.py:452-459`
 **Problem:** Two failure paths both result in rate limiting silently degrading to "off" with no signal:
-1. **Redis connection drops at runtime** (`redis_rate_limiter.py:105-108`): bare `except` → `print()` to stdout → returns `True` (allowed). slowapi was disabled at import time (L455: `enabled=False`) and stays disabled. No rate limiting. No alert.
+1. **Redis connection drops at runtime** (`redis_rate_limiter.py:106-113`): bare `except` → `print()` to stdout → returns `True` (allowed). slowapi was disabled at import time (L455: `enabled=False`) and stays disabled. No rate limiting. No alert.
 2. **Env var unset on next deploy** (`api.py:458`): `REDIS_RATE_LIMITER_AVAILABLE` = `False` → slowapi in-memory limiter activates. On Vercel serverless, in-memory state resets per cold start → rate limits non-functional.
-**Impact:** Both paths are silent. `print()` output is discarded on Vercel. No 429, no error, no persisted log. Rate limiting can silently degrade to "off" with no signal during an incident.
-**Fix applied (P-AUTH-4):** 
-- `sys.path.insert()` moved before `from redis_rate_limiter import ...` in `api.py:41-43` — was after the import, causing silent ImportError on Vercel.
-- `check_rate_limit()` wired into 5 auth endpoints: login (5/15min/IP+email), signup (3/hour/IP), reset-password (3/hour/IP+email), send-otp (3/min/IP+phone), verify-phone (5/hour/IP+phone).
-- `UPSTASH_REDIS_URL` env var synced to Vercel production.
-- `print()` remains (not scope for this fix) — flagged as follow-up.
-**Verified:** Login: 6th request → 429 after 5 allowed. Reset-password: 4th request → 429 after 3 allowed. Debug endpoint removed → 404 confirmed.
+**Impact:** Both paths were silent. `print()` output was discarded on Vercel (FileHandler writes to /tmp, not stderr). No 429, no error, no persisted log. Rate limiting could silently degrade to "off" with no signal during an incident.
+**Fix applied:**
+- `print()` calls replaced with `logger.info/warning/error` (5 call sites).
+- `StreamHandler` added to `redis_rate_limiter` logger to ensure output reaches stderr (Vercel captures stderr, not FileHandler from `api.py`'s `basicConfig(filename=...)`).
+- `_log_once` guard on `is_allowed` catch-all prevents Redis transient error log flooding.
+- `import json` and `from typing import Optional` removed (dead imports).
+- `__main__` block kept as `print()` (CLI output, not server logging).
+- Fail-open semantics preserved (pre-revenue, ~15 users — availability > security on rate limiting).
+**Verified:** `redis_connected` log line confirmed in Vercel logs via `--json` output on cold start:
+```
+"logs":[{"level":"info","message":"2026-08-18 20:37:20,020 - redis_rate_limiter - INFO - redis_connected"}]
+```
 
 ### P-PAY-1: Razorpay keys missing — payment flow is DEAD
 **File:** `backend/plan_enforcement.py`, `backend/api.py` — payment routes
