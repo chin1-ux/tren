@@ -166,11 +166,16 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Users see fake data presented as real. The "is_simulated" flag is honest but the UX still shows fabricated charts and scores.
 **Does IMPLEMENTATION_PLAN.md fix this?** Partially. Item 3.2 fixes the caption stub. Items 3.3 adds real endpoints for news + audio. But the video analysis and Instagram Graph API stubs remain unfixed.
 
-### P-API-2: 10 duplicate route registrations — first-wins verified [UPDATED — AUDIT COMPLETE]
-**File:** `backend/api.py` — 10 duplicate paths (20 decorators total for 10 paths)
-**Problem:** Ten pairs of duplicate route registrations. The second registration is dead code but adds ~2,000+ lines of unused code to the file.
-**Audit result (Aug 19):** FastAPI/Starlette uses first-registered route wins (list iteration). Gated versions at L1799/L1861 ARE enforced. Second ungated definitions at L4751/L4811 are dead code but **latent regression risk** — code reorder could flip which version wins.
-**Impact:** Dead code maintenance burden. Latent regression risk if file is reordered. The file is now 7,122 lines with 154 decorators.
+### P-API-2: Duplicate route dead code — maintenance/regression burden, NO active revenue leak [REVISED — LIVE TEST + CODE REVIEW]
+**File:** `backend/api.py` — 10 original "pairs" resolved to 5 true duplicates + 5 legitimate REST pairs
+**Problem:** 5 route paths have the same method registered twice (dead code). The other 5 "pairs" are GET/POST on the same path (standard REST, not duplicates).
+**Live test + code review (Aug 19):** All 5 true duplicates tested with free-tier token:
+- `/api/algorithm/*` (3 endpoints): 200 for free tier — **NOT a bug**. Gated version at L1799 IS served (first-route wins), but `algorithm_insights` is in free-tier allowed list (`plan_enforcement.py:335`). Intentional policy.
+- `/api/health`: 200 unauthenticated — **correct**. Both versions are unauthenticated health checks.
+- `/api/india/cultural-events`: 200 for free tier and anonymous — **active revenue leak** but caused by missing `require_feature("india_features")` gate, NOT by route shadowing. Filed under P-API-4.
+**Diff results:** Algorithm endpoints have identical bodies (2nd just missing gates). Health and cultural-events have different implementations — deletion of 2nd copy requires decision on which to keep.
+**Impact:** Dead code adds ~1,500 lines to an already 7,122-line file. Maintenance burden. Latent regression risk if file is reordered. No active revenue leakage from shadowing itself.
+**Fix:** Delete 3 safe algorithm duplicates (L4751-4852). Decide on health + cultural-events implementations. See shared-infra rule #3 — needs explicit approval.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-API-3: api.py is 7,088 lines — unmaintainable
@@ -179,7 +184,7 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Every change risks breaking something else. Merge conflicts are guaranteed. Onboarding new developers is impossible.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't mention api.py restructuring.
 
-### P-API-4: 34 unguarded endpoints — full audit complete [UPDATED — AUDIT COMPLETE]
+### P-API-4: 34 unguarded endpoints — full audit complete, 1 confirmed live [UPDATED — LIVE TEST CONFIRMED]
 **File:** `backend/api.py` — 154 decorators, 149 unique method+path combos
 **Problem:** Endpoints with no plan enforcement or auth check.
 **Full audit result (Aug 19):**
@@ -190,8 +195,9 @@ estimated_count = int(base_count * growth_multiplier)
 - **16 ADMIN-ONLY** (require_admin)
 - **16 AMBIGUOUS** (need review)
 - **Cron endpoints reclassified**: `/api/cron/trigger` (L514) and `/api/cron/refresh` (L535) have CRON_SECRET auth — correctly unguarded
-**Impact:** Free users can access premium features without upgrading. Revenue leakage on ~32 endpoints.
-**Fix:** Add `require_feature()` checks to 32 unguarded endpoints. Priority: marketplace (13), india/cultural (10), hashtag (5).
+**Confirmed live (Aug 19):** `/api/india/cultural-events` returns 200 for free-tier token AND anonymous (no auth). `india_features` IS in `PAID_FEATURES` (restricted to pro/business at `plan_enforcement.py:63`), but neither duplicate definition uses `require_feature("india_features")`. Both versions only use `get_current_user` which returns "guest@trendrop.app" for anonymous without rejecting.
+**Impact:** Free users can access premium features without upgrading. Revenue leakage on ~32 endpoints. Cultural-events confirmed active leak.
+**Fix:** Add `require_feature()` checks to 32 unguarded endpoints. Priority: marketplace (13), india/cultural (10), hashtag (5). Cultural-events fix also touches P-API-2 (duplicate cleanup — decide which implementation to keep). See shared-infra rule #3 — needs explicit approval.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-API-5: Admin route auth check is incomplete
