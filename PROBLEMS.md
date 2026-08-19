@@ -778,6 +778,7 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 ### P-MARKET-3: No escrow/payment processing for deals — "Mark as paid" is a database toggle [CRITICAL]
 **Files:** `backend/api.py:4102-4121` (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`)
 **Problem:** The milestone payment endpoint simply updates `paid_status` from "unpaid" to "paid" in the database. No money moves. No Razorpay integration. No escrow. No invoice generation. The creator clicks "Mark as paid" and the system trusts that the brand actually paid. This is identical to the agency model — no payment protection.
+**Access control (fixed commit `e179405e`):** Endpoint now gated to `require_feature("advanced_analytics")` (pro/business plans only). Free-tier users get 403 with upgrade prompt. Ownership check at L4117-4118 still fires after plan gate — paid users can only mark milestones on their own deals.
 **Impact:** Without escrow, creators have zero payment protection. Brands can promise to pay and never do. This is the exact problem agencies create, and Trendrop claims to solve.
 **Fix:** Implement Razorpay escrow: brand funds deal upfront → Trendrop holds money → creator delivers → Trendrop releases payment. This requires Razorpay KYC (P-FUND-1) and brand-side interface (P-MARKET-1).
 
@@ -809,7 +810,7 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Context:** Session opened with "13 ungated marketplace endpoints" (estimate from earlier audit pass). Actual count: 17 marketplace/deals/creator endpoints total. Of those: 8 properly gated (OK), 4 low-risk (guest gets empty data), 3 medium-risk (anonymous@ leak, missing feature gates), 2 high-risk (zero-auth profile dump, run-reminders admin action). The "13 ungated" number was wrong — flagged here so the next session doesn't inherit it.
 **Severity corrections from this session's re-trace:**
 - #10 (`GET /api/brand-deals/{user_email}`): Originally flagged as HIGH (cross-user deal read). Re-traced guard logic: the condition `current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app"` correctly blocks Alice→Bob access. Actual gap was narrower: anonymous@ exception allowed any authed user to read anonymous's deals. **Downgraded to MEDIUM. Fixed in commit `4d6e0620`.**
-- #8 (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`): Originally flagged as HIGH (any user can falsify payment). Re-traced: ownership check exists at L4117-4118 (`creator_id != current_user_email → 403`). Real issue is missing `require_feature` gate, not missing ownership check. **Downgraded to MEDIUM.**
+- #8 (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`): Originally flagged as HIGH (any user can falsify payment). Re-traced: ownership check exists at L4117-4118 (`creator_id != current_user_email → 403`). Real issue is missing `require_feature` gate, not missing ownership check. **Downgraded to MEDIUM. Fixed in commit `e179405e` — gated to `require_feature("advanced_analytics")` (pro/business).**
 - #1 (`GET /api/marketplace/profiles`): Zero auth, but may be intentionally public (marketplace browse). Needs intent decision before fixing.
 
 ---
