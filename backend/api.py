@@ -4163,8 +4163,8 @@ def get_brand_deals_marketplace(
     limit: int = 50,
     current_user_email: str = Depends(require_auth)
 ):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
-        raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's brand deals")
+    if user_email != current_user_email:
+        raise HTTPException(status_code=403, detail="Forbidden: You can only view your own brand deals")
 
     from plan_enforcement import PlanEnforcement
     from datetime import datetime, timezone, timedelta
