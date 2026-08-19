@@ -5427,41 +5427,6 @@ def get_regional_timing_optimization(
         raise HTTPException(status_code=500, detail="Failed to get regional timing")
 
 
-@app.get("/api/india/cultural-events")
-@limiter.limit("30/minute")
-def get_cultural_event_automation(
-    request: Request,
-    days_ahead: int = 30,
-    current_user: str = Depends(get_current_user)
-):
-    """Get automated recommendations for upcoming cultural events."""
-    if not IndiaFeaturesEngine:
-        raise HTTPException(status_code=500, detail="India features engine not configured.")
-    
-    try:
-        engine = IndiaFeaturesEngine()
-        events = engine.get_cultural_event_automation(days_ahead=days_ahead)
-        
-        return {
-            'cultural_events': [
-                {
-                    'event_name': event.event_name,
-                    'event_date': event.event_date.isoformat(),
-                    'region': event.region,
-                    'content_automation': event.content_automation,
-                    'hashtag_strategy': event.hashtag_strategy,
-                    'timing_recommendations': event.timing_recommendations,
-                    'content_themes': event.content_themes,
-                    'creator_opportunities': event.creator_opportunities
-                }
-                for event in events
-            ],
-            'total_events': len(events)
-        }
-    except Exception as e:
-        logger.exception(f"Error getting cultural events: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get cultural events")
-
 
 @app.post("/api/india/detect-language")
 @limiter.limit("30/minute")
@@ -6074,7 +6039,8 @@ def get_virality_improvements(
 def get_cultural_events(
     request: Request,
     days_ahead: int = 90,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("india_features"))
 ):
     """Get upcoming India-specific cultural events."""
     if not CulturalEventCalendar:
@@ -6082,9 +6048,21 @@ def get_cultural_events(
     
     try:
         events = CulturalEventCalendar.get_upcoming_events(days_ahead)
+        # Dual-key response: 'events' for EarlyDetectionPanel, 'cultural_events' for IndiaFeaturesDashboard
+        # Known wart — one logical resource returning two shapes. Clean up when consumers align.
         return {
             'events': events,
-            'total': len(events)
+            'cultural_events': [
+                {
+                    'event_name': e['name'],
+                    'event_date': e['date'],
+                    'content_automation': e.get('content_automation', []),
+                    'creator_opportunities': e.get('creator_opportunities', [])
+                }
+                for e in events
+            ],
+            'total': len(events),
+            'total_events': len(events)
         }
     except Exception as e:
         logger.exception(f"Error getting cultural events: {e}")

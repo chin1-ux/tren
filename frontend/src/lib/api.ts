@@ -967,11 +967,7 @@ export async function getRegionalTimingOptimization(region: string = "north"): P
 export interface CulturalEvent {
   event_name: string;
   event_date: string;
-  region: string;
   content_automation: string[];
-  hashtag_strategy: string[];
-  timing_recommendations: string[];
-  content_themes: string[];
   creator_opportunities: string[];
 }
 
