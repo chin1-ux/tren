@@ -753,23 +753,22 @@ class TrendEngine:
                 len(audio_groups),
             )
 
-            # STEP 3: Skip trends that are currently ACTIVE (emerging/rising).
-            # Expired and peaked trends CAN be re-detected if they surge again —
-            # blocking ALL historical audio caused the Rising tab to stay empty
-            # as the trend DB accumulated expired entries.
-            active_res = self.supabase.table("trends") \
-                .select("audio_title, audio_artist, audio_id") \
-                .in_("status", ["emerging", "rising"]) \
+            # STEP 3: Fetch ALL existing trends for dedup (all statuses).
+            # On re-detection, update existing row in-place instead of inserting
+            # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
+            STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
+            all_trends_res = self.supabase.table("trends") \
+                .select("audio_title, audio_artist, audio_id, status") \
                 .execute()
             existing_named = {
                 (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())
-                for t in (active_res.data or [])
+                for t in (all_trends_res.data or [])
                 if t.get("audio_title")
                 and (t.get("audio_title") or "").strip().lower() != "original audio"
             }
-            existing_audio_ids = {
-                (t.get("audio_id") or "").strip()
-                for t in (active_res.data or [])
+            existing_by_audio_id = {
+                (t.get("audio_id") or "").strip(): t
+                for t in (all_trends_res.data or [])
                 if t.get("audio_id")
             }
 
@@ -777,10 +776,40 @@ class TrendEngine:
             confirmed = []
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
-                if title.lower() == "original audio":
-                    if representative_audio_id and representative_audio_id.strip() in existing_audio_ids:
-                        continue
-                elif (title, artist) in existing_named:
+
+                # Check for existing trend by audio_id (primary) or title+artist (fallback)
+                existing_match = None
+                if representative_audio_id and representative_audio_id.strip() in existing_by_audio_id:
+                    existing_match = existing_by_audio_id[representative_audio_id.strip()]
+                elif title.lower() != "original audio" and (title, artist) in existing_named:
+                    # Title+artist match without audio_id match — find by name
+                    for t in (all_trends_res.data or []):
+                        if (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip()) == (title, artist):
+                            existing_match = t
+                            break
+
+                if existing_match:
+                    # Update-in-place: never-downgrade status on re-detection.
+                    # Only status is updated here — velocity/metrics are owned by
+                    # trend_refresher.py via snapshot logic. No last_detected_at
+                    # column exists; consider adding via migration for staleness tracking.
+                    old_status = existing_match.get("status", "emerging")
+                    new_detected_status = "emerging"
+                    old_priority = STATUS_PRIORITY.get(old_status, 0)
+                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if final_status != old_status:
+                        try:
+                            self.supabase.table("trends") \
+                                .update({"status": final_status}) \
+                                .eq("id", existing_match["id"]) \
+                                .execute()
+                            logging.info(
+                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
+                                f"status {old_status} -> {final_status}"
+                            )
+                        except Exception as update_err:
+                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
