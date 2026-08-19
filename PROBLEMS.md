@@ -521,9 +521,9 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** Marketplace feature shows nothing. No brand partnerships.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-DB-6: `trends` table has inconsistent lifecycle distribution
-**File:** Supabase `trends` table — 681 rows
-**Problem:** Distribution: 32 rising, 31 emerging, 343 peaked, 275 expired. Only 32 trends pass the feed filter (rising + emerging = 63, but many fail other filters).
+### P-DB-6: `trends` table has inconsistent lifecycle distribution [UPDATED]
+**File:** Supabase `trends` table — 321 rows (post P-METHOD-1 cleanup)
+**Problem:** Distribution: ~32 rising, ~31 emerging, ~128 peaked, ~130 expired. Only ~63 trends pass the feed filter (rising + emerging), but many fail other filters.
 **Impact:** The feed shows very few active trends. Most trends are already peaked/expired.
 **Does IMPLEMENTATION_PLAN.md fix this?** Indirectly. Fixing event detection and caption stubs may increase the number of active trends.
 
@@ -534,6 +534,25 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Also flags:** Exception handlers that return success-like responses on DB failure are a bug class — worth auditing elsewhere. A handler that catches all exceptions and returns a dict without re-raising means callers can't distinguish success from failure.
 **Fix applied:** Created `backend/migrate_user_performance_tables.sql` with `CREATE TABLE IF NOT EXISTS` for the 3 core tables: `user_performance`, `user_insights`, `user_media_performance`. Schema derived from tracker code. User must run this SQL in Supabase SQL Editor. Tables 4-6 (`realtime_trends`, `trending_hashtags`, `trending_audio`) are not used by any code — omitted.
 **UNVERIFIED:** Migration SQL written but not yet executed in Supabase. P-AUTH-7 GET-side IDOR fix remains blocked until tables exist.
+
+### P-DB-8: Supabase Python client silently truncates at 1000 rows — systemic data visibility risk [NEW]
+**Files:** Any code using `supabase-py` `.table().select().execute()` without explicit `.limit()` or pagination.
+**Problem:** The Supabase Python client defaults to `.limit(1000)` on all queries. This is silent — no error, no warning, no partial-result flag. If a table has >1000 rows, the query returns only the first 1000 and the caller has no way to know. This affected the P-METHOD-1 analysis: the `trends` table had 1,013 rows but the analysis script saw only 1,000, missing 13 rows across 12 duplicate groups. The DELETE list was built on incomplete data and required a second pass.
+**Impact:** Any production query fetching trends, snapshots, or reels without an explicit limit or pagination could be silently returning partial data. This includes dashboards, velocity calculations, feed endpoints, analytics, and any metric that sums or counts across the full table. The user would see incomplete data with no indication anything is wrong.
+**Action required:** Grep the codebase for all `.table(` calls and verify each has an explicit `.limit()`, `.range()`, or pagination loop. Flag any that don't. Priority: user-facing endpoints and metric calculations.
+**Fix applied:** None yet. Systemic audit needed.
+
+### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED — Change B pending]
+**Files:** `backend/trend_engine.py:756-814` (dedup guard — FIXED), `backend/external_trend_pipeline.py:92` (zero dedup — Change B pending), `backend/trend_refresher.py` (status transitions)
+**Problem:** The dedup guard at `trend_engine.py:762` only checked trends with status `emerging` or `rising`. Once a trend transitioned to `peaked` or `expired` via `trend_refresher.py`, the guard no longer blocked re-detection. The external pipeline at `external_trend_pipeline.py:92` has zero dedup. No unique DB constraint on `audio_id` in the `trends` table.
+**Impact:** 53% of trend titles were duplicated. 1,013 total rows, 163 duplicate groups, 692 excess rows. Business metrics (trend count, velocity averages) inflated ~2.7x since Aug 7. Ongoing since day one.
+**Fix applied:**
+1. Backfill DELETE of 679 rows committed (first pass — Supabase pagination bug missed 13 rows).
+2. Cleanup DELETE of 13 remaining excess rows committed. Final state: 321 unique trends, 0 duplicate groups.
+3. Unique constraint `trends_audio_id_unique` on `audio_id` — live, proven to reject duplicates.
+4. Forward-fix Change A (trend_engine.py): dedup guard widened to all statuses, never-downgrade status rule (`rising > emerging > peaked > expired`), update-in-place on match. Velocity/metrics untouched — owned by trend_refresher.py via 5 independent cron-driven call sites. Committed `e23ef810`.
+**Remaining:** Change B (external_trend_pipeline.py dedup guard) — separate commit, next session.
+**Remaining:** Run 13-row cleanup DELETE → add unique constraint → deploy forward-fix code → re-validate metrics.
 
 ---
 
