@@ -371,11 +371,13 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Impact:** `/api/payment/create-order` fails. Nobody can upgrade their plan through the UI. The entire payment flow is non-functional.
 **Does IMPLEMENTATION_PLAN.md fix this?** Yes. Item 3.8 identifies this as a user-action blocker. But no code fix exists — only "create Razorpay account → KYC → add keys."
 
-### P-PAY-2: `/pricing` page deleted — PlanGate upgrade button links to nowhere
-**File:** `frontend/src/components/PlanGate.tsx` — upgrade link
-**Problem:** The PlanGate component shows an "Upgrade" button that links to `/pricing`. But `pricing.tsx` was deleted in a previous commit (63ecfa70).
-**Impact:** Free users who hit a plan gate see an upgrade button that 404s. No path to revenue.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't mention the deleted pricing page.
+### P-PAY-2: `/pricing` page exists but is a dead end — no payment flow [UPDATED]
+**File:** `frontend/src/routes/pricing.tsx` — page exists, never deleted
+**Problem:** The PlanGate component shows an "Upgrade" button that links to `/pricing`. The page EXISTS (was never deleted — PROBLEMS.md was wrong). However, all 3 tier buttons on the pricing page simply navigate to `/login`. There is no Razorpay checkout, no `createPaymentOrder()` call, no payment flow. The page is a dead end: PlanGate → `/pricing` → click "Upgrade" → `/login`.
+**Impact:** Free users who hit a plan gate see an upgrade button that leads to a page with no conversion path. Revenue is blocked by the absence of a payment flow, not by a missing page.
+**Confirmed via trace:** 9 PlanGate instances across 6 files all use `window.location.href = '/pricing'`. `routeTree.gen.ts` includes `/pricing`. The page renders 3 tiers (Free/Creator/Agency ₹999/₹4,999) but all buttons go to `/login`.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix options:** (a) Add Razorpay checkout to pricing page — blocked on P-PAY-1 (no Razorpay keys). (b) Redirect PlanGate to an in-app upgrade modal with "Contact to upgrade" CTA — works without Razorpay. (c) Redirect to `/login` with upgrade context — minimal, loses conversion opportunity.
 
 ### P-PAY-3: `usage_logs` has 0 rows — quota logging is broken
 **File:** Supabase `usage_logs` table
@@ -383,11 +385,12 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Impact:** `require_quota()` checks in plan_enforcement.py read from a table that's always empty. Quota enforcement is effectively disabled — users never hit quota limits because the counter never increments.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-PAY-4: `verify-phone` page deleted — signup may redirect to 404
-**File:** `frontend/src/routes/verify-phone.tsx` — DELETED
-**Problem:** The signup flow may redirect to `/verify-phone` after registration. This page was deleted.
-**Impact:** New users may see a 404 after signup.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-PAY-4: `verify-phone` page — FALSE POSITIVE [UPDATED — NOT BROKEN]
+**File:** `frontend/src/routes/verify-phone.tsx` — page EXISTS, was never deleted
+**Problem:** PROBLEMS.md incorrectly claimed this page was deleted. The file exists, is registered in `routeTree.gen.ts`, and the route works. The redirect from `AuthContext.tsx:166-168` only fires when `phone_verification_required` is true (phone-based signups only). Email/OAuth signups never hit this path.
+**Impact:** None for email-only signups. Phone-based signups would work if anyone used them.
+**Confirmed via trace:** `api.py:2149-2165` sets the flag during signup if a phone number is provided. Backend endpoint `POST /api/auth/verify-phone` exists at `api.py:2209`. Rate limited (5 attempts/hour).
+**Action:** Remove from active problem list. Keep page as-is — it works if needed.
 
 ---
 
@@ -657,11 +660,13 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-EXH-1: Global handler swallows HTTPException | HIGH | All auth errors masked as 500 | **FIXED** |
 | P-EXH-2: jwt.JWTError doesn't exist in PyJWT 2.x | HIGH | verify_token never catches decode errors | **FIXED** |
 | P-PAY-1: Razorpay keys missing | HIGH | Payment dead |
+| P-PAY-2: pricing page dead end | HIGH | No conversion path | Updated — page exists, no checkout |
 | P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** |
 | P-AUTH-7: Write-side IDOR | HIGH | Data integrity | Fix applied, unverified |
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
+| P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
-| P-PAY-4: verify-phone deleted | MEDIUM | Signup may 404 |
+| P-PAY-4: verify-phone page exists | LOW | Phone signups work if used | **FALSE POSITIVE — removed** |
 | P-DESIGN-1: No design system | HIGH | Inconsistent UX |
 | P-DESIGN-2: Typography conflict | MEDIUM | Component override impossible |
 | P-DESIGN-3: Color drift (indigo vs coral) | MEDIUM | Brand inconsistency |
