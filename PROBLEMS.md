@@ -558,6 +558,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Problem:** Three songs have duplicate entries by (audio_title, audio_artist) but different audio_id values: "Be My Baby" by The Ronettes (2 rows), "This & That" by Stray Kids (2 rows), "Jamaican (Bam Bam)" by HUGEL/SOLTO (2 rows). Two of the three pairs have identical velocity_avg between the pair — suspicious, needs investigation to determine if these are genuinely distinct Instagram audio tracks or data-entry quirks.
 **Impact:** Minor — 6 extra rows out of 321 (1.9%). Human-visible duplicate trend cards possible.
 **Action required:** Investigate whether same-velocity pairs are one audio track under two IDs or legitimately distinct. If same, deduplicate manually. If distinct, consider composite unique constraint on (audio_title, audio_artist) — but only after confirming remixes/re-uploads shouldn't coexist as separate trends.
+
+### P-METHOD-1c: Trend-insertion path may bypass dedup guards entirely [NEW]
+**Files:** Unknown — suspected bulk-seed script from Aug 7 launch
+**Problem:** The new_trends_found cross-reference revealed 43+ trend rows created at identical timestamps (2026-08-07T07:33:33) — a bulk-insert signature. These rows bypassed `detect_trends()` and its dedup guard (Change A), and bypassed the external pipeline guard (Change B). If this code path is still live/callable, it could reintroduce duplicates that neither guard sees.
+**Impact:** Unknown — depends on whether the path still exists and is reachable. If dead, zero risk. If live, the dedup guards we just shipped have a blind spot.
+**Action required:** Identify the bulk-seed script/code path. Determine: (a) is it still callable? (b) does it bypass Change A/B guards? (c) should it be retired or given the same dedup logic?
+**Note:** This is a process/architecture question, separate from P-METHOD-1b (which is a data cleanup question about 3 remaining title+artist duplicates).
 **Remaining:** Run 13-row cleanup DELETE → add unique constraint → deploy forward-fix code → re-validate metrics.
 
 ---
