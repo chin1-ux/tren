@@ -166,10 +166,11 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Users see fake data presented as real. The "is_simulated" flag is honest but the UX still shows fabricated charts and scores.
 **Does IMPLEMENTATION_PLAN.md fix this?** Partially. Item 3.2 fixes the caption stub. Items 3.3 adds real endpoints for news + audio. But the video analysis and Instagram Graph API stubs remain unfixed.
 
-### P-API-2: 4 duplicate route registrations
-**File:** `backend/api.py` — L1779/L4726, L1841/L4786, L1864/L4807, L5405/L6047
-**Problem:** Four pairs of duplicate route registrations. The second registration is dead code but adds ~2,000 lines of unused code to the file.
-**Impact:** Confusion during debugging. Maintenance burden. The file is already 7,088 lines.
+### P-API-2: 10 duplicate route registrations — first-wins verified [UPDATED — AUDIT COMPLETE]
+**File:** `backend/api.py` — 10 duplicate paths (20 decorators total for 10 paths)
+**Problem:** Ten pairs of duplicate route registrations. The second registration is dead code but adds ~2,000+ lines of unused code to the file.
+**Audit result (Aug 19):** FastAPI/Starlette uses first-registered route wins (list iteration). Gated versions at L1799/L1861 ARE enforced. Second ungated definitions at L4751/L4811 are dead code but **latent regression risk** — code reorder could flip which version wins.
+**Impact:** Dead code maintenance burden. Latent regression risk if file is reordered. The file is now 7,122 lines with 154 decorators.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-API-3: api.py is 7,088 lines — unmaintainable
@@ -178,18 +179,20 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Every change risks breaking something else. Merge conflicts are guaranteed. Onboarding new developers is impossible.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't mention api.py restructuring.
 
-### P-API-4: ~25 unguarded endpoints
-**File:** `backend/api.py` — various lines
-**Problem:** These endpoints have no plan enforcement or auth check:
-- Events: `/api/india/cultural-events` (line 5405)
-- Hashtags: `/api/india/hashtags` (line 5567)
-- Creator analytics: `/api/creator/analytics` (line 5740)
-- Marketplace: `/api/marketplace/trends` (line 5890)
-- Deals: `/api/deals` (line 6000)
-- Trend detection: `/api/trends/detect` (line 6047)
-- And ~19 more
-**Impact:** Free users can access premium features without upgrading. Revenue leakage.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan mentions plan enforcement improvements but doesn't audit which endpoints are unguarded.
+### P-API-4: 34 unguarded endpoints — full audit complete [UPDATED — AUDIT COMPLETE]
+**File:** `backend/api.py` — 154 decorators, 149 unique method+path combos
+**Problem:** Endpoints with no plan enforcement or auth check.
+**Full audit result (Aug 19):**
+- **154 total decorators**, 144 unique paths, 149 unique method+path combos
+- **34 SHOULD-BE-GATED**: marketplace (13), india/cultural (10), hashtag (5), creator analytics (3), early detection (4), ideation (5), events (2) — corrected to 32 after cron reclassification
+- **34 CORRECTLY-GATED** (require_auth + require_feature)
+- **41 CORRECTLY-UNGATED** (public endpoints: auth, pricing, trends list, etc.)
+- **16 ADMIN-ONLY** (require_admin)
+- **16 AMBIGUOUS** (need review)
+- **Cron endpoints reclassified**: `/api/cron/trigger` (L514) and `/api/cron/refresh` (L535) have CRON_SECRET auth — correctly unguarded
+**Impact:** Free users can access premium features without upgrading. Revenue leakage on ~32 endpoints.
+**Fix:** Add `require_feature()` checks to 32 unguarded endpoints. Priority: marketplace (13), india/cultural (10), hashtag (5).
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-API-5: Admin route auth check is incomplete
 **File:** `backend/api.py` — admin routes
@@ -740,15 +743,102 @@ These are claims made in the codebase or marketing that are not supported by the
 **Impact:** Building anti-sharing features now is engineering time spent on a problem that doesn't exist while the actual blocker (dead payments) remains unsolved.
 **Fix:** None needed — this is a prioritization note. The existing session capping and time-decay features are sufficient for the current scale.
 
-### P-FUND-5: Data-parity moat risk — differentiation is currently speed-only, not insight [NEW]
-**Problem:** All paid tiers see the same underlying trend data, differentiated only by data_delay_hours (access speed). This is a defensible-but-thin moat: a competitor with a faster scraper, official API partnership, or lower operating cost could replicate the core value proposition. Personalization (P-DESIGN-9/P-DB-3) and named-seat structuring (P-FUND-3) help retention and reduce sharing, but neither creates a data moat.
-**Not a code problem — a positioning question.** Flagging for founder-level strategic decision, not a Devin task. Worth resolving before fundraising conversations, since "why can't someone just build a faster scraper" is a predictable investor question.
+### P-FUND-5: Data-parity moat risk — differentiation is currently speed-only, not insight [UPDATED — STRATEGIC DIRECTION SET]
+**Problem:** All paid tiers see the same underlying trend data, differentiated only by data_delay_hours (access speed). This is a defensible-but-thin moat.
+**Resolution:** Strategic pivot to "India's creator economy operating system" — trend detection + content generation + deal connection + payment protection. The moat is not speed — it's the connection layer powered by trend intelligence. See ROADMAP.md for full strategy.
+**Competitive research:** Virlo (US, $36K MRR, bootstrapped) is the closest competitor. They charge $49-199/mo. Trendrop's India-first positioning + 4x lower price + deal connection layer = defensible advantage in India market.
+
+---
+
+### P-MARKET-1: No brand-side interface — brands can't participate in the marketplace [CRITICAL]
+**Files:** `frontend/src/routes/marketplace.tsx`, `frontend/src/routes/deals.new.tsx`, `backend/api.py:3847-4431`
+**Problem:** The marketplace is creator-facing only. Brands cannot: post deals, review applications, select creators, fund escrow, or confirm delivery. The "Create Campaign Deal" form (`deals.new.tsx`) is designed for creators to self-create deals — there is no brand login, brand dashboard, or brand application review flow. Without a brand-side product, the marketplace is a one-sided marketplace that cannot generate revenue.
+**Impact:** This is the #1 blocker for the marketplace generating revenue. A marketplace needs both sides. Currently only creators can participate.
+**Fix:** Build brand-side interface: brand signup/login, brand dashboard (post deals, review applications, select creators, fund escrow, confirm delivery, rate creators). This is Phase 2 of the marketplace redesign. See ROADMAP.md.
+
+### P-MARKET-2: Duplicate deal systems — old and new coexist with different schemas [HIGH]
+**Files:** `backend/api.py:3883-3930` (old `/api/marketplace/deals`), `backend/api.py:3959-4058` (new `/api/deals`), `backend/database_setup.py:165-181`, `backend/fix_brand_deals_schema.py:23-27`
+**Problem:** Two parallel deal creation/retrieval systems exist on the same `brand_deals` table:
+- **Old system** (`/api/marketplace/deals` GET+POST): Uses `creator_email`, `deal_amount`, `commission_amount`, `details`, 15% auto-commission. Simpler, no milestones.
+- **New system** (`/api/deals` GET+POST): Uses `creator_id`, `rate_amount`, milestones, PDF contract generation, usage rights, exclusivity. Full-featured.
+
+Both write to `brand_deals` but use different columns. The old system's data is incomplete (missing milestones, contracts). The new system ignores old data. This creates confusion and data fragmentation.
+**Impact:** Users see inconsistent deal data depending on which endpoint they hit. Old deals lack milestones and contracts. New deals are complete but don't integrate with old marketplace browse.
+**Fix:** Merge into single system. Migrate old deals to new schema (add milestones, contracts where missing). Remove old endpoints. One system, one data model.
+
+### P-MARKET-3: No escrow/payment processing for deals — "Mark as paid" is a database toggle [CRITICAL]
+**Files:** `backend/api.py:4102-4121` (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`)
+**Problem:** The milestone payment endpoint simply updates `paid_status` from "unpaid" to "paid" in the database. No money moves. No Razorpay integration. No escrow. No invoice generation. The creator clicks "Mark as paid" and the system trusts that the brand actually paid. This is identical to the agency model — no payment protection.
+**Impact:** Without escrow, creators have zero payment protection. Brands can promise to pay and never do. This is the exact problem agencies create, and Trendrop claims to solve.
+**Fix:** Implement Razorpay escrow: brand funds deal upfront → Trendrop holds money → creator delivers → Trendrop releases payment. This requires Razorpay KYC (P-FUND-1) and brand-side interface (P-MARKET-1).
+
+### P-MARKET-4: No brand verification — anyone can create a brand deal [HIGH]
+**Files:** No verification code exists anywhere in the marketplace flow.
+**Problem:** Anyone can create a brand deal without proving they are a legitimate business. No GST verification, no business registration, no company email check. This enables fake brands that promise deals and never pay, or brands that create deals to harvest creator contact information.
+**Impact:** Trust erosion. If creators encounter fake brands, they leave the platform. Without verification, the marketplace becomes a spam vector.
+**Fix:** Brand verification flow: GST number upload, business registration document, company email verification (@company.com, not Gmail). Verified badge on brand profiles. Unverified brands can browse but cannot post deals.
+
+### P-MARKET-5: No notifications to brands — application black hole [HIGH]
+**Files:** `backend/api.py:4306-4327` (`POST /api/apply-deal`), no email/notification code for brands.
+**Problem:** When a creator applies to a brand deal, the application is stored in `brand_deal_applications` but no email, push notification, or in-app alert is sent to the brand. The brand has no way to know someone applied unless they manually check. Collab requests (`POST /api/send-collab-request`) have the same problem.
+**Impact:** Deals go unanswered. Creators apply and hear nothing. The marketplace feels dead. This is the #1 reason marketplaces fail — supply (creators) exists but demand (brands) doesn't know about it.
+**Fix:** Email notifications to brands when: (1) creator applies to their deal, (2) deal is about to expire, (3) milestone is approaching. In-app notification center. Brand dashboard with application queue.
+
+### P-MARKET-6: Hardcoded compatibility scoring — doesn't scale [MEDIUM]
+**Files:** `backend/api.py:4375-4384`
+**Problem:** Creator-creator compatibility is computed via a hardcoded if/elif chain: same niche = 95%, dance+fitness = 89%, fashion+travel = 87%, etc. This doesn't account for: audience overlap, engagement rate similarity, follower count parity, content style, posting frequency, or actual collaboration history.
+**Impact:** Matching quality degrades as the creator base grows. The current system works for <100 creators but will produce poor matches at 1000+.
+**Fix:** ML-based matching using: niche similarity (embeddings), audience demographics, engagement rate parity, follower count range, content style vectors, collaboration history. Start with weighted scoring, evolve to model-based.
+
+### P-MARKET-7: Marketplace not discoverable — hidden from navigation [LOW]
+**Files:** `frontend/src/components/BottomTabBar.tsx:47`, `frontend/src/routes/marketplace.tsx`
+**Problem:** The `/marketplace` route exists but is NOT in the bottom tab bar. Only `/deals` is visible. Users must know the URL to access the marketplace. The marketplace is the primary value proposition for brand-creator connection but is hidden behind a direct URL.
+**Impact:** Low marketplace engagement. Users don't discover the feature. Creators who could be earning from deals never find the marketplace.
+**Fix:** Add marketplace to bottom tab bar (replacing or alongside Deals). Or merge marketplace and deals into a single unified navigation item.
+
+---
+
+### P-PAY-5: Plan rename needed — "Agency" tier signals exploitation [MEDIUM]
+**Files:** `backend/plan_enforcement.py:71-75`, `backend/database_setup.py:204-211`, `frontend/src/components/PlanGate.tsx`, `frontend/src/routes/pricing.tsx`
+**Problem:** The "Agency" tier name signals the exact thing Trendrop claims to eliminate — agency exploitation of creators. The plan structure should position Trendrop as the anti-agency: direct brand-creator connection. "Agency" as a tier name contradicts this positioning.
+**Impact:** Brand confusion. Users who hate agencies see an "Agency" plan and question the platform's values. Investor messaging inconsistency.
+**Fix:** Rename: Agency → Brand (₹4,999/mo, for brands posting deals). Creator → Pro (₹999/mo). Keep Free as Free. Enterprise stays Enterprise. Update all references: DB tier names, frontend labels, plan enforcement, pricing page, onboarding flow.
+
+### P-PAY-6: Credit system needed — usage-based pricing for trend detection + AI [HIGH]
+**Files:** No credit system exists. Current pricing is flat-rate subscription only.
+**Problem:** Flat-rate pricing doesn't match usage patterns. A creator who checks trends once/day pays the same as one who checks 50 times/day. This creates: (1) unfairness for light users, (2) revenue ceiling for heavy users, (3) no incentive to optimize usage. Virlo (competitor) uses credit-based pricing: Orbit Search = 50 credits, each plan has monthly credit allocation.
+**Impact:** Revenue left on the table. Heavy users should pay more. Light users should pay less. Credit system enables: per-action pricing, credit add-ons, usage transparency, revenue optimization.
+**Fix:** Implement credit system: Free = 10 credits/day, Pro = 200 credits/mo, Brand = 1,500 credits/mo. Credit costs: trend detection = 1 credit, AI generation = 5 credits, deal posting = 10 credits. Credit add-ons: ₹99/50 credits, ₹249/150 credits, ₹499/350 credits.
+
+### P-PAY-7: Free + 14-day trial model needed — current free tier lacks upgrade pressure [MEDIUM]
+**Files:** `frontend/src/routes/pricing.tsx`, `backend/plan_enforcement.py`
+**Problem:** The current free tier gives permanent access to basic features with no urgency to upgrade. Users who sign up and never upgrade generate zero revenue. There's no mechanism to show users what they're missing. The 14-day trial that was previously on the pricing page was removed.
+**Impact:** Low conversion rate from free to paid. Users don't experience enough value during free usage to justify upgrading. No trial = no urgency.
+**Fix:** Free tier + 14-day Pro trial: (1) User signs up → Free tier (10 credits/day), (2) After 3 days of usage → "Try Pro free for 14 days" prompt, (3) During trial → Full Pro access (200 credits/day), (4) After trial → Back to Free unless they upgrade, (5) Trial requires Razorpay setup (₹0 charge, card on file for auto-conversion).
 
 ---
 
 ## RECOMMENDATION
 
-The IMPLEMENTATION_PLAN.md v2 addresses 6 of 45 identified problems. The remaining 39 problems fall into these categories:
+The codebase now has **67 total problems** (10 fixed, 1 false positive, 56 open). The remaining problems fall into these categories:
+
+1. **Marketplace redesign** (7 problems): P-MARKET-1 through P-MARKET-7. The marketplace is the #1 revenue blocker. Without a brand-side product, there are no deals, no escrow revenue, and no connection layer. This is the highest-priority workstream.
+
+2. **Data pipeline architecture** (8 problems): The scraper needs pagination, DB batching, formula fixes, and timeout restructuring. These are the highest-impact fixes but require the most engineering effort.
+
+3. **Frontend design** (10 problems): The app needs a ground-up design system rebuild. This is the second-highest impact but requires design expertise, not just code fixes.
+
+4. **Monetization** (5 problems): Plan rename, credit system, trial model, Razorpay KYC, and payment flow. These are quick wins that unlock revenue.
+
+5. **Security** (4 problems): Auth hardening, rate limiting, and admin route protection are quick wins that should be done immediately.
+
+6. **Truth** (5 problems): Marketing claims need to be updated to match reality, or the code needs to be updated to match the claims.
+
+**The recommended execution order (from ROADMAP.md):**
+- **Phase 1 (Oct 2026):** Razorpay + brand interface + escrow = first revenue
+- **Phase 2 (Nov-Dec 2026):** Notifications + verification + ratings = trust layer
+- **Phase 3 (Jan-Mar 2027):** Credit system + plan rename + trial model = revenue optimization
+- **Phase 4 (Apr-Jun 2027):** Mobile PWA + advanced matching = scale
 
 1. **Data pipeline architecture** (8 problems): The scraper needs pagination, DB batching, formula fixes, and timeout restructuring. These are the highest-impact fixes but require the most engineering effort.
 

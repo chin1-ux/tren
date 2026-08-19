@@ -1,5 +1,5 @@
-# TRENDROP — IMPLEMENTATION PLAN (v3)
-**Date:** Aug 18, 2026 · **Basis:** deep codebase audit against repo at HEAD (`cd9d082f`). Every claim below was verified against the actual code, not assumptions. **PROBLEMS.md** is the companion document with 42 problems and fix mapping.
+# TRENDROP — IMPLEMENTATION PLAN (v4)
+**Date:** Aug 19, 2026 · **Basis:** deep codebase audit against repo at HEAD. Every claim below was verified against the actual code, not assumptions. **PROBLEMS.md** is the companion document with 67 problems and fix mapping. **ROADMAP.md** has the ₹0→₹30L MRR strategic roadmap.
 
 ---
 
@@ -55,22 +55,22 @@
 | Tool | Reality |
 |---|---|
 | **Render** | NOT in use. No render.yaml. |
-| **Upstash / Redis** | NOT in use. `UPSTASH_REDIS_URL` set nowhere. Cache no-ops. |
+| **Upstash / Redis** | **IN USE.** `UPSTASH_REDIS_URL` added to Vercel (Aug 19). Redis rate limiter functional. In-memory slowapi disabled when Redis active. |
 | **Twilio** | NOT configured. Falls back to hardcoded `123456`. |
-| **Razorpay** | PARTIAL. Only `RAZORPAY_WEBHOOK_SECRET` exists. `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` **missing everywhere** → `/api/payment/*` fails. |
+| **Razorpay** | PARTIAL. `RAZORPAY_WEBHOOK_SECRET` exists. `RAZORPAY_KEY_ID` / `RAZORPAY_KEY_SECRET` **missing** → `/api/payment/*` fails. **You must complete Razorpay KYC.** |
 
 ### 1.3 Live DB state
 | Table | State | Notes |
 |---|---|---|
 | `users` | 1 row | Distribution bottleneck |
-| `trends` | 681 rows | 32 rising, 31 emerging, 343 peaked, 275 expired; 32 pass feed filter |
+| `trends` | 321 rows | After P-METHOD-1 dedup (was 681, deleted 349 duplicates + 13 title+artist dupes). 32 rising, 31 emerging, ~150 peaked, ~108 expired |
 | `reels` | 19,301 | Real pipeline |
 | `reel_snapshots` | 14,355 | Proof page buildable |
 | `trend_snapshots` | 21,477 | Proof page buildable |
 | `comments` | 324 | Partial |
 | `news_virality_predictions` | 20 rows | Real data, no API route |
 | `cron_runs` | 125+ rows | Monitoring |
-| `subscription_tiers` | 3 tiers | free ₹0 / creator ₹999 / agency ₹4,999 |
+| `subscription_tiers` | 3 tiers | free ₹0 / creator ₹999 / agency ₹4,999 (rename planned: Agency → Brand, Creator → Pro) |
 | `user_preferences` | **DOES NOT EXIST** | Must create |
 | `api_keys` | **DOES NOT EXIST** | Must create for Phase 2 |
 | `events` | **DOES NOT EXIST** | Must create for event detection |
@@ -117,16 +117,19 @@
 - Realtime trends (2): `realtime/trends`, `realtime/cross-platform`
 - Caption (1): stub at L1762
 
-### 2.4 Duplicate route registrations (4 pairs)
+### 2.4 Duplicate route registrations (10 pairs) [UPDATED — AUDIT COMPLETE]
+**Audit result (Aug 19):** 154 total decorators, 144 unique paths, 149 unique method+path combos. 10 duplicate route definitions (20 decorators for 10 paths). First-registered route wins (Starlette). Gates ARE enforced on algorithm endpoints. Duplicates are dead code + latent regression risk.
 | Route | Lines | Second is dead |
 |---|---|---|
 | `/api/algorithm/analyze` | L1779, L4726 | Yes |
 | `/api/algorithm/posting-times` | L1841, L4786 | Yes |
 | `/api/algorithm/hashtag-strategy` | L1864, L4807 | Yes |
 | `/api/india/cultural-events` | L5405, L6047 | Yes |
+| + 6 more pairs | Various | Yes |
 
-### 2.5 Auth gap: custom JWT path doesn't check locked status
+### 2.5 Auth gap: custom JWT path doesn't check locked status [FIXED]
 - `auth.py:90-93` — custom JWT payloads with `"sub"` claim return email **without** calling `_check_user_locked()`
+- **Fix:** `auth.py:88-94` now calls `_check_user_locked()` for all JWT paths. Committed `e72a4898`.
 
 ### 2.6 Dead link
 - `data-rights.tsx:310` — links to `/profile` (route never existed, 404)
@@ -368,3 +371,63 @@ To produce data that matches what users actually see on Instagram:
 | Events | ❌ event-check.yml + events table (I create) |
 
 **What I cannot do (you must):** Razorpay KYC + env add, Twilio account (if wanted), pushing to production if you prefer to review first.
+
+---
+
+## 8. MARKETPLACE REDESIGN + ROADMAP (Aug 19, 2026)
+
+### 8.1 Strategic Direction
+**From:** "Trend detection tool"
+**To:** "India's creator economy operating system" — trend detection + content generation + deal connection + payment protection
+
+**The moat:** Trend data + deal connection = unfair advantage. No other platform can say: "This audio is trending RIGHT NOW. Here are 5 creators who specialize in this niche. Here's a brand that wants to ride this trend. Connect."
+
+**Competitive research:** Virlo (US, $36K MRR, bootstrapped) charges $49-199/mo. Trendrop's India-first positioning + 4x lower price + deal connection layer = defensible advantage.
+
+### 8.2 Current Marketplace State (Audit Complete)
+**What exists:** Creator profiles, brand deals with milestones, PDF contracts, deal applications, creator collab matching, feedback system. All using real data.
+
+**What's broken:**
+- No brand-side interface (P-MARKET-1) — brands can't participate
+- No escrow/payment processing (P-MARKET-3) — "Mark as paid" is a database toggle
+- No brand verification (P-MARKET-4) — anyone can create deals
+- No notifications to brands (P-MARKET-5) — application black hole
+- Duplicate deal systems (P-MARKET-2) — old + new coexist
+- Hardcoded compatibility scoring (P-MARKET-6) — doesn't scale
+- Marketplace hidden from nav (P-MARKET-7) — not discoverable
+
+### 8.3 Plan Rename
+| Old Name | New Name | Target | Price |
+|---|---|---|---|
+| Free | **Free** | Curious creators | ₹0 |
+| Creator | **Pro** | Serious creators | ₹999/mo |
+| Agency | **Brand** | Brands posting deals | ₹4,999/mo |
+| Enterprise | **Enterprise** | Large brands/agencies | ₹14,999/mo |
+
+### 8.4 Credit-Based Hybrid Pricing
+| Tier | Credits/mo | Key Features |
+|---|---|---|
+| Free | 10/day | Basic trends, limited data |
+| Pro (₹999) | 200/mo | Full trends, AI generation, analytics |
+| Brand (₹4,999) | 1,500/mo | Post deals, review applications, escrow |
+| Enterprise (₹14,999) | 5,000/mo | API access, unlimited seats |
+
+Credit add-ons: ₹99/50, ₹249/150, ₹499/350. Annual billing: 2 months free.
+
+### 8.5 Implementation Phases (from ROADMAP.md)
+**Phase 1 — First Revenue (Oct 2026):** Razorpay KYC + brand interface + escrow = first money moves
+**Phase 2 — Trust Layer (Nov-Dec 2026):** Notifications + brand verification + ratings = marketplace trust
+**Phase 3 — Revenue Optimization (Jan-Mar 2027):** Credit system + plan rename + trial model = maximize LTV
+**Phase 4 — Scale (Apr-Jun 2027):** Mobile PWA + advanced matching + API partnerships = growth
+
+### 8.6 Connection Checklist (Updated)
+| Needs | Status | Priority |
+|---|---|---|
+| Razorpay KYC + keys | ❌ You must do | P0 — blocks all payments |
+| Brand-side interface | ❌ Build | P0 — blocks marketplace |
+| Escrow payment flow | ❌ Build | P0 — blocks trust |
+| Notification system | ❌ Build | P1 — blocks engagement |
+| Brand verification | ❌ Build | P1 — blocks trust |
+| Credit system | ❌ Build | P2 — blocks revenue optimization |
+| Plan rename | ❌ Build | P2 — blocks positioning |
+| Mobile PWA | ❌ Build | P3 — blocks scale |
