@@ -552,6 +552,12 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 3. Unique constraint `trends_audio_id_unique` on `audio_id` — live, proven to reject duplicates.
 4. Forward-fix Change A (trend_engine.py): dedup guard widened to all statuses, never-downgrade status rule (`rising > emerging > peaked > expired`), update-in-place on match. Velocity/metrics untouched — owned by trend_refresher.py via 5 independent cron-driven call sites. Committed `e23ef810`.
 **Remaining:** Change B (external_trend_pipeline.py dedup guard) — separate commit, next session.
+
+### P-METHOD-1b: 3 title+artist duplicate pairs survive unique constraint [NEW]
+**Files:** `trends` table — 3 pairs with different audio_ids
+**Problem:** Three songs have duplicate entries by (audio_title, audio_artist) but different audio_id values: "Be My Baby" by The Ronettes (2 rows), "This & That" by Stray Kids (2 rows), "Jamaican (Bam Bam)" by HUGEL/SOLTO (2 rows). Two of the three pairs have identical velocity_avg between the pair — suspicious, needs investigation to determine if these are genuinely distinct Instagram audio tracks or data-entry quirks.
+**Impact:** Minor — 6 extra rows out of 321 (1.9%). Human-visible duplicate trend cards possible.
+**Action required:** Investigate whether same-velocity pairs are one audio track under two IDs or legitimately distinct. If same, deduplicate manually. If distinct, consider composite unique constraint on (audio_title, audio_artist) — but only after confirming remixes/re-uploads shouldn't coexist as separate trends.
 **Remaining:** Run 13-row cleanup DELETE → add unique constraint → deploy forward-fix code → re-validate metrics.
 
 ---
