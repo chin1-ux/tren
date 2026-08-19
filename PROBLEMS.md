@@ -570,6 +570,20 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Note:** This is a process/architecture question, separate from P-METHOD-1b (which is a data cleanup question about 3 remaining title+artist duplicates).
 **Remaining:** Run 13-row cleanup DELETE → add unique constraint → deploy forward-fix code → re-validate metrics.
 
+### P-METHOD-5: Video sequence/format-driven trends not detected (distinct from P-METHOD-4) [NEW]
+**Problem:** Some Reels go viral because of a replicated edit pattern, transition, or shot sequence — not because of shared audio or generic visual similarity. This requires structural/edit-pattern fingerprinting, not just audio_id grouping or pHash visual clustering (P-METHOD-4). Currently undetected by any part of the pipeline.
+**Evidence base:** Public research confirms Instagram's Reels ranking is driven primarily by watch-time/completion and DM-sends-per-reach — not audio identity — meaning format-driven virality is a first-class phenomenon on the platform, not an edge case.
+**Action required:** Scope as its own investigation — likely harder than P-METHOD-4 since it requires structural pattern-matching across edits, not just perceptual hashing. Not yet estimated.
+
+### P-METHOD-6: Velocity formula doesn't use Instagram's actual dominant ranking signals [NEW]
+**Problem:** Trendrop's velocity_avg formula is derived from engagement/followers/creator-age. Instagram's own confirmed ranking hierarchy (per Adam Mosseri, 2025-2026) weights watch-time-completion as the #1 signal and DM-sends-per-reach as the strongest signal for non-follower reach — with likes explicitly the weakest signal. Trendrop's formula does not include either.
+**Open question, not yet answered:** Does Instagram's public/scraped API surface expose watch-time or send-count data at all? If not, this is a hard platform limitation, not a code fix — needs honest investigation before assuming it's solvable.
+**Action required:** Audit what data Instagram's scraped endpoints actually return; determine if watch-time/completion-rate/share-count are available in any form (even a proxy). If genuinely unavailable, this becomes a disclosed methodology limitation (P-TRUTH item), not a fixable bug.
+
+### P-METHOD-7: Velocity spikes can't distinguish audio-driven virality from unrelated causes (misattribution risk) [NEW]
+**Problem:** A reel using a given audio can go viral for reasons unrelated to the audio (external events, appearance-driven engagement, unrelated content virality). Trendrop's current model attributes any velocity spike on a tracked audio_id to "the audio is trending," with no mechanism to detect when the spike is actually driven by something else. This is distinct from P-METHOD's deprioritized external-events item — that item was about detecting new event-driven trends; this is about NOT misattributing existing audio-trend scores when the real driver isn't the audio.
+**Action required:** Not yet scoped. Possible cheap partial signal: check whether velocity spikes are concentrated in a narrow content-type/hashtag cluster (suggesting a non-audio cause) vs. spread across diverse content (suggesting genuine audio-driven trend). Needs investigation before any fix is proposed.
+
 ---
 
 ## 7. WORKFLOW & DEVOPS PROBLEMS
@@ -681,6 +695,13 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-5: brand_deals empty | LOW | Marketplace empty |
 | P-DB-6: Inconsistent trend distribution | MEDIUM | Few active trends in feed |
 | P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | **FIXED** |
+| P-DB-8: Supabase client truncates at 1000 rows | HIGH | Silent data visibility risk |
+| P-METHOD-1: Trend dedup guard only checks emerging/rising | HIGH | 53% duplicate trends | **FIXED** |
+| P-METHOD-1b: 3 title+artist duplicates remain | LOW | 1.9% extra rows |
+| P-METHOD-1c: Bulk-seed path may bypass dedup guards | MEDIUM | Potential dedup blind spot |
+| P-METHOD-5: Format-driven trends undetected | MEDIUM | Missed edit-pattern virality |
+| P-METHOD-6: Velocity ignores Instagram's top signals | HIGH | Formula misaligned with platform |
+| P-METHOD-7: Velocity can't detect misattribution | MEDIUM | Audio trends may be non-audio driven |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
@@ -689,6 +710,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-FUND-2: "0h delay" copy risk | HIGH | Batch pipeline can't back real-time claims | **FIXED** |
 | P-FUND-3: Agency per-seat schema-only | HIGH | Zero enforcement, unlimited sharing |
 | P-FUND-4: Account sharing = theoretical | LOW | Solve payments first |
+| P-FUND-5: Data-parity moat risk | HIGH | Speed-only differentiation, no insight moat |
 
 ---
 
@@ -717,6 +739,10 @@ These are claims made in the codebase or marketing that are not supported by the
 **Problem:** Every anti-sharing feature (watermarking, anomaly detection, visual protection) is solving for a scale that doesn't exist yet. With ~15 users and zero paying customers, account sharing is not a real problem. The honest priority order: payments → per-seat enforcement → everything else later.
 **Impact:** Building anti-sharing features now is engineering time spent on a problem that doesn't exist while the actual blocker (dead payments) remains unsolved.
 **Fix:** None needed — this is a prioritization note. The existing session capping and time-decay features are sufficient for the current scale.
+
+### P-FUND-5: Data-parity moat risk — differentiation is currently speed-only, not insight [NEW]
+**Problem:** All paid tiers see the same underlying trend data, differentiated only by data_delay_hours (access speed). This is a defensible-but-thin moat: a competitor with a faster scraper, official API partnership, or lower operating cost could replicate the core value proposition. Personalization (P-DESIGN-9/P-DB-3) and named-seat structuring (P-FUND-3) help retention and reduce sharing, but neither creates a data moat.
+**Not a code problem — a positioning question.** Flagging for founder-level strategic decision, not a Devin task. Worth resolving before fundraising conversations, since "why can't someone just build a faster scraper" is a predictable investor question.
 
 ---
 
