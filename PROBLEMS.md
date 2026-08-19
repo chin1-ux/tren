@@ -292,7 +292,7 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 | Line | Route | Flaw |
 |---|---|---|
 | 3609 | `GET /api/daily-ideas/{user_email}` | Guest can read ANY user's daily ideas |
-| 4130 | `GET /api/brand-deals/{user_email}` | Guest can read ANY user's brand deals |
+| 4130 | `GET /api/brand-deals/{user_email}` | Guest can read ANY user's brand deals | **FIXED** (commit `4d6e0620`) — simplified to `user_email != current_user_email` guard. Anonymous@ data leak also closed (0 rows existed). |
 | 4274 | `POST /api/apply-deal` | Guest can apply as any user_email |
 | 4299 | `GET /api/collab-matches/{user_email}` | Guest can read any user's matches |
 | 4374 | `POST /api/send-collab-request` | Guest can impersonate any from_email |
@@ -565,19 +565,22 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 4. Forward-fix Change A (trend_engine.py): dedup guard widened to all statuses, never-downgrade status rule (`rising > emerging > peaked > expired`), update-in-place on match. Velocity/metrics untouched — owned by trend_refresher.py via 5 independent cron-driven call sites. Committed `e23ef810`.
 **Remaining:** Change B (external_trend_pipeline.py dedup guard) — separate commit, next session.
 
-### P-METHOD-1b: 3 title+artist duplicate pairs survive unique constraint [NEW]
-**Files:** `trends` table — 3 pairs with different audio_ids
-**Problem:** Three songs have duplicate entries by (audio_title, audio_artist) but different audio_id values: "Be My Baby" by The Ronettes (2 rows), "This & That" by Stray Kids (2 rows), "Jamaican (Bam Bam)" by HUGEL/SOLTO (2 rows). Two of the three pairs have identical velocity_avg between the pair — suspicious, needs investigation to determine if these are genuinely distinct Instagram audio tracks or data-entry quirks.
-**Impact:** Minor — 6 extra rows out of 321 (1.9%). Human-visible duplicate trend cards possible.
-**Action required:** Investigate whether same-velocity pairs are one audio track under two IDs or legitimately distinct. If same, deduplicate manually. If distinct, consider composite unique constraint on (audio_title, audio_artist) — but only after confirming remixes/re-uploads shouldn't coexist as separate trends.
+### P-METHOD-1b: title+artist duplicate pairs — manual dedup [FIXED]
+**Files:** `trends` table
+**Problem:** Three songs had duplicate entries by (audio_title, audio_artist) but different audio_id values.
+**Investigation results:**
+- **"This & That" by Stray Kids** (ids 377/458): Identical velocity_avg to 10 decimal places, identical reel_count. Confirmed duplicate — same audio, different Instagram internal IDs on different scrape days. Created Aug 10-11 during Change A relaxed window. **Deleted id=377 (older), kept id=458.**
+- **"Jamaican (Bam Bam)" by HUGEL/SOLTO (FR)** (ids 288/428): Identical velocity_avg to 14 decimal places, identical reel_count. Confirmed duplicate. Created Aug 8-11 during Change A relaxed window. **Deleted id=288 (older), kept id=428.**
+- **"Be My Baby" by The Ronettes** (ids 862/1019): velocity_avg 8059 vs 17788 (2x difference), reel_count 2 vs 3. **Legitimate distinct audio versions** — different Instagram audio files with different metrics. NOT a duplicate. No composite unique constraint applied; would block legitimate distinct tracks.
+**Resolution:** Deleted 2 rows, 56 cascade-deleted snapshots. Row count 321→319. No composite (audio_title, audio_artist) unique constraint — confirmed wrong for tracks with multiple legitimate versions.
+**Status:** FIXED (Aug 20 2026)
 
-### P-METHOD-1c: Trend-insertion path may bypass dedup guards entirely [NEW]
-**Files:** Unknown — suspected bulk-seed script from Aug 7 launch
-**Problem:** The new_trends_found cross-reference revealed 43+ trend rows created at identical timestamps (2026-08-07T07:33:33) — a bulk-insert signature. These rows bypassed `detect_trends()` and its dedup guard (Change A), and bypassed the external pipeline guard (Change B). If this code path is still live/callable, it could reintroduce duplicates that neither guard sees.
-**Impact:** Unknown — depends on whether the path still exists and is reachable. If dead, zero risk. If live, the dedup guards we just shipped have a blind spot.
-**Action required:** Identify the bulk-seed script/code path. Determine: (a) is it still callable? (b) does it bypass Change A/B guards? (c) should it be retired or given the same dedup logic?
-**Note:** This is a process/architecture question, separate from P-METHOD-1b (which is a data cleanup question about 3 remaining title+artist duplicates).
-**Remaining:** Run 13-row cleanup DELETE → add unique constraint → deploy forward-fix code → re-validate metrics.
+### P-METHOD-1c: Trend-insertion path bypassed dedup guards [CLOSED]
+**Files:** `trend_engine.py`, `external_trend_pipeline.py`
+**Root cause:** No standalone seed script. The ~43-58 duplicate rows were created by the normal pipeline running during Aug 8-19 when: (a) Change A dedup (`05bd5f5c`, Aug 8) narrowed guard to only active/emerging/rising trends, allowing re-insertion of expired/peaked rows; (b) Change B (external_trend_pipeline.py) had zero dedup before Aug 19.
+**Timeline:** Change A introduced Aug 8 00:00 → cleanup scripts ran Aug 19 13:44-13:55 → Change A restored `e23ef810` Aug 19 14:26 → Change B added `bcb54d53` Aug 19 15:21. 31-96min gap between cleanup and guard restoration, but row count (321) matches expected post-cleanup number, ruling out cron reinsertion in gap.
+**Resolution:** Both guards live and verified. Row count stable at 319 (post P-METHOD-1b dedup). No remediation needed.
+**Status:** CLOSED (Aug 20 2026)
 
 ### P-METHOD-5: Video sequence/format-driven trends not detected (distinct from P-METHOD-4) [NEW]
 **Problem:** Some Reels go viral because of a replicated edit pattern, transition, or shot sequence — not because of shared audio or generic visual similarity. This requires structural/edit-pattern fingerprinting, not just audio_id grouping or pHash visual clustering (P-METHOD-4). Currently undetected by any part of the pipeline.
@@ -706,8 +709,8 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | **FIXED** |
 | P-DB-8: Supabase client truncates at 1000 rows | HIGH | Silent data visibility risk |
 | P-METHOD-1: Trend dedup guard only checks emerging/rising | HIGH | 53% duplicate trends | **FIXED** |
-| P-METHOD-1b: 3 title+artist duplicates remain | LOW | 1.9% extra rows |
-| P-METHOD-1c: Bulk-seed path may bypass dedup guards | MEDIUM | Potential dedup blind spot |
+| P-METHOD-1b: title+artist duplicates | LOW | 6 extra rows | **FIXED** |
+| P-METHOD-1c: Bulk-seed path bypassed dedup | MEDIUM | Potential dedup blind spot | **CLOSED** |
 | P-METHOD-5: Format-driven trends undetected | MEDIUM | Missed edit-pattern virality |
 | P-METHOD-6: Velocity ignores Instagram's top signals | HIGH | Formula misaligned with platform |
 | P-METHOD-7: Velocity can't detect misattribution | MEDIUM | Audio trends may be non-audio driven |
@@ -801,6 +804,13 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Problem:** The `/marketplace` route exists but is NOT in the bottom tab bar. Only `/deals` is visible. Users must know the URL to access the marketplace. The marketplace is the primary value proposition for brand-creator connection but is hidden behind a direct URL.
 **Impact:** Low marketplace engagement. Users don't discover the feature. Creators who could be earning from deals never find the marketplace.
 **Fix:** Add marketplace to bottom tab bar (replacing or alongside Deals). Or merge marketplace and deals into a single unified navigation item.
+
+### P-MARKET-8: Marketplace auth/gating audit — severity corrections and stale counts [AUDIT NOTE]
+**Context:** Session opened with "13 ungated marketplace endpoints" (estimate from earlier audit pass). Actual count: 17 marketplace/deals/creator endpoints total. Of those: 8 properly gated (OK), 4 low-risk (guest gets empty data), 3 medium-risk (anonymous@ leak, missing feature gates), 2 high-risk (zero-auth profile dump, run-reminders admin action). The "13 ungated" number was wrong — flagged here so the next session doesn't inherit it.
+**Severity corrections from this session's re-trace:**
+- #10 (`GET /api/brand-deals/{user_email}`): Originally flagged as HIGH (cross-user deal read). Re-traced guard logic: the condition `current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app"` correctly blocks Alice→Bob access. Actual gap was narrower: anonymous@ exception allowed any authed user to read anonymous's deals. **Downgraded to MEDIUM. Fixed in commit `4d6e0620`.**
+- #8 (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`): Originally flagged as HIGH (any user can falsify payment). Re-traced: ownership check exists at L4117-4118 (`creator_id != current_user_email → 403`). Real issue is missing `require_feature` gate, not missing ownership check. **Downgraded to MEDIUM.**
+- #1 (`GET /api/marketplace/profiles`): Zero auth, but may be intentionally public (marketplace browse). Needs intent decision before fixing.
 
 ---
 
