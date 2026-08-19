@@ -4105,11 +4105,9 @@ def pay_deal_milestone(
     deal_id: int, 
     milestone_id: int, 
     request: Request, 
-    current_user_email: str = Depends(get_current_user),
+    current_user_email: str = Depends(require_feature("advanced_analytics")),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         user_sb = get_user_supabase_client(authorization)
         
