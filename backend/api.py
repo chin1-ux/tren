@@ -837,7 +837,7 @@ async def security_headers_and_limits_middleware(request: Request, call_next):
         "font-src fonts.gstatic.com; "
         "img-src 'self' data: blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net; "
         "media-src 'self' blob: https://*.cdninstagram.com https://*.fbcdn.net https://*.fna.fbcdn.net; "
-        "connect-src 'self' https://tdisqfmtvuljfstncxqv.supabase.co https://*.cdninstagram.com"
+        "connect-src 'self' https://gxxpvstrvphwhlqbvymv.supabase.co https://*.cdninstagram.com"
     )
     return response
 
