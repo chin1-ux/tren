@@ -624,6 +624,29 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** If a bad deploy goes out, manual intervention is required.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-WORK-4: News virality scoring silently broken — Groq API 404
+**File:** `backend/run_news_virality_check.py`, `.github/workflows/news-virality-cron.yml`
+**Problem:** All 3 Groq API keys return HTTP 404 on `https://api.groq.com/openai/v1/chat/completions` for every batch, every run. 404 (not 401/429) means the endpoint or model string doesn't exist — likely a deprecated model in the request payload or a changed API path. Every article falls back to score 0 silently.
+**Impact:** News virality scoring has been dead for an unknown period. Output is garbage-but-not-crashing (all scores = 0). No user-visible crash, but the "news virality" feature surface is non-functional.
+**Filed:** Aug 20, 2026. Not investigated yet — competing with Actions budget emergency. Fix deferred to post-Sept-1.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+### P-WORK-5: Emergency Actions-minutes posture (temporary — revert post Sept 1)
+**File:** All `.github/workflows/*.yml`
+**Problem:** ~200 GH Actions minutes remaining with 12 days to Sept 1 reset (as of Aug 20, 2026). Original burn rate was ~115 min/day (3,456 min/month vs 2,000 free tier). Merged scraper-india + scraper-global into single `scraper.yml` running every 2 days. Reduced all other scheduled workflows to fit ~15 min/day total.
+**Changes (Aug 20, 2026):**
+- `scraper.yml` (new): merged India + Global, cron `0 2 * * */2` (every 2 days). Sequential India→Global in one job. `workflow_dispatch` input for manual per-mode runs.
+- `scraper-india.yml` + `scraper-global.yml`: DELETED
+- `cron-heartbeat.yml`: 6x/day → 3x/day
+- `emergency-llm-classification.yml`: 12x/day → 4x/day
+- `nightly-llm-classification.yml`: 4x/day → 2x/day
+- `pending-trends-fallback.yml`: 4x/day → 2x/day
+- `pending-trends-monitor.yml`: 6x/day → 3x/day
+- `trend-refresh.yml`: 3x/day → 2x/day
+- `news-virality-cron.yml`: 2x/day → 1x/day
+**Post-reset target (Sept 1):** Revert to daily scraping (or sustainable near-daily frequency). Current 2-day cadence is temporary. Long-term frequency needs re-evaluation before Sept 14 launch — daily scraping at ~90 min/day may still exceed free tier on its own. Decision deferred.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
 ---
 
 ## 8. CROSS-CUTTING TRUTH PROBLEMS

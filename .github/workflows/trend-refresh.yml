@@ -2,8 +2,8 @@ name: Trend Refresh
 
 on:
   schedule:
-    # Runs every 8 hours, offset from the scraper (at 04:30, 12:30, 20:30 UTC)
-    - cron: '30 4,12,20 * * *'
+    # EMERGENCY POSTURE: 2x/day (was 3x) — revert to 8h post-Sept 1 reset
+    - cron: '30 4,20 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 concurrency:

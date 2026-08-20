@@ -2,8 +2,8 @@ name: Cron Heartbeat Watchdog
 
 on:
   schedule:
-    # Runs every 4 hours (at 00:15, 04:15, 08:15, 12:15, 16:15, 20:15 UTC)
-    - cron: '15 */4 * * *'
+    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
+    - cron: '15 0,8,16 * * *'
   workflow_dispatch:
 
 jobs:

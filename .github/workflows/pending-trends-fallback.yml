@@ -2,8 +2,8 @@ name: Pending Trends Timeout Fallback
 
 on:
   schedule:
-    # Runs every 6 hours to catch trends stuck in pending for >24h
-    - cron: '0 */6 * * *'
+    # EMERGENCY POSTURE: 2x/day (was 4x) — revert to 6h post-Sept 1 reset
+    - cron: '0 0,12 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:

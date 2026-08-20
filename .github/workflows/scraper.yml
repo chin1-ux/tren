@@ -1,17 +1,27 @@
-name: Scraper — India Mode
+name: Scraper
 
 on:
   schedule:
-    # Runs 2x/day at 02:30 and 14:30 UTC (08:00 and 20:00 IST)
-    - cron: '30 2,14 * * *'
+    # EMERGENCY POSTURE: every 2 days at 02:00 UTC (Sept 1 budget crisis — revert to daily post-reset)
+    - cron: '0 2 * * */2'
   workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Which mode to run'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - india
+          - global
 
 concurrency:
-  group: scraper-india-${{ github.ref }}
+  group: scraper-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  run-pipeline-india:
+  run-pipeline:
     runs-on: ubuntu-latest
     timeout-minutes: 40
 
@@ -84,8 +94,39 @@ jobs:
           python backend/auth_system.py
 
       - name: Run pipeline (India mode)
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || github.event.inputs.mode == 'both'
+          || github.event.inputs.mode == 'india'
         env:
           SCRAPER_MODE: india
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          SCRAPER_BACKEND: browser_use
+          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
+          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+        run: |
+          python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
+          PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+
+      - name: Run pipeline (Global mode)
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || github.event.inputs.mode == 'both'
+          || github.event.inputs.mode == 'global'
+        env:
+          SCRAPER_MODE: global
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}

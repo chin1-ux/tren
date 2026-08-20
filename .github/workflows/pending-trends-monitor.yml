@@ -2,8 +2,8 @@ name: Pending Trends Monitor
 
 on:
   schedule:
-    # Runs every 4 hours to check classification pipeline health (increased from 12h)
-    - cron: '0 */4 * * *'
+    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
+    - cron: '0 0,8,16 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
