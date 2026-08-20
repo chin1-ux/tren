@@ -3848,7 +3848,7 @@ def get_calendar(request: Request, current_user_email: str = Depends(get_current
 @limiter.limit("30/minute")
 def get_creator_profiles(request: Request, niche: Optional[str] = None):
     try:
-        q = supabase.table("creator_profiles").select("*").eq("is_active", True)
+        q = supabase.table("creator_profiles").select("instagram_username, niche, followers, engagement_rate, trend_score, price_per_post, is_active").eq("is_active", True)
         if niche and niche != "all":
             q = q.eq("niche", niche)
         res = q.order("followers", desc=True).limit(100).execute()
