@@ -3876,38 +3876,6 @@ def create_or_update_profile(request: Request, req: CreatorProfileRequest, curre
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@app.post("/api/marketplace/deals")
-@limiter.limit("10/minute")
-def create_brand_deal(request: Request, req: BrandDealRequest, current_user_email: str = Depends(require_auth)):
-    try:
-        # Calculate 15% commission
-        commission = req.deal_amount * 0.15
-        deal_data = {
-            "creator_email": current_user_email,
-            "brand_name": req.brand_name,
-            "deal_amount": req.deal_amount,
-            "commission_amount": commission,
-            "status": "pending",
-            "details": req.details
-        }
-        res = supabase.table("brand_deals").insert(deal_data).execute()
-        return res.data[0] if res.data else {}
-    except Exception as e:
-        logger.exception(f"Error creating brand deal: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-@app.get("/api/marketplace/deals")
-@limiter.limit("20/minute")
-def get_brand_deals(request: Request, current_user_email: str = Depends(require_auth)):
-    try:
-        res = supabase.table("brand_deals").select("*").eq("creator_email", current_user_email).order("created_at", desc=True).limit(100).execute()
-        return res.data or []
-    except Exception as e:
-        logger.exception(f"Error getting brand list: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
 # ── Brand Deals Contract & Payment Tracker Endpoints ───────────────────
 import base64
 from fastapi.responses import Response

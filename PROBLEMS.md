@@ -806,15 +806,17 @@ These are claims made in the codebase or marketing that are not supported by the
 **Pre-launch mitigation (Aug 2026):** Both `marketplace.tsx` and `deals.new.tsx` replaced with auth-gated "Coming soon" placeholders. No user can reach the half-built marketplace UI. BottomTabBar never had a `/marketplace` entry — the route was only reachable via direct URL. Dangling references: `deals.index.tsx` lines 250 and 313 link to `/deals/new` (now points to placeholder). Follow-up: remove or redirect those links.
 **Fix (post-launch):** Build brand-side interface: brand signup/login, brand dashboard (post deals, review applications, select creators, fund escrow, confirm delivery, rate creators). This is Phase 2 of the marketplace redesign. See ROADMAP.md.
 
-### P-MARKET-2: Duplicate deal systems — old and new coexist with different schemas [HIGH]
-**Files:** `backend/api.py:3883-3930` (old `/api/marketplace/deals`), `backend/api.py:3959-4058` (new `/api/deals`), `backend/database_setup.py:165-181`, `backend/fix_brand_deals_schema.py:23-27`
+### P-MARKET-2: Duplicate deal systems — old and new coexist with different schemas [MEDIUM — old endpoints retired, migration deferred]
+**Files:** `backend/api.py` (new `/api/deals` at ~line 3932), `backend/database_setup.py:165-181`, `backend/fix_brand_deals_schema.py:23-27`
 **Problem:** Two parallel deal creation/retrieval systems exist on the same `brand_deals` table:
 - **Old system** (`/api/marketplace/deals` GET+POST): Uses `creator_email`, `deal_amount`, `commission_amount`, `details`, 15% auto-commission. Simpler, no milestones.
 - **New system** (`/api/deals` GET+POST): Uses `creator_id`, `rate_amount`, milestones, PDF contract generation, usage rights, exclusivity. Full-featured.
 
 Both write to `brand_deals` but use different columns. The old system's data is incomplete (missing milestones, contracts). The new system ignores old data. This creates confusion and data fragmentation.
 **Impact:** Users see inconsistent deal data depending on which endpoint they hit. Old deals lack milestones and contracts. New deals are complete but don't integrate with old marketplace browse.
-**Fix:** Merge into single system. Migrate old deals to new schema (add milestones, contracts where missing). Remove old endpoints. One system, one data model.
+**Old endpoints retired (Aug 2026):** Both old `/api/marketplace/deals` GET and POST handlers removed. Only the new `/api/deals` system remains. Internal caller grep confirmed no internal callers. `BrandDealRequest` Pydantic model (line 1007) is now dead code — flagged as follow-up.
+**Data migration: deferred.** `brand_deals` has 0 rows. No data to migrate. Revisit when P-MARKET-1 (brand dashboard) ships and first real deal is created.
+**Fix (post-migration):** Migrate old deals to new schema (add milestones, contracts where missing). One system, one data model.
 
 ### P-MARKET-3: No escrow/payment processing for deals — "Mark as paid" is a database toggle [CRITICAL]
 **Files:** `backend/api.py:4102-4121` (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`)
@@ -863,13 +865,13 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Evidence:** `deal_payment_milestones.reminder_sent_at` is NULL across all rows (0 rows total). No reminders have ever been sent, manually or otherwise.
 **Fix (deferred — scope next session):** Two options: (1) add Vercel cron entry for `/api/deals/run-reminders` in `vercel.json`, or (2) fold `check_and_send_milestone_reminders()` into `/api/cron/refresh`'s existing 12h job. Requires profiling function runtime to confirm it fits within 30s budget alongside TrendRefresher without risk of timeout as milestone volume grows.
 
-### P-MARKET-10: POST /api/marketplace/deals 500s for all authenticated users [HIGH]
+### P-MARKET-10: POST /api/marketplace/deals 500s for all authenticated users [FIXED]
 **Note:** Commit `4d6e0620` references "P-MARKET-10" for an anonymous@ data leak fix, but that commit never created a PROBLEMS.md entry — it only touched `backend/api.py`. The anonymous@ fix is tracked by commit hash only. This entry is the first actual P-MARKET-10 in the doc.
-**Files:** `backend/api.py:3883-3901` (`create_brand_deal`)
+**Files:** `backend/api.py` (deleted)
 **Problem:** `POST /api/marketplace/deals` returns 500 Internal Server Error for every authenticated request. The old deal creation endpoint (part of the duplicate deal system in P-MARKET-2) writes to `brand_deals` using columns (`creator_email`, `deal_amount`, `commission_amount`, `details`) that don't match the current table schema — the table was migrated to the new deal system (`/api/deals`) which uses different columns (`creator_id`, `rate_amount`, milestones). The insert fails with a DB error, caught by the generic exception handler and returned as 500.
 **Impact:** The old marketplace deal creation flow is completely broken. Any user hitting this endpoint gets a 500. The frontend doesn't currently call this endpoint (the new `/api/deals` is used instead), so no user is actively hitting it — but it's a dead endpoint that returns a server error, not a clean 404 or deprecation notice.
 **Evidence:** Curl-verified: no auth → 401 (auth gate works), authenticated → 500. Confirmed pre-existing by reverting auth gate changes and retesting — same 500 with original code.
-**Fix:** Either (1) remove the old endpoint entirely and redirect to `/api/deals`, or (2) align the old endpoint's column writes with the current `brand_deals` schema. Option 1 is cleaner — P-MARKET-2 already tracks the duplicate system, and the old endpoint should be retired as part of that consolidation.
+**Fix:** Old endpoint removed as part of P-MARKET-2 consolidation. Both GET and POST handlers deleted. Request to either path now returns 404 (no route registered).
 
 ---
 
