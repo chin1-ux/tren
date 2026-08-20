@@ -873,6 +873,11 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Evidence:** Curl-verified: no auth → 401 (auth gate works), authenticated → 500. Confirmed pre-existing by reverting auth gate changes and retesting — same 500 with original code.
 **Fix:** Old endpoint removed as part of P-MARKET-2 consolidation. Both GET and POST handlers deleted. Request to either path now returns 404 (no route registered).
 
+### P-MARKET-11: `BrandDealRequest` Pydantic model is dead code [LOW]
+**File:** `backend/api.py:1007`
+**Problem:** The `BrandDealRequest` Pydantic model was only used by the old `create_brand_deal` handler (POST `/api/marketplace/deals`), which was removed in the P-MARKET-2 fix. The model is now unused. No other code references it.
+**Fix:** Delete the class definition. Safe — no callers.
+
 ---
 
 ### P-PAY-5: Plan rename needed — "Agency" tier signals exploitation [MEDIUM]
