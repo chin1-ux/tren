@@ -2487,7 +2487,7 @@ class CancellationReasonRequest(BaseModel):
 
 @app.post("/api/payment/create-order")
 @limiter.limit("10/minute")
-def create_payment_order(request: Request, req: CreateOrderRequest):
+def create_payment_order(request: Request, req: CreateOrderRequest, current_user: str = Depends(require_auth)):
     """
     Create a Razorpay order for the Pro Creator plan (₹999/month).
     Returns order_id, amount, currency, and key_id for the Razorpay checkout widget.
@@ -5435,7 +5435,7 @@ def get_regional_timing_optimization(
 def detect_language_crossover(
     request: Request,
     content: str,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Detect which Indian languages are present in content."""
     if not IndiaFeaturesEngine:
@@ -5967,7 +5967,7 @@ def predict_content_virality(
     content_data: dict,
     trend_id: int,
     creator_email: Optional[str] = None,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Predict virality of content before posting."""
     if not ViralityPredictor:
@@ -6886,7 +6886,7 @@ def get_mrr_endpoint(
 @limiter.limit("30/minute")
 def get_subscription_breakdown_endpoint(
     request: Request,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_admin)
 ):
     """Get subscription breakdown by plan."""
     if not RevenueTracker:
@@ -6903,7 +6903,7 @@ def get_subscription_breakdown_endpoint(
 @limiter.limit("30/minute")
 def get_cac_ltv_endpoint(
     request: Request,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_admin)
 ):
     """Get Customer Acquisition Cost (CAC) and Lifetime Value (LTV)."""
     if not BusinessMetrics:
