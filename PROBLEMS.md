@@ -633,6 +633,7 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Problem:** All 3 Groq API keys return HTTP 404 on `https://api.groq.com/openai/v1/chat/completions` for every batch, every run. 404 (not 401/429) means the endpoint or model string doesn't exist — likely a deprecated model in the request payload or a changed API path. Every article falls back to score 0 silently.
 **Impact:** News virality scoring has been dead for an unknown period. Output is garbage-but-not-crashing (all scores = 0). No user-visible crash, but the "news virality" feature surface is non-functional.
 **Filed:** Aug 20, 2026. Not investigated yet — competing with Actions budget emergency. Fix deferred to post-Sept-1.
+**Confirmed still broken:** Aug 20 run (32369218236) — all 3 keys returned 404, exit code 1.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-WORK-5: Emergency Actions-minutes posture (temporary — revert post Sept 1)
