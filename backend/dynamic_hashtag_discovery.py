@@ -103,10 +103,18 @@ class DynamicHashtagDiscovery:
         Evaluate hashtag performance for early detection potential
         """
         try:
-            # Get reels using this hashtag
-            result = self.supabase.table('reels').select('*').contains('hashtags', [hashtag]).execute()
-            
-            if not result.data:
+            # Get reels using this hashtag (paginated — Supabase default limit is 1000)
+            reels = []
+            offset = 0
+            PAGE = 1000
+            while True:
+                page = self.supabase.table('reels').select('*').contains('hashtags', [hashtag]).range(offset, offset + PAGE - 1).execute()
+                reels.extend(page.data or [])
+                if not page.data or len(page.data) < PAGE:
+                    break
+                offset += PAGE
+
+            if not reels:
                 return {
                     "hashtag": hashtag,
                     "early_signal_rate": 0,
@@ -116,7 +124,6 @@ class DynamicHashtagDiscovery:
                     "evaluation": "insufficient_data"
                 }
             
-            reels = result.data
             total_reels = len(reels)
             
             # Count early signals (from early_signals table)
