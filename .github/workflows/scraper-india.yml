@@ -25,15 +25,6 @@ jobs:
           python-version: '3.12'
           cache: 'pip'
 
-      - name: Cache Playwright browser binaries
-        uses: actions/cache@v4
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
-          restore-keys: |
-            playwright-${{ runner.os }}-
-
       - name: Cache Camoufox browser binaries
         uses: actions/cache@v4
         id: camoufox-cache
@@ -49,10 +40,14 @@ jobs:
           pip install -r requirements.txt
           pip install .[worker,browser-scraper]
 
-      - name: Install Playwright browser (if cache miss)
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
+      - name: Install system deps for Camoufox browser
         run: |
-          python -m playwright install-deps firefox
+          if ! timeout 300 python -m playwright install-deps firefox; then
+            echo "First attempt failed — clearing apt state and retrying..."
+            sudo apt-get clean
+            sudo rm -rf /var/lib/apt/lists/*
+            timeout 300 python -m playwright install-deps firefox
+          fi
 
       - name: Install Camoufox browser
         run: |
