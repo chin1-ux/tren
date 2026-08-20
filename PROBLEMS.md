@@ -814,6 +814,13 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 - #1 (`GET /api/marketplace/profiles`): Zero auth, but intentionally public (marketplace directory). Reframed as field-exposure issue: `user_email` was in response but not needed by frontend. **Fixed in commit `c51995c4` — `select("*")` → explicit column list excluding `user_email`. Side benefit: future columns won't leak by default.**
 - #9 (`POST /api/deals/run-reminders`): Any authed user could trigger global email blast to all creators with overdue milestones. **Gate fixed in commit `543c140a` — replaced per-user auth with CRON_SECRET gate (matching `/api/cron/trigger` and `/api/cron/refresh` pattern), added 2/hour rate limit. Rejection paths verified via curl (no secret, wrong secret, wrong Bearer → all 403). Success path unverified — no staging env, CRON_SECRET only in Vercel dashboard. Flag for first real cron fire: check Vercel function logs to confirm `emails_sent > 0` and `reminder_sent_at` updates when unpaid milestones exist.**
 
+### P-MARKET-9: Milestone reminder emails have never fired — Vercel cron not wired [HIGH]
+**Files:** `vercel.json` (cron config), `cron_job.py:751-925,967-969` (scheduler), `backend/api.py:4127-4140` (manual endpoint)
+**Problem:** `check_and_send_milestone_reminders()` is scheduled via in-process `schedule.every(12).hours` in `cron_job.py:968-969`, but Vercel serverless functions have a 30s max duration (`maxDuration: 30` in `vercel.json`). The `while True` loop at `cron_job.py:980-982` gets killed immediately — the reminder function only runs on cold start (line 955) and then the process dies. `vercel.json` crons only wire `/api/cron/trigger` (24h) and `/api/cron/refresh` (12h) — no entry for `/api/deals/run-reminders`. **Reminders have never fired automatically since the feature was built.** `deal_payment_milestones` table is empty (0 rows), so no data has existed to expose this gap.
+**Severity:** HIGH — brands/creators are meant to get milestone payment reminders and haven't been, silently, for the entire life of the feature. This is a launch-time infrastructure gap, not a regression.
+**Evidence:** `deal_payment_milestones.reminder_sent_at` is NULL across all rows (0 rows total). No reminders have ever been sent, manually or otherwise.
+**Fix (deferred — scope next session):** Two options: (1) add Vercel cron entry for `/api/deals/run-reminders` in `vercel.json`, or (2) fold `check_and_send_milestone_reminders()` into `/api/cron/refresh`'s existing 12h job. Requires profiling function runtime to confirm it fits within 30s budget alongside TrendRefresher without risk of timeout as milestone volume grows.
+
 ---
 
 ### P-PAY-5: Plan rename needed — "Agency" tier signals exploitation [MEDIUM]
