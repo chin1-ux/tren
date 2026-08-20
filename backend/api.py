@@ -3903,7 +3903,7 @@ def create_brand_deal(request: Request, req: BrandDealRequest, current_user_emai
 
 @app.get("/api/marketplace/deals")
 @limiter.limit("20/minute")
-def get_brand_deals(request: Request, current_user_email: str = Depends(get_current_user)):
+def get_brand_deals(request: Request, current_user_email: str = Depends(require_auth)):
     try:
         res = supabase.table("brand_deals").select("*").eq("creator_email", current_user_email).order("created_at", desc=True).limit(100).execute()
         return res.data or []
