@@ -396,7 +396,7 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Problem:** The `usage_logs` table exists but has 0 rows. Quota logging is not happening.
 **Impact:** `require_quota()` checks in plan_enforcement.py read from a table that's always empty. Quota enforcement is effectively disabled — users never hit quota limits because the counter never increments.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
-**Recommendation (known-gap, not launch-blocking):** Rate limiter (30/min, gated per P-API-4) is the real floor. Quota logging is a second layer that's not wired. With ~15 known users and no revenue live, this is unlikely to be abused. Document as known-gap, don't block launch. Do NOT fake-fix with a patch that just inserts rows without real enforcement logic — that creates false confidence. Revisit post-launch once there's real usage to size the actual risk.
+**Recommendation (known-gap, not launch-blocking):** Rate limiter (30/min, gated per P-API-4) is the real floor. Quota logging is a second layer that's not wired. With 0 live users (pre-launch, only founder test accounts) and no revenue live, this is unlikely to be abused. Document as known-gap, don't block launch. Do NOT fake-fix with a patch that just inserts rows without real enforcement logic — that creates false confidence. Revisit post-launch once there's real usage to size the actual risk.
 
 ### P-PAY-4: `verify-phone` page — FALSE POSITIVE [UPDATED — NOT BROKEN]
 **File:** `frontend/src/routes/verify-phone.tsx` — page EXISTS, was never deleted
