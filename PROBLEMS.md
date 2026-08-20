@@ -799,11 +799,12 @@ These are claims made in the codebase or marketing that are not supported by the
 
 ---
 
-### P-MARKET-1: No brand-side interface — brands can't participate in the marketplace [CRITICAL]
+### P-MARKET-1: No brand-side interface — brands can't participate in the marketplace [MEDIUM pre-launch / CRITICAL the moment a brand signs up]
 **Files:** `frontend/src/routes/marketplace.tsx`, `frontend/src/routes/deals.new.tsx`, `backend/api.py:3847-4431`
 **Problem:** The marketplace is creator-facing only. Brands cannot: post deals, review applications, select creators, fund escrow, or confirm delivery. The "Create Campaign Deal" form (`deals.new.tsx`) is designed for creators to self-create deals — there is no brand login, brand dashboard, or brand application review flow. Without a brand-side product, the marketplace is a one-sided marketplace that cannot generate revenue.
 **Impact:** This is the #1 blocker for the marketplace generating revenue. A marketplace needs both sides. Currently only creators can participate.
-**Fix:** Build brand-side interface: brand signup/login, brand dashboard (post deals, review applications, select creators, fund escrow, confirm delivery, rate creators). This is Phase 2 of the marketplace redesign. See ROADMAP.md.
+**Pre-launch mitigation (Aug 2026):** Both `marketplace.tsx` and `deals.new.tsx` replaced with auth-gated "Coming soon" placeholders. No user can reach the half-built marketplace UI. BottomTabBar never had a `/marketplace` entry — the route was only reachable via direct URL. Dangling references: `deals.index.tsx` lines 250 and 313 link to `/deals/new` (now points to placeholder). Follow-up: remove or redirect those links.
+**Fix (post-launch):** Build brand-side interface: brand signup/login, brand dashboard (post deals, review applications, select creators, fund escrow, confirm delivery, rate creators). This is Phase 2 of the marketplace redesign. See ROADMAP.md.
 
 ### P-MARKET-2: Duplicate deal systems — old and new coexist with different schemas [HIGH]
 **Files:** `backend/api.py:3883-3930` (old `/api/marketplace/deals`), `backend/api.py:3959-4058` (new `/api/deals`), `backend/database_setup.py:165-181`, `backend/fix_brand_deals_schema.py:23-27`
