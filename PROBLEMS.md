@@ -658,6 +658,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Fix:** Either create the missing verification script or remove the step from the workflow YAML.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-WORK-7: DB migration step fails silently in CI — pooler connection broken [MEDIUM]
+**File:** `.github/workflows/scraper.yml:79-84`, `backend/migrate_creator_growth.py`
+**Problem:** The "Run DB migrations" step in `scraper.yml` has `continue-on-error: true`. On Aug 20, it failed with: direct connection `Network is unreachable` (IPv6-only), pooler connections `ENOTFOUND tenant/user postgres.gxxpvstrvphwhlqbvymv` (username format mismatch or pooler unavailable on Free plan). The step failed but the pipeline continued — no schema drift today because all 3 tables (`creator_posts`, `creator_niche_profiles`, `instagram_tokens`) already exist (confirmed via REST API). However, `continue-on-error: true` means any NEW tables added to `migrate_creator_growth.py` will fail silently and never be created in prod.
+**Impact:** Existing tables are safe (all `CREATE TABLE IF NOT EXISTS`). But the migration path is broken — any future schema change added to this script won't apply. The failure is invisible in Actions logs unless you click into the step.
+**Fix:** Either (1) upgrade Supabase to Pro to fix the pooler connection (P-WORK-3), or (2) remove `continue-on-error: true` so migration failures are visible, or (3) switch to Supabase CLI migrations which don't need direct DB access.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
 ---
 
 ## 8. CROSS-CUTTING TRUTH PROBLEMS
