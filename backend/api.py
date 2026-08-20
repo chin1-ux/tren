@@ -922,7 +922,6 @@ class FeedbackRequest(BaseModel):
     trend_id: int
     feedback_type: str  # "too_late" | "too_early" | "perfect" | "stale"
     comment: Optional[str] = None
-    user_email: Optional[str] = None
 
 
 class PrePostRequest(BaseModel):
@@ -932,7 +931,6 @@ class PrePostRequest(BaseModel):
     caption: str
     hashtags: List[str]
     post_time: str
-    user_email: Optional[str] = None
 
 
 class ScoreReelRequest(BaseModel):
@@ -997,7 +995,6 @@ class VerifyRequest(BaseModel):
 
 
 class CreatorProfileRequest(BaseModel):
-    user_email: Optional[str] = None
     instagram_username: str
     niche: str
     followers: int
@@ -1008,7 +1005,6 @@ class CreatorProfileRequest(BaseModel):
 
 
 class BrandDealRequest(BaseModel):
-    creator_email: Optional[str] = None
     brand_name: str
     deal_amount: int
     details: str

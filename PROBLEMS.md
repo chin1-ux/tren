@@ -345,14 +345,21 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Fix (fab26f7c, Aug 18):** Swapped `Depends(require_auth)` → `Depends(require_admin)` on 4 endpoints: `/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`. Evidence: anonymous→401, free-tier→403, admin→200. **BUT: 2 of 6 endpoints were silently missed — `subscription-breakdown` and `cac-ltv` were never in the diff.**
 **Fix (dcfb2fb7, Aug 20):** Swapped `Depends(get_current_user)` → `Depends(require_admin)` on the 2 missed endpoints: `/api/business/subscription-breakdown` (L6889), `/api/business/cac-ltv` (L6906). Pre-change baseline confirmed 422/500 for authenticated users (pre-existing Pydantic/predictor errors, not auth-related). Post-change: anon→401, free-tier→403, admin→200 on both. All 6 business metrics endpoints now admin-only.
 
-### P-AUTH-7: Write-side IDOR — authenticated users can write to other users' resources
-**Files:** `backend/api.py` — 8 write endpoints (lines 1995, 2684, 2832, 3485, 3531, 3829, 3851, 6719)
-**Problem:** Eight write endpoints use `Depends(require_auth)` (post P-AUTH-5 fix) but perform no ownership check in the function body. An authenticated user can write data attributed to any email. Examples:
-- `store_user_performance` (L6719) accepts `user_email` as a path parameter — any auth user can store performance data for any email
-- `create_or_update_profile` (L3829) — any auth user can create/overwrite a creator profile for any email
-- `create_brand_deal` (L3851) — any auth user can create a brand deal attributed to any creator email
-**Impact:** Lower severity than P-AUTH-5 (requires authenticated account, not anonymous), but still a data integrity issue. One malicious authenticated user can pollute another user's data.
-**Fix:** Add ownership checks: `if current_user != req.user_email: raise 403` (or use the path parameter email where applicable).
+### P-AUTH-7: Write-side IDOR — authenticated users can write to other users' resources [FIXED, VERIFIED]
+**Files:** `backend/api.py` — 8 write endpoints (lines 2022, 2713, 2864, 3517, 3563, 3861, 3883, 6727)
+**Problem:** Eight write endpoints use `Depends(require_auth)` (post P-AUTH-5 fix) but perform no ownership check in the function body. An authenticated user can write data attributed to any email.
+**Verified:** Endpoint 8 (`POST /api/user/performance/store`, L6727) is the only one accepting `user_email` as input — curl-verified: attack → 403, legit → 200, no auth → 401. Ownership check at L6736-6737 works. Endpoints 1-7 either have no email field in their Pydantic model (safe by design) or have a dead email field that is silently overridden by the handler using auth identity (safe by implementation — see P-AUTH-9).
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+### P-AUTH-9: Dead user_email/creator_email fields in write request models — refactoring trap [OPEN, LOW]
+**Files:** `backend/api.py` — 4 Pydantic models
+- `FeedbackRequest.user_email` (L925) — handler uses `current_user_email` at L2876, ignores model field
+- `PrePostRequest.user_email` (L935) — handler uses `current_user_email` at L3531, ignores model field
+- `CreatorProfileRequest.user_email` (L1000) — handler uses `current_user_email` at L3866, ignores model field
+- `BrandDealRequest.creator_email` (L1011) — handler uses `current_user_email` at L3890, ignores model field
+**Problem:** These fields exist in the request schemas but are silently overridden in the handler — the DB write always uses the auth identity, not the request body. Not currently exploitable. However, a refactor that switches from `current_user_email` to `req.user_email` (or `req.creator_email`) silently reopens P-AUTH-7 IDOR on 4 endpoints. The dead fields are also misleading to auditors — they look like attack surface when traced, even though the handler ignores them.
+**Impact:** Low (latent). No live vulnerability today. Risk is future regression during refactoring.
+**Fix:** Remove the dead fields from the Pydantic models, or add an explicit `if req.user_email and req.user_email != current_user_email: raise 403` check so the field is either removed or actively defended.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
@@ -717,8 +724,9 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-PAY-1: Razorpay keys missing | HIGH | Payment dead |
 | P-PAY-2: pricing page dead end | HIGH | No conversion path | Updated — page exists, no checkout |
 | P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** (fab26f7c: 4/6; dcfb2fb7: remaining 2) |
-| P-AUTH-7: Write-side IDOR | HIGH | Data integrity | Fix applied, unverified |
+| P-AUTH-7: Write-side IDOR | HIGH | Data integrity | **FIXED, VERIFIED** (curl-verified endpoint 8; 1-7 safe by design/implementation) |
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
+| P-AUTH-9: Dead email fields in write request models | LOW | Refactoring trap (latent IDOR) | Open |
 | P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone page exists | LOW | Phone signups work if used | **FALSE POSITIVE — removed** |
