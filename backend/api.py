@@ -4125,12 +4125,16 @@ def pay_deal_milestone(
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/api/deals/run-reminders")
-def run_milestone_reminders_manual(
-    request: Request, 
-    current_user_email: str = Depends(get_current_user)
-):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
+@limiter.limit("2/hour")
+def run_milestone_reminders_manual(request: Request):
+    cron_secret = os.getenv("CRON_SECRET")
+    if not cron_secret:
+        logger.error("CRON_SECRET not configured - run-reminders blocked")
+        raise HTTPException(status_code=500, detail="Cron configuration error")
+    auth_header = request.headers.get("Authorization")
+    secret_param = request.query_params.get("secret")
+    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
+        raise HTTPException(status_code=403, detail="Forbidden")
     try:
         from cron_job import check_and_send_milestone_reminders
         emails_sent = check_and_send_milestone_reminders()
