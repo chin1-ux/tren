@@ -551,12 +551,24 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Fix applied:** Created `backend/migrate_user_performance_tables.sql` with `CREATE TABLE IF NOT EXISTS` for the 3 core tables: `user_performance`, `user_insights`, `user_media_performance`. Schema derived from tracker code. User must run this SQL in Supabase SQL Editor. Tables 4-6 (`realtime_trends`, `trending_hashtags`, `trending_audio`) are not used by any code — omitted.
 **UNVERIFIED:** Migration SQL written but not yet executed in Supabase. P-AUTH-7 GET-side IDOR fix remains blocked until tables exist.
 
-### P-DB-8: Supabase Python client silently truncates at 1000 rows — systemic data visibility risk [NEW]
+### P-DB-8: Supabase Python client silently truncates at 1000 rows — systemic data visibility risk [PARTIAL FIX]
 **Files:** Any code using `supabase-py` `.table().select().execute()` without explicit `.limit()` or pagination.
 **Problem:** The Supabase Python client defaults to `.limit(1000)` on all queries. This is silent — no error, no warning, no partial-result flag. If a table has >1000 rows, the query returns only the first 1000 and the caller has no way to know. This affected the P-METHOD-1 analysis: the `trends` table had 1,013 rows but the analysis script saw only 1,000, missing 13 rows across 12 duplicate groups. The DELETE list was built on incomplete data and required a second pass.
 **Impact:** Any production query fetching trends, snapshots, or reels without an explicit limit or pagination could be silently returning partial data. This includes dashboards, velocity calculations, feed endpoints, analytics, and any metric that sums or counts across the full table. The user would see incomplete data with no indication anything is wrong.
-**Action required:** Grep the codebase for all `.table(` calls and verify each has an explicit `.limit()`, `.range()`, or pagination loop. Flag any that don't. Priority: user-facing endpoints and metric calculations.
-**Fix applied:** None yet. Systemic audit needed.
+**Audit results (Aug 2026):** Grep of all `.table().select()` calls in `backend/`. Verified per-filter row counts against live prod (Supabase REST API).
+- Tables >1,000 rows: `reels` (7,467), `reel_snapshots` (19,031). All others under 1,000.
+- `reel_snapshots` has 10 code references (api.py:1728, instagram_scraper_browser.py:1534/1927/1945, migrate_reel_snapshots.py). All queries bounded by `.eq("audio_id", ...)`.
+- Max reels per `audio_id`: **13**. All `.eq("audio_id", ...)` queries safe.
+- Max reels per `audio_title`: **3,896** ("Original audio" — default/placeholder). No production query filters by this title.
+- Max reels per hashtag: **1,214** (`#viral`). Was actively truncated.
+**Fix applied:**
+1. `dynamic_hashtag_discovery.py:107` — **FIXED** (commit `a9358d9e`). Unbounded `.contains('hashtags', [hashtag])` replaced with `.range()` pagination loop. `#viral` (1,214 rows) now fully fetched.
+2. `cron_job.py:305` — **SAFE** (no fix needed). 30-minute time window, ~323 reels max per query.
+3. `realtime_velocity_tracker.py:162` — **SAFE** (no fix needed). `.eq("audio_id", ...)` maxes at 13 rows.
+4. `api.py:1728` — **SAFE** (no fix needed). `.eq("audio_id", ...)` + 72h window, ~39 snapshots max.
+5. `instagram_scraper_browser.py:1777,1970,1979` — **MONITORED**. `.eq("audio_id", ...)` and `.eq("audio_title", ...)` queries, safe today (max 13 per audio_id), but unbounded. Will silently truncate if volume grows.
+6. `dynamic_hashtag_discovery.py:209` (second call site) — **MONITORED**. Has `.limit(100)` already, safe.
+**Remaining risk:** Five unbounded query sites in production code are safe today but landmines for future volume growth. No immediate fix needed — monitored.
 
 ### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED]
 **Files:** `backend/trend_engine.py:756-814` (dedup guard — FIXED), `backend/external_trend_pipeline.py:92` (dedup guard — FIXED), `backend/trend_refresher.py` (status transitions)
