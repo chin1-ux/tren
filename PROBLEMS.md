@@ -558,16 +558,16 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Action required:** Grep the codebase for all `.table(` calls and verify each has an explicit `.limit()`, `.range()`, or pagination loop. Flag any that don't. Priority: user-facing endpoints and metric calculations.
 **Fix applied:** None yet. Systemic audit needed.
 
-### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED — Change B pending]
-**Files:** `backend/trend_engine.py:756-814` (dedup guard — FIXED), `backend/external_trend_pipeline.py:92` (zero dedup — Change B pending), `backend/trend_refresher.py` (status transitions)
-**Problem:** The dedup guard at `trend_engine.py:762` only checked trends with status `emerging` or `rising`. Once a trend transitioned to `peaked` or `expired` via `trend_refresher.py`, the guard no longer blocked re-detection. The external pipeline at `external_trend_pipeline.py:92` has zero dedup. No unique DB constraint on `audio_id` in the `trends` table.
+### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED]
+**Files:** `backend/trend_engine.py:756-814` (dedup guard — FIXED), `backend/external_trend_pipeline.py:92` (dedup guard — FIXED), `backend/trend_refresher.py` (status transitions)
+**Problem:** The dedup guard at `trend_engine.py:762` only checked trends with status `emerging` or `rising`. Once a trend transitioned to `peaked` or `expired` via `trend_refresher.py`, the guard no longer blocked re-detection. The external pipeline at `external_trend_pipeline.py:92` had zero dedup. No unique DB constraint on `audio_id` in the `trends` table.
 **Impact:** 53% of trend titles were duplicated. 1,013 total rows, 163 duplicate groups, 692 excess rows. Business metrics (trend count, velocity averages) inflated ~2.7x since Aug 7. Ongoing since day one.
 **Fix applied:**
 1. Backfill DELETE of 679 rows committed (first pass — Supabase pagination bug missed 13 rows).
 2. Cleanup DELETE of 13 remaining excess rows committed. Final state: 321 unique trends, 0 duplicate groups.
 3. Unique constraint `trends_audio_id_unique` on `audio_id` — live, proven to reject duplicates.
 4. Forward-fix Change A (trend_engine.py): dedup guard widened to all statuses, never-downgrade status rule (`rising > emerging > peaked > expired`), update-in-place on match. Velocity/metrics untouched — owned by trend_refresher.py via 5 independent cron-driven call sites. Committed `e23ef810`.
-**Remaining:** Change B (external_trend_pipeline.py dedup guard) — separate commit, next session.
+5. Forward-fix Change B (external_trend_pipeline.py): dedup guard added by `bcb54d53` (Aug 19). Checks by `audio_title + audio_artist` before insert. On match: applies never-downgrade status rule (`rising > emerging > peaked > expired`), only status updated. Verified: `STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}`, `audio_title + audio_artist` equality check, velocity/metrics untouched.
 
 ### P-METHOD-1b: title+artist duplicate pairs — manual dedup [FIXED]
 **Files:** `trends` table
