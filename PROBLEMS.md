@@ -339,12 +339,11 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 
 ## 4. PAYMENT & SUBSCRIPTION PROBLEMS
 
-### P-AUTH-6: Business metrics (revenue/MRR/CAC) visible to any authenticated free-tier user — FIXED
-**Files:** `backend/api.py:6794,6812,6830,6848`
-**Problem:** Four business metrics endpoints (`/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`) had only `Depends(require_auth)` — any authenticated user (including free-tier) could see full revenue data, MRR, CAC/LTV, user acquisition, churn rates.
-**Evidence (live curl):** Anonymous → 401 ✓, Non-admin role → 403 ✓, Admin → 200 ✓. All 12/12 checks pass.
-**Fix:** Swapped `Depends(require_auth)` → `Depends(require_admin)` on all 4 endpoints. `require_admin` (auth.py:251-288) validates JWT `role` claim against `("admin", "super_admin")`.
-**Discovered during fix:** Two pre-existing bugs (P-EXH-1, P-EXH-2) masked all auth error codes as 500s across the entire API.
+### P-AUTH-6: Business metrics (revenue/MRR/CAC) visible to any authenticated free-tier user — PARTIALLY FIXED, then COMPLETED
+**Files:** `backend/api.py:6794,6812,6830,6848,6885,6902`
+**Problem:** Six business metrics endpoints had only `Depends(require_auth)` or `Depends(get_current_user)` — any authenticated user (including free-tier) could see full revenue data, MRR, CAC/LTV, user acquisition, churn rates.
+**Fix (fab26f7c, Aug 18):** Swapped `Depends(require_auth)` → `Depends(require_admin)` on 4 endpoints: `/api/business/metrics`, `/api/business/user-metrics`, `/api/business/revenue`, `/api/business/mrr`. Evidence: anonymous→401, free-tier→403, admin→200. **BUT: 2 of 6 endpoints were silently missed — `subscription-breakdown` and `cac-ltv` were never in the diff.**
+**Fix (dcfb2fb7, Aug 20):** Swapped `Depends(get_current_user)` → `Depends(require_admin)` on the 2 missed endpoints: `/api/business/subscription-breakdown` (L6889), `/api/business/cac-ltv` (L6906). Pre-change baseline confirmed 422/500 for authenticated users (pre-existing Pydantic/predictor errors, not auth-related). Post-change: anon→401, free-tier→403, admin→200 on both. All 6 business metrics endpoints now admin-only.
 
 ### P-AUTH-7: Write-side IDOR — authenticated users can write to other users' resources
 **Files:** `backend/api.py` — 8 write endpoints (lines 1995, 2684, 2832, 3485, 3531, 3829, 3851, 6719)
@@ -717,7 +716,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-EXH-2: jwt.JWTError doesn't exist in PyJWT 2.x | HIGH | verify_token never catches decode errors | **FIXED** |
 | P-PAY-1: Razorpay keys missing | HIGH | Payment dead |
 | P-PAY-2: pricing page dead end | HIGH | No conversion path | Updated — page exists, no checkout |
-| P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** |
+| P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** (fab26f7c: 4/6; dcfb2fb7: remaining 2) |
 | P-AUTH-7: Write-side IDOR | HIGH | Data integrity | Fix applied, unverified |
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
 | P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
