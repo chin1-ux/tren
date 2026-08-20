@@ -351,16 +351,13 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Verified:** Endpoint 8 (`POST /api/user/performance/store`, L6727) is the only one accepting `user_email` as input — curl-verified: attack → 403, legit → 200, no auth → 401. Ownership check at L6736-6737 works. Endpoints 1-7 either have no email field in their Pydantic model (safe by design) or have a dead email field that is silently overridden by the handler using auth identity (safe by implementation — see P-AUTH-9).
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-AUTH-9: Dead user_email/creator_email fields in write request models — refactoring trap [OPEN, LOW]
+### P-AUTH-9: Dead user_email/creator_email fields in write request models — refactoring trap [FIXED]
 **Files:** `backend/api.py` — 4 Pydantic models
-- `FeedbackRequest.user_email` (L925) — handler uses `current_user_email` at L2876, ignores model field
-- `PrePostRequest.user_email` (L935) — handler uses `current_user_email` at L3531, ignores model field
-- `CreatorProfileRequest.user_email` (L1000) — handler uses `current_user_email` at L3866, ignores model field
-- `BrandDealRequest.creator_email` (L1011) — handler uses `current_user_email` at L3890, ignores model field
-**Problem:** These fields exist in the request schemas but are silently overridden in the handler — the DB write always uses the auth identity, not the request body. Not currently exploitable. However, a refactor that switches from `current_user_email` to `req.user_email` (or `req.creator_email`) silently reopens P-AUTH-7 IDOR on 4 endpoints. The dead fields are also misleading to auditors — they look like attack surface when traced, even though the handler ignores them.
-**Impact:** Low (latent). No live vulnerability today. Risk is future regression during refactoring.
-**Fix:** Remove the dead fields from the Pydantic models, or add an explicit `if req.user_email and req.user_email != current_user_email: raise 403` check so the field is either removed or actively defended.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+- `FeedbackRequest.user_email` — handler uses `current_user_email` at L2876, ignores model field
+- `PrePostRequest.user_email` — handler uses `current_user_email` at L3531, ignores model field
+- `CreatorProfileRequest.user_email` — handler uses `current_user_email` at L3866, ignores model field
+- `BrandDealRequest.creator_email` — handler uses `current_user_email` at L3890, ignores model field
+**Fix (d744f24f):** Removed all 4 dead fields from the Pydantic models. Verified: backend boots clean, all 4 endpoints return 200 for authenticated requests, no-auth returns 401. marketplace/deals 500 is pre-existing (confirmed with original code). Frontend does not send these fields (checked all api.ts callers). No test files send these fields.
 
 ### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
 **Files:** `backend/redis_rate_limiter.py:59-61,106-113`, `backend/api.py:452-459`
@@ -399,6 +396,7 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Problem:** The `usage_logs` table exists but has 0 rows. Quota logging is not happening.
 **Impact:** `require_quota()` checks in plan_enforcement.py read from a table that's always empty. Quota enforcement is effectively disabled — users never hit quota limits because the counter never increments.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Recommendation (known-gap, not launch-blocking):** Rate limiter (30/min, gated per P-API-4) is the real floor. Quota logging is a second layer that's not wired. With ~15 known users and no revenue live, this is unlikely to be abused. Document as known-gap, don't block launch. Do NOT fake-fix with a patch that just inserts rows without real enforcement logic — that creates false confidence. Revisit post-launch once there's real usage to size the actual risk.
 
 ### P-PAY-4: `verify-phone` page — FALSE POSITIVE [UPDATED — NOT BROKEN]
 **File:** `frontend/src/routes/verify-phone.tsx` — page EXISTS, was never deleted
@@ -669,22 +667,27 @@ These are claims made in the codebase or marketing that are not supported by the
 ### P-TRUTH-1: "We detect trends 6 hours before they peak" — NOT PROVABLE
 **Evidence:** There is no prediction model in the codebase. The `calculate_realistic_peaking_score()` function (trend_scoring.py:173-207) is retrospective, not predictive. The `window_hours_remaining` is a heuristic countdown based on saturation, not a prediction.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. This is a marketing claim, not a code issue.
+**Proposed rewrite:** "Surfaces trends while they're still rising" — drop the specific time claim, since nothing in the code predicts anything.
 
 ### P-TRUTH-2: "15,000+ reels daily" — NOT ACHIEVABLE
 **Evidence:** The scraper processes ~30-90 reels per hashtag per run, with 15 hashtags per run, at 2-4 runs per day. Max realistic daily count: ~500-2,000 reels.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. This would require scraper pagination (not addressed).
+**Proposed rewrite:** Either state the real range (~500–2,000/day) or drop the number entirely: "Continuously scanning across N hashtags."
 
 ### P-TRUTH-3: "Real-time velocity tracking" — ACTUALLY BATCH
 **Evidence:** Velocity is calculated at scrape time from point-in-time snapshots. No streaming, no real-time API polling. Batch scraping on schedule.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. Real-time would require WebSocket connections to Instagram or a push-based architecture.
+**Proposed rewrite:** "Regularly refreshed" or state the actual scrape cadence (every 6-12 hours).
 
 ### P-TRUTH-4: "Cross-platform audio detection" — PARTIALLY BROKEN
 **Evidence:** YouTube integration exists but is basic string matching. Spotify's chart endpoint doesn't exist. The external_trend_discovery module is dead code.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Proposed rewrite:** Cut this claim from marketing entirely. Spotify doesn't exist, YouTube is crude string matching — not close enough to true to rewrite.
 
 ### P-TRUTH-5: "India-first trend detection" — PARTIALLY TRUE
 **Evidence:** 80% of hashtags are India-focused. Multi-language detection exists. But no Instagram API integration for India-specific trending data. The "first" claim is unprovable without comparing against Instagram's actual trending page.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Proposed rewrite:** "India-focused" instead of "India-first" — 80% India-weighted hashtags and multi-language detection are defensible without a comparative "first" claim.
 
 ---
 
@@ -726,7 +729,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-AUTH-6: Business metrics open to free-tier | HIGH | Financial data exposed | **FIXED** (fab26f7c: 4/6; dcfb2fb7: remaining 2) |
 | P-AUTH-7: Write-side IDOR | HIGH | Data integrity | **FIXED, VERIFIED** (curl-verified endpoint 8; 1-7 safe by design/implementation) |
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
-| P-AUTH-9: Dead email fields in write request models | LOW | Refactoring trap (latent IDOR) | Open |
+| P-AUTH-9: Dead email fields in write request models | LOW | Refactoring trap (latent IDOR) | **FIXED** (d744f24f: removed 4 dead fields) |
 | P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone page exists | LOW | Phone signups work if used | **FALSE POSITIVE — removed** |
@@ -858,6 +861,14 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Severity:** HIGH — brands/creators are meant to get milestone payment reminders and haven't been, silently, for the entire life of the feature. This is a launch-time infrastructure gap, not a regression.
 **Evidence:** `deal_payment_milestones.reminder_sent_at` is NULL across all rows (0 rows total). No reminders have ever been sent, manually or otherwise.
 **Fix (deferred — scope next session):** Two options: (1) add Vercel cron entry for `/api/deals/run-reminders` in `vercel.json`, or (2) fold `check_and_send_milestone_reminders()` into `/api/cron/refresh`'s existing 12h job. Requires profiling function runtime to confirm it fits within 30s budget alongside TrendRefresher without risk of timeout as milestone volume grows.
+
+### P-MARKET-10: POST /api/marketplace/deals 500s for all authenticated users [HIGH]
+**Note:** Commit `4d6e0620` references "P-MARKET-10" for an anonymous@ data leak fix, but that commit never created a PROBLEMS.md entry — it only touched `backend/api.py`. The anonymous@ fix is tracked by commit hash only. This entry is the first actual P-MARKET-10 in the doc.
+**Files:** `backend/api.py:3883-3901` (`create_brand_deal`)
+**Problem:** `POST /api/marketplace/deals` returns 500 Internal Server Error for every authenticated request. The old deal creation endpoint (part of the duplicate deal system in P-MARKET-2) writes to `brand_deals` using columns (`creator_email`, `deal_amount`, `commission_amount`, `details`) that don't match the current table schema — the table was migrated to the new deal system (`/api/deals`) which uses different columns (`creator_id`, `rate_amount`, milestones). The insert fails with a DB error, caught by the generic exception handler and returned as 500.
+**Impact:** The old marketplace deal creation flow is completely broken. Any user hitting this endpoint gets a 500. The frontend doesn't currently call this endpoint (the new `/api/deals` is used instead), so no user is actively hitting it — but it's a dead endpoint that returns a server error, not a clean 404 or deprecation notice.
+**Evidence:** Curl-verified: no auth → 401 (auth gate works), authenticated → 500. Confirmed pre-existing by reverting auth gate changes and retesting — same 500 with original code.
+**Fix:** Either (1) remove the old endpoint entirely and redirect to `/api/deals`, or (2) align the old endpoint's column writes with the current `brand_deals` schema. Option 1 is cleaner — P-MARKET-2 already tracks the duplicate system, and the old endpoint should be retired as part of that consolidation.
 
 ---
 
