@@ -138,16 +138,21 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
             logger.info(f"Using all {len(keys)} configured Groq key(s) for this request.")
 
         # Apply cost optimisation defaults
+        model = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
         payload = {
-            "model": os.getenv("LLM_MODEL", "llama-3.3-70b-versatile"),
+            "model": model,
             "messages": [
                 {"role": "system", "content": system_prompt},
                 {"role": "user", "content": user_prompt}
             ],
             "temperature": 0.2,
-            "max_tokens": 512,
+            "max_tokens": 1024,
         }
-        if response_mime_type == "application/json":
+        # Groq returns HTTP 400 json_validate_failed for models that don't support
+        # response_format: json_object. Skip for known-unsupported models; callers
+        # still get JSON via prompt + markdown extraction at L163+.
+        _GROQ_NO_JSON_FORMAT = {"openai/gpt-oss-120b", "qwen/qwen3.6-27b"}
+        if response_mime_type == "application/json" and model not in _GROQ_NO_JSON_FORMAT:
             payload["response_format"] = {"type": "json_object"}
         headers_common = {"Content-Type": "application/json"}
         for idx, key in enumerate(keys, start=1):

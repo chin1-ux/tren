@@ -647,6 +647,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Post-reset target (Sept 1):** Revert to daily scraping (or sustainable near-daily frequency). Current 2-day cadence is temporary. Long-term frequency needs re-evaluation before Sept 14 launch — daily scraping at ~90 min/day may still exceed free tier on its own. Decision deferred.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-WORK-6: `check_llm_classification_history.py` missing — nightly workflow shows failed when it isn't
+**File:** `.github/workflows/nightly-llm-classification.yml` (references `backend/check_llm_classification_history.py`)
+**Problem:** After the `run-llm-batch` step succeeds, the verification step `python backend/check_llm_classification_history.py` fails with exit code 2 (file not found). GitHub marks the entire workflow run as "failed" even though classification completed correctly. This produces false-alarm red badges in the Actions tab — the same signal surface we rely on for pipeline health.
+**Severity:** Low (no data impact, just noise). But "workflow shows failed when it isn't" erodes trust in Actions signal.
+**Fix:** Either create the missing verification script or remove the step from the workflow YAML.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
 ---
 
 ## 8. CROSS-CUTTING TRUTH PROBLEMS
