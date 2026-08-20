@@ -819,6 +819,7 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Fix (post-migration):** Migrate old deals to new schema (add milestones, contracts where missing). One system, one data model.
 
 ### P-MARKET-3: No escrow/payment processing for deals — "Mark as paid" is a database toggle [MEDIUM pre-launch / CRITICAL once P-MARKET-1 + P-FUND-1 ship]
+**Pre-launch context (Aug 2026):** 0 brands, 0 deals, 0 milestones in `brand_deals`. Escrow only matters when a brand can create a deal (P-MARKET-1 brand dashboard) and fund it (P-FUND-1 Razorpay keys). No code change — reclassified because 0 live users means no payment protection is needed yet.
 **Files:** `backend/api.py:4102-4121` (`POST /api/deals/{deal_id}/pay-milestone/{milestone_id}`)
 **Problem:** The milestone payment endpoint simply updates `paid_status` from "unpaid" to "paid" in the database. No money moves. No Razorpay integration. No escrow. No invoice generation. The creator clicks "Mark as paid" and the system trusts that the brand actually paid. This is identical to the agency model — no payment protection.
 **Access control (fixed commit `e179405e`):** Endpoint now gated to `require_feature("advanced_analytics")` (pro/business plans only). Free-tier users get 403 with upgrade prompt. Ownership check at L4117-4118 still fires after plan gate — paid users can only mark milestones on their own deals.
@@ -826,12 +827,14 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Fix:** Implement Razorpay escrow: brand funds deal upfront → Trendrop holds money → creator delivers → Trendrop releases payment. This requires Razorpay KYC (P-FUND-1) and brand-side interface (P-MARKET-1).
 
 ### P-MARKET-4: No brand verification — anyone can create a brand deal [MEDIUM pre-launch / HIGH once P-MARKET-1 ships]
+**Pre-launch context (Aug 2026):** No brand signup flow exists — the marketplace is behind a "Coming soon" placeholder (P-MARKET-1 fix). 0 brands on platform. Verification is downstream of P-MARKET-1.
 **Files:** No verification code exists anywhere in the marketplace flow.
 **Problem:** Anyone can create a brand deal without proving they are a legitimate business. No GST verification, no business registration, no company email check. This enables fake brands that promise deals and never pay, or brands that create deals to harvest creator contact information.
 **Impact:** Trust erosion. If creators encounter fake brands, they leave the platform. Without verification, the marketplace becomes a spam vector.
 **Fix:** Brand verification flow: GST number upload, business registration document, company email verification (@company.com, not Gmail). Verified badge on brand profiles. Unverified brands can browse but cannot post deals.
 
 ### P-MARKET-5: No notifications to brands — application black hole [MEDIUM pre-launch / HIGH once P-MARKET-1 ships]
+**Pre-launch context (Aug 2026):** 0 brands to notify, 0 applications in `brand_deal_applications`. Notifications are downstream of P-MARKET-1 (brand dashboard).
 **Files:** `backend/api.py:4306-4327` (`POST /api/apply-deal`), no email/notification code for brands.
 **Problem:** When a creator applies to a brand deal, the application is stored in `brand_deal_applications` but no email, push notification, or in-app alert is sent to the brand. The brand has no way to know someone applied unless they manually check. Collab requests (`POST /api/send-collab-request`) have the same problem.
 **Impact:** Deals go unanswered. Creators apply and hear nothing. The marketplace feels dead. This is the #1 reason marketplaces fail — supply (creators) exists but demand (brands) doesn't know about it.
@@ -859,6 +862,7 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 - #4 (`GET /api/marketplace/deals`): Used `get_current_user` → anonymous got silent empty array instead of 401. **Fixed in commit `2ab2ad7f` — changed to `require_auth`, matching write endpoint. Curl verified: no auth→401, authed→200 with own data (table empty so `[]` is correct).**
 
 ### P-MARKET-9: Milestone reminder emails have never fired — Vercel cron not wired [MEDIUM pre-launch / HIGH once P-MARKET-1 ships and deals exist]
+**Pre-launch context (Aug 2026):** `deal_payment_milestones` has 0 rows. No data exists to send reminders about. Downstream of P-MARKET-1 (brand dashboard creates deals, which create milestones).
 **Files:** `vercel.json` (cron config), `cron_job.py:751-925,967-969` (scheduler), `backend/api.py:4127-4140` (manual endpoint)
 **Problem:** `check_and_send_milestone_reminders()` is scheduled via in-process `schedule.every(12).hours` in `cron_job.py:968-969`, but Vercel serverless functions have a 30s max duration (`maxDuration: 30` in `vercel.json`). The `while True` loop at `cron_job.py:980-982` gets killed immediately — the reminder function only runs on cold start (line 955) and then the process dies. `vercel.json` crons only wire `/api/cron/trigger` (24h) and `/api/cron/refresh` (12h) — no entry for `/api/deals/run-reminders`. **Reminders have never fired automatically since the feature was built.** `deal_payment_milestones` table is empty (0 rows), so no data has existed to expose this gap.
 **Severity:** HIGH — brands/creators are meant to get milestone payment reminders and haven't been, silently, for the entire life of the feature. This is a launch-time infrastructure gap, not a regression.
@@ -887,6 +891,7 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Fix:** Rename: Agency → Brand (₹4,999/mo, for brands posting deals). Creator → Pro (₹999/mo). Keep Free as Free. Enterprise stays Enterprise. Update all references: DB tier names, frontend labels, plan enforcement, pricing page, onboarding flow.
 
 ### P-PAY-6: Credit system needed — usage-based pricing for trend detection + AI [LOW pre-launch / HIGH once payments live and usage data exists]
+**Pre-launch context (Aug 2026):** 0 users, no usage data to calibrate credit costs. Revenue optimization is Phase 3 per ROADMAP.md (Jan-Mar 2027). Flat-rate pricing is fine for beta.
 **Files:** No credit system exists. Current pricing is flat-rate subscription only.
 **Problem:** Flat-rate pricing doesn't match usage patterns. A creator who checks trends once/day pays the same as one who checks 50 times/day. This creates: (1) unfairness for light users, (2) revenue ceiling for heavy users, (3) no incentive to optimize usage. Virlo (competitor) uses credit-based pricing: Orbit Search = 50 credits, each plan has monthly credit allocation.
 **Impact:** Revenue left on the table. Heavy users should pay more. Light users should pay less. Credit system enables: per-action pricing, credit add-ons, usage transparency, revenue optimization.
