@@ -636,7 +636,7 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 3. **Early signal detection** (`early_signal_detector.py:191`): Reads the same zeroed field. Creator-size-based signal thresholds are non-functional.
 **Fix path:** Unusually clean. The profile endpoint (`/api/v1/users/web_profile_info/`) DOES return follower count via `edge_followed_by.count`. The scraper already uses this path in `scrape_creator_baseline` (line 500) and caches to `creator_baselines.follower_count`. This is a backfill/join problem, not a new-data-acquisition problem. Fixable before Sept 14.
 **Action required:** Backfill `owner_follower_count` from `creator_baselines` table (already cached) or profile endpoint. Join on `owner_username`. Then update velocity formula to use the backfilled value. Three files need the field populated; one formula needs the join.
-**Status (Aug 2026):** Fix is scoped and ready. Devin prompt drafted. Blocked on environment access — sandbox lacks `.env`/Supabase creds. Run locally or from an environment with real credentials.
+**Status (Aug 2026):** Backfill script written and run (commit `3cfa1eea`). 303 reels updated with real follower data (min=48, max=1,427,116, median=3,550). 7,109 reels still at 0 (no matching baseline) — these get the 2,500 fallback at scrape time, and will be populated on next scrape via the code-level join. Script is idempotent, safe to re-run.
 
 ---
 
@@ -801,7 +801,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-METHOD-6: Velocity ignores Instagram's top signals | — | **DISCLOSED LIMITATION** — watch-time/DM-sends structurally unavailable |
 | P-METHOD-7: Velocity can't detect misattribution | MEDIUM | Audio trends may be non-audio driven |
 | P-SCRAPER-1: share_count never extracted | LOW | Code gap — needs manual raw-response dump to confirm |
-| P-SCRAPER-2: owner_follower_count = 0 for all rows | HIGH | Follower normalization never worked — 100% of rows, 3 systems affected. Fixable via creator_baselines join. |
+| P-SCRAPER-2: owner_follower_count = 0 for all rows | HIGH | **PARTIAL FIX** — 303 reels backfilled, code-level join for remaining 7,109 on next scrape |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
