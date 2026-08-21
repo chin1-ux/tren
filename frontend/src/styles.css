@@ -120,7 +120,11 @@
   html, body {
     background-color: var(--background);
     color: var(--foreground);
-    font-family: "Inter", sans-serif;
+    font-family: var(--font-sans);
+    font-size: 16px;
+    line-height: 1.5;
+    font-weight: 400;
+    letter-spacing: -0.005em;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     overflow-x: hidden;
@@ -236,20 +240,6 @@
   box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.02);
 }
 
-/* Glass input/textarea style */
-.glass-input {
-  background: rgba(255, 255, 255, 0.02);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: all 0.2s ease;
-}
-.glass-input:focus {
-  background: rgba(255, 255, 255, 0.04);
-  border-color: var(--primary);
-  box-shadow: 0 0 0 2px rgba(230, 57, 70, 0.2);
-}
-
 /* ── 3D Tilt card ────────────────────────────────────────────────────────────── */
 .tilt-card {
   transform-style: preserve-3d;
@@ -337,11 +327,11 @@
 
 /* ── Typography Scale Overrides ────────────────────────────────────────────────── */
 .font-display {
-  font-family: 'Bricolage Grotesque', system-ui, sans-serif !important;
+  font-family: var(--font-sans);
 }
 
 h1, h2, h3, h4, h5, h6 {
-  font-family: 'Bricolage Grotesque', system-ui, sans-serif !important;
+  font-family: var(--font-sans);
 }
 
 h1 {
@@ -365,14 +355,6 @@ h3 {
   letter-spacing: -0.015em;
 }
 
-body {
-  font-family: 'Bricolage Grotesque', system-ui, sans-serif !important;
-  font-size: 16px;
-  line-height: 1.5;
-  font-weight: 400;
-  letter-spacing: -0.005em;
-}
-
 .caption {
   font-size: 13px;
   line-height: 1.45;
@@ -389,7 +371,7 @@ body {
 }
 
 .eyebrow, .label-eyebrow {
-  font-family: 'Bricolage Grotesque', system-ui, sans-serif;
+  font-family: var(--font-sans);
   font-size: 12px;
   line-height: 1.4;
   font-weight: 600;
@@ -404,7 +386,7 @@ body {
   border: none;
   padding: 14px 22px;
   border-radius: 12px;
-  font-family: 'Bricolage Grotesque', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 15px;
   line-height: 1;
@@ -430,7 +412,7 @@ body {
   border: 1px solid var(--border);
   padding: 13px 21px;
   border-radius: 12px;
-  font-family: 'Bricolage Grotesque', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 600;
   font-size: 15px;
   cursor: pointer;
@@ -519,7 +501,7 @@ body {
   border: 1px solid var(--border) !important;
   border-radius: 12px !important;
   padding: 12px 14px !important;
-  font-family: 'Bricolage Grotesque', sans-serif !important;
+  font-family: var(--font-sans) !important;
   font-weight: 500 !important;
   font-size: 15px !important;
   line-height: 1.2 !important;
@@ -555,7 +537,7 @@ body {
   position: relative;
   display: inline-flex;
   align-items: flex-end;
-  font-family: 'Bricolage Grotesque', sans-serif;
+  font-family: var(--font-sans);
   font-weight: 800;
   font-size: 56px;
   line-height: 1;
@@ -621,4 +603,23 @@ body {
 }
 .niche-filter-bar::-webkit-scrollbar {
   display: none !important;
+}
+
+/* ── Reduced Motion ──────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+  .glass-card:hover { transform: none; }
+  .card:hover { transform: none; }
+}
+
+/* ── Fallback for devices without backdrop-filter support (low-end Android) ─── */
+@supports not (backdrop-filter: blur(1px)) {
+  .glass-card {
+    background: rgba(21, 21, 28, 0.95);
+  }
 }
