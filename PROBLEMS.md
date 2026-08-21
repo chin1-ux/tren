@@ -603,14 +603,32 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Evidence base:** Public research confirms Instagram's Reels ranking is driven primarily by watch-time/completion and DM-sends-per-reach — not audio identity — meaning format-driven virality is a first-class phenomenon on the platform, not an edge case.
 **Action required:** Scope as its own investigation — likely harder than P-METHOD-4 since it requires structural pattern-matching across edits, not just perceptual hashing. Not yet estimated.
 
-### P-METHOD-6: Velocity formula doesn't use Instagram's actual dominant ranking signals [NEW]
+### P-METHOD-6: Velocity formula doesn't use Instagram's actual dominant ranking signals [DISCLOSED LIMITATION — audited Aug 2026]
 **Problem:** Trendrop's velocity_avg formula is derived from engagement/followers/creator-age. Instagram's own confirmed ranking hierarchy (per Adam Mosseri, 2025-2026) weights watch-time-completion as the #1 signal and DM-sends-per-reach as the strongest signal for non-follower reach — with likes explicitly the weakest signal. Trendrop's formula does not include either.
-**Open question, not yet answered:** Does Instagram's public/scraped API surface expose watch-time or send-count data at all? If not, this is a hard platform limitation, not a code fix — needs honest investigation before assuming it's solvable.
-**Action required:** Audit what data Instagram's scraped endpoints actually return; determine if watch-time/completion-rate/share-count are available in any form (even a proxy). If genuinely unavailable, this becomes a disclosed methodology limitation (P-TRUTH item), not a fixable bug.
+**Audit result (Aug 2026):** Browser-scraped GraphQL endpoints do not expose watch-time, completion-rate, or DM-send-count. These signals are only available via Instagram's internal Insights API (requires Business/Creator OAuth + per-reel calls) — structurally unavailable to a third-party scraper. **This is a platform limitation, not a code fix.**
+**Current formula (instagram_scraper_browser.py:1249-1252):** `engagement = views + (likes × 3) + (comments × 5); velocity = (engagement / hours_live / log(followers + 10)) × 100`. Uses only views, likes, comments — the three signals Instagram exposes publicly. No share_count, no watch-time, no completion-rate.
+**Classification:** Disclosed methodology limitation. Document for users/investors: "Velocity is calculated from publicly available engagement signals. Instagram's internal ranking signals (watch-time, shares) are not accessible to third-party tools."
+**Does IMPLEMENTATION_PLAN.md fix this?** No. Platform limitation, not solvable via code.
 
-### P-METHOD-7: Velocity spikes can't distinguish audio-driven virality from unrelated causes (misattribution risk) [NEW]
-**Problem:** A reel using a given audio can go viral for reasons unrelated to the audio (external events, appearance-driven engagement, unrelated content virality). Trendrop's current model attributes any velocity spike on a tracked audio_id to "the audio is trending," with no mechanism to detect when the spike is actually driven by something else. This is distinct from P-METHOD's deprioritized external-events item — that item was about detecting new event-driven trends; this is about NOT misattributing existing audio-trend scores when the real driver isn't the audio.
-**Action required:** Not yet scoped. Possible cheap partial signal: check whether velocity spikes are concentrated in a narrow content-type/hashtag cluster (suggesting a non-audio cause) vs. spread across diverse content (suggesting genuine audio-driven trend). Needs investigation before any fix is proposed.
+### P-METHOD-7: Velocity spikes can't distinguish audio-driven virality from unrelated causes (misattribution risk) [NEW — scoped Aug 2026]
+**Problem:** A reel using a given audio can go viral for reasons unrelated to the audio (external events, appearance-driven engagement, unrelated content virality). Trendrop's current model attributes any velocity spike on a tracked audio_id to "the audio is trending," with no mechanism to detect when the spike is actually driven by something else. This is distinct from P-METHOD-6 — that item is about signals we can't access (watch-time, DM-sends). This item is about whether the signals we *do* have (views, likes, comments, hashtag clustering) can distinguish genuine audio-driven trends from misattributed spikes.
+**Data audit context (Aug 2026):** P-METHOD-6 confirmed watch-time and DM-sends are structurally unavailable. This item must be solved (if at all) with the existing signal set: view_count, like_count, comment_count, hashtags, creator_country, content_type.
+**Possible cheap partial signal:** Check whether velocity spikes are concentrated in a narrow content-type/hashtag cluster (suggesting non-audio cause) vs. spread across diverse content (suggesting genuine audio-driven trend). Needs independent scoping — not closable by association with P-METHOD-6's disclosed limitation.
+**Action required:** Scope separately. Estimate feasibility of hashtag-cluster/concentration analysis as a misattribution detector. Not yet estimated.
+
+### P-SCRAPER-1: share_count field never extracted — DB column exists but always null [CODE GAP — fixable]
+**Files:** `instagram_scraper_browser.py:1413-1434` (reel dict construction)
+**Problem:** The `reels` table has a `share_count` column (database_setup.py:30), but the browser scraper never populates it. Every row is null. The GraphQL response the scraper already hits likely contains share data in some form — the field just isn't being extracted from the response dict. This is a code gap, not a platform limitation.
+**Impact:** Velocity formula excludes shares entirely (views/likes/comments only). Instagram's own ranking heavily weights shares/DM-sends. Even a partial share signal would improve velocity accuracy.
+**Action required:** Quick investigation: log raw GraphQL response keys for one scrape run to check whether a share field exists in the response and is being silently dropped. If present → extract and populate share_count. If absent → reclassify as platform limitation alongside P-METHOD-6.
+**Audit note (Aug 2026):** Instagram's Graph API (OAuth path, `instagram_data_fetcher.py:98,171`) does request `shares` and `saves` fields — so the data exists in Instagram's API surface. The question is whether the browser-scraped GraphQL response carries the same fields. Not yet confirmed.
+
+### P-SCRAPER-2: owner_follower_count = 0 for large accounts — velocity formula denominator affected [INVESTIGATE — same bug class as prior fix]
+**Files:** `instagram_scraper_browser.py:1239,1250-1252` (velocity formula), live data
+**Problem:** Top 5 reels by view_count (5.4M, 4.9M, 3.3M, 2.8M, 2.7M views) all have `owner_follower_count = 0`. Instagram returns null for large accounts via the browser-scraped endpoint. The velocity formula uses `log(followers + 10)` as the denominator — with followers=0, every large-account reel gets the same denominator (`log(10) ≈ 2.3`), eliminating the normalization entirely. This means velocity doesn't distinguish between a 500-follower creator and a 5M-follower creator posting the same content.
+**Impact:** Velocity scores are inflated and undifferentiated for large accounts. The "normalized by creator size" aspect of the formula is broken for any account where Instagram returns null follower count.
+**Prior fix context:** A related followers-normalization issue was already patched this sprint. This may be the same bug class on a different code path (browser scraper vs. wherever the earlier fix landed).
+**Action required:** Confirm: (1) Is `ownerFollowersCount` consistently null for large accounts in the GraphQL response, or is this intermittent? (2) Is there an alternative field the scraper could use? (3) Does the velocity formula have a fallback for followers=0, or does it silently produce wrong scores?
 
 ---
 
@@ -772,8 +790,10 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-METHOD-1b: title+artist duplicates | LOW | 6 extra rows | **FIXED** |
 | P-METHOD-1c: Bulk-seed path bypassed dedup | MEDIUM | Potential dedup blind spot | **CLOSED** |
 | P-METHOD-5: Format-driven trends undetected | MEDIUM | Missed edit-pattern virality |
-| P-METHOD-6: Velocity ignores Instagram's top signals | HIGH | Formula misaligned with platform |
+| P-METHOD-6: Velocity ignores Instagram's top signals | — | **DISCLOSED LIMITATION** — watch-time/DM-sends structurally unavailable |
 | P-METHOD-7: Velocity can't detect misattribution | MEDIUM | Audio trends may be non-audio driven |
+| P-SCRAPER-1: share_count never extracted | LOW | Code gap — field may exist in GraphQL response, not extracted |
+| P-SCRAPER-2: owner_follower_count = 0 for large accounts | MEDIUM | Velocity denominator broken for large creators |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
