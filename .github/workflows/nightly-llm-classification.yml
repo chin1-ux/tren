@@ -47,12 +47,3 @@ jobs:
           SUPABASE_READ_TIMEOUT: 60
         run: |
           python backend/nightly_llm_batch.py
-
-      - name: Verify classification results
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-        run: |
-          python backend/check_llm_classification_history.py

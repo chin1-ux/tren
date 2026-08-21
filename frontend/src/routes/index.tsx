@@ -24,7 +24,7 @@ export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
       { title: "Trendrop — India's Trend Intelligence" },
-      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-first AI trend detection." },
+      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-focused AI trend detection." },
     ],
   }),
   component: TrendsFeed,
@@ -419,7 +419,7 @@ function TrendsFeed() {
           >
             <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
               <p className="text-xs text-[#ff006e] font-semibold">
-                ⚡ <strong>Early Access Feed</strong> — These trends were detected in the last 6 hours. You are seeing them before they go mainstream. Act fast!
+                ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
               </p>
             </div>
           </PlanGate>

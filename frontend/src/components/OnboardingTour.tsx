@@ -22,7 +22,7 @@ const onboardingSteps: OnboardingStep[] = [
     tips: [
       "Navigate between features using the tabs at the top",
       "Each section provides actionable insights for your content",
-      "Data updates in real-time as you create content"
+      "Data updates regularly as trends develop"
     ]
   },
   {

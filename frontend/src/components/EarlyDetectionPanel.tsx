@@ -69,7 +69,7 @@ export function EarlyDetectionPanel() {
 
   const fetchCulturalEvents = async () => {
     try {
-      const res = await fetch('/api/india/cultural-events?days_ahead=90');
+      const res = await apiFetch('/api/india/cultural-events?days_ahead=90');
       if (res.ok) {
         const data = await res.json();
         if (data.events && data.events.length > 0) {
@@ -267,7 +267,7 @@ export function EarlyDetectionPanel() {
       ) : null}
 
       {/* Info Banner */}
-      <div className="bg-gradient-to-r from-primary/10 to-rose-500/10 border border-primary/20 p-4 rounded-2xl">
+      <div className="bg-gradient-to-r from-primary/10 to-indigo-500/10 border border-primary/20 p-4 rounded-2xl">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
             <Zap className="h-4 w-4" />
@@ -275,7 +275,7 @@ export function EarlyDetectionPanel() {
           <div>
             <h4 className="text-sm font-semibold font-display mb-1">Why Early Detection Matters</h4>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              Joining trends 6-12 hours before they peak gives you 3x more reach. 
+              Joining trends early while they're still rising gives you 3x more reach. 
               Most tools only show trends AFTER they're viral - we predict them BEFORE.
             </p>
           </div>

@@ -74,7 +74,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { charSet: "utf-8" },
       { name: "viewport", content: "width=device-width, initial-scale=1, viewport-fit=cover" },
       { title: "Trendrop — India's Trend Intelligence" },
-      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-first AI trend detection for Instagram Reels and YouTube Shorts." },
+      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-focused AI trend detection for Instagram Reels and YouTube Shorts." },
       { name: "theme-color", content: "#E63946" },
       { name: "mobile-web-app-capable", content: "yes" },
       { name: "apple-mobile-web-app-capable", content: "yes" },
@@ -82,7 +82,7 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { name: "apple-mobile-web-app-status-bar-style", content: "black" },
       { name: "apple-mobile-web-app-title", content: "Trendrop" },
       { property: "og:title", content: "Trendrop — Know before they know" },
-      { property: "og:description", content: "India's first AI trend intelligence for short-form creators. Detect trends before they peak." },
+      { property: "og:description", content: "India's AI trend intelligence for short-form creators. Surface trends while they're still rising." },
       { property: "og:type", content: "website" },
     ],
     links: [
@@ -202,7 +202,7 @@ function RootComponent() {
                 WebkitBackdropFilter: "blur(20px)",
                 border: "1px solid var(--border)",
                 color: "var(--text-100)",
-                fontFamily: "Inter, sans-serif",
+                fontFamily: "var(--font-sans)",
             boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
           },
         }}

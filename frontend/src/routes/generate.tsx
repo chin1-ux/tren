@@ -902,7 +902,7 @@ function GeneratePage() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-text text-base">Virality Analysis</h3>
-                  <p className="text-[10px] text-text-muted mt-0.5">Calculated using our real-time feedback loop.</p>
+                  <p className="text-[10px] text-text-muted mt-0.5">Calculated using our feedback loop.</p>
                 </div>
                 <div className="flex items-center justify-center h-12 w-12 rounded-full bg-violet-500/10 ring-1 ring-violet-500/30 text-violet-400 text-lg font-black">
                   {scoreDetails.overall}%

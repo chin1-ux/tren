@@ -14,13 +14,13 @@ const STEPS = [
   },
   {
     title: "Real-Time Trends Feed 📈",
-    description: "The 'Rising' tab shows trending audios gaining speed in India, while the 'Emerging' tab spots trends in their first 6 hours. Save the audio and start creating before it saturates!",
+    description: "The 'Rising' tab shows trending audios gaining speed in India, while the 'Emerging' tab spots trends early in their lifecycle. Save the audio and start creating before it saturates!",
     icon: <TrendingUp className="h-10 w-10 text-emerald-400" />,
   },
   {
     title: "AI Video Generation 🎬",
     description: "Upload your photos/videos in the 'Generate' tab, select a trending audio, and let our AI engine compile high-velocity vertical reels for you instantly.",
-    icon: <PlayCircle className="h-10 w-10 text-rose-400" />,
+    icon: <PlayCircle className="h-10 w-10 text-indigo-400" />,
   },
   {
     title: "Ideation & Script Scoring 💡",
