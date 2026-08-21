@@ -359,6 +359,12 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 - `BrandDealRequest.creator_email` — handler uses `current_user_email` at L3890, ignores model field
 **Fix (d744f24f):** Removed all 4 dead fields from the Pydantic models. Verified: backend boots clean, all 4 endpoints return 200 for authenticated requests, no-auth returns 401. marketplace/deals 500 is pre-existing (confirmed with original code). Frontend does not send these fields (checked all api.ts callers). No test files send these fields.
 
+### P-AUTH-10: No session created after phone verification — user must re-authenticate [MEDIUM — confirmed Aug 2026]
+**Files:** `backend/api.py:2240-2243`, `frontend/src/routes/verify-phone.tsx:78-80`
+**Problem:** After successful OTP verification, `/api/auth/verify-phone` returns `{ success: True, message: "Phone verified successfully. Please log in to continue." }` — no session token, no user data. The frontend redirects to `/login` and the user must re-enter email/password from scratch. The account exists and the flow doesn't crash (after P-AUTH-10 frontend fix: commit `b953d09f`), but the UX is two steps where one would suffice.
+**Design decision needed:** Should the verify endpoint return a `session_token` (verify-and-auto-login), or is verify-then-login intentional? If auto-login: backend needs to create a Supabase session and return it. If intentional: no code change needed, but the "please log in" message should be clearer.
+**Frontend fix (b953d09f):** `/verify-phone` added to PUBLIC_ROUTES, dead `setAuthToken`/`setUser` destructuring removed. Flow now reachable but still ends at `/login`.
+
 ### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
 **Files:** `backend/redis_rate_limiter.py:59-61,106-113`, `backend/api.py:452-459`
 **Problem:** Two failure paths both result in rate limiting silently degrading to "off" with no signal:
@@ -776,6 +782,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-AUTH-7: Write-side IDOR | HIGH | Data integrity | **FIXED, VERIFIED** (curl-verified endpoint 8; 1-7 safe by design/implementation) |
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
 | P-AUTH-9: Dead email fields in write request models | LOW | Refactoring trap (latent IDOR) | **FIXED** (d744f24f: removed 4 dead fields) |
+| P-AUTH-10: No session after phone verification | MEDIUM | User must re-authenticate after OTP | Frontend fixed (b953d09f); backend decision pending |
 | P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone page exists | LOW | Phone signups work if used | **FALSE POSITIVE — removed** |
