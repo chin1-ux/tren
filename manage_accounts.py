@@ -191,8 +191,8 @@ print("=" * 60)
 
 all_accounts = [
     ("chin@free.com", "123456", "free"),
-    ("creator@trendrop.test", "TestPass123!", "creator"),
-    ("agency@trendrop.test", "TestPass123!", "agency"),
+    ("creator@trendrop.test", "TestPass123!", "pro"),
+    ("agency@trendrop.test", "TestPass123!", "pro"),
 ]
 
 for email, password, expected_plan in all_accounts:

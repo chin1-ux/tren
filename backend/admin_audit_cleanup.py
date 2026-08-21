@@ -30,7 +30,7 @@ else:
     print("User not found!")
 
 # Step 2: Change to premium plan
-print("\nStep 2: Changing chinbinchin03@gmail.co to agency (premium) plan...")
+print("\nStep 2: Changing chinbinchin03@gmail.co to pro (premium) plan...")
 res = supabase.table("users").update({
     "plan": "pro",
     "tier_id": 3
