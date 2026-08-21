@@ -222,6 +222,7 @@ class PlanEnforcement:
             'amount': -cost,
             'reason': reason,
             'endpoint': endpoint,
+            'balance_after': new_balance,
         }).execute()
 
         return new_balance

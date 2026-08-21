@@ -2176,6 +2176,7 @@ def signup(request: Request, req: SignupRequest):
                     "amount": 100,
                     "reason": "signup_grant",
                     "endpoint": "signup",
+                    "balance_after": 100,
                 }).execute()
         except Exception:
             logger.warning(f"Failed to log signup credit grant for {req.email}")
@@ -2586,6 +2587,7 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
                 "amount": delta,
                 "reason": "plan_upgrade",
                 "endpoint": "payment/webhook",
+                "balance_after": 1000,
             }).execute()
         
         invalidate_cached_user_profile(req.email)

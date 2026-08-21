@@ -34,18 +34,11 @@ STEPS = [
             ALTER TABLE users ADD COLUMN IF NOT EXISTS credits_reset_at TIMESTAMPTZ DEFAULT NOW();
         """,
     },
-    # ── 2. Create credit_transactions table ────────────────────────────────────
+    # ── 2. Ensure credit_transactions has endpoint column ──────────────────────
     {
-        "label": "Create credit_transactions table",
+        "label": "Add endpoint column to existing credit_transactions table",
         "sql": """
-            CREATE TABLE IF NOT EXISTS credit_transactions (
-                id SERIAL PRIMARY KEY,
-                user_id INT,
-                amount INT NOT NULL,
-                reason TEXT NOT NULL,
-                endpoint TEXT,
-                created_at TIMESTAMPTZ DEFAULT NOW()
-            );
+            ALTER TABLE credit_transactions ADD COLUMN IF NOT EXISTS endpoint TEXT;
             CREATE INDEX IF NOT EXISTS idx_credit_tx_user ON credit_transactions(user_id, created_at DESC);
         """,
     },
@@ -123,9 +116,10 @@ STEPS = [
     {
         "label": "Backfill credit_transactions with signup grants",
         "sql": """
-            INSERT INTO credit_transactions (user_id, amount, reason, created_at)
-            SELECT id, 100, 'signup_grant', created_at FROM users
+            INSERT INTO credit_transactions (user_id, amount, reason, balance_after, created_at)
+            SELECT id, 100, 'signup_grant', 100, created_at FROM users
             WHERE plan = 'free'
+              AND NOT EXISTS (SELECT 1 FROM credit_transactions ct WHERE ct.user_id = users.id AND ct.reason = 'signup_grant')
             ON CONFLICT DO NOTHING;
         """,
         "note": "Best-effort: ignores duplicates on re-run",
