@@ -1004,12 +1004,6 @@ class CreatorProfileRequest(BaseModel):
     price_per_post: int
 
 
-class BrandDealRequest(BaseModel):
-    brand_name: str
-    deal_amount: int
-    details: str
-
-
 class MemoryRequest(BaseModel):
     trend_id: int
     format_name: str
@@ -1091,12 +1085,6 @@ def health_check():
     }
 
 
-
-
-@app.get("/api/health")
-def api_health_check():
-    """Alias for /health endpoint for Vercel routing compatibility."""
-    return health_check()
 
 
 # ── Trends Feed ────────────────────────────────────────────────────────────────
