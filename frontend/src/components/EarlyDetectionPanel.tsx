@@ -35,8 +35,6 @@ export function EarlyDetectionPanel() {
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'trends' | 'events'>('trends');
   // Read plan from the Zustand store — same source as the rest of the app.
-  // The verify endpoint now normalises 'creator'/'agency' → 'pro'/'business'
-  // so PlanGate's === 'pro' check will pass correctly.
   const userPlan = useUserStore((s) => s.plan) || 'free';
 
   useEffect(() => {

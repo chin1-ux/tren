@@ -190,7 +190,7 @@ function StudioPage() {
   return (
     <PlanGate
       feature="Creator Studio"
-      requiredPlan="creator"
+      requiredPlan="pro"
       currentPlan={userPlan}
       onUpgrade={() => window.location.href = '/pricing'}
     >

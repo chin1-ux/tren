@@ -310,7 +310,7 @@ function IdeasPage() {
       case "medium":
         return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
       case "hard":
-        return "bg-rose-500/10 text-rose-400 border border-rose-500/20";
+        return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
       default:
         return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
     }
@@ -319,7 +319,7 @@ function IdeasPage() {
   return (
     <PlanGate
       feature="Ideation Hub"
-      requiredPlan="creator"
+      requiredPlan="pro"
       currentPlan={userPlan}
       onUpgrade={() => window.location.href = '/pricing'}
     >
@@ -732,14 +732,14 @@ function IdeasPage() {
                   </div>
 
                   {/* Top Fixes */}
-                  <div className="space-y-3 pt-4 border-t border-border bg-rose-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-rose-400 flex items-center gap-1.5">
+                  <div className="space-y-3 pt-4 border-t border-border bg-indigo-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
                       <Wrench className="h-4 w-4" /> Top Fixes Recommended
                     </h4>
                     <ul className="space-y-2.5">
                       {scoringResult.top_fixes.map((fix, idx) => (
                         <li key={idx} className="flex gap-2.5 text-xs text-text-muted leading-relaxed items-start">
-                          <span className="h-4 w-4 shrink-0 rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 text-[10px] font-black flex items-center justify-center">
+                          <span className="h-4 w-4 shrink-0 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-black flex items-center justify-center">
                             {idx + 1}
                           </span>
                           <span>{fix}</span>

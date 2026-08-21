@@ -89,7 +89,7 @@ function AdminAnalyticsPage() {
           </div>
           <h2 className="text-xl font-bold font-display">Access Restricted</h2>
           <p className="text-xs text-muted-foreground leading-relaxed">
-            This analytics panel is strictly restricted to internal administrators. Your current creator account does not have access.
+            This analytics panel is strictly restricted to internal administrators. Your current account does not have access.
           </p>
           <Button onClick={() => navigate({ to: "/" })} className="w-full rounded-full mt-2">
             Return to Dashboard

@@ -5,37 +5,31 @@ import { Badge } from './ui/badge';
 
 interface PlanGateProps {
   feature: string;
-  requiredPlan: 'creator' | 'agency';
+  requiredPlan: 'pro';
   currentPlan?: string;
   children: React.ReactNode;
   onUpgrade?: () => void;
 }
 
-export function PlanGate({ 
-  feature, 
-  requiredPlan, 
-  currentPlan = 'free', 
-  children, 
-  onUpgrade 
+export function PlanGate({
+  feature,
+  requiredPlan,
+  currentPlan = 'free',
+  children,
+  onUpgrade
 }: PlanGateProps) {
-  // Support both legacy (pro/business) and current (creator/agency) names
-  const isCreatorOrHigher = ['pro', 'business', 'creator', 'agency'].includes(currentPlan);
-  const isAgency = ['business', 'agency'].includes(currentPlan);
-  
-  const canAccess = requiredPlan === 'creator' ? isCreatorOrHigher : isAgency;
-  
+  const canAccess = currentPlan === 'pro';
+
   if (canAccess) {
     return <>{children}</>;
   }
-  
+
   return (
     <div className="relative">
-      {/* Blurred overlay */}
       <div className="blur-sm opacity-50 pointer-events-none">
         {children}
       </div>
-      
-      {/* Lock overlay */}
+
       <div className="absolute inset-0 flex flex-col items-center justify-center bg-black/50 backdrop-blur-sm rounded-lg">
         <div className="text-center p-6 max-w-md">
           <div className="flex justify-center mb-4">
@@ -43,27 +37,27 @@ export function PlanGate({
               <Lock className="w-6 h-6 text-white" />
             </div>
           </div>
-          
+
           <h3 className="text-xl font-bold text-white mb-2">
-            {feature} requires {requiredPlan === 'creator' ? 'Creator' : 'Agency'} Plan
+            {feature} requires a Pro plan
           </h3>
-          
+
           <p className="text-gray-300 mb-4 text-sm">
-            Unlock this feature and more with a {requiredPlan === 'creator' ? 'Creator' : 'Agency'} subscription
+            Unlock this feature and more with a Pro subscription — ₹499/month
           </p>
-          
+
           <div className="flex items-center justify-center gap-2 mb-4">
             <Badge variant="secondary" className="bg-violet-500/20 text-violet-300 border-violet-500/30">
               <Sparkles className="w-3 h-3 mr-1" />
-              {requiredPlan === 'creator' ? 'Creator' : 'Agency'} Feature
+              Pro Feature
             </Badge>
           </div>
-          
-          <Button 
+
+          <Button
             onClick={onUpgrade}
             className="bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700"
           >
-            Upgrade to {requiredPlan === 'creator' ? 'Creator' : 'Agency'}
+            Upgrade to Pro
             <ArrowRight className="w-4 h-4 ml-2" />
           </Button>
         </div>

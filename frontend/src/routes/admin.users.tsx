@@ -200,8 +200,7 @@ function AdminUsersPage() {
           >
             <option value="all">All Plans</option>
             <option value="free">Free</option>
-            <option value="creator">Creator</option>
-            <option value="agency">Agency</option>
+            <option value="pro">Pro</option>
           </select>
           <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground pointer-events-none" />
         </div>
@@ -351,19 +350,11 @@ function AdminUsersPage() {
                   </Button>
                   <Button
                     size="sm"
-                    variant={selectedUser.user?.plan === 'creator' ? 'default' : 'outline'}
-                    onClick={() => updatePlan(selectedUser.user?.email, 'creator')}
+                    variant={selectedUser.user?.plan === 'pro' ? 'default' : 'outline'}
+                    onClick={() => updatePlan(selectedUser.user?.email, 'pro')}
                     className="flex-1 rounded-full text-xs"
                   >
-                    Creator
-                  </Button>
-                  <Button
-                    size="sm"
-                    variant={selectedUser.user?.plan === 'agency' ? 'default' : 'outline'}
-                    onClick={() => updatePlan(selectedUser.user?.email, 'agency')}
-                    className="flex-1 rounded-full text-xs"
-                  >
-                    Agency
+                    Pro
                   </Button>
                 </div>
               </div>

@@ -1361,8 +1361,17 @@ export async function verifyPayment(args: {
   });
 }
 
-export async function getUserPlan(email: string): Promise<{ plan: string }> {
-  return http<{ plan: string }>(`/api/user/plan?email=${encodeURIComponent(email)}`);
+export async function getUserPlan(email: string): Promise<{ plan: string; credits_remaining: number; credits_used_this_month: number }> {
+  return http(`/api/user/plan?email=${encodeURIComponent(email)}`);
+}
+
+export async function getUserCredits(): Promise<{
+  credits_remaining: number;
+  credits_used_this_month: number;
+  credits_reset_at: string | null;
+  transactions: Array<{ amount: number; reason: string; endpoint: string | null; created_at: string }>;
+}> {
+  return http("/api/user/credits");
 }
 
 // Admin API functions - now use JWT token from localStorage
