@@ -2,6 +2,7 @@ import { useState } from "react";
 import { SparklineChart } from "./SparklineChart";
 import { useQuery } from "@tanstack/react-query";
 import { Button } from "./ui/button";
+import { apiFetch } from "@/lib/api";
 
 interface TrendProofSectionProps {
   trendId: string;  // Changed to string to match UiTrend.id type
@@ -15,7 +16,7 @@ export function TrendProofSection({ trendId, isPeaking }: TrendProofSectionProps
   const { data: timeline, isLoading } = useQuery({
     queryKey: ['trend-timeline', trendId],
     queryFn: async () => {
-      const response = await fetch(`/api/trends/${trendId}/timeline`);
+      const response = await apiFetch(`/api/trends/${trendId}/timeline`);
       return response.json();
     },
     enabled: expanded && isPeaking

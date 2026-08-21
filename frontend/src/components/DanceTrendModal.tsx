@@ -1,8 +1,9 @@
 import { useState, useEffect } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Copy, X, Check, Film, Sparkles, Target, ExternalLink, Play, Calendar } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { toggleTrendTarget } from "@/lib/api";
+import { toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
 import { toast } from "sonner";
 
 interface Props {
@@ -12,21 +13,21 @@ interface Props {
 
 export function DanceTrendModal({ trend, onClose }: Props) {
   const [copied, setCopied] = useState(false);
-  const [isTargeted, setIsTargeted] = useState(false);
   const [targetCount, setTargetCount] = useState(0);
   const [loadingTarget, setLoadingTarget] = useState(false);
+  const queryClient = useQueryClient();
+
+  const { data: targetedTrends = [] } = useQuery({
+    queryKey: ["trends-targeted"],
+    queryFn: fetchTargetedTrends,
+    staleTime: 10_000,
+  });
+
+  const isTargeted = trend ? targetedTrends.some((t: any) => String(t.id) === String(trend.id)) : false;
 
   useEffect(() => {
     if (!trend) return;
     setTargetCount(trend.saturationCount ?? 0);
-    
-    // Check local targeted cache
-    try {
-      const targetedArr = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
-      setIsTargeted(Array.isArray(targetedArr) && targetedArr.includes(String(trend.id)));
-    } catch {
-      setIsTargeted(false);
-    }
   }, [trend]);
 
   if (!trend) return null;
@@ -44,18 +45,13 @@ export function DanceTrendModal({ trend, onClose }: Props) {
     try {
       const res = await toggleTrendTarget(trend.id, newAction);
       if (res.success) {
-        setIsTargeted(!isTargeted);
         setTargetCount(res.saturation_count);
-        
-        let targetedArr: string[] = JSON.parse(localStorage.getItem("targeted_trends") || "[]");
+        queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
         if (newAction === "target") {
-          targetedArr.push(String(trend.id));
           toast.success("Trend targeted! Added to your workspace 🎯");
         } else {
-          targetedArr = targetedArr.filter((id) => id !== String(trend.id));
           toast.success("Trend removed from targeted list");
         }
-        localStorage.setItem("targeted_trends", JSON.stringify(targetedArr));
       }
     } catch (err: any) {
       toast.error(err.message || "Failed to update target status");

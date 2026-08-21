@@ -4,6 +4,7 @@ import { Video, Sparkles, TrendingUp, AlertCircle, CheckCircle, Upload, Loader2 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
+import { apiFetch } from "@/lib/api";
 
 interface ViralityPrediction {
   combined_score: number;
@@ -29,7 +30,7 @@ export function VideoAnalysisPanel() {
 
     setAnalyzing(true);
     try {
-      const res = await fetch('/api/video/predict-virality', {
+      const res = await apiFetch('/api/video/predict-virality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ video_url: videoUrl })
@@ -168,7 +169,7 @@ export function VideoAnalysisPanel() {
       )}
 
       {/* Info Banner */}
-      <div className="bg-gradient-to-r from-primary/10 to-rose-500/10 border border-primary/20 p-4 rounded-2xl">
+      <div className="bg-gradient-to-r from-primary/10 to-indigo-500/10 border border-primary/20 p-4 rounded-2xl">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
             <Video className="h-4 w-4" />
