@@ -616,19 +616,27 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Possible cheap partial signal:** Check whether velocity spikes are concentrated in a narrow content-type/hashtag cluster (suggesting non-audio cause) vs. spread across diverse content (suggesting genuine audio-driven trend). Needs independent scoping — not closable by association with P-METHOD-6's disclosed limitation.
 **Action required:** Scope separately. Estimate feasibility of hashtag-cluster/concentration analysis as a misattribution detector. Not yet estimated.
 
-### P-SCRAPER-1: share_count field never extracted — DB column exists but always null [CODE GAP — fixable]
+### P-SCRAPER-1: share_count field never extracted — DB column exists but always null [CODE GAP — fixable, needs manual retry]
 **Files:** `instagram_scraper_browser.py:1413-1434` (reel dict construction)
 **Problem:** The `reels` table has a `share_count` column (database_setup.py:30), but the browser scraper never populates it. Every row is null. The GraphQL response the scraper already hits likely contains share data in some form — the field just isn't being extracted from the response dict. This is a code gap, not a platform limitation.
 **Impact:** Velocity formula excludes shares entirely (views/likes/comments only). Instagram's own ranking heavily weights shares/DM-sends. Even a partial share signal would improve velocity accuracy.
-**Action required:** Quick investigation: log raw GraphQL response keys for one scrape run to check whether a share field exists in the response and is being silently dropped. If present → extract and populate share_count. If absent → reclassify as platform limitation alongside P-METHOD-6.
+**Investigation status (Aug 2026):** Agent-based probe returned inconclusive — sandboxed environment can't run a live scrape with Instagram cookies/headers. The question "does the GraphQL response contain a share field we're dropping" is still open. Needs manual retry: log raw response keys during a real scrape run, or dump a raw response to file and grep for share/reshare keys.
 **Audit note (Aug 2026):** Instagram's Graph API (OAuth path, `instagram_data_fetcher.py:98,171`) does request `shares` and `saves` fields — so the data exists in Instagram's API surface. The question is whether the browser-scraped GraphQL response carries the same fields. Not yet confirmed.
+**Action required:** Manual raw-response dump during a live scrape. Check for `share_count`, `reshare_count`, `share_info`, `edge_media_to_share` in response keys. If present → extract and populate. If absent → reclassify as platform limitation alongside P-METHOD-6.
 
-### P-SCRAPER-2: owner_follower_count = 0 for large accounts — velocity formula denominator affected [INVESTIGATE — same bug class as prior fix]
-**Files:** `instagram_scraper_browser.py:1239,1250-1252` (velocity formula), live data
-**Problem:** Top 5 reels by view_count (5.4M, 4.9M, 3.3M, 2.8M, 2.7M views) all have `owner_follower_count = 0`. Instagram returns null for large accounts via the browser-scraped endpoint. The velocity formula uses `log(followers + 10)` as the denominator — with followers=0, every large-account reel gets the same denominator (`log(10) ≈ 2.3`), eliminating the normalization entirely. This means velocity doesn't distinguish between a 500-follower creator and a 5M-follower creator posting the same content.
-**Impact:** Velocity scores are inflated and undifferentiated for large accounts. The "normalized by creator size" aspect of the formula is broken for any account where Instagram returns null follower count.
-**Prior fix context:** A related followers-normalization issue was already patched this sprint. This may be the same bug class on a different code path (browser scraper vs. wherever the earlier fix landed).
-**Action required:** Confirm: (1) Is `ownerFollowersCount` consistently null for large accounts in the GraphQL response, or is this intermittent? (2) Is there an alternative field the scraper could use? (3) Does the velocity formula have a fallback for followers=0, or does it silently produce wrong scores?
+### P-SCRAPER-2: owner_follower_count = 0 for 100% of rows — follower normalization has never worked [HIGH — confirmed Aug 2026]
+**Files:** `instagram_scraper_browser.py:1024,1239,1250-1252` (velocity formula), `dynamic_hashtag_discovery.py:137`, `early_signal_detector.py:191`
+**Problem:** `owner_follower_count` is 0 for every reel in the database — not 95%, not "large accounts," 100%. A query for `owner_follower_count > 0` across the entire `reels` table returns 0 rows. The velocity formula's follower-normalization half (`log(followers + 10)`) has never produced a differentiated result. A 500-follower creator and a 5M-follower creator posting identical engagement get identical velocity scores.
+**Root cause:** The hashtag media endpoint (`/api/v1/tags/web_info/`) does not include `follower_count` in its response schema. The key is entirely absent from Instagram's response — not null, not 0, absent. The parsing at line 1024 (`owner.get("follower_count") or 0`) is correct; there is nothing to get. This is the hashtag scraping code path, not the profile endpoint.
+**This is NOT a regression of the earlier sprint fix.** The earlier fix patched the `creator_baselines` join path (profile endpoint). This is the hashtag media endpoint path, which structurally never had follower data to begin with. The two code paths are independent — the earlier fix could not have caught this.
+**Formula behavior:** `effective_followers = followers if followers > 0 else 2500` — there IS a fallback, but since followers=0 for 100% of rows, every reel uses the identical denominator `log(2510) ≈ 7.83`. Follower normalization is a no-op constant multiplier. Velocity ranking is driven purely by `engagement / hours_live` with no creator-size differentiation.
+**Blast radius (3 systems, not 1):**
+1. **Velocity formula** (`instagram_scraper_browser.py:1250`): Normalization broken. All velocity scores are unnormalized engagement rates.
+2. **Hashtag discovery** (`dynamic_hashtag_discovery.py:137`): Classifies 100% of reels as micro-creators (<10K followers) regardless of actual creator size. Pool assignment is wrong for every reel.
+3. **Early signal detection** (`early_signal_detector.py:191`): Reads the same zeroed field. Creator-size-based signal thresholds are non-functional.
+**Fix path:** Unusually clean. The profile endpoint (`/api/v1/users/web_profile_info/`) DOES return follower count via `edge_followed_by.count`. The scraper already uses this path in `scrape_creator_baseline` (line 500) and caches to `creator_baselines.follower_count`. This is a backfill/join problem, not a new-data-acquisition problem. Fixable before Sept 14.
+**Action required:** Backfill `owner_follower_count` from `creator_baselines` table (already cached) or profile endpoint. Join on `owner_username`. Then update velocity formula to use the backfilled value. Three files need the field populated; one formula needs the join.
+**Status (Aug 2026):** Fix is scoped and ready. Devin prompt drafted. Blocked on environment access — sandbox lacks `.env`/Supabase creds. Run locally or from an environment with real credentials.
 
 ---
 
@@ -792,8 +800,8 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-METHOD-5: Format-driven trends undetected | MEDIUM | Missed edit-pattern virality |
 | P-METHOD-6: Velocity ignores Instagram's top signals | — | **DISCLOSED LIMITATION** — watch-time/DM-sends structurally unavailable |
 | P-METHOD-7: Velocity can't detect misattribution | MEDIUM | Audio trends may be non-audio driven |
-| P-SCRAPER-1: share_count never extracted | LOW | Code gap — field may exist in GraphQL response, not extracted |
-| P-SCRAPER-2: owner_follower_count = 0 for large accounts | MEDIUM | Velocity denominator broken for large creators |
+| P-SCRAPER-1: share_count never extracted | LOW | Code gap — needs manual raw-response dump to confirm |
+| P-SCRAPER-2: owner_follower_count = 0 for all rows | HIGH | Follower normalization never worked — 100% of rows, 3 systems affected. Fixable via creator_baselines join. |
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
