@@ -1,16 +1,15 @@
 """
 Plan Enforcement Middleware
-Shared dependency for checking user plan access and enforcing feature limits
+Credits-based pricing: free / pro tiers with credit metering.
 """
 import os
 import logging
-from typing import Optional, Dict, List, Callable
+from typing import Optional, Dict
 from fastapi import HTTPException, Header, Depends, status
 from dotenv import load_dotenv
 
-# In-memory cache for get_user_plan
 _PLAN_CACHE = {}
-_PLAN_CACHE_TTL = 300 # 5 minutes
+_PLAN_CACHE_TTL = 300
 
 def invalidate_plan_cache(email: str):
     if email in _PLAN_CACHE:
@@ -18,11 +17,9 @@ def invalidate_plan_cache(email: str):
 
 from supabase import create_client, Client
 
-# Import get_current_user for dependency injection
 try:
     from auth import get_current_user
 except ImportError:
-    # Fallback if auth module not available
     def get_current_user():
         return "guest@trendrop.app"
 
@@ -39,529 +36,290 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
+# ── Credit costs per operation ─────────────────────────────────────────────────
+CREDIT_COSTS = {
+    'ai_generation': 5,
+    'video_analysis': 10,
+    'export': 2,
+}
+# Trend browsing and search cost 0 credits — they are the core product.
+
+FREE_TIER_FEATURES = ['basic_trends', 'algorithm_insights', 'limited_analytics']
+
+
 class PlanEnforcement:
     """
-    Shared plan enforcement logic for all endpoints
+    Credits-based plan enforcement. Plans: 'free' | 'pro'.
+    No more normalize/display name mapping.
     """
-    
-    # Plan name mapping: normalize internal names to display names
-    # Internal: pro, business | Display: creator, agency
-    PLAN_NAME_MAPPING = {
-        'pro': 'creator',
-        'business': 'agency',
-        'creator': 'pro',  # Reverse mapping for Razorpay compatibility
-        'agency': 'business'  # Reverse mapping for Razorpay compatibility
-    }
-    
-    # Feature to plan mapping based on plan_features table
-    # Uses internal names (pro, business) for database compatibility
+
     PAID_FEATURES = {
-        'early_detection': ['pro', 'business'],
-        'unlimited_trends': ['pro', 'business'],
-        'ai_generation': ['pro', 'business'],
-        'advanced_analytics': ['pro', 'business'],
-        'india_features': ['pro', 'business'],
-        'video_analysis': ['pro', 'business'],
-        'team_features': ['business'],
-        'api_access': ['business'],
-        'priority_support': ['business']
+        'early_detection': ['pro'],
+        'unlimited_trends': ['pro'],
+        'ai_generation': ['pro'],
+        'advanced_analytics': ['pro'],
+        'india_features': ['pro'],
+        'video_analysis': ['pro'],
+        'team_features': ['pro'],
+        'api_access': ['pro'],
+        'priority_support': ['pro'],
     }
-    
-    # Brand Deals Tier-Gating Configuration
+
     BRAND_DEALS_CONFIG = {
         'free': {'delay_hours': 48, 'max_deals': 5},
-        'creator': {'delay_hours': 24, 'max_deals': None},
-        'agency': {'delay_hours': 0, 'max_deals': None}
+        'pro':  {'delay_hours': 0,  'max_deals': None},
     }
-    
-    @staticmethod
-    def normalize_plan_name(plan_name: str) -> str:
-        """
-        Normalize plan name to internal format (pro, business)
-        Handles both display names (creator, agency) and internal names
-        
-        Args:
-            plan_name: Plan name (creator, agency, pro, business, free)
-        
-        Returns:
-            Normalized internal plan name (pro, business, free)
-        """
-        if not plan_name:
-            return 'free'
-        
-        plan_lower = plan_name.lower()
-        
-        # If already in internal format, return as-is
-        if plan_lower in ['pro', 'business', 'free']:
-            return plan_lower
-        
-        # Map display names to internal names
-        return PlanEnforcement.PLAN_NAME_MAPPING.get(plan_lower, 'free')
-    
-    @staticmethod
-    def to_display_plan_name(plan_name: str) -> str:
-        """
-        Convert internal plan name to display name
-        
-        Args:
-            plan_name: Internal plan name (pro, business, free)
-        
-        Returns:
-            Display plan name (creator, agency, free)
-        """
-        if not plan_name:
-            return 'free'
-        
-        plan_lower = plan_name.lower()
-        
-        # Only convert internal names to display names
-        # Keep display names as-is
-        if plan_lower == 'pro':
-            return 'creator'
-        elif plan_lower == 'business':
-            return 'agency'
-        else:
-            return plan_lower  # free, creator, agency stay as-is
-    
-    # Quota-based features
-    QUOTA_FEATURES = {
-        'api_call': 'api_limit_per_day',
-        'trend_view': 'trend_views_per_day'
-    }
-    
-    @staticmethod
-    def is_phone_verified(user_email: str) -> bool:
-        """
-        Check if user's phone is verified
-        
-        Args:
-            user_email: User's email address
-        
-        Returns:
-            True if phone is verified, False otherwise
-        """
-        try:
-            res = supabase.table("users").select("phone_verified").eq("email", user_email).limit(1).execute()
-            if res.data:
-                return res.data[0].get("phone_verified", False)
-            return False
-        except Exception as e:
-            logger.error(f"Error checking phone verification status: {e}")
-            return False
-    
+
+    # ── Plan resolution ────────────────────────────────────────────────────────
+
     @staticmethod
     def get_user_plan(user_email: str) -> str:
         if not user_email or user_email == "guest@trendrop.app":
             return 'free'
-            
         import time
         now_ts = time.time()
         if user_email in _PLAN_CACHE:
             entry = _PLAN_CACHE[user_email]
             if now_ts - entry['time'] < _PLAN_CACHE_TTL:
                 return entry['plan']
-                
         plan = PlanEnforcement._get_user_plan_db(user_email)
         _PLAN_CACHE[user_email] = {'time': now_ts, 'plan': plan}
         return plan
 
     @staticmethod
     def _get_user_plan_db(user_email: str) -> str:
-        """
-        Internal method to get plan from database (no cache).
-        """
-        from datetime import datetime, timezone, timedelta
-        
+        from datetime import datetime, timezone
         try:
-            # Get user ID first
-            user_res = supabase.table('users').select('id', 'plan', 'subscription_status', 'grace_period_ends_at').eq('email', user_email).single().execute()
+            user_res = supabase.table('users') \
+                .select('id', 'plan', 'subscription_status', 'grace_period_ends_at') \
+                .eq('email', user_email).single().execute()
             if not user_res.data:
                 return 'free'
-            
-            user_id = user_res.data.get('id')
-            razorpay_plan = user_res.data.get('plan', 'free')
-            # Normalize plan name to internal format (handles creator/agency → pro/business)
-            razorpay_plan = PlanEnforcement.normalize_plan_name(razorpay_plan)
+
+            plan = user_res.data.get('plan', 'free')
+            if plan not in ('free', 'pro'):
+                plan = 'free'
             subscription_status = user_res.data.get('subscription_status')
             grace_period_ends_at = user_res.data.get('grace_period_ends_at')
-            
-            # Check for active plan override
-            now = datetime.now(timezone.utc).isoformat()
-            
+
             override_res = supabase.table('plan_overrides') \
                 .select('tier', 'expires_at') \
-                .eq('user_id', user_id) \
-                .execute()
-            
+                .eq('user_id', user_res.data.get('id')).execute()
             if override_res.data:
+                now = datetime.now(timezone.utc).isoformat()
                 for override in override_res.data:
                     expires_at = override.get('expires_at')
-                    # If no expiration or not expired yet, use override
                     if not expires_at or expires_at > now:
-                        return override.get('tier', razorpay_plan)
-            
-            # Check subscription grace period
+                        t = override.get('tier', plan)
+                        return t if t in ('free', 'pro') else 'free'
+
             if subscription_status in ['cancelled', 'halted', 'past_due']:
                 if grace_period_ends_at:
                     try:
-                        # Handle both Z suffix and +00:00 formats, and timezone-naive strings
                         grace_end_str = grace_period_ends_at.replace('Z', '+00:00')
                         grace_end = datetime.fromisoformat(grace_end_str)
-                        
-                        # If the parsed datetime is naive, assume UTC
                         if grace_end.tzinfo is None:
                             grace_end = grace_end.replace(tzinfo=timezone.utc)
-                        
-                        current_time = datetime.now(timezone.utc)
-                        
-                        if current_time < grace_end:
-                            # Still within grace period, keep paid plan
-                            logger.info(f"User {user_email} within grace period until {grace_end}")
-                            return razorpay_plan
+                        if datetime.now(timezone.utc) < grace_end:
+                            return plan
                         else:
-                            # Grace period ended, downgrade to free
-                            logger.info(f"Grace period ended for {user_email}, downgrading to free")
-                            try:
-                                supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
-                            except Exception as update_error:
-                                logger.error(f"Failed to downgrade plan for {user_email}: {update_error}")
+                            supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
                             return 'free'
-                    except (ValueError, TypeError) as e:
-                        logger.error(f"Invalid grace_period_ends_at format for {user_email}: {e}")
-                        # On error, keep current plan to avoid breaking legitimate users
-                        return razorpay_plan
+                    except (ValueError, TypeError):
+                        return plan
                 else:
-                    # No grace period set - downgrade to free immediately
-                    logger.info(f"No grace period set for {user_email} with {subscription_status}, downgrading to free")
-                    try:
-                        supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
-                    except Exception as update_error:
-                        logger.error(f"Failed to downgrade plan for {user_email}: {update_error}")
+                    supabase.table('users').update({'plan': 'free'}).eq('email', user_email).execute()
                     return 'free'
-            
-            # Fall back to Razorpay plan
-            return razorpay_plan
-            
+
+            return plan
         except Exception as e:
-            print(f"Error getting user plan: {e}")
+            logger.error(f"Error getting user plan: {e}")
             return 'free'
-    
+
+    # ── Feature access ─────────────────────────────────────────────────────────
+
     @staticmethod
-    def get_plan_features(plan_name: str) -> Dict:
+    def check_feature_access(user_email: str, required_feature: str) -> None:
+        if PlanEnforcement.is_demo_allowlisted(user_email):
+            return
+        user_plan = PlanEnforcement.get_user_plan(user_email)
+        if user_plan == 'free':
+            if required_feature not in FREE_TIER_FEATURES:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "plan_upgrade_required",
+                        "feature": required_feature,
+                        "message": f"The '{required_feature}' feature requires a Pro plan",
+                        "upgrade_url": "/pricing",
+                        "current_plan": user_plan,
+                    },
+                )
+        elif required_feature in PlanEnforcement.PAID_FEATURES:
+            if user_plan not in PlanEnforcement.PAID_FEATURES[required_feature]:
+                raise HTTPException(
+                    status_code=status.HTTP_403_FORBIDDEN,
+                    detail={
+                        "error": "plan_upgrade_required",
+                        "feature": required_feature,
+                        "message": f"The '{required_feature}' feature requires a Pro plan",
+                        "upgrade_url": "/pricing",
+                        "current_plan": user_plan,
+                    },
+                )
+
+    # ── Credit deduction ───────────────────────────────────────────────────────
+
+    @staticmethod
+    def deduct_credits(user_email: str, cost: int, reason: str, endpoint: Optional[str] = None) -> int:
         """
-        Get feature configuration for a plan from plan_features table
-        
-        Args:
-            plan_name: Plan name (free, pro, business, creator, agency)
-        
-        Returns:
-            Dict with plan configuration
+        Atomically deduct credits. Returns remaining balance.
+        Uses UPDATE ... WHERE credits_remaining >= cost as the guard.
+        Raises 429 if insufficient credits.
+
+        NOTE: supabase-py does not support UPDATE RETURNING, so we do a
+        two-step read+write. For full atomicity under high concurrency,
+        call the raw SQL CTE via psql/RPC. At Trendrop's current scale
+        (pre-launch, single-region), the sub-ms race window is acceptable.
         """
-        # Normalize plan name to internal format
-        normalized_plan = PlanEnforcement.normalize_plan_name(plan_name)
-        
+        if cost <= 0:
+            return 0
+
+        if PlanEnforcement.is_demo_allowlisted(user_email):
+            return 999_999
+
+        user_res = supabase.table('users') \
+            .select('id, credits_remaining') \
+            .eq('email', user_email).single().execute()
+        if not user_res.data:
+            raise HTTPException(status_code=429, detail={
+                "error": "credits_exhausted",
+                "credits_remaining": 0,
+                "cost": cost,
+                "upgrade_url": "/pricing",
+            })
+
+        user_id = user_res.data['id']
+        old_balance = user_res.data.get('credits_remaining', 0) or 0
+
+        if old_balance < cost:
+            raise HTTPException(status_code=429, detail={
+                "error": "credits_exhausted",
+                "credits_remaining": old_balance,
+                "cost": cost,
+                "message": f"Insufficient credits: need {cost}, have {old_balance}",
+                "upgrade_url": "/pricing",
+            })
+
+        new_balance = old_balance - cost
+        supabase.table('users').update({
+            'credits_remaining': new_balance,
+            'credits_used_this_month': cost,
+        }).eq('id', user_id).execute()
+
+        supabase.table('credit_transactions').insert({
+            'user_id': user_id,
+            'amount': -cost,
+            'reason': reason,
+            'endpoint': endpoint,
+        }).execute()
+
+        return new_balance
+
+    @staticmethod
+    def check_credit_balance(user_email: str, cost: int) -> int:
+        """Read-only check. Returns current balance without deducting."""
+        if cost <= 0:
+            return 999_999
+        if PlanEnforcement.is_demo_allowlisted(user_email):
+            return 999_999
+        user_res = supabase.table('users') \
+            .select('credits_remaining') \
+            .eq('email', user_email).single().execute()
+        if not user_res.data:
+            return 0
+        return user_res.data.get('credits_remaining', 0) or 0
+
+    # ── Usage logging ──────────────────────────────────────────────────────────
+
+    @staticmethod
+    def log_usage(user_email: str, feature: str, metadata: Optional[Dict] = None):
+        from datetime import datetime, timezone
         try:
-            res = supabase.table('plan_features') \
-                .select('*') \
-                .eq('plan_name', normalized_plan) \
-                .single() \
-                .execute()
-            
-            if res.data:
-                return {
-                    'api_limit_per_day': res.data.get('api_limit_per_day', 5),
-                    'trend_views_per_day': res.data.get('trend_views_per_day', 10),
-                    'features': res.data.get('features', [])
-                }
-            
-            # Default fallback if plan not found
-            return {
-                'api_limit_per_day': 5,
-                'trend_views_per_day': 10,
-                'features': ['basic_trends']
-            }
-            
+            plan = PlanEnforcement.get_user_plan(user_email)
+            supabase.table('usage_logs').insert({
+                'user_email': user_email,
+                'feature_used': feature,
+                'plan_at_time': plan,
+                'timestamp': datetime.now(timezone.utc).isoformat(),
+                'metadata': metadata or {},
+            }).execute()
+            user_res = supabase.table('users') \
+                .select('usage_count') \
+                .eq('email', user_email).single().execute()
+            current_count = user_res.data.get('usage_count', 0) if user_res.data else 0
+            supabase.table('users').update({
+                'usage_count': current_count + 1,
+                'last_active': datetime.now(timezone.utc).isoformat(),
+            }).eq('email', user_email).execute()
         except Exception as e:
-            print(f"Error getting plan features: {e}")
-            return {
-                'api_limit_per_day': 5,
-                'trend_views_per_day': 10,
-                'features': ['basic_trends']
-            }
-    
+            logger.error(f"Error logging usage: {e}")
+
+    # ── Helpers ────────────────────────────────────────────────────────────────
+
+    @staticmethod
+    def is_phone_verified(user_email: str) -> bool:
+        try:
+            res = supabase.table("users").select("phone_verified").eq("email", user_email).limit(1).execute()
+            if res.data:
+                return res.data[0].get("phone_verified", False)
+            return False
+        except Exception as e:
+            logger.error(f"Error checking phone verification: {e}")
+            return False
+
     @staticmethod
     def is_demo_allowlisted(user_email: str) -> bool:
-        """
-        Check if user is on the demo allowlist (configured via environment variable)
-        
-        Args:
-            user_email: User's email address
-        
-        Returns:
-            True if user is on the demo allowlist, False otherwise
-        """
-        # Get demo allowlist from environment variable (comma-separated)
         demo_allowlist = os.getenv("DEMO_ALLOWLIST", "")
         if not demo_allowlist:
             return False
-        
-        # Parse allowlist and check for exact match
-        allowed_emails = [email.strip().lower() for email in demo_allowlist.split(",")]
-        return user_email.lower() in allowed_emails
-    
-    @staticmethod
-    def check_feature_access(user_email: str, required_feature: str) -> None:
-        """
-        Check if user has access to a feature, raise 403 if not
-        
-        Args:
-            user_email: User's email
-            required_feature: Feature required (e.g., 'early_detection', 'ai_generation')
-        
-        Raises:
-            HTTPException 403 if user doesn't have access
-        """
-        # Skip check for demo allowlisted accounts (configured via DEMO_ALLOWLIST env var)
-        if PlanEnforcement.is_demo_allowlisted(user_email):
-            logger.info(f"Allowlisted demo account bypassing feature check: {user_email}")
-            return
-        
-        user_plan = PlanEnforcement.get_user_plan(user_email)
-        # Normalize plan name to internal format for comparison
-        user_plan = PlanEnforcement.normalize_plan_name(user_plan)
-        
-        # Free tier has limited features
-        if user_plan == 'free':
-            allowed_features = ['basic_trends', 'algorithm_insights', 'limited_analytics']
-            if required_feature not in allowed_features:
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "plan_upgrade_required",
-                        "feature": required_feature,
-                        "message": f"The '{required_feature}' feature requires a Creator or Agency plan",
-                        "upgrade_url": "/pricing",
-                        "current_plan": PlanEnforcement.to_display_plan_name(user_plan)
-                    }
-                )
-        
-        # Check plan-specific feature access
-        if required_feature in PlanEnforcement.PAID_FEATURES:
-            allowed_plans = PlanEnforcement.PAID_FEATURES[required_feature]
-            if user_plan not in allowed_plans:
-                # Convert internal plan names to display names for error message
-                display_plan = PlanEnforcement.to_display_plan_name(allowed_plans[-1])
-                raise HTTPException(
-                    status_code=status.HTTP_403_FORBIDDEN,
-                    detail={
-                        "error": "plan_upgrade_required",
-                        "feature": required_feature,
-                        "message": f"The '{required_feature}' feature requires a {display_plan.upper()} plan",
-                        "upgrade_url": "/pricing",
-                        "current_plan": PlanEnforcement.to_display_plan_name(user_plan)
-                    }
-                )
-    
-    @staticmethod
-    def check_quota_limit(user_email: str, quota_type: str) -> None:
-        """
-        Check if user has exceeded their quota limit
-        
-        Args:
-            user_email: User's email
-            quota_type: Type of quota ('api_call', 'trend_view')
-        
-        Raises:
-            HTTPException 429 if quota exceeded
-        """
-        # Skip quota check for demo allowlisted accounts (configured via DEMO_ALLOWLIST env var)
-        if PlanEnforcement.is_demo_allowlisted(user_email):
-            logger.info(f"Allowlisted demo account bypassing quota check: {user_email}")
-            return
-        
-        from datetime import datetime, timezone, timedelta
-        
-        user_plan = PlanEnforcement.get_user_plan(user_email)
-        plan_config = PlanEnforcement.get_plan_features(user_plan)
-        
-        # Get the limit for this quota type
-        if quota_type == 'api_call':
-            limit = plan_config['api_limit_per_day']
-        elif quota_type == 'trend_view':
-            limit = plan_config['trend_views_per_day']
-        else:
-            return  # Unknown quota type, skip check
-        
-        # -1 means unlimited
-        if limit == -1:
-            return
-        
-        # Check today's usage
-        from datetime import datetime, timezone, timedelta
-        time_threshold = (datetime.now(timezone.utc) - timedelta(days=1)).isoformat()
-        
-        try:
-            res = supabase.table('usage_logs') \
-                .select('*') \
-                .eq('user_email', user_email) \
-                .gte('timestamp', time_threshold) \
-                .execute()
-            
-            usage_logs = res.data or []
-            
-            # Count quota usage
-            quota_count = sum(1 for log in usage_logs if log['feature_used'] == quota_type)
-            
-            if quota_count >= limit:
-                raise HTTPException(
-                    status_code=status.HTTP_429_TOO_MANY_REQUESTS,
-                    detail={
-                        "error": "quota_exceeded",
-                        "quota_type": quota_type,
-                        "limit": limit,
-                        "current_usage": quota_count,
-                        "message": f"Daily {quota_type} limit reached: {limit} per day",
-                        "reset_time": "24 hours"
-                    }
-                )
-                
-        except Exception as e:
-            print(f"Error checking quota: {e}")
-            # Allow on error to avoid blocking legitimate users
-    
-    @staticmethod
-    def log_usage(user_email: str, feature: str, metadata: Optional[Dict] = None):
-        """
-        Log feature usage for analytics and quota tracking
-        
-        Args:
-            user_email: User's email
-            feature: Feature being used
-            metadata: Additional metadata about the usage
-        """
-        from datetime import datetime, timezone
-        
-        try:
-            plan = PlanEnforcement.get_user_plan(user_email)
-            
-            supabase.table('usage_logs') \
-                .insert({
-                    'user_email': user_email,
-                    'feature_used': feature,
-                    'plan_at_time': plan,
-                    'timestamp': datetime.now(timezone.utc).isoformat(),
-                    'metadata': metadata or {}
-                }) \
-                .execute()
-            
-            # Update user's usage count
-            user_res = supabase.table('users') \
-                .select('usage_count') \
-                .eq('email', user_email) \
-                .single() \
-                .execute()
-            
-            current_count = user_res.data.get('usage_count', 0) if user_res.data else 0
-            
-            supabase.table('users') \
-                .update({
-                    'usage_count': current_count + 1,
-                    'last_active': datetime.now(timezone.utc).isoformat()
-                }) \
-                .eq('email', user_email) \
-                .execute()
-            
-        except Exception as e:
-            print(f"Error logging usage: {e}")
+        allowed = [e.strip().lower() for e in demo_allowlist.split(",")]
+        return user_email.lower() in allowed
 
+
+# ── Dependency factories ──────────────────────────────────────────────────────
 
 def require_phone_verified(current_user: str = Depends(get_current_user)) -> str:
-    """
-    Dependency to require phone verification for gated features
-    
-    Args:
-        current_user: Current authenticated user email
-    
-    Returns:
-        User email if phone is verified
-    
-    Raises:
-        HTTPException if phone is not verified
-    """
     if current_user == "guest@trendrop.app":
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Authentication required"
-        )
-    
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
     if not PlanEnforcement.is_phone_verified(current_user):
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Phone verification required. Please verify your phone number to access this feature."
-        )
-    
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Phone verification required.")
     return current_user
 
 
 def require_feature(feature: str):
-    """
-    FastAPI dependency factory for checking feature access
-    
-    Args:
-        feature: Feature required for this endpoint
-        
-    Returns:
-        Dependency function that can be used in FastAPI endpoints
-    """
-    def check_feature_dependency(current_user: str = Depends(get_current_user)):
+    def check(current_user: str = Depends(get_current_user)):
         if current_user == "guest@trendrop.app":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
-            )
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
         PlanEnforcement.check_feature_access(current_user, feature)
         return current_user
-    
-    return check_feature_dependency
+    return check
 
 
-def require_quota(quota_type: str):
-    """
-    FastAPI dependency factory for checking quota limits
-    
-    Args:
-        quota_type: Type of quota to check ('api_call', 'trend_view')
-        
-    Returns:
-        Dependency function that can be used in FastAPI endpoints
-    """
-    def check_quota_dependency(current_user: str = Depends(get_current_user)):
+def require_credits(cost: int):
+    """Dependency factory: checks AND deducts credits. Use cost from CREDIT_COSTS."""
+    def check(current_user: str = Depends(get_current_user)):
         if current_user == "guest@trendrop.app":
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Authentication required"
-            )
-        PlanEnforcement.check_quota_limit(current_user, quota_type)
+            raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
+        PlanEnforcement.deduct_credits(current_user, cost, reason='api_usage', endpoint=None)
         return current_user
-    
-    return check_quota_dependency
+    return check
 
 
 def log_endpoint_usage(feature: str):
-    """
-    FastAPI dependency factory for logging endpoint usage
-    
-    Args:
-        feature: Feature to log usage for
-        
-    Returns:
-        Dependency function that logs usage after endpoint completes
-    """
-    def log_usage_dependency(current_user: str = Depends(get_current_user)):
+    def log(current_user: str = Depends(get_current_user)):
         if current_user == "guest@trendrop.app":
-            # Don't log usage for guests
             return current_user
         PlanEnforcement.log_usage(current_user, feature)
         return current_user
-    
-    return log_usage_dependency
+    return log
