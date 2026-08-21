@@ -307,10 +307,10 @@ function DataRightsPage() {
             You have the right to request correction or updating of your profile details, niches, or language preferences.
           </p>
           <Link
-            to="/profile"
+            to="/settings"
             className="inline-flex w-full items-center justify-center bg-muted/60 border border-border text-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider rounded-xl h-11 transition-colors"
           >
-            Go to Profile Editor &rarr;
+            Go to Profile Settings &rarr;
           </Link>
         </div>
 
