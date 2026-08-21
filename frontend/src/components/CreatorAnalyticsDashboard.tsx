@@ -27,7 +27,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
         ]);
         setMetrics(metricsData);
         setRecommendations(recsData.recommendations);
-        setPerformanceData(perfData.performance_data);
+        setPerformanceData(perfData?.performance_data || []);
       } catch (error) {
         console.error("Error loading analytics:", error);
       } finally {
@@ -209,18 +209,22 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           <CardDescription>Your content performance in the last 30 days</CardDescription>
         </CardHeader>
         <CardContent>
-          <ResponsiveContainer width="100%" height={300}>
-            <LineChart data={chartData}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-              <XAxis dataKey="date" className="text-xs" />
-              <YAxis className="text-xs" />
-              <Tooltip />
-              <Legend />
-              <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} name="Views" />
-              <Line type="monotone" dataKey="likes" stroke="#ec4899" strokeWidth={2} name="Likes" />
-              <Line type="monotone" dataKey="comments" stroke="#14b8a6" strokeWidth={2} name="Comments" />
-            </LineChart>
-          </ResponsiveContainer>
+          {chartData.length > 0 ? (
+            <ResponsiveContainer width="100%" height={300}>
+              <LineChart data={chartData}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
+                <XAxis dataKey="date" className="text-xs" />
+                <YAxis className="text-xs" />
+                <Tooltip />
+                <Legend />
+                <Line type="monotone" dataKey="views" stroke="#8b5cf6" strokeWidth={2} name="Views" />
+                <Line type="monotone" dataKey="likes" stroke="#ec4899" strokeWidth={2} name="Likes" />
+                <Line type="monotone" dataKey="comments" stroke="#14b8a6" strokeWidth={2} name="Comments" />
+              </LineChart>
+            </ResponsiveContainer>
+          ) : (
+            <p className="text-sm text-muted-foreground text-center py-12">Not enough data yet</p>
+          )}
         </CardContent>
       </Card>
 
