@@ -172,17 +172,18 @@ except Exception as e:
         return False
 
 try:
-    from plan_enforcement import PlanEnforcement, require_feature, require_quota, log_endpoint_usage, require_phone_verified
+    from plan_enforcement import PlanEnforcement, require_feature, require_credits, log_endpoint_usage, require_phone_verified, CREDIT_COSTS
 except Exception as e:
     logger.warning(f"Plan enforcement import failed: {e}")
     def PlanEnforcement():
         pass
     def require_feature(feature):
         return lambda: "guest@trendrop.app"
-    def require_quota(quota_type):
+    def require_credits(cost):
         return lambda: "guest@trendrop.app"
     def log_endpoint_usage(feature):
         return lambda: "guest@trendrop.app"
+    CREDIT_COSTS = {}
 
 try:
     from instagram_oauth import InstagramOAuth
@@ -2160,9 +2161,24 @@ def signup(request: Request, req: SignupRequest):
             "niche": req.niche,
             "language_preference": req.language,
             "plan": "free",
+            "credits_remaining": 100,
+            "credits_used_this_month": 0,
             "created_at": datetime.now(timezone.utc).isoformat()
         }
         supabase.table("users").upsert(user_data, on_conflict="email").execute()
+
+        # Log signup grant in credit_transactions
+        try:
+            user_id_res = supabase.table("users").select("id").eq("email", req.email).single().execute()
+            if user_id_res.data:
+                supabase.table("credit_transactions").insert({
+                    "user_id": user_id_res.data["id"],
+                    "amount": 100,
+                    "reason": "signup_grant",
+                    "endpoint": "signup",
+                }).execute()
+        except Exception:
+            logger.warning(f"Failed to log signup credit grant for {req.email}")
 
         response: dict = {
             "success": True,
@@ -2424,7 +2440,7 @@ def verify(request: Request, req: VerifyRequest):
                 "email": email,
                 "niche": user.get("niche") or "all",
                 "language": user.get("language_preference") or "all",
-                "plan": PlanEnforcement.normalize_plan_name(user.get("plan") or "free")
+                "plan": user.get("plan") or "free"
             }
         }
     except Exception as e:
@@ -2444,8 +2460,8 @@ import hashlib
 
 RAZORPAY_KEY_ID     = os.getenv("RAZORPAY_KEY_ID", "")
 RAZORPAY_KEY_SECRET = os.getenv("RAZORPAY_KEY_SECRET", "")
-# ₹999/month in paise (100 paise = ₹1)
-PRO_AMOUNT_PAISE = 99900
+# ₹499/month in paise (100 paise = ₹1)
+PRO_AMOUNT_PAISE = 49900
 PRO_CURRENCY     = "INR"
 
 
@@ -2473,7 +2489,7 @@ class CancellationReasonRequest(BaseModel):
 @limiter.limit("10/minute")
 def create_payment_order(request: Request, req: CreateOrderRequest, current_user: str = Depends(require_auth)):
     """
-    Create a Razorpay order for the Pro Creator plan (₹999/month).
+    Create a Razorpay order for the Pro plan (₹499/month).
     Returns order_id, amount, currency, and key_id for the Razorpay checkout widget.
     """
     if not RAZORPAY_KEY_ID or not RAZORPAY_KEY_SECRET:
@@ -2492,7 +2508,7 @@ def create_payment_order(request: Request, req: CreateOrderRequest, current_user
             "receipt":  f"trendrop_pro_{req.email[:30]}",
             "notes": {
                 "email": req.email,
-                "plan":  "pro_creator",
+                "plan":  "pro",
             }
         })
         logger.info(f"Razorpay order created: {order['id']} for {req.email}")
@@ -2542,24 +2558,40 @@ def payment_webhook(request: Request, req: PaymentWebhookRequest):
             if existing_email != req.email:
                 logger.warning(f"Replay attack: payment {req.razorpay_payment_id} already claimed by {existing_email}")
                 raise HTTPException(status_code=400, detail="Payment has already been processed for another account.")
-            # If same email, it's an idempotent retry (network flake) — allow it to fall through or return directly
-            return {"success": True, "plan": "creator", "message": "Welcome to Creator!"}
+            return {"success": True, "plan": "pro", "message": "Welcome to Pro!"}
             
-        # If not seen before, claim it
+        # Read old balance before upgrade (for credit_transactions delta)
+        old_user = supabase.table("users").select("id, credits_remaining").eq("email", req.email).single().execute()
+        old_balance = old_user.data.get("credits_remaining", 0) if old_user.data else 0
+        user_id = old_user.data["id"] if old_user.data else None
+
+        # Upgrade plan and grant 1000 credits
         supabase.table("users").upsert(
             {
                 "email": req.email,
-                "plan":  "creator",
+                "plan":  "pro",
+                "credits_remaining": 1000,
+                "credits_used_this_month": 0,
                 "razorpay_payment_id": req.razorpay_payment_id,
                 "razorpay_order_id":   req.razorpay_order_id,
             },
             on_conflict="email"
         ).execute()
         
+        # Log the upgrade credit grant (delta = 1000 - old_balance)
+        if user_id:
+            delta = 1000 - old_balance
+            supabase.table("credit_transactions").insert({
+                "user_id": user_id,
+                "amount": delta,
+                "reason": "plan_upgrade",
+                "endpoint": "payment/webhook",
+            }).execute()
+        
         invalidate_cached_user_profile(req.email)
         
-        logger.info(f"Plan upgraded to creator for {req.email} | payment {req.razorpay_payment_id}")
-        return {"success": True, "plan": "creator", "message": "Welcome to Creator!"}
+        logger.info(f"Plan upgraded to pro for {req.email} | payment {req.razorpay_payment_id}")
+        return {"success": True, "plan": "pro", "message": "Welcome to Pro!"}
     except HTTPException:
         raise  # replay rejection and other explicit 4xx/5xx must propagate
     except Exception as e:
@@ -2738,12 +2770,48 @@ def get_user_plan(request: Request, email: str, current_user: str = Depends(get_
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured.")
     try:
-        res = supabase.table("users").select("plan").eq("email", email).execute()
+        res = supabase.table("users").select("plan, credits_remaining, credits_used_this_month").eq("email", email).execute()
         if not res.data:
-            return {"plan": "free"}
-        return {"plan": res.data[0].get("plan", "free")}
+            return {"plan": "free", "credits_remaining": 100, "credits_used_this_month": 0}
+        row = res.data[0]
+        return {
+            "plan": row.get("plan", "free"),
+            "credits_remaining": row.get("credits_remaining", 100),
+            "credits_used_this_month": row.get("credits_used_this_month", 0),
+        }
     except Exception as e:
         logger.error(f"get_user_plan failed for {email}: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@app.get("/api/user/credits")
+@limiter.limit("30/minute")
+def get_user_credits(request: Request, current_user: str = Depends(get_current_user)):
+    """Return current credit balance and recent transaction history."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not configured.")
+    try:
+        user_res = supabase.table("users") \
+            .select("id, credits_remaining, credits_used_this_month, credits_reset_at") \
+            .eq("email", current_user).single().execute()
+        if not user_res.data:
+            return {"credits_remaining": 100, "credits_used_this_month": 0, "transactions": []}
+
+        user_id = user_res.data["id"]
+        tx_res = supabase.table("credit_transactions") \
+            .select("amount, reason, endpoint, created_at") \
+            .eq("user_id", user_id) \
+            .order("created_at", desc=True) \
+            .limit(50).execute()
+
+        return {
+            "credits_remaining": user_res.data.get("credits_remaining", 100),
+            "credits_used_this_month": user_res.data.get("credits_used_this_month", 0),
+            "credits_reset_at": user_res.data.get("credits_reset_at"),
+            "transactions": tx_res.data or [],
+        }
+    except Exception as e:
+        logger.error(f"get_user_credits failed for {current_user}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -3056,7 +3124,7 @@ def get_job_queue(user_email: str) -> Optional["Queue"]:
         return standard_queue
     try:
         res = supabase.table("users").select("plan").eq("email", user_email).execute()
-        if res.data and res.data[0].get("plan") in ("pro", "creator"):
+        if res.data and res.data[0].get("plan") in ("pro",):
             return priority_queue or standard_queue
     except Exception as e:
         logger.exception(f"Job queue plan lookup failed for {user_email}: {e}")
@@ -3072,6 +3140,7 @@ async def generate_reel_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
@@ -3164,6 +3233,7 @@ async def generate_narrative_endpoint(
     text_overlays: str = Form(...),
     current_user_email: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
@@ -3269,6 +3339,7 @@ async def generate_faceless_endpoint(
     content_description: str = Form(...),
     current_user_email: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
@@ -3329,6 +3400,7 @@ async def repurpose_endpoint(
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
     if user_email != current_user_email:
@@ -3526,7 +3598,7 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 @app.post("/api/generate-hooks")
 @limiter.limit("10/minute")
-def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("generators"))):
+def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("generators")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
@@ -3670,7 +3742,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 
 @app.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
-def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
+def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
@@ -3780,7 +3852,7 @@ def get_daily_ideas(request: Request, current_user_email: str = Depends(get_curr
 
 @app.post("/api/calendar")
 @limiter.limit("5/minute")
-def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
+def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         try:
             res = creator_tools.generate_calendar(
@@ -3815,7 +3887,7 @@ def create_calendar(request: Request, req: CalendarRequest, current_user_email: 
 
 @app.get("/api/calendar")
 @limiter.limit("10/minute")
-def get_calendar(request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation"))):
+def get_calendar(request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         res = supabase.table("calendar_plans").select("*").eq("user_email", current_user_email).execute()
         if res.data:
@@ -4057,7 +4129,8 @@ def pay_deal_milestone(
     deal_id: int, 
     milestone_id: int, 
     request: Request, 
-    current_user_email: str = Depends(require_feature("advanced_analytics")),
+    current_user_email: str = Depends(get_current_user),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['export'])),
     authorization: Optional[str] = Header(None)
 ):
     try:
@@ -4125,7 +4198,6 @@ def get_brand_deals_marketplace(
 
     # Get user plan and tier config
     user_plan = PlanEnforcement.get_user_plan(user_email)
-    user_plan = PlanEnforcement.to_display_plan_name(user_plan)
     tier_config = PlanEnforcement.BRAND_DEALS_CONFIG.get(user_plan, PlanEnforcement.BRAND_DEALS_CONFIG['free'])
     
     delay_hours = tier_config['delay_hours']
@@ -5188,7 +5260,8 @@ def generate_caption(
     tone: str = "casual",
     niche: str = "general",
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation"))
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate an AI caption for a specific trend or topic."""
     if not AIContentGenerator:
@@ -5218,7 +5291,8 @@ def generate_content_ideas(
     niche: str = "general",
     count: int = 5,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation"))
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate AI content ideas for a specific niche."""
     if not AIContentGenerator:
@@ -5257,7 +5331,8 @@ def generate_hooks(
     topic: str,
     count: int = 5,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation"))
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate AI hook suggestions for a specific topic."""
     if not AIContentGenerator:
@@ -5292,7 +5367,8 @@ def generate_script_outline(
     topic: str = "general",
     duration_seconds: int = 30,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation"))
+    _plan_check: str = Depends(require_feature("ai_generation")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate an AI script outline for content."""
     if not AIContentGenerator:
@@ -6149,7 +6225,8 @@ def analyze_video_metadata(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis"))
+    _plan_check: str = Depends(require_feature("video_analysis")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Analyze video metadata using FFmpeg, falling back to simulated data if not available.
@@ -6208,7 +6285,8 @@ def analyze_video_visual(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis"))
+    _plan_check: str = Depends(require_feature("video_analysis")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Analyze video visual content using OpenCV, falling back to simulated data if not available.
@@ -6255,7 +6333,8 @@ def predict_video_virality(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis"))
+    _plan_check: str = Depends(require_feature("video_analysis")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Predict video virality combining metadata and visual analysis.
@@ -6322,7 +6401,8 @@ def get_video_improvements(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis"))
+    _plan_check: str = Depends(require_feature("video_analysis")),
+    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Get improvement suggestions for video virality.

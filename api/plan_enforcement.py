@@ -11,4 +11,4 @@ if backend_path not in sys.path:
 from backend.plan_enforcement import *
 
 # Re-export everything to make this module work as a drop-in replacement
-__all__ = ['PlanEnforcement', 'require_feature', 'require_quota', 'log_endpoint_usage', 'require_phone_verified']
+__all__ = ['PlanEnforcement', 'require_feature', 'require_credits', 'log_endpoint_usage', 'require_phone_verified', 'CREDIT_COSTS']
