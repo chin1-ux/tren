@@ -7,9 +7,10 @@ import { useEffect, useRef } from "react";
 const PUBLIC_ROUTES = [
   "/login", 
   "/signup", 
+  "/verify-phone",
   "/terms", 
   "/privacy", 
-  "/data-rights", 
+  "/data-rights",
   "/admin/login",
   "/admin/users",
   "/admin/audit",

@@ -30,7 +30,6 @@ export const Route = createFileRoute("/verify-phone")({
 function VerifyPhonePage() {
   const { phone } = Route.useSearch();
   const navigate = useNavigate();
-  const { setAuthToken, setUser } = useAuth();
   const [code, setCode] = useState("");
   const [loading, setLoading] = useState(false);
   const [resending, setResending] = useState(false);
