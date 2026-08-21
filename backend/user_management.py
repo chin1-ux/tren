@@ -433,7 +433,7 @@ class UserManager:
             users = users_res.data or []
             
             # Plan distribution
-            plan_counts = {'free': 0, 'pro': 0, 'business': 0}
+            plan_counts = {'free': 0, 'pro': 0}
             new_users_7d = 0
             new_users_30d = []
             
