@@ -2764,11 +2764,12 @@ def submit_cancellation_reason(
 
 @app.get("/api/user/plan")
 @limiter.limit("30/minute")
-def get_user_plan(request: Request, email: str, current_user: str = Depends(get_current_user)):
+def get_user_plan(request: Request, current_user: str = Depends(require_auth)):
     """
-    Return the server-side plan for the given email.
+    Return the server-side plan for the authenticated user.
     Frontend MUST use this (not localStorage) to gate Pro features.
     """
+    email = current_user
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured.")
     try:
