@@ -58,18 +58,19 @@
 |---|-------|--------|------|-------------|-----------------|---------------|
 | 1 | /api/seo-caption | POST | 3802 | AI SEO caption generation | AI feature — costs Groq tokens | No credit check — FREE |
 | 2 | /api/daily-ideas | GET | 3812 | AI daily content ideas | AI feature — costs Groq tokens | No credit check — FREE |
-| 3 | /api/algorithm/analyze | GET | 4775 | Algorithm virality analysis | AI-powered analytics | No credit check — FREE |
-| 4 | /api/algorithm/analyze | GET | 1784 | Duplicate of above | AI-powered analytics | No credit check — FREE |
+| 3 | /api/algorithm/analyze | GET | 4775 | Algorithm virality analysis | AI-powered analytics | Dead duplicate of #4 — **REMOVED** `61970766` |
+| 4 | /api/algorithm/analyze | GET | 1784 | Live handler (gated: require_feature(algorithm_insights)) | AI-powered analytics | Gated — see Bucket C commits |
 | 5 | /api/early-detection/trends | GET | 5929 | Pre-viral trend detection | Premium analytics | No credit check — FREE |
 | 6 | /api/early-detection/predict/{id} | GET | 5950 | Virality prediction per trend | Premium analytics | No credit check — FREE |
 | 7 | /api/virality/improvements | GET | 6022 | AI virality improvement suggestions | AI feature | No credit check — FREE |
 | 8 | /api/india/caption/generate | GET | 6132 | AI India caption in regional language | AI feature — costs tokens | No credit check — FREE |
 | 9 | /api/india/content-ideas/generate | GET | 6159 | AI India content ideas | AI feature — costs tokens | No credit check — FREE |
 | 10 | /api/india/cultural-event/{name} | GET | 6194 | AI cultural event content | AI feature — uses ContentGenerator | No credit check — FREE |
-| 11 | /api/youtube/trending | GET | 6586 | YouTube trending (SIMULATED) | Dead endpoint — returns fake data | No auth — returns hardcoded data |
-| 12 | /api/realtime/trends | GET | 6670 | Realtime trends (SIMULATED) | Dead endpoint — returns fake data | No auth — returns hardcoded data |
+| 11 | /api/youtube/trending | GET | 6586 | YouTube trending (SIMULATED) | Dead endpoint — returns fake data | **REMOVED** `cc277ee5` |
+| 12 | /api/realtime/trends | GET | 6670 | Realtime trends (SIMULATED) | Dead endpoint — returns fake data | **REMOVED** `cc277ee5` |
 
 **Note on simulated endpoints:** /api/youtube/trending (6586), /api/youtube/trending-music (6629), /api/realtime/trends (6670), /api/realtime/cross-platform (6712), /api/instagram/user-profile (6454), /api/instagram/user-insights (6500), /api/instagram/user-media (6543) all return hardcoded/simulated data and are marked NOT USER-FACING in their docstrings. These should either be wired to real APIs or removed.
+**RESOLVED Aug 22, 2026:** all seven removed in `cc277ee5`. Zero callers confirmed across frontend/src, all local branches, and WIP stashes before removal.
 
 ---
 
@@ -77,11 +78,11 @@
 
 | # | Route | Method | Line | Current state |
 |---|-------|--------|------|---------------|
-| 13 | /api/youtube/trending-music | GET | 6629 | Simulated — NOT USER-FACING |
-| 14 | /api/realtime/cross-platform | GET | 6712 | Simulated — NOT USER-FACING |
-| 15 | /api/instagram/user-profile | GET | 6454 | Simulated — NOT USER-FACING |
-| 16 | /api/instagram/user-insights | GET | 6500 | Simulated — NOT USER-FACING |
-| 17 | /api/instagram/user-media | GET | 6543 | Simulated — NOT USER-FACING |
+| 13 | /api/youtube/trending-music | GET | 6629 | Simulated — NOT USER-FACING → **REMOVED** `cc277ee5` |
+| 14 | /api/realtime/cross-platform | GET | 6712 | Simulated — NOT USER-FACING → **REMOVED** `cc277ee5` |
+| 15 | /api/instagram/user-profile | GET | 6454 | Simulated — NOT USER-FACING → **REMOVED** `cc277ee5` |
+| 16 | /api/instagram/user-insights | GET | 6500 | Simulated — NOT USER-FACING → **REMOVED** `cc277ee5` |
+| 17 | /api/instagram/user-media | GET | 6543 | Simulated — NOT USER-FACING → **REMOVED** `cc277ee5` |
 
 ---
 
@@ -101,9 +102,11 @@ All gating work COMPLETE. Commits: `4d44e855` (user/plan IDOR), `25ee5669` (inst
 
 Side-fix: P-PAY-9 (`458173f8`) — require_credits deducts only on success now.
 
-Remaining from this audit (product decisions, not security):
-- Dead-handler removal @api.py:4775 (duplicate algorithm/analyze)
-- 7 simulated endpoints (remove vs wire): youtube/trending, youtube/trending-music, realtime/trends, realtime/cross-platform, instagram/user-profile, instagram/user-insights, instagram/user-media
+Closed Aug 22, 2026 (both were product-decision items, both approved):
+- Dead-handler duplicate @api.py:4776 removed — `61970766`. Evidence: 2→1 route registrations; unauth 401 and free-plan 200 unchanged (algorithm_insights is in FREE_TIER_FEATURES).
+- All 7 simulated endpoints removed — `cc277ee5`. Evidence: exactly 7 `-@app.get` in diff (316 del / 0 ins); 7→0 route registrations; openapi.json clean on restarted server; neighbors healthy.
+
+Nothing remains open from this audit except the cosmetic Bucket-B inline-check standardization (Key Finding 4).
 
 ---
 
