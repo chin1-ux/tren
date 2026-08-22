@@ -821,6 +821,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-WORK-1: GitHub Actions over budget | HIGH | CI/CD cost |
 | P-WORK-2: No test suite | MEDIUM | No quality gates |
 | P-WORK-3: No rollback strategy | LOW | Manual recovery |
+| b9af900e: Groq model swap (llama-3.3-70b → openai/gpt-oss-120b) | LOW | Forced fix — old model 404s on Groq API; no comparison baseline; output spot-checked and sound |
 | P-TRUTH-1-5: Marketing claims unprovable | HIGH | Trust/credibility |
 | P-FUND-1: Payment flow dead | CRITICAL | No revenue, no fundraising |
 | P-FUND-2: "0h delay" copy risk | HIGH | Batch pipeline can't back real-time claims | **FIXED** |
