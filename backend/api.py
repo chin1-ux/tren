@@ -3802,7 +3802,7 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
 
 @app.post("/api/seo-caption")
 @limiter.limit("10/minute")
-def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(get_current_user)):
+def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         return creator_tools.generate_seo_caption(description=req.description, platform=req.platform)
     except Exception as e:
@@ -3812,7 +3812,7 @@ def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_
 
 @app.get("/api/daily-ideas")
 @limiter.limit("10/minute")
-def get_daily_ideas(request: Request, current_user_email: str = Depends(get_current_user)):
+def get_daily_ideas(request: Request, current_user_email: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     # CACHING: ideas:{user_email}:{date}
     import datetime as dt
     today_str = dt.date.today().isoformat()
