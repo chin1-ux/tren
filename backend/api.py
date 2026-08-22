@@ -2789,7 +2789,7 @@ def get_user_plan(request: Request, current_user: str = Depends(require_auth)):
 
 @app.get("/api/user/credits")
 @limiter.limit("30/minute")
-def get_user_credits(request: Request, current_user: str = Depends(get_current_user)):
+def get_user_credits(request: Request, current_user: str = Depends(require_auth)):
     """Return current credit balance and recent transaction history."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured.")
@@ -4629,7 +4629,7 @@ def instagram_callback(req: InstagramCallbackRequest, request: Request, current_
 
 @app.get("/api/instagram/insights")
 @limiter.limit("30/minute")
-def get_instagram_insights(request: Request, current_user_email: str = Depends(get_current_user)):
+def get_instagram_insights(request: Request, current_user_email: str = Depends(require_auth)):
     """Fetch Instagram Insights for the authenticated user."""
     if not InstagramOAuth:
         raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
