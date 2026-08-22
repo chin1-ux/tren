@@ -5,7 +5,7 @@ Credits-based pricing: free / pro tiers with credit metering.
 import os
 import logging
 from typing import Optional, Dict
-from fastapi import HTTPException, Header, Depends, status
+from fastapi import HTTPException, Header, Depends, status, BackgroundTasks
 from dotenv import load_dotenv
 
 _PLAN_CACHE = {}
@@ -308,11 +308,34 @@ def require_feature(feature: str):
 
 
 def require_credits(cost: int):
-    """Dependency factory: checks AND deducts credits. Use cost from CREDIT_COSTS."""
-    def check(current_user: str = Depends(get_current_user)):
+    """Dependency factory: checks credit balance now, schedules deduction
+    to run ONLY after the endpoint completes successfully.
+
+    Why: FastAPI solves sub-dependencies before validating route params,
+    so an inline deduction fires even when the request later 422s —
+    charging users for malformed requests (P-PAY-9). BackgroundTasks are
+    attached to the response object and discarded whenever validation
+    fails (422) or the handler raises, so failed requests cost nothing.
+    """
+    def check(
+        background_tasks: BackgroundTasks,
+        current_user: str = Depends(get_current_user),
+    ):
         if current_user == "guest@trendrop.app":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
-        PlanEnforcement.deduct_credits(current_user, cost, reason='api_usage', endpoint=None)
+        balance = PlanEnforcement.check_credit_balance(current_user, cost)
+        if balance < cost:
+            raise HTTPException(status_code=429, detail={
+                "error": "credits_exhausted",
+                "credits_remaining": balance,
+                "cost": cost,
+                "message": f"Insufficient credits: need {cost}, have {balance}",
+                "upgrade_url": "/pricing",
+            })
+        background_tasks.add_task(
+            PlanEnforcement.deduct_credits,
+            current_user, cost, reason='api_usage', endpoint=None,
+        )
         return current_user
     return check
 
