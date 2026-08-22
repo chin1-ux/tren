@@ -6163,7 +6163,7 @@ def generate_india_content_ideas(
     request: Request,
     event_type: str = "festival",
     count: int = 3,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate India-specific content ideas for cultural events."""
     if not ContentGenerator:
@@ -6197,7 +6197,7 @@ def generate_india_content_ideas(
 def get_cultural_event(
     request: Request,
     event_name: str,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Get content suggestions for a specific cultural event."""
     if not ContentGenerator:
