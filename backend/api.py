@@ -4682,7 +4682,7 @@ def get_instagram_insights(request: Request, current_user_email: str = Depends(g
 
 @app.delete("/api/instagram/disconnect")
 @limiter.limit("10/minute")
-def disconnect_instagram(request: Request, current_user_email: str = Depends(get_current_user)):
+def disconnect_instagram(request: Request, current_user_email: str = Depends(require_auth)):
     """Disconnect Instagram account for the user."""
     if not InstagramOAuth:
         raise HTTPException(status_code=501, detail="Instagram OAuth not configured")
