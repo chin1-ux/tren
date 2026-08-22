@@ -6026,7 +6026,7 @@ def get_virality_improvements(
     request: Request,
     content_data: dict,
     trend_id: int,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Get improvement suggestions to increase virality."""
     if not ViralityPredictor:
@@ -6137,7 +6137,7 @@ def generate_india_caption(
     trend_name: str,
     language: str = "hindi",
     tone: str = "casual",
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate India-specific caption in regional language."""
     if not ContentGenerator:
