@@ -3964,13 +3964,11 @@ class CreateDealRequest(BaseModel):
 @app.post("/api/deals")
 @limiter.limit("15/minute")
 def create_creator_deal(
-    request: Request, 
-    req: CreateDealRequest, 
-    current_user_email: str = Depends(get_current_user),
+    request: Request,
+    req: CreateDealRequest,
+    current_user_email: str = Depends(require_auth),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         from contract_generator import generate_contract_pdf
         user_sb = get_user_supabase_client(authorization)
@@ -4042,12 +4040,10 @@ def create_creator_deal(
 @app.get("/api/deals")
 @limiter.limit("30/minute")
 def get_creator_deals(
-    request: Request, 
-    current_user_email: str = Depends(get_current_user),
+    request: Request,
+    current_user_email: str = Depends(require_auth),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         user_sb = get_user_supabase_client(authorization)
         # Apply filter at API layer in addition to database RLS
@@ -4066,13 +4062,11 @@ def get_creator_deals(
 @app.get("/api/deals/{deal_id}/download")
 @limiter.limit("20/minute")
 def download_deal_contract(
-    deal_id: int, 
-    request: Request, 
-    current_user_email: str = Depends(get_current_user),
+    deal_id: int,
+    request: Request,
+    current_user_email: str = Depends(require_auth),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         user_sb = get_user_supabase_client(authorization)
         res_deal = user_sb.table("brand_deals").select("contract_pdf, brand_name, creator_id").eq("id", deal_id).execute()
@@ -4691,11 +4685,9 @@ class LogEventRequest(BaseModel):
 def log_analytics_event(
     request: Request,
     req: LogEventRequest,
-    current_user_email: str = Depends(get_current_user),
+    current_user_email: str = Depends(require_auth),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     event_name = req.event_name.strip()
     if not event_name:
         raise HTTPException(status_code=422, detail="event_name is required")
@@ -4736,11 +4728,9 @@ class FeedbackRequest(BaseModel):
 def submit_creator_feedback(
     request: Request,
     req: FeedbackRequest,
-    current_user_email: str = Depends(get_current_user),
+    current_user_email: str = Depends(require_auth),
     authorization: Optional[str] = Header(None)
 ):
-    if current_user_email == "guest@trendrop.app":
-        raise HTTPException(status_code=401, detail="Unauthorized")
     try:
         user_sb = get_user_supabase_client(authorization)
         user_sb.table("creator_feedback").insert({
