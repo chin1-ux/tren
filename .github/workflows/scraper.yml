@@ -2,8 +2,10 @@ name: Scraper
 
 on:
   schedule:
-    # EMERGENCY POSTURE: every 2 days at 02:00 UTC (Sept 1 budget crisis — revert to daily post-reset)
-    - cron: '0 2 * * */2'
+    # Daily at 02:00 UTC. Measured burn Aug 2026: scraper ~650-930 min/mo at
+    # this cadence + ~450 support = fits the 2,000 free-tier budget with margin
+    # (P-DB-6 fix restores the freshness this posture was meant to protect).
+    - cron: '0 2 * * *'
   workflow_dispatch:
     inputs:
       mode:
@@ -147,7 +149,6 @@ jobs:
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Verify scraper run
-        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}

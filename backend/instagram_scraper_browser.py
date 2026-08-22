@@ -1498,25 +1498,49 @@ Return ONLY valid JSON, no markdown, no explanation:
                 audio_groups_entries.append((key, reel))
 
         # ── Phase D: Bulk DB writes ───────────────────────────────────────
+        # P-DB-6 fix: Instagram payloads can contain the same reel_id twice
+        # (top + recent sections). A bulk upsert containing duplicates within
+        # one statement fails atomically with PG 21000 ("cannot affect row a
+        # second time"), losing the whole batch. Keep the last occurrence —
+        # it carries the freshest metrics from extraction order.
+        deduped_reels: dict = {}
+        for r in inserted_reels:
+            deduped_reels[r["reel_id"]] = r
+        inserted_reels = list(deduped_reels.values())
+
         # Q4: Upsert reels (bulk)
+        saved_reel_ids: set = set()
         if inserted_reels:
-            try:
-                for i in range(0, len(inserted_reels), CHUNK):
-                    chunk = inserted_reels[i:i + CHUNK]
+            for i in range(0, len(inserted_reels), CHUNK):
+                chunk = inserted_reels[i:i + CHUNK]
+                try:
                     self.supabase.table("reels").upsert(chunk, on_conflict="reel_id").execute()
-                    scrape_stats["insert_attempts"] += len(chunk)
-                    scrape_stats["insert_saved"] += len(chunk)
+                    saved_reel_ids.update(r["reel_id"] for r in chunk)
+                except Exception as e:
+                    # Salvage: retry this chunk row-by-row so one poisoned row
+                    # cannot discard its neighbours.
+                    logger.warning(f"Bulk upsert chunk {i // CHUNK} failed ({e}); salvaging row-by-row")
                     for r in chunk:
+                        try:
+                            self.supabase.table("reels").upsert(r, on_conflict="reel_id").execute()
+                            saved_reel_ids.add(r["reel_id"])
+                        except Exception as re_:
+                            logger.error(f"Reel {r['reel_id']} unsalvageable: {re_}")
+                scrape_stats["insert_attempts"] += len(chunk)
+                scrape_stats["insert_saved"] += sum(1 for r in chunk if r["reel_id"] in saved_reel_ids)
+                for r in chunk:
+                    if r["reel_id"] in saved_reel_ids:
                         logger.info(
                             f"Saved reel {r['reel_id']} by @{r['owner_username']} "
                             f"(velocity={r['velocity_score']:.3f}, lang={r.get('caption_language')}, "
                             f"outlier={r.get('is_creator_outlier')})"
                         )
-            except Exception as e:
-                logger.error(f"Bulk reel upsert failed: {e}", exc_info=True)
 
         # Q5: Bulk snapshot insert (no delta calculation needed — all are new reels)
-        if inserted_reels:
+        # Only snapshot reels that were actually persisted, or rows reference
+        # reel_ids that do not exist (orphan snapshots).
+        snapsource = [r for r in inserted_reels if r["reel_id"] in saved_reel_ids]
+        if snapsource:
             try:
                 snapshots = [
                     {
@@ -1527,7 +1551,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                         "comment_count": r["comment_count"],
                         "audio_use_count": r.get("audio_use_count"),
                     }
-                    for r in inserted_reels
+                    for r in snapsource
                 ]
                 for i in range(0, len(snapshots), CHUNK):
                     chunk = snapshots[i:i + CHUNK]
