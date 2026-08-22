@@ -558,11 +558,25 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Impact:** Marketplace feature shows nothing. No brand partnerships.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-DB-6: `trends` table has inconsistent lifecycle distribution [UPDATED]
-**File:** Supabase `trends` table — 321 rows (post P-METHOD-1 cleanup)
-**Problem:** Distribution: ~32 rising, ~31 emerging, ~128 peaked, ~130 expired. Only ~63 trends pass the feed filter (rising + emerging), but many fail other filters.
-**Impact:** The feed shows very few active trends. Most trends are already peaked/expired.
-**Does IMPLEMENTATION_PLAN.md fix this?** Indirectly. Fixing event detection and caption stubs may increase the number of active trends.
+### P-DB-6: Feed empty since Aug 18 — scraper bulk-upsert PG-21000 killed every save batch [FIXED + VERIFIED]
+**Files:** `backend/instagram_scraper_browser.py` (root cause), `.github/workflows/scraper.yml` (masking), `backend/verify_scraper_run.py` (detection)
+**Symptom:** All 319 trends peaked/expired; zero new reels since Aug 18; `/api/trends` empty for eligible users; feed dead for ~4 days with no alert.
+**Root cause:** Commit `d581da27` changed Phase D to a single bulk upsert of each XHR payload's reels without intra-payload dedup. Instagram payloads can contain the same `reel_id` twice; Postgres rejects the whole statement atomically with `21000: ON CONFLICT DO UPDATE command cannot affect row a second time`. Every chunk containing a duplicate was lost entirely. The exception was caught per-hashtag and logged at debug level, so the run exited 0 while saving nothing.
+**Masking layer:** The workflow's Verify step ran `verify_scraper_run.py`, whose freshness check (`max_age_hours=9`) failed from Aug 19 onward — but the step had `continue-on-error: true`, so red checks never failed the run. Two independent safety nets were both silent.
+**Fix applied (PR #4, commits `87a72bf7` + `69162acb`, merged `1450f8c1` on Aug 22 2026):**
+1. Deduplicate payload by `reel_id` (keep last occurrence) before upsert.
+2. On residual conflict: per-row salvage retry so one bad row can't discard 200 good ones.
+3. Orphan guard: snapshot writes only for reels that actually saved (prevents snapshot/reel drift).
+4. Removed `continue-on-error: true` from the Verify step — freshness failures now fail the run.
+5. `max_age_hours` 9 → 30. Rationale: the window must be strictly less than the cadence gap (48h) or a single fully-dead cycle passes as "fresh" — exactly the outage class this guards against. 30h ≈ 62% of the gap catches any dead cycle while absorbing LLM-classification lag and cron jitter.
+**Verification (run `32591223200`, Aug 22 2026, first run on fixed code):**
+- 396 Saved-reel lines; **0× PG-21000**; 0 salvage events (dedup handled everything upstream).
+- `insert_saved == insert_attempts` (164/164 India cohort, 232/232 Global cohort) — nothing silently dropped.
+- DB deltas exact: reels 7,647→8,043 (+396), snapshots 20,691→21,087 (+396). Snapshot/reel parity holds.
+- Trends 319→330: **3 rising, 8 emerging** — first new active trends since Aug 18.
+- Verify step: `[OK] Found 10 recent trends — VERIFICATION: PASS` on merit (not skipped).
+**Downstream chain verified end-to-end (same day):** free tier correctly sees 0 items (<24h `data_delay_hours` gate), Pro user sees all 3 rising items via live `/api/trends`; `/api/trends/emerging` correctly 403s free users (`plan_upgrade_required`); trend→reels join returns owners + view counts. Note: Supabase signup creates no `users` row until onboarding — plan lookups default such users to free (test-artifact gotcha, not a product bug).
+**Status:** FIXED + VERIFIED (Aug 22 2026). Residual watch item: cadence still every-2-days (`0 2 * * */2`); daily fits the 2,000 min/mo Actions budget if desired (measured 911 min incl. incident era) — decision deliberately decoupled from this fix.
 
 ### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops [FIXED]
 **Files:** `backend/user_performance_tracker.py`, `backend/add_user_performance_tables.py`, `backend/api.py:6720-6792`
@@ -821,7 +835,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-1: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-DB-4: api_keys missing | LOW | API revenue blocked |
 | P-DB-5: brand_deals empty | LOW | Marketplace empty |
-| P-DB-6: Inconsistent trend distribution | MEDIUM | Few active trends in feed |
+| P-DB-6: Scraper bulk-upsert PG-21000 killed every save batch | CRITICAL | Feed empty Aug 18-22; root cause found, fix verified in prod (run `32591223200`) | **FIXED** |
 | P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | **FIXED** |
 | P-DB-8: Supabase client truncates at 1000 rows | HIGH | Silent data visibility risk |
 | P-METHOD-1: Trend dedup guard only checks emerging/rising | HIGH | 53% duplicate trends | **FIXED** |
