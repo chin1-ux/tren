@@ -1225,7 +1225,35 @@ Return ONLY valid JSON, no markdown, no explanation:
         """
         now_utc = datetime.now(timezone.utc)
 
-        # ── Phase A: Pre-filter (pure Python, no DB) ──────────────────────
+        # P-SCRAPER-2: the hashtag media endpoint never returns follower data,
+        # so owner_follower_count is resolved from cached creator_baselines
+        # (joined on owner_username). Creators without a cached baseline keep
+        # the existing runtime fallback (2500) in the velocity formula.
+        creator_baselines: dict[str, dict] = {}
+        unique_owners = list({it.get("ownerUsername") for it in items if it.get("ownerUsername")})
+        if unique_owners:
+            try:
+                CHUNK = 500
+                for i in range(0, len(unique_owners), CHUNK):
+                    chunk = unique_owners[i:i + CHUNK]
+                    bl_res = self.supabase.table("creator_baselines").select("*").in_("username", chunk).execute()
+                    for row in bl_res.data:
+                        username = row.get("username")
+                        if username:
+                            creator_baselines[username] = row
+            except Exception as e:
+                logger.warning(f"Bulk creator baseline fetch failed: {e}")
+
+        def _resolve_followers(owner: str | None, ig_followers: int) -> int:
+            if ig_followers > 0:
+                return ig_followers
+            if owner:
+                baseline_followers = (creator_baselines.get(owner) or {}).get("follower_count") or 0
+                if baseline_followers > 0:
+                    return int(baseline_followers)
+            return 0
+
+        # ── Phase A: Pre-filter ───────────────────────────────────────────
         candidates = []
         for item in items:
             reel_id = item.get("shortCode")
@@ -1236,7 +1264,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             view = int(item.get("videoViewCount") or 0)
             likes = int(item.get("likesCount") or 0)
             comments = int(item.get("commentsCount") or 0)
-            followers = int(item.get("ownerFollowersCount") or 0)
+            owner = item.get("ownerUsername")
+            followers = _resolve_followers(owner, int(item.get("ownerFollowersCount") or 0))
 
             timestamp = item.get("timestamp")
             if not timestamp:
@@ -1259,7 +1288,6 @@ Return ONLY valid JSON, no markdown, no explanation:
                 scrape_stats["velocity_failed"] += 1
                 continue
 
-            owner = item.get("ownerUsername")
             caption = (item.get("caption") or "")[:500]
             hashtags = re.findall(r"#(\w+)", caption)
             video_url = item.get("videoUrl")
@@ -1355,26 +1383,6 @@ Return ONLY valid JSON, no markdown, no explanation:
                                 audio_title_india_count[at] = audio_title_india_count.get(at, 0) + 1
             except Exception as e:
                 logger.warning(f"Bulk audio analysis failed: {e}")
-
-        # Q3: Bulk creator baselines
-        creator_baselines: dict[str, dict] = {}
-        if unique_owners:
-            try:
-                for i in range(0, len(unique_owners), CHUNK):
-                    chunk = unique_owners[i:i + CHUNK]
-                    bl_res = self.supabase.table("creator_baselines").select("*").in_("username", chunk).execute()
-                    for row in bl_res.data:
-                        username = row.get("username")
-                        if not username:
-                            continue
-                        last_scraped_str = row.get("last_scraped_at")
-                        if last_scraped_str:
-                            last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
-                            if (now_utc - last_scraped).days >= 7:
-                                continue
-                        creator_baselines[username] = row
-            except Exception as e:
-                logger.warning(f"Bulk creator baseline check failed: {e}")
 
         # ── Phase C: Python processing (no DB queries) ────────────────────
         multiplier = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
@@ -1481,12 +1489,17 @@ Return ONLY valid JSON, no markdown, no explanation:
             # Creator baseline + outlier detection
             is_outlier = None
             baseline = creator_baselines.get(owner)
-
             if baseline:
-                post_count = baseline.get("post_count") or 0
-                if post_count >= 6:
-                    median_v = baseline.get("median_views") or 0.0
-                    is_outlier = view > multiplier * median_v
+                last_scraped_str = baseline.get("last_scraped_at")
+                if last_scraped_str:
+                    last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
+                    if (now_utc - last_scraped).days >= 7:
+                        baseline = None
+                if baseline:
+                    post_count = baseline.get("post_count") or 0
+                    if post_count >= 6:
+                        median_v = baseline.get("median_views") or 0.0
+                        is_outlier = view > multiplier * median_v
 
             reel["is_creator_outlier"] = is_outlier
 
