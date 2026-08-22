@@ -983,6 +983,14 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Fix options:** (1) Move plan cache to Redis (already in the stack for rate limiting) so invalidation is global across instances — cleanest. (2) On 403 plan_upgrade_required, do an uncached DB re-check before returning — cheap safety net regardless. (3) Reduce TTL — narrows but doesn't close the window. Option 1 + 2 combined is the robust answer.
 **Verification note:** Confirmed live during testing — flipped chin@free.com to pro via service role while server was running; gated endpoint kept returning 403 with stale cached plan until process restart.
 
+### P-PAY-9: require_credits deducts before FastAPI param validation — malformed requests still charge credits [LOW pre-launch / MEDIUM once payments live]
+**Found:** Aug 22, 2026 during P-AUTH-5 gating work (e4a2a302 evidence run).
+**File:** `backend/plan_enforcement.py:310-317` (`require_credits` factory)
+**Problem:** FastAPI resolves dependencies (including `require_credits`, which deducts immediately) before/independently of request param validation. A call to a credit-gated endpoint with missing/invalid params returns 422 to the client but the credit deduction has already fired. Confirmed live: a GET `/api/virality/improvements` call missing its required body returned 422 AND logged a `-5 api_usage` transaction (credit_transactions row at 2026-08-22T12:54:39, paired with the successful call's -5 at :40).
+**Impact:** Users get charged for their own malformed requests — retrying after fixing the payload costs double. Small per-incident, but a systematic fairness bug across every credit-gated endpoint (seo-caption, daily-ideas, virality/improvements, india/* AI endpoints, video analysis at 10 credits/call where it hurts most). Also pollutes usage analytics with failed-call charges.
+**Fix:** Move validation inside the endpoint body (validate-then-deduct ordering), or make `require_credits` defer the deduction until response success (deduct in a dependency with a post-response hook / middleware that fires only on 2xx), or catch and refund on 4xx. The deferred-on-success pattern is cleanest.
+**Related:** P-WORK-8 (same family: dependency/handler ordering quirks producing wrong status-code behavior).
+
 ---
 
 ## RECOMMENDATION
