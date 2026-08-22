@@ -365,6 +365,14 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Design decision needed:** Should the verify endpoint return a `session_token` (verify-and-auto-login), or is verify-then-login intentional? If auto-login: backend needs to create a Supabase session and return it. If intentional: no code change needed, but the "please log in" message should be clearer.
 **Frontend fix (b953d09f):** `/verify-phone` added to PUBLIC_ROUTES, dead `setAuthToken`/`setUser` destructuring removed. Flow now reachable but still ends at `/login`.
 
+### P-AUTH-11: require_admin returns 401 instead of 403 for non-admin authenticated users [LOW — cosmetic, fails closed]
+**Files:** `backend/auth.py:254-283` (`require_admin`), `backend/auth.py:133-147` (`verify_token`)
+**Problem:** `require_admin` calls `verify_token(token)` which decodes JWTs signed with `JWT_SECRET_KEY`. Regular users receive Supabase session tokens from `/api/auth/login`, which are signed with a different key. When a non-admin authenticated user hits an admin endpoint (e.g., `GET /api/business/subscription-breakdown`), `verify_token` fails to decode their Supabase token → raises 401 "Invalid token" instead of reaching the role check and returning 403 "Forbidden."
+**Impact:** Cosmetic — the endpoint correctly blocks non-admin access (fails closed, which is the safe direction). But the error message is misleading: a logged-in free-tier user sees "Invalid token" (suggesting their auth is broken) instead of "Forbidden — admin access required" (suggesting they lack permissions). This makes debugging "why can't I access this as a logged-in user" confusing.
+**Why not fixed:** The fix would require `require_admin` to fall back to `get_current_user` (which handles Supabase tokens) when `verify_token` fails, then check the user's role in the `admin_users` table. That's a behavior change to an auth gate — not worth the risk for a cosmetic improvement on 2 endpoints with0 live users.
+**Introduced by:** `dcfb2fb7` (swapped `get_current_user` → `require_admin` on 2 endpoints). Pre-existing design: admin tokens (app-signed JWT with `role` claim) and user tokens (Supabase session) are different formats. The commit correctly applied the stricter gate; the 401-instead-of-403 is a side effect of the token format mismatch, not a new bug.
+**Verified:** All 5 endpoints in `dcfb2fb7` confirmed working — no-auth →401, non-admin →401/403, admin →200 with real data. See evidence in session log Aug 22, 2026.
+
 ### P-AUTH-8: Rate limiter fails silently open — both paths [FIXED]
 **Files:** `backend/redis_rate_limiter.py:59-61,106-113`, `backend/api.py:452-459`
 **Problem:** Two failure paths both result in rate limiting silently degrading to "off" with no signal:
@@ -783,6 +791,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-AUTH-8: Rate limiter fails silently open | HIGH | Silent degradation to no rate limiting | **FIXED** |
 | P-AUTH-9: Dead email fields in write request models | LOW | Refactoring trap (latent IDOR) | **FIXED** (d744f24f: removed 4 dead fields) |
 | P-AUTH-10: No session after phone verification | MEDIUM | User must re-authenticate after OTP | Frontend fixed (b953d09f); backend decision pending |
+| P-AUTH-11: require_admin returns 401 not 403 for non-admin tokens | LOW | Misleading error for logged-in users | Cosmetic, fails closed; documented (dcfb2fb7) |
 | P-PAY-2: pricing page dead end (no payment flow) | HIGH | Revenue blocked | Updated — page exists, no checkout |
 | P-PAY-3: usage_logs empty | HIGH | Quota enforcement disabled |
 | P-PAY-4: verify-phone page exists | LOW | Phone signups work if used | **FALSE POSITIVE — removed** |
