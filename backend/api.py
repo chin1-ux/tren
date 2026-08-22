@@ -5136,7 +5136,7 @@ def detect_conversations(
 def get_creator_metrics(
     request: Request,
     days_back: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get comprehensive metrics for a creator."""
     if not CreatorAnalyticsEngine:
@@ -5174,7 +5174,7 @@ def get_creator_metrics(
 def get_trend_adoption_history(
     request: Request,
     days_back: int = 90,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get creator's trend adoption history."""
     if not CreatorAnalyticsEngine:
@@ -5210,7 +5210,7 @@ def get_trend_adoption_history(
 def get_content_performance_over_time(
     request: Request,
     days_back: int = 30,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_auth)
 ):
     """Get content performance data over time for charts."""
     if not CreatorAnalyticsEngine:
