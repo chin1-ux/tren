@@ -4773,64 +4773,7 @@ def submit_creator_feedback(
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.get("/api/algorithm/analyze")
-@limiter.limit("30/minute")
-def analyze_content_for_virality(
-    request: Request,
-    views: int = 0,
-    likes: int = 0,
-    comments: int = 0,
-    shares: int = 0,
-    saves: int = 0,
-    duration: int = 0,
-    niche: str = "general",
-    uses_trending_audio: bool = False,
-    current_user: str = Depends(get_current_user)
-):
-    """
-    Analyze content metrics and provide Instagram algorithm insights for virality optimization.
-    Returns overall virality score, factor analysis, and actionable recommendations.
-    """
-    if not InstagramAlgorithmInsights:
-        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
-    
-    try:
-        insights = InstagramAlgorithmInsights()
-        
-        content_data = {
-            'views': views,
-            'likes': likes,
-            'comments': comments,
-            'shares': shares,
-            'saves': saves,
-            'duration': duration,
-            'niche': niche,
-            'uses_trending_audio': uses_trending_audio
-        }
-        
-        analysis = insights.analyze_content_for_virality(content_data)
-        
-        return {
-            'virality_score': analysis['overall_virality_score'],
-            'viral_potential': analysis['viral_potential'],
-            'factor_scores': analysis['factor_scores'],
-            'engagement_metrics': analysis['engagement_metrics'],
-            'recommendations': [
-                {
-                    'category': rec.category,
-                    'priority': rec.priority,
-                    'title': rec.title,
-                    'description': rec.description,
-                    'expected_impact': rec.expected_impact,
-                    'difficulty': rec.implementation_difficulty
-                }
-                for rec in analysis['recommendations']
-            ],
-            'algorithm_explanation': analysis['algorithm_explanation']
-        }
-    except Exception as e:
-        logger.exception(f"Error in algorithm analysis: {e}")
-        raise HTTPException(status_code=500, detail="Algorithm analysis failed")
+
 
 
 @app.get("/api/algorithm/posting-times")
