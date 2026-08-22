@@ -5932,7 +5932,7 @@ def admin_create_plan_feature(
 def get_early_detection_trends(
     request: Request,
     limit: int = 10,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_feature("early_detection"))
 ):
     """Get trends with high early detection scores (about to go viral)."""
     if not EarlyTrendDetector:
@@ -5953,7 +5953,7 @@ def get_early_detection_trends(
 def predict_trend_viral_potential(
     request: Request,
     trend_id: int,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(require_feature("early_detection"))
 ):
     """Predict viral potential of a specific trend."""
     if not EarlyTrendDetector:
