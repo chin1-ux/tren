@@ -718,6 +718,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Fix:** Either (1) upgrade Supabase to Pro to fix the pooler connection (P-WORK-3), or (2) remove `continue-on-error: true` so migration failures are visible, or (3) switch to Supabase CLI migrations which don't need direct DB access.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-WORK-8: `/api/early-detection/predict/{id}` returns 500 instead of 404 for nonexistent trend IDs [LOW]
+**Found:** Aug 22, 2026 during P-AUTH-5 gating work (a3106a04 evidence run).
+**File:** `backend/api.py:5951-5984` (`predict_trend_viral_potential`)
+**Problem:** The handler uses `.single()` on the Supabase query. For a nonexistent trend ID, PostgREST throws `PGRST116: Cannot coerce the result to a single JSON object` (0 rows) inside `.execute()` — before the `if not res.data: raise 404` check on the next line ever runs. The generic `except Exception` then converts it to a 500 "Failed to predict viral potential".
+**Impact:** Log-noise / monitoring trap. Once real traffic exists, bad IDs (user typos, stale links, scrapers probing) will show up as spurious 500 spikes and someone will waste time investigating "server errors" that are just not-found lookups. No data exposure — the gate itself works correctly.
+**Fix:** Replace `.single()` with plain execute + empty-check, or catch `APIError` with code PGRST116 and raise 404. Same pattern likely applies to any other endpoint using `.single()` followed by a falsy-data 404 check — worth one grep when fixing.
+
 ---
 
 ## 8. CROSS-CUTTING TRUTH PROBLEMS
@@ -967,6 +974,14 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 **Problem:** The current free tier gives permanent access to basic features with no urgency to upgrade. Users who sign up and never upgrade generate zero revenue. There's no mechanism to show users what they're missing. The 14-day trial that was previously on the pricing page was removed.
 **Impact:** Low conversion rate from free to paid. Users don't experience enough value during free usage to justify upgrading. No trial = no urgency.
 **Fix:** Free tier + 14-day Pro trial: (1) User signs up → Free tier (10 credits/day), (2) After 3 days of usage → "Try Pro free for 14 days" prompt, (3) During trial → Full Pro access (200 credits/day), (4) After trial → Back to Free unless they upgrade, (5) Trial requires Razorpay setup (₹0 charge, card on file for auto-conversion).
+
+### P-PAY-8: Plan cache is in-process memory — paying users can see 403 for up to 5 min after upgrading [HIGH once payments live]
+**Found:** Aug 22, 2026 during P-AUTH-5 early-detection gating work (a3106a04 evidence run).
+**Files:** `backend/plan_enforcement.py:11-16,81-86` (`_PLAN_CACHE`, TTL=300s), `backend/api.py:2593` (webhook invalidation), `vercel.json` (serverless deployment)
+**Problem:** `PlanEnforcement.get_user_plan()` caches plan lookups in an in-process dict with a 300s TTL. The payment webhook DOES correctly call `invalidate_cached_user_profile()` → `invalidate_plan_cache()` (api.py:2593 → 431-432) — the wiring exists. But the backend runs as a Vercel serverless function (`api/index.py`), where each warm instance holds its OWN copy of `_PLAN_CACHE`. The webhook's invalidation only clears the cache in the instance that handled the webhook; other warm instances keep serving the stale `free` plan for up to 5 minutes.
+**Impact:** Directly on the revenue path. A user who just paid hits a Pro-gated endpoint, lands on a different warm instance than the webhook used, and gets `403 plan_upgrade_required` — at the exact moment they're most excited and most attentive. Worst possible first impression as a paying customer. Currently dormant (no live payments), but becomes real the moment Razorpay goes live.
+**Fix options:** (1) Move plan cache to Redis (already in the stack for rate limiting) so invalidation is global across instances — cleanest. (2) On 403 plan_upgrade_required, do an uncached DB re-check before returning — cheap safety net regardless. (3) Reduce TTL — narrows but doesn't close the window. Option 1 + 2 combined is the robust answer.
+**Verification note:** Confirmed live during testing — flipped chin@free.com to pro via service role while server was running; gated endpoint kept returning 403 with stale cached plan until process restart.
 
 ---
 
