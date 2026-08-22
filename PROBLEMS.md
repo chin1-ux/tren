@@ -1,6 +1,8 @@
 # TRENDROP — COMPLETE PROBLEM INVENTORY
-**Date:** Aug 18, 2026 · **Basis:** deep codebase audit against repo at HEAD (`cd9d082f`).
-Every claim has a file:line citation. Every fix has proof it's addressed.
+**Date:** Aug 22, 2026 · **Basis:** deep codebase audit against repo at HEAD (`df7bbfe8`, local main) + live Supabase prod + live Vercel prod, reconciled from the Aug 18 baseline (`cd9d082f`).
+Every claim has a file:line citation. Every status change made in this pass has fresh same-day evidence (code inspection, REST queries against prod DB, or live HTTP probes).
+
+**Deployment context (Aug 22):** Production alias `trendrop-black.vercel.app` serves CLI deploy `dpl_5K3VwHXfAJYGaqS7VdRJpUCGfS6g` (created 2026-08-22 14:17:09 +0530, no git metadata — deployed via Vercel CLI as ch1n-may). Build embedded last commit `d46c5317` (= origin/main). Local main is `df7bbfe8`, ~20 commits ahead — **everything merged after 14:17 IST Aug 22 is NOT yet live on prod.** One uncommitted working-tree change exists: `backend/instagram_scraper_browser.py` (P-SCRAPER-2 `creator_baselines` join) — implemented but not committed or deployed.
 
 ---
 
@@ -101,15 +103,9 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** Inconsistent data coverage. Some runs get all 15 hashtags, others get 5-8. The data is not equally fresh across all hashtag groups.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan mentions scraper tightening (item 3.6) but doesn't address the timeout architecture.
 
-#### P-PIPE-6: External trend discovery is dead code
-**File:** `backend/external_trend_discovery.py` — 642 lines, never imported by `trend_engine.py`
-**Problem:** The `ExternalTrendDiscovery` class fetches from Spotify/YouTube, but:
-1. Spotify's `/v1/charts/{region}/viral/weekly` endpoint **does not exist** in Spotify's public API (line 99)
-2. The module is **never imported or called** from trend_engine.py
-3. The `run_discovery_cycle()` method returns candidates but nothing consumes them
-
-**Impact:** 642 lines of dead code. The "cross-platform audio detection" claim is false. YouTube integration exists but is basic string matching. Spotify is broken.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't mention external_trend_discovery.py at all.
+#### P-PIPE-6: External trend discovery is dead code [RESOLVED — code deleted]
+**Re-verified Aug 22, 2026:** `backend/external_trend_discovery.py` was never committed to git (absent from `git log --all`) and is now absent from disk. Its sibling `backend/external_trend_pipeline.py` was explicitly deleted by commit `d63d2ab0`. Grep confirms zero remaining production imports of either module.
+**Impact resolved:** The 642-line dead code path is gone rather than fixed — the honest resolution given Spotify's endpoint never existed and YouTube matching was crude. "Cross-platform" claims were also removed from frontend marketing copy (see P-FUND-2).
 
 #### P-PIPE-7: No ad/sponsored post detection
 **File:** Absent from `backend/instagram_scraper_browser.py`
@@ -117,11 +113,9 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** A sponsored post with 10M views might be classified as a "mega trend" when it's actually paid placement, not organic virality.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-#### P-PIPE-8: Indian creator detection uses unreliable signals
-**File:** `backend/external_trend_discovery.py:475-481`
-**Problem:** Detects Indian creators by checking username for city names ("mumbai", "delhi", "bangalore", etc.).
-**Impact:** Most Indian creators don't have city names in their handles. This misses the majority of Indian creators.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+#### P-PIPE-8: Indian creator detection uses unreliable signals [RESOLVED — code deleted]
+**Re-verified Aug 22, 2026:** The city-name heuristic lived in `backend/external_trend_discovery.py:475-481`, which is now absent from disk (see P-PIPE-6). No production code uses the unreliable detection path anymore.
+**Impact resolved:** Misleading signal removed with the module that contained it. (If creator-nationality classification is ever needed again, build it on follower-base/language signals instead.)
 
 ### 1.4 Pipeline accuracy verdict
 
@@ -155,32 +149,30 @@ estimated_count = int(base_count * growth_multiplier)
 
 ## 2. BACKEND API PROBLEMS
 
-### P-API-1: ~25 endpoints return simulated/fake data
+### P-API-1: ~25 endpoints return simulated/fake data [PARTIAL FIX — 13 → 4 remaining]
 **File:** `backend/api.py` — various lines
-**Problem:** These endpoints return fabricated data, not real Instagram API data:
-- Video analysis (4): `analyze-video-metadata`, `analyze-visual`, `predict-virality`, `improvements` — all return `is_simulated: True`
-- Instagram Graph API (3): `user-profile`, `user-insights`, `user-media`
-- YouTube (2): `trending`, `trending-music`
-- Realtime trends (2): `realtime/trends`, `realtime/cross-platform`
-- Caption stub (1): `trends/{trend_id}/caption`
-**Impact:** Users see fake data presented as real. The "is_simulated" flag is honest but the UX still shows fabricated charts and scores.
-**Does IMPLEMENTATION_PLAN.md fix this?** Partially. Item 3.2 fixes the caption stub. Items 3.3 adds real endpoints for news + audio. But the video analysis and Instagram Graph API stubs remain unfixed.
+**Re-verified Aug 22, 2026:** Commit `cc277ee5` deleted the 7 simulated Phase-4 endpoints (Instagram Graph API `user-profile`/`user-insights`/`user-media`, YouTube `trending`/`trending-music`, realtime `realtime/trends`/`realtime/cross-platform`). No routes registered for those paths anymore (route scan: 143 decorators, zero matches).
+**Still simulated (`is_simulated: True` in handler body):**
+- Video analysis (4): `analyze-video-metadata`, `analyze-visual`, `predict-virality`, `improvements` (api.py ~L6179-6360)
+- Plus simulated responses in `backend/creator_tools.py`
+**Problem (remaining):** Users see fake data presented as real. The "is_simulated" flag is honest but the UX still shows fabricated charts and scores.
+**Does IMPLEMENTATION_PLAN.md fix this?** Partially. Item 3.2 fixes the caption stub. Items 3.3 adds real endpoints for news + audio. But the video analysis stubs remain unfixed.
 
-### P-API-2: Duplicate route dead code — maintenance/regression burden, NO active revenue leak [REVISED — LIVE TEST + CODE REVIEW]
-**File:** `backend/api.py` — 10 original "pairs" resolved to 5 true duplicates + 5 legitimate REST pairs
-**Problem:** 5 route paths have the same method registered twice (dead code). The other 5 "pairs" are GET/POST on the same path (standard REST, not duplicates).
-**Live test + code review (Aug 19):** All 5 true duplicates tested with free-tier token:
-- `/api/algorithm/*` (3 endpoints): 200 for free tier — **NOT a bug**. Gated version at L1799 IS served (first-route wins), but `algorithm_insights` is in free-tier allowed list (`plan_enforcement.py:335`). Intentional policy.
-- `/api/health`: 200 unauthenticated — **correct**. Both versions are unauthenticated health checks.
-- `/api/india/cultural-events`: 200 for free tier and anonymous — **active revenue leak** but caused by missing `require_feature("india_features")` gate, NOT by route shadowing. Filed under P-API-4.
-**Diff results:** Algorithm endpoints have identical bodies (2nd just missing gates). Health and cultural-events have different implementations — deletion of 2nd copy requires decision on which to keep.
-**Impact:** Dead code adds ~1,500 lines to an already 7,122-line file. Maintenance burden. Latent regression risk if file is reordered. No active revenue leakage from shadowing itself.
-**Fix:** Delete 3 safe algorithm duplicates (L4751-4852). Decide on health + cultural-events implementations. See shared-infra rule #3 — needs explicit approval.
+### P-API-2: Duplicate route dead code — maintenance/regression burden, NO active revenue leak [REVISED — LIVE TEST + CODE REVIEW] [RE-VERIFIED Aug 22: down to 2 duplicates]
+**File:** `backend/api.py` — 10 original "pairs" → 5 (Aug 19) → **2 remaining**
+**Fresh route scan Aug 22, 2026:** 143 decorators, 141 unique method+path combos. Exactly **2 duplicate combos remain**, both GET:
+- `GET /api/algorithm/posting-times` — registered at L1828 and L4751
+- `GET /api/algorithm/hashtag-strategy` — registered at L1851 and L4772
+
+The `/api/health` and `/api/india/cultural-events` duplicate pairs flagged on Aug 19 no longer exist — those were cleaned up in intervening commits.
+**Problem:** 2 route paths have the same method registered twice. FastAPI serves the FIRST registration (L1828/L1851); the copies at L4751/L4772 are unreachable dead code (~100 lines).
+**Impact:** Dead code in an already 6,148-line file. Maintenance burden. Latent regression risk if file is reordered. No active revenue leakage from shadowing itself.
+**Fix:** Delete the second copies at L4751-4790ish (verify identical bodies first, per the Aug 19 diff which found them identical). See shared-infra rule #3 — needs explicit approval.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-API-3: api.py is 7,088 lines — unmaintainable
+### P-API-3: api.py is 7,088 lines — unmaintainable [IMPROVED but still extreme]
 **File:** `backend/api.py`
-**Problem:** One file contains ~155 route decorators. This is the largest single-file Python API I've ever audited. No modular routing, no blueprints, no route separation.
+**Re-verified Aug 22, 2026:** Now **6,148 lines with 143 route decorators** (was 7,088 lines / ~155 decorators). Net −940 lines from endpoint removals (simulated Phase-4 set, old marketplace deal system) — but still one monolithic file. No modular routing, no blueprints, no route separation.
 **Impact:** Every change risks breaking something else. Merge conflicts are guaranteed. Onboarding new developers is impossible.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't mention api.py restructuring.
 
@@ -412,12 +404,8 @@ POST /api/generate-hooks (free-tier token) → 403 plan_upgrade_required  [requi
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 **Fix options:** (a) Add Razorpay checkout to pricing page — blocked on P-PAY-1 (no Razorpay keys). (b) Redirect PlanGate to an in-app upgrade modal with "Contact to upgrade" CTA — works without Razorpay. (c) Redirect to `/login` with upgrade context — minimal, loses conversion opportunity.
 
-### P-PAY-3: `usage_logs` has 0 rows — quota logging is broken
-**File:** Supabase `usage_logs` table
-**Problem:** The `usage_logs` table exists but has 0 rows. Quota logging is not happening.
-**Impact:** `require_quota()` checks in plan_enforcement.py read from a table that's always empty. Quota enforcement is effectively disabled — users never hit quota limits because the counter never increments.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
-**Recommendation (known-gap, not launch-blocking):** Rate limiter (30/min, gated per P-API-4) is the real floor. Quota logging is a second layer that's not wired. With 0 live users (pre-launch, only founder test accounts) and no revenue live, this is unlikely to be abused. Document as known-gap, don't block launch. Do NOT fake-fix with a patch that just inserts rows without real enforcement logic — that creates false confidence. Revisit post-launch once there's real usage to size the actual risk.
+### P-PAY-3: `usage_logs` has 0 rows — quota logging is broken [SUPERSEDED — see P-DB-1/P-PAY-6]
+**Re-verified Aug 22, 2026 (live REST):** `usage_logs` is no longer empty — a row landed today at 15:48 UTC for `algorithm_insights` on the free plan. Separately, enforcement has moved to the credits ledger (`credit_transactions`, 12 rows with real user traffic today). The Aug 18 claim ("quota logging never happens") is stale; the mechanism it described was replaced wholesale by the credits system.
 
 ### P-PAY-4: `verify-phone` page — FALSE POSITIVE [UPDATED — NOT BROKEN]
 **File:** `frontend/src/routes/verify-phone.tsx` — page EXISTS, was never deleted
@@ -441,15 +429,10 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Impact:** The app feels like three different products stitched together. No cohesive brand experience.
 **Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't address frontend design.
 
-### P-DESIGN-2: Typography conflict — three fonts declared for body
-**File:** `frontend/src/styles.css:193,312`
-**Problem:**
-- Line 193: `html, body { font-family: "Inter", sans-serif; }`
-- Line 312: `body { font-family: "Bricolage Grotesque", sans-serif !important; }`
-- Headings forced to fixed sizes with `!important` (lines 301-310)
-
-**Impact:** Components can never override heading sizes. Bricolage Grotesque is a quirky display font that doesn't work for body text. The `!important` overrides break component-level customization.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-DESIGN-2: Typography conflict — three fonts declared for body [FIXED — verified Aug 22, 2026]
+**File:** `frontend/src/styles.css`
+**Fix verified:** "Inter" is gone entirely from the codebase. `--font-sans` and `--font-display` are now both `"Bricolage Grotesque", system-ui, sans-serif` (styles.css:51-52); body and all headings consume `font-family: var(--font-sans)` (styles.css:123, 330-335). JetBrains Mono is scoped to `.mono`/code contexts only (365, 446-489). The old competing `body { font-family: ... !important }` override no longer exists; heading sizes at styles.css:337-356 are set WITHOUT `!important`, so components can override them.
+**Impact resolved:** Single font source of truth via CSS custom properties; component-level overrides possible.
 
 ### P-DESIGN-3: Color drift — indigo appears everywhere, brand is coral
 **Files:** `frontend/src/routes/login.tsx`, `frontend/src/routes/settings.tsx`, `frontend/src/routes/ideas.tsx`
@@ -473,11 +456,10 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Impact:** Poor perceived performance. Users don't know if the app is broken or just loading.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-DESIGN-6: Animation overload — seizure-inducing neon glow
-**File:** `frontend/src/styles.css` — neonGlowDark animation
-**Problem:** The `neonGlowDark` animation cycles between cyan and purple every 3 seconds. Combined with `pulse-urgent`, `float-card`, `waveform`, `shimmer`, and `drop-fall`, the app has 10+ concurrent CSS animations per page.
-**Impact:** Distracting, battery-draining, and potentially seizure-inducing for photosensitive users. No `prefers-reduced-motion` support.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-DESIGN-6: Animation overload — seizure-inducing neon glow [FIXED — reduced-motion support added]
+**File:** `frontend/src/styles.css`
+**Fix verified Aug 22, 2026:** Global `prefers-reduced-motion: reduce` block added at styles.css:609-618 — kills every animation/transition (`animation-duration: 0.01ms !important; animation-iteration-count: 1 !important; transition-duration: 0.01ms !important; scroll-behavior: auto`) and neutralizes card hover transforms. The photosensitivity/battery concern for motion-sensitive users is addressed.
+**Remaining (minor):** The neon glow animations themselves still exist as opt-in utilities (`card-glow-dark`/`card-glow-light`, styles.css:309-315) — but they're now class-applied rather than ambient, and disabled entirely under reduced motion.
 
 ### P-DESIGN-7: Near-zero accessibility
 **Files:** All frontend routes
@@ -492,11 +474,10 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Impact:** The app is unusable for screen reader users. Below WCAG 2.1 AA compliance.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-DESIGN-8: Glass morphism won't work on low-end Android
-**File:** `frontend/src/styles.css` — `.glass-card` class
-**Problem:** `backdrop-filter: blur(24px)` causes frame drops on devices with <4GB RAM. India's target market is predominantly low-end Android.
-**Impact:** The app's signature visual effect causes performance issues on the target audience's devices.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-DESIGN-8: Glass morphism won't work on low-end Android [PARTIAL FIX — fallback added]
+**File:** `frontend/src/styles.css` — `.glass-card` class + `@supports` fallback
+**Fix verified Aug 22, 2026:** A `@supports not (backdrop-filter: blur(1px))` block was added at styles.css:620-625 — devices with NO backdrop-filter support get a solid `rgba(21,21,28,0.95)` background instead of broken/absent blur.
+**Remaining:** Devices that SUPPORT backdrop-filter but lack the GPU headroom (<4GB RAM that renders blur slowly) still take the frame-rate hit — the worst-case hardware is handled, the middle band is not. Options like reducing blur radius or media-query-gating by device memory remain unimplemented.
 
 ### P-DESIGN-9: Settings page saves to localStorage only — no server sync
 **File:** `frontend/src/routes/settings.tsx`
@@ -504,59 +485,48 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Impact:** Settings are lost when user switches devices. No server-side preferences. The settings page is effectively a demo.
 **Does IMPLEMENTATION_PLAN.md fix this?** Yes. Item 3.4 (Personalization) addresses this with `user_preferences` table and server sync.
 
-### P-DESIGN-10: Inconsistent input styles across pages
-**Files:** `frontend/src/styles.css` (`.glass-input`, `.input`), `frontend/src/routes/login.tsx`, `frontend/src/routes/ideas.tsx`
-**Problem:** Three different input styles:
-1. `.glass-input` class (dark mode glass)
-2. `.input` class (light mode solid)
-3. Inline Tailwind `bg-surface border border-border rounded-xl`
+### P-DESIGN-10: Inconsistent input styles across pages [FIXED — verified Aug 22, 2026]
+**Files:** `frontend/src/styles.css` (`.input` recipe)
+**Fix verified:** The `.glass-input` class no longer exists anywhere in `frontend/src` (grep: zero matches). Inputs are unified under a single `.input` recipe at styles.css:497-514 which ALSO targets shadcn-style Tailwind inputs via attribute selectors (`input[class*="flex h-9 w-full rounded-md border"]`, textarea equivalent) — so both custom and library inputs get identical treatment: same surface/border/radius/padding/typography, coral focus ring (`border-color: var(--primary)` + `box-shadow: rgba(255,77,61,0.12)`) consistent with the brand.
+**Impact resolved:** One form design language across pages.
 
-**Impact:** Form elements look different on every page. No consistent form design language.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
-
-### P-DATA-1: Targeted trends localStorage/API divergence — data-integrity bug
-**Files:** `frontend/src/components/TrendCard.tsx:263-287`, `frontend/src/components/DanceTrendModal.tsx:25-58`, `frontend/src/lib/api.ts:1641`
-**Problem:** Targeted trends are stored in TWO places that can disagree:
-- **localStorage** (client-only): `TrendCard.tsx` and `DanceTrendModal.tsx` toggle `localStorage.getItem("targeted_trends")`
-- **API + DB** (server): `GET /api/trends/targeted` reads from `trend_actions` table in Supabase
-
-The target/untarget toggle in TrendCard writes to localStorage but also calls `POST /api/trends/{trend_id}/target` (which writes to DB). However, the GET endpoint reads from DB, not localStorage. If the POST call fails (network error, auth issue), localStorage and DB diverge silently.
-**Impact:** User targets a trend → localStorage says targeted, DB says not targeted → `GET /api/trends/targeted` returns empty list → workspace shows no targeted trends.反之亦然.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. Separate from auth question. Needs a single source of truth (preferably DB-backed).
+### P-DATA-1: Targeted trends localStorage/API divergence — data-integrity bug [FIXED — verified Aug 22, 2026]
+**Files:** `frontend/src/components/TrendCard.tsx`, `frontend/src/lib/api.ts`
+**Fix verified:** Commit `5e7c92c7` removed all client-side `localStorage.getItem("targeted_trends")` / setItem logic from TrendCard.tsx and DanceTrendModal.tsx (grep: zero matches). The single source of truth is now the server: `frontend/src/lib/api.ts:1646` reads `GET /api/trends/targeted` straight from the API with no local mirror. DB divergence is no longer possible.
+**Original problem (for the record):** Toggle state lived in TWO places (localStorage + `trend_actions` table). A failed POST silently diverged localStorage from DB, so the workspace's targeted list could disagree with what the user saw toggled.
 
 ---
 
 ## 6. DATABASE & DATA QUALITY PROBLEMS
 
-### P-DB-1: `usage_logs` table has 0 rows — quota enforcement disabled
+### P-DB-1: `usage_logs` table has 0 rows — quota enforcement disabled [SUPERSEDED by credits system]
 **File:** Supabase `usage_logs` table
-**Problem:** As noted in P-PAY-3, quota logging never happens. `require_quota()` always passes because the table is always empty.
-**Impact:** Free users can use premium features无限次 without hitting limits.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Re-verified Aug 22, 2026 (live REST):** Table exists and IS being written — a fresh row landed today at 15:48 UTC (`feature_used=algorithm_insights`, `plan_at_time=free`). Total row count is tiny (1), so volume is low, but the "never logs" claim from Aug 18 is no longer true.
+**Bigger change:** Quota enforcement has moved to the credits model (P-PAY-6) — `require_credits()` checks/deducts via the `credit_transactions` ledger (12 rows, latest 15:30 UTC today, real user traffic). `require_quota()` is referenced 0 times in api.py. The original failure mode ("free users unlimited premium because table empty") is closed by a different mechanism than the one originally proposed.
+**Impact:** Resolved in practice via credits; keep for audit trail.
 
-### P-DB-2: `events` table doesn't exist — event detection impossible
+### P-DB-2: `events` table doesn't exist — event detection impossible [STILL OPEN — re-verified live Aug 22]
 **File:** Supabase — table not found
-**Problem:** The `events` table is referenced in `event_monitor.py` but was never created.
+**Live check Aug 22, 2026:** `GET /rest/v1/events` → `PGRST205 Could not find the table 'public.events' in the schema cache`. Still missing.
 **Impact:** Event detection (Independence Day, Diwali, IPL, etc.) is completely non-functional.
 **Does IMPLEMENTATION_PLAN.md fix this?** Yes. Item 3.1 creates the events table and seeds real data.
 
-### P-DB-3: `user_preferences` table doesn't exist — no personalization
+### P-DB-3: `user_preferences` table doesn't exist — no personalization [STILL OPEN — re-verified live Aug 22]
 **File:** Supabase — table not found
-**Problem:** The settings page saves to localStorage. No server-side user preferences exist.
+**Live check Aug 22, 2026:** `GET /rest/v1/user_preferences` → `PGRST205`. Still missing.
 **Impact:** No feed personalization. All users see the same trends. Settings lost on device switch.
 **Does IMPLEMENTATION_PLAN.md fix this?** Yes. Item 3.4 creates the `user_preferences` table and syncs settings.
 
-### P-DB-4: `api_keys` table doesn't exist — no API revenue
+### P-DB-4: `api_keys` table doesn't exist — no API revenue [STILL OPEN — re-verified live Aug 22]
 **File:** Supabase — table not found
-**Problem:** The API key validation system references `api_keys` but the table doesn't exist.
+**Live check Aug 22, 2026:** `GET /rest/v1/api_keys` → `PGRST205`. Still missing.
 **Impact:** API access control is non-functional. No way to monetize API access.
 **Does IMPLEMENTATION_PLAN.md fix this?** Not in current build order. Mentioned as "Phase 2" item.
 
-### P-DB-5: `brand_deals` table has 0 rows — marketplace is empty
+### P-DB-5: `brand_deals` table has 0 rows — marketplace is empty [STILL OPEN — re-verified live Aug 22]
 **File:** Supabase `brand_deals` table
-**Problem:** The marketplace endpoints reference `brand_deals` but the table is empty.
+**Live check Aug 22, 2026:** Table exists, count = 0. Unchanged.
 **Impact:** Marketplace feature shows nothing. No brand partnerships.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
 
 ### P-DB-6: Feed empty since Aug 18 — scraper bulk-upsert PG-21000 killed every save batch [FIXED + VERIFIED]
 **Files:** `backend/instagram_scraper_browser.py` (root cause), `.github/workflows/scraper.yml` (masking), `backend/verify_scraper_run.py` (detection)
@@ -578,13 +548,13 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Downstream chain verified end-to-end (same day):** free tier correctly sees 0 items (<24h `data_delay_hours` gate), Pro user sees all 3 rising items via live `/api/trends`; `/api/trends/emerging` correctly 403s free users (`plan_upgrade_required`); trend→reels join returns owners + view counts. Note: Supabase signup creates no `users` row until onboarding — plan lookups default such users to free (test-artifact gotcha, not a product bug).
 **Status:** FIXED + VERIFIED (Aug 22 2026). Residual watch item: cadence still every-2-days (`0 2 * * */2`); daily fits the 2,000 min/mo Actions budget if desired (measured 911 min incl. incident era) — decision deliberately decoupled from this fix.
 
-### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops [FIXED]
+### P-DB-7: `user_performance` (and 5 related tables) never migrated — tracker silently no-ops [FIXED → STILL BLOCKED: migration SQL never executed]
 **Files:** `backend/user_performance_tracker.py`, `backend/add_user_performance_tables.py`, `backend/api.py:6720-6792`
 **Problem:** The migration script `add_user_performance_tables.py` only prints SQL for manual execution (L130: "Please run these SQL statements in Supabase SQL Editor") — it was never run. All 6 planned tables are missing: `user_performance`, `user_insights`, `user_media_performance`, `realtime_trends`, `trending_hashtags`, `trending_audio`. The `UserPerformanceTracker` class is live code (imported at `api.py:296`, used by 4 endpoints), but every DB operation hits a nonexistent table and returns PGRST205 errors. The tracker's exception handler at `user_performance_tracker.py:123` catches these and returns `{'error': str(e)}`, which the API passes through — so writes appear to succeed but nothing lands.
 **Impact:** The entire user performance feature (store, read, growth rate, top media) is non-functional. The 4 API endpoints at L6720-6792 are dead code from a data perspective.
 **Also flags:** Exception handlers that return success-like responses on DB failure are a bug class — worth auditing elsewhere. A handler that catches all exceptions and returns a dict without re-raising means callers can't distinguish success from failure.
 **Fix applied:** Created `backend/migrate_user_performance_tables.sql` with `CREATE TABLE IF NOT EXISTS` for the 3 core tables: `user_performance`, `user_insights`, `user_media_performance`. Schema derived from tracker code. User must run this SQL in Supabase SQL Editor. Tables 4-6 (`realtime_trends`, `trending_hashtags`, `trending_audio`) are not used by any code — omitted.
-**UNVERIFIED:** Migration SQL written but not yet executed in Supabase. P-AUTH-7 GET-side IDOR fix remains blocked until tables exist.
+**UNVERIFIED → CONFIRMED STILL MISSING (live REST check Aug 22, 2026):** `user_performance`, `user_insights`, `user_media_performance` all return `PGRST205 Could not find the table`. `backend/migrate_user_performance_tables.sql` exists on disk but has never been executed in Supabase. The [FIXED] tag this entry carried was wrong — writing SQL is not running it. P-AUTH-7 GET-side IDOR fix remains blocked until the tables exist. **User action required: run the SQL file in Supabase SQL Editor.**
 
 ### P-DB-8: Supabase Python client silently truncates at 1000 rows — systemic data visibility risk [PARTIAL FIX]
 **Files:** Any code using `supabase-py` `.table().select().execute()` without explicit `.limit()` or pagination.
@@ -605,7 +575,8 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 6. `dynamic_hashtag_discovery.py:209` (second call site) — **MONITORED**. Has `.limit(100)` already, safe.
 **Remaining risk:** Five unbounded query sites in production code are safe today but landmines for future volume growth. No immediate fix needed — monitored.
 
-### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED]
+### P-METHOD-1: Trend dedup guard only checks emerging/rising — allows re-detection after status transition [FIXED — re-verified Aug 22]
+**Fix still in place:** STATUS_PRIORITY-based never-downgrade merge guard present at `backend/trend_engine.py:756-799` ("Status uses never-downgrade rule (rising > emerging > peaked > expired)").
 **Files:** `backend/trend_engine.py:756-814` (dedup guard — FIXED), `backend/external_trend_pipeline.py:92` (dedup guard — FIXED), `backend/trend_refresher.py` (status transitions)
 **Problem:** The dedup guard at `trend_engine.py:762` only checked trends with status `emerging` or `rising`. Once a trend transitioned to `peaked` or `expired` via `trend_refresher.py`, the guard no longer blocked re-detection. The external pipeline at `external_trend_pipeline.py:92` had zero dedup. No unique DB constraint on `audio_id` in the `trends` table.
 **Impact:** 53% of trend titles were duplicated. 1,013 total rows, 163 duplicate groups, 692 excess rows. Business metrics (trend count, velocity averages) inflated ~2.7x since Aug 7. Ongoing since day one.
@@ -659,7 +630,8 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Audit note (Aug 2026):** Instagram's Graph API (OAuth path, `instagram_data_fetcher.py:98,171`) does request `shares` and `saves` fields — so the data exists in Instagram's API surface. The question is whether the browser-scraped GraphQL response carries the same fields. Not yet confirmed.
 **Action required:** Manual raw-response dump during a live scrape. Check for `share_count`, `reshare_count`, `share_info`, `edge_media_to_share` in response keys. If present → extract and populate. If absent → reclassify as platform limitation alongside P-METHOD-6.
 
-### P-SCRAPER-2: owner_follower_count = 0 for 100% of rows — follower normalization has never worked [HIGH — confirmed Aug 2026]
+### P-SCRAPER-2: owner_follower_count = 0 for 100% of rows — follower normalization has never worked [HIGH — confirmed Aug 2026] [CODE FIX WRITTEN, NOT COMMITTED/DEPLOYED]
+**Status Aug 22, 2026:** An uncommitted working-tree change in `backend/instagram_scraper_browser.py` implements the `creator_baselines` join so new scrapes populate real follower counts. It is NOT committed and NOT deployed (prod build predates it). Until committed + deployed + the backfill re-run, the 4%-backfilled / 96%-fallback state stands.
 **Files:** `instagram_scraper_browser.py:1024,1239,1250-1252` (velocity formula), `dynamic_hashtag_discovery.py:137`, `early_signal_detector.py:191`
 **Problem:** `owner_follower_count` is 0 for every reel in the database — not 95%, not "large accounts," 100%. A query for `owner_follower_count > 0` across the entire `reels` table returns 0 rows. The velocity formula's follower-normalization half (`log(followers + 10)`) has never produced a differentiated result. A 500-follower creator and a 5M-follower creator posting identical engagement get identical velocity scores.
 **Root cause:** The hashtag media endpoint (`/api/v1/tags/web_info/`) does not include `follower_count` in its response schema. The key is entirely absent from Instagram's response — not null, not 0, absent. The parsing at line 1024 (`owner.get("follower_count") or 0`) is correct; there is nothing to get. This is the hashtag scraping code path, not the profile endpoint.
@@ -725,19 +697,15 @@ The target/untarget toggle in TrendCard writes to localStorage but also calls `P
 **Post-reset target (Sept 1):** Revert to daily scraping (or sustainable near-daily frequency). Current 2-day cadence is temporary. Long-term frequency needs re-evaluation before Sept 14 launch — daily scraping at ~90 min/day may still exceed free tier on its own. Decision deferred.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
-### P-WORK-6: `check_llm_classification_history.py` missing — nightly workflow shows failed when it isn't
-**File:** `.github/workflows/nightly-llm-classification.yml` (references `backend/check_llm_classification_history.py`)
-**Problem:** After the `run-llm-batch` step succeeds, the verification step `python backend/check_llm_classification_history.py` fails with exit code 2 (file not found). GitHub marks the entire workflow run as "failed" even though classification completed correctly. This produces false-alarm red badges in the Actions tab — the same signal surface we rely on for pipeline health.
-**Severity:** Low (no data impact, just noise). But "workflow shows failed when it isn't" erodes trust in Actions signal.
-**Fix:** Either create the missing verification script or remove the step from the workflow YAML.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-WORK-6: `check_llm_classification_history.py` missing — nightly workflow shows failed when it isn't [FIXED]
+**Re-verified Aug 22, 2026:** The fix took the "remove the step" option: no workflow file under `.github/workflows/` references `check_llm_classification_history.py` anymore (grep: zero matches). Nightly runs no longer fail on the phantom verification step.
+**Residual:** `backend/check_llm_classification_history.py` still exists as an untracked local file. Harmless (nothing references it), but delete or commit it to keep the tree clean.
 
-### P-WORK-7: DB migration step fails silently in CI — pooler connection broken [MEDIUM]
-**File:** `.github/workflows/scraper.yml:79-84`, `backend/migrate_creator_growth.py`
-**Problem:** The "Run DB migrations" step in `scraper.yml` has `continue-on-error: true`. On Aug 20, it failed with: direct connection `Network is unreachable` (IPv6-only), pooler connections `ENOTFOUND tenant/user postgres.gxxpvstrvphwhlqbvymv` (username format mismatch or pooler unavailable on Free plan). The step failed but the pipeline continued — no schema drift today because all 3 tables (`creator_posts`, `creator_niche_profiles`, `instagram_tokens`) already exist (confirmed via REST API). However, `continue-on-error: true` means any NEW tables added to `migrate_creator_growth.py` will fail silently and never be created in prod.
-**Impact:** Existing tables are safe (all `CREATE TABLE IF NOT EXISTS`). But the migration path is broken — any future schema change added to this script won't apply. The failure is invisible in Actions logs unless you click into the step.
-**Fix:** Either (1) upgrade Supabase to Pro to fix the pooler connection (P-WORK-3), or (2) remove `continue-on-error: true` so migration failures are visible, or (3) switch to Supabase CLI migrations which don't need direct DB access.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
+### P-WORK-7: DB migration step fails silently in CI — pooler connection broken [PARTIAL FIX — Aug 22]
+**File:** `.github/workflows/scraper.yml`
+**Fix verified:** Commit `69b8fd65` removed `continue-on-error: true` from the **DB migration step**, so schema-migration failures now fail the workflow loudly.
+**Remaining:** `continue-on-error: true` is still present at scraper.yml lines 67 and 150 for two other steps (non-migration). Those steps can still fail silently — confirm whether that's intentional soft-fail behavior or an oversight.
+**Original problem (for the record):** Migration step failed with IPv6-unreachable / pooler ENOTFOUND errors but the pipeline continued, meaning future new tables in `migrate_creator_growth.py` would never reach prod silently.
 
 ### P-WORK-8: `/api/early-detection/predict/{id}` returns 500 instead of 404 for nonexistent trend IDs [LOW]
 **Found:** Aug 22, 2026 during P-AUTH-5 gating work (a3106a04 evidence run).
@@ -836,7 +804,7 @@ These are claims made in the codebase or marketing that are not supported by the
 | P-DB-4: api_keys missing | LOW | API revenue blocked |
 | P-DB-5: brand_deals empty | LOW | Marketplace empty |
 | P-DB-6: Scraper bulk-upsert PG-21000 killed every save batch | CRITICAL | Feed empty Aug 18-22; root cause found, fix verified in prod (run `32591223200`) | **FIXED** |
-| P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | **FIXED** |
+| P-DB-7: user_performance tables never migrated | HIGH | Performance feature dead code | SQL written but NOT executed — still blocked (live-verified Aug 22) |
 | P-DB-8: Supabase client truncates at 1000 rows | HIGH | Silent data visibility risk |
 | P-METHOD-1: Trend dedup guard only checks emerging/rising | HIGH | 53% duplicate trends | **FIXED** |
 | P-METHOD-1b: title+artist duplicates | LOW | 6 extra rows | **FIXED** |
@@ -872,8 +840,9 @@ These are claims made in the codebase or marketing that are not supported by the
 **Problem:** Creator and Agency tiers show `data_delay_hours=0`, implying real-time or zero-delay access. The pipeline is batch-based (scrapers run 1-2x/day via GitHub Actions cron). If the scraper last ran 12 hours ago, all users — including paid ones — see 12-hour-old data. The "0h" number is technically accurate (no *added* delay beyond what the scraper already has) but functionally misleading.
 **Impact:** If this claim appears on the pricing page or in an investor pitch, anyone who checks the pipeline will see batch scraping, not real-time. That's a diligence gap.
 **Fix:** Word as "priority access" or "fastest tier" rather than "0h" or "real-time." The honest framing: free users get data 24h after scrape; paid users get it immediately after scrape. The difference is real (24h vs. whatever the scraper cycle is), but calling it "0h" overpromises.
+**Status Aug 22, 2026 — largely resolved:** All fabricated claims are gone from frontend marketing copy: "15,000+", "cross-platform", "before they peak", and the standalone "0h delay" line no longer appear (grep-verified). The one remaining line, "Real-time trend data (no delay)" at `frontend/src/routes/pricing.tsx:70`, now matches actual backend config: live `subscription_tiers` shows pro with `data_delay_hours=0` and free with `data_delay_hours=24` — the delay differential is genuinely enforced in code (plan_enforcement.py + api.py:1184). Residual nit: "real-time" still overstates a batch pipeline; suggest rewording to "Immediate access after each scan" when copy is next touched.
 
-### P-FUND-3: Per-seat enforcement for Agency plan is schema-only — zero logic
+### P-FUND-3: Per-seat enforcement for Agency plan is schema-only — zero logic [MOOT — Agency tier eliminated Aug 2026]
 **Files:** `backend/migrate_phase1_monetization.py:46` (`max_seats=5`), no enforcement code anywhere (grep for `per.seat`, `seat_count`, `team_member` = 0 matches)
 **Problem:** The Agency plan has `max_seats=5` in the subscription tiers schema, but there is no seat counting, invitation flow, named user management, or enforcement logic. One Agency login = unlimited sharing. This is the standard SaaS fundraising question: "how do you prevent one Agency account from being an informal reseller?"
 **Impact:** Investor will ask this. The answer right now is "we don't."
@@ -977,18 +946,21 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 
 ---
 
-### P-PAY-5: Plan rename needed — "Agency" tier signals exploitation [MEDIUM]
-**Files:** `backend/plan_enforcement.py:71-75`, `backend/database_setup.py:204-211`, `frontend/src/components/PlanGate.tsx`, `frontend/src/routes/pricing.tsx`
-**Problem:** The "Agency" tier name signals the exact thing Trendrop claims to eliminate — agency exploitation of creators. The plan structure should position Trendrop as the anti-agency: direct brand-creator connection. "Agency" as a tier name contradicts this positioning.
-**Impact:** Brand confusion. Users who hate agencies see an "Agency" plan and question the platform's values. Investor messaging inconsistency.
-**Fix:** Rename: Agency → Brand (₹4,999/mo, for brands posting deals). Creator → Pro (₹999/mo). Keep Free as Free. Enterprise stays Enterprise. Update all references: DB tier names, frontend labels, plan enforcement, pricing page, onboarding flow.
+### P-PAY-5: Plan rename needed — "Agency" tier signals exploitation [RESOLVED — Agency tier eliminated]
+**Re-verified Aug 22, 2026 (live `subscription_tiers` REST query):** Only two tiers exist in prod:
+- **free** — ₹0/mo, 24h data delay, 100 credits/mo, no exports, no API
+- **pro** — ₹499/mo, 0h data delay, 1000 credits/mo, exports + API enabled
 
-### P-PAY-6: Credit system needed — usage-based pricing for trend detection + AI [LOW pre-launch / HIGH once payments live and usage data exists]
-**Pre-launch context (Aug 2026):** 0 users, no usage data to calibrate credit costs. Revenue optimization is Phase 3 per ROADMAP.md (Jan-Mar 2027). Flat-rate pricing is fine for beta.
-**Files:** No credit system exists. Current pricing is flat-rate subscription only.
-**Problem:** Flat-rate pricing doesn't match usage patterns. A creator who checks trends once/day pays the same as one who checks 50 times/day. This creates: (1) unfairness for light users, (2) revenue ceiling for heavy users, (3) no incentive to optimize usage. Virlo (competitor) uses credit-based pricing: Orbit Search = 50 credits, each plan has monthly credit allocation.
-**Impact:** Revenue left on the table. Heavy users should pay more. Light users should pay less. Credit system enables: per-action pricing, credit add-ons, usage transparency, revenue optimization.
-**Fix:** Implement credit system: Free = 10 credits/day, Pro = 200 credits/mo, Brand = 1,500 credits/mo. Credit costs: trend detection = 1 credit, AI generation = 5 credits, deal posting = 10 credits. Credit add-ons: ₹99/50 credits, ₹249/150 credits, ₹499/350 credits.
+"Agency" (and "Creator"/"Business") no longer exist anywhere in the tier table or in `plan_enforcement.py` (rewritten to the free/pro credits model). The exploitative naming concern is moot — the whole multi-tier structure was replaced by two tiers.
+**Note:** This also dissolves P-FUND-3's premise (per-seat enforcement for Agency): there is no team tier left to share.
+
+### P-PAY-6: Credit system needed — usage-based pricing [IMPLEMENTED — verified live Aug 22, 2026]
+**Evidence:**
+- `backend/plan_enforcement.py` fully rewritten around credits: `CREDIT_COSTS` map (ai_generation=5, video_analysis=10, export=2), `FREE_TIER_FEATURES` includes algorithm_insights, `PAID_FEATURES` restricted to pro, `require_credits()` dependency wired on 23 routes.
+- Live `credit_transactions` table exists with 12 rows of REAL traffic — latest `-5 api_usage` entries at 15:30 UTC today (user_id 51). Deductions match the configured costs.
+- Migration script `backend/migrate_credits_system.py` seeds free=100cr/24h delay, pro=1000cr/0h delay — matches live `subscription_tiers` exactly.
+- Fairness bug in the original implementation found and fixed same-day: see P-PAY-9 (charge-on-422), commit `458173f8`.
+**Remaining:** Credit cost calibration against real usage patterns (the "Phase 3 revenue optimization" work) — pricing values are founder-set, not data-informed yet.
 
 ### P-PAY-7: Free + 14-day trial model needed — current free tier lacks upgrade pressure [MEDIUM]
 **Files:** `frontend/src/routes/pricing.tsx`, `backend/plan_enforcement.py`
@@ -1017,41 +989,32 @@ Both write to `brand_deals` but use different columns. The old system's data is 
 
 ## RECOMMENDATION
 
-The codebase now has **67 total problems** (10 fixed, 1 false positive, 56 open). The remaining problems fall into these categories:
+**Reconciled Aug 22, 2026:** Of the original **67 problems**: **19 fixed/resolved**, 1 false positive, **47 open** (several of those with partial fixes noted inline). Status changes in this pass were made only with same-day evidence. **Evening update (same day):** P-DB-6 was root-caused, fixed via PR #4, and verified live in prod (feed restored: 3 rising / 8 emerging); P-AUTH-5 was closed end-to-end; P-PAY-9 was fixed — the open count below is stale-low on those three items.
 
-1. **Marketplace redesign** (7 problems): P-MARKET-1 through P-MARKET-7. The marketplace is the #1 revenue blocker. Without a brand-side product, there are no deals, no escrow revenue, and no connection layer. This is the highest-priority workstream.
+1. **RESOLVED Aug 22 evening (was URGENT):** the empty-feed emergency (P-DB-6) ended the same day it was diagnosed — scraper PG-21000 root cause fixed, Verify-step masking removed, fix verified against real prod data (run `32591223200`). Full record in the P-DB-6 entry above.
 
-2. **Data pipeline architecture** (8 problems): The scraper needs pagination, DB batching, formula fixes, and timeout restructuring. These are the highest-impact fixes but require the most engineering effort.
+2. **RESOLVED Aug 22 evening:** the ~20 local commits shipped to origin/main (`1dc71701`, smoke-test green, Vercel deployed); the P-SCRAPER-2 baseline join is committed and awaiting review/evidence via PR.
 
-3. **Frontend design** (10 problems): The app needs a ground-up design system rebuild. This is the second-highest impact but requires design expertise, not just code fixes.
+3. **Marketplace redesign** (P-MARKET-1 through P-MARKET-11): brand-side product remains the #1 revenue unlock after payments go live.
 
-4. **Monetization** (5 problems): Plan rename, credit system, trial model, Razorpay KYC, and payment flow. These are quick wins that unlock revenue.
+4. **Data pipeline architecture** (P-PIPE-1/4/5/7): pagination, proxy-count honesty, timeout restructuring — highest engineering effort, highest data-quality payoff.
 
-5. **Security** (4 problems): Auth hardening, rate limiting, and admin route protection are quick wins that should be done immediately.
+5. **Monetization leftovers:** Razorpay KYC + keys (P-PAY-1/P-FUND-1), trial model decision (P-PAY-7), plan-cache invalidation across serverless instances (P-PAY-8) before first real payment.
 
-6. **Truth** (5 problems): Marketing claims need to be updated to match reality, or the code needs to be updated to match the claims.
+6. **Security & API hygiene:** finish P-AUTH-5 guard consistency (40 require_auth vs 57 get_current_user), delete the 2 duplicate routes (P-API-2), fix analytics/log 500 (P-API-6).
+
+7. **Truth & design:** remaining simulated endpoints (4 video-analysis + creator_tools), indigo-vs-coral drift, responsiveness, loading/error states, accessibility (18 aria-labels is a start, not a finish).
 
 **The recommended execution order (from ROADMAP.md):**
 - **Phase 1 (Oct 2026):** Razorpay + brand interface + escrow = first revenue
 - **Phase 2 (Nov-Dec 2026):** Notifications + verification + ratings = trust layer
-- **Phase 3 (Jan-Mar 2027):** Credit system + plan rename + trial model = revenue optimization
+- **Phase 3 (Jan-Mar 2027):** Credit calibration + trial model = revenue optimization
 - **Phase 4 (Apr-Jun 2027):** Mobile PWA + advanced matching = scale
-
-1. **Data pipeline architecture** (8 problems): The scraper needs pagination, DB batching, formula fixes, and timeout restructuring. These are the highest-impact fixes but require the most engineering effort.
-
-2. **Frontend design** (10 problems): The app needs a ground-up design system rebuild. This is the second-highest impact but requires design expertise, not just code fixes.
-
-3. **Security** (4 problems): Auth hardening, rate limiting, and admin route protection are quick wins that should be done immediately.
-
-4. **Payment** (3 problems): Razorpay KYC is a user action. The deleted pricing page and empty usage_logs need code fixes.
-
-5. **Truth** (5 problems): Marketing claims need to be updated to match reality, or the code needs to be updated to match the claims.
 
 **If the goal is to match what users see on Instagram**, the pipeline needs a fundamental architecture change:
 - Add scraper pagination (scroll or API-based)
 - Batch DB operations (bulk inserts, cached queries)
 - Validate thresholds against Instagram's actual trending page
 - Integrate real-time monitoring (not just batch scraping)
-- Fix or remove broken external discovery
 
 **If the goal is a credible MVP for investors/users**, the frontend needs a design system overhaul and the marketing claims need to be grounded in reality.

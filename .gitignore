@@ -84,3 +84,10 @@ ffmpeg*
 
 # OmniRoute (large node_modules)
 OmniRoute/
+
+# Local secrets / tokens (audit 2026-08-23: never committed, keep it that way)
+.test_tokens
+tokens.json
+test_h8_tokens.json
+_tmp_*.json
+.git-rewrite/
