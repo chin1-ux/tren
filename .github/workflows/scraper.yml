@@ -1,8 +1,8 @@
-name: Scraper
+﻿name: Scraper
 
 on:
   schedule:
-    # EMERGENCY POSTURE: every 2 days at 02:00 UTC (Sept 1 budget crisis — revert to daily post-reset)
+    # EMERGENCY POSTURE: every 2 days at 02:00 UTC (Sept 1 budget crisis â€” revert to daily post-reset)
     - cron: '0 2 * * */2'
   workflow_dispatch:
     inputs:
@@ -53,7 +53,7 @@ jobs:
       - name: Install system deps for Camoufox browser
         run: |
           if ! timeout 300 python -m playwright install-deps firefox; then
-            echo "First attempt failed — clearing apt state and retrying..."
+            echo "First attempt failed â€” clearing apt state and retrying..."
             sudo apt-get clean
             sudo rm -rf /var/lib/apt/lists/*
             timeout 300 python -m playwright install-deps firefox
@@ -147,7 +147,6 @@ jobs:
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Verify scraper run
-        continue-on-error: true
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
