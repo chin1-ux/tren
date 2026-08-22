@@ -3141,7 +3141,6 @@ async def generate_reel_endpoint(
     trend_id: str = Form(...),
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
@@ -3234,7 +3233,6 @@ async def generate_narrative_endpoint(
     narrative_type: str = Form(...),
     text_overlays: str = Form(...),
     current_user_email: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
@@ -3340,7 +3338,6 @@ async def generate_faceless_endpoint(
     niche: str = Form(...),
     content_description: str = Form(...),
     current_user_email: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
@@ -3401,7 +3398,6 @@ async def repurpose_endpoint(
     trend_id: str = Form(...),
     user_email: str = Form(...),
     current_user_email: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
 ):
@@ -3600,7 +3596,7 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 @app.post("/api/generate-hooks")
 @limiter.limit("10/minute")
-def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("generators")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
@@ -3744,7 +3740,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 
 @app.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
-def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
@@ -3854,7 +3850,7 @@ def get_daily_ideas(request: Request, current_user_email: str = Depends(get_curr
 
 @app.post("/api/calendar")
 @limiter.limit("5/minute")
-def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         try:
             res = creator_tools.generate_calendar(
@@ -3889,7 +3885,7 @@ def create_calendar(request: Request, req: CalendarRequest, current_user_email: 
 
 @app.get("/api/calendar")
 @limiter.limit("10/minute")
-def get_calendar(request: Request, current_user_email: str = Depends(get_current_user), _plan_check: str = Depends(require_feature("ai_generation")), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+def get_calendar(request: Request, current_user_email: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
     try:
         res = supabase.table("calendar_plans").select("*").eq("user_email", current_user_email).execute()
         if res.data:
@@ -5262,7 +5258,6 @@ def generate_caption(
     tone: str = "casual",
     niche: str = "general",
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate an AI caption for a specific trend or topic."""
@@ -5293,7 +5288,6 @@ def generate_content_ideas(
     niche: str = "general",
     count: int = 5,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate AI content ideas for a specific niche."""
@@ -5333,7 +5327,6 @@ def generate_hooks(
     topic: str,
     count: int = 5,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate AI hook suggestions for a specific topic."""
@@ -5369,7 +5362,6 @@ def generate_script_outline(
     topic: str = "general",
     duration_seconds: int = 30,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("ai_generation")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate an AI script outline for content."""
@@ -6227,7 +6219,6 @@ def analyze_video_metadata(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
@@ -6287,7 +6278,6 @@ def analyze_video_visual(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
@@ -6335,7 +6325,6 @@ def predict_video_virality(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
@@ -6403,7 +6392,6 @@ def get_video_improvements(
     request: Request,
     payload: VideoUrlRequest,
     current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("video_analysis")),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
