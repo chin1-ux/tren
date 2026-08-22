@@ -46,13 +46,8 @@ def get_recent_trends(limit=10):
         print(f"ERROR: Failed to get recent trends: {e}")
         return []
 
-def verify_timestamps(trends, max_age_hours=30):
-    """Verify that trends have recent timestamps.
-
-    Window must match scrape cadence (daily 02:00 UTC) plus margin for GitHub
-    cron jitter and LLM classification lag. A 9h window can never pass on a
-    daily schedule; 30h = 24h cadence + 6h slack.
-    """
+def verify_timestamps(trends, max_age_hours=9):
+    """Verify that trends have recent timestamps"""
     if not trends:
         return True, "No trends to verify"
     
