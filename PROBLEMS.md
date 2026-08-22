@@ -206,6 +206,13 @@ estimated_count = int(base_count * growth_multiplier)
 **Impact:** A non-admin user who knows the API endpoints can access admin data directly.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 
+### P-API-6: POST /api/analytics/log 500s for authenticated users [OPEN]
+**File:** `backend/api.py` — `log_analytics_event`
+**Problem:** Authenticated request with valid body (`{"event_name": "..."}`) returns 500 `"Failed to log analytics event"`. The `analytics_events` insert fails inside the handler's try/except and is wrapped as a generic 500.
+**Evidence (live, Aug 22, 2026):** Authed POST (chin@free.com Supabase JWT) → `500 :: {"detail":"Failed to log analytics event"}`, reproduced both before and after commit `67396838` (require_auth swap), proving it is NOT caused by that change. Unauth path correctly 401s. Unauth+missing-field correctly 422s.
+**Suspected cause:** Insert failure against `analytics_events` — schema mismatch or RLS denial on the payload's `user_id`. Needs the underlying exception from server logs or a manual insert test with service-role client.
+**Impact:** Analytics events are silently dropped for every logged-in user; the endpoint has likely never worked for authed traffic in its current form.
+
 ---
 
 ## 3. AUTH & SECURITY PROBLEMS
