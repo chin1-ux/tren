@@ -2331,11 +2331,14 @@ def login(request: Request, req: LoginRequest):
 @app.post("/api/auth/logout")
 @limiter.limit("20/hour")
 def logout(request: Request, req: LogoutRequest):
-    """Logout user from Supabase Auth session"""
+    """Logout user: remove this device's active session row so the device
+    slot is freed (previously a no-op, which let stale rows lock users out)."""
     try:
-        # Sign out from Supabase Auth
-        local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-        local_supabase.auth.sign_out()
+        if getattr(req, "session_token", None):
+            import hashlib
+            fp = hashlib.md5(req.session_token.encode("utf-8")).hexdigest()
+            if supabase:
+                supabase.table("active_sessions").delete().eq("device_fingerprint", fp).execute()
         return {"success": True, "message": "Logout successful"}
     except Exception as e:
         logger.error(f"Logout failed: {e}", exc_info=True)
@@ -2418,9 +2421,13 @@ def verify(request: Request, req: VerifyRequest):
         else:
             max_active = 1
         
-        # 4. Check active sessions count
+        # 4. Check active sessions count — only RECENT sessions count toward
+        #    the cap, otherwise abandoned devices permanently lock users out
+        #    (there is no background cleanup for this table).
         sessions_res = supabase.table("active_sessions").select("*").eq("user_id", user_id).order("last_active_at", desc=False).execute()
         active_sessions = sessions_res.data or []
+        _stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        recent_sessions = [s for s in active_sessions if (s.get("last_active_at") or "") >= _stale_cutoff]
         
         device_label = "Web Session"
         import hashlib
@@ -2429,7 +2436,7 @@ def verify(request: Request, req: VerifyRequest):
         matching_session = [s for s in active_sessions if s["device_fingerprint"] == device_fingerprint]
         
         if not matching_session:
-            if len(active_sessions) >= max_active:
+            if len(recent_sessions) >= max_active:
                 # Hard reject and increment session_cap_exceeded_count
                 current_count = user.get("session_cap_exceeded_count", 0)
                 if current_count is None: current_count = 0
