@@ -2124,13 +2124,14 @@ def signup(request: Request, req: SignupRequest):
                 logger.info(f"Verification code sent to: {req.phone_number}")
                 phone_verification_required = True
             else:
-                # Verification send failed — log and skip; don't block signup
+                # Verification send failed — log; do NOT mark the number verified.
+                # Asserting a false "verified" state is worse than an unverified one.
                 logger.warning(f"Verification code send failed (non-fatal): {verification_result.get('error')}")
-                phone_verified = True  # Skip verification if service fails
+                phone_verified = False
         else:
-            # PhoneVerification not configured — skip phone verification entirely
+            # PhoneVerification not configured — the number stays unverified
             logger.info("PhoneVerification not configured — skipping phone verification for signup")
-            phone_verified = True
+            phone_verified = False
 
         # Step 3: Save user metadata to users table
         import random

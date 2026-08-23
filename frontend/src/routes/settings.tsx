@@ -206,7 +206,7 @@ function SettingsPage() {
     localStorage.setItem("trendrop_pref_language", selectedLanguage);
     localStorage.setItem("trendrop_pref_niche", customNiche.trim() || selectedNiche || "all");
 
-    toast.success("Settings saved successfully! ✓");
+    toast.success("Preferences saved on this device ✓");
   };
 
   const replayTutorial = () => {
