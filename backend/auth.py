@@ -2,7 +2,7 @@ import os
 import logging
 import bcrypt
 import jwt
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Optional, Dict
 from fastapi import Header, HTTPException, status, Depends, Request
 from supabase import create_client, Client
@@ -129,9 +129,9 @@ def create_access_token(data: Dict, expires_delta: Optional[timedelta] = None) -
     """Create JWT access token."""
     to_encode = data.copy()
     if expires_delta:
-        expire = datetime.utcnow() + expires_delta
+        expire = datetime.now(timezone.utc) + expires_delta
     else:
-        expire = datetime.utcnow() + timedelta(minutes=JWT_EXPIRATION_MINUTES)
+        expire = datetime.now(timezone.utc) + timedelta(minutes=JWT_EXPIRATION_MINUTES)
     to_encode.update({"exp": expire})
     encoded_jwt = jwt.encode(to_encode, JWT_SECRET_KEY, algorithm=JWT_ALGORITHM)
     return encoded_jwt
@@ -183,11 +183,11 @@ def check_and_update_login_attempts(email: str) -> bool:
         locked_until = admin_user.get("locked_until")
         if locked_until:
             locked_time = datetime.fromisoformat(locked_until.replace('Z', '+00:00'))
-            if datetime.utcnow() < locked_time:
+            if datetime.now(timezone.utc) < locked_time:
                 return False  # Account is still locked
         
         # Reset failed attempts if lockout period has passed
-        if locked_until and datetime.utcnow() >= locked_time:
+        if locked_until and datetime.now(timezone.utc) >= locked_time:
             supabase.table("admin_users").update({
                 "failed_login_attempts": 0,
                 "locked_until": None
@@ -213,7 +213,7 @@ def record_failed_login_attempt(email: str) -> bool:
         
         # Lock account after 5 failed attempts for 15 minutes
         if failed_attempts >= 5:
-            locked_until = datetime.utcnow() + timedelta(minutes=15)
+            locked_until = datetime.now(timezone.utc) + timedelta(minutes=15)
             update_data["locked_until"] = locked_until.isoformat()
         
         supabase.table("admin_users").update(update_data).eq("email", email).execute()
@@ -231,7 +231,7 @@ def reset_login_attempts(email: str) -> bool:
         supabase.table("admin_users").update({
             "failed_login_attempts": 0,
             "locked_until": None,
-            "last_login": datetime.utcnow().isoformat()
+            "last_login": datetime.now(timezone.utc).isoformat()
         }).eq("email", email).execute()
         return True
     except Exception as e:
@@ -250,7 +250,7 @@ def log_admin_login_attempt(email: str, success: bool, ip_address: Optional[str]
             "details": {"success": success},
             "ip_address": ip_address,
             "user_agent": user_agent,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }).execute()
         return True
     except Exception as e:
