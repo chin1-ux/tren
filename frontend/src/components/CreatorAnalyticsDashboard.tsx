@@ -73,20 +73,17 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
             <Users className="h-6 w-6" />
           </div>
-          <CardTitle className="font-display text-lg font-bold">Connect Your Account</CardTitle>
+          <CardTitle className="font-display text-lg font-bold">Instagram Analytics — Coming Soon</CardTitle>
           <CardDescription className="text-xs max-w-sm mx-auto">
-            Connect your Instagram account to unlock analytics, track engagement metrics, and get personalized posting recommendations.
+            Instagram account syncing isn't available in the beta yet, so personalized analytics are disabled for now. Everything else in your dashboard works today.
           </CardDescription>
         </CardHeader>
         <CardContent className="p-6 pt-2 text-center space-y-4">
-          <div className="bg-muted/40 rounded-xl p-3 text-[11px] text-muted-foreground text-left leading-relaxed">
-            💡 <span className="font-medium text-foreground">Why connect?</span> We analyze your content's velocity and benchmark it against regional trends to tell you exactly which format will go viral next.
-          </div>
-          <Button 
-            className="w-full bg-primary hover:bg-primary/95 text-white font-bold text-xs uppercase tracking-wider h-11 rounded-xl shadow-lg shadow-primary/20"
-            onClick={() => window.location.href = '/settings'}
+          <Button
+            disabled
+            className="w-full bg-muted text-muted-foreground font-bold text-xs uppercase tracking-wider h-11 rounded-xl cursor-not-allowed"
           >
-            Go to Settings
+            Coming Soon
           </Button>
         </CardContent>
       </Card>

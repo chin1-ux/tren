@@ -265,7 +265,7 @@ function IdeasPage() {
       const res = await generateCalendar(userEmail);
       setCalendar(res.calendar);
       localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(res.calendar));
-      toast.success("Your 30-Day Autopilot Calendar is ready!");
+      toast.success("Your 30-Day starter template is ready!");
     } catch (err) {
       console.error("Failed to generate calendar", err);
       toast.error("Failed to generate your 30-Day calendar. Using fallback calendar.");
@@ -637,7 +637,7 @@ function IdeasPage() {
                         </span>
                       </div>
                       <p className="text-xs text-text-muted leading-relaxed">
-                        Your Reel scores higher than <span className="text-indigo-400 font-bold">{scoringResult.overall_score}%</span> of other creators in your niche. Fix the identified areas to boost engagement.
+                        Overall score <span className="text-indigo-400 font-bold">{scoringResult.overall_score}/100</span>. Fix the identified areas below to boost engagement.
                       </p>
                     </div>
                   </div>
@@ -848,7 +848,7 @@ function IdeasPage() {
           {/* TAB 4: CONTENT CALENDAR */}
           {FEATURES.CALENDAR_ENABLED && activeTab === "calendar" && (
             <PlanGate
-              feature="30-Day Autopilot Calendar"
+              feature="30-Day Starter Calendar"
               requiredPlan="pro"
               currentPlan={userPlan}
               onUpgrade={() => window.location.href = '/pricing'}
@@ -863,8 +863,8 @@ function IdeasPage() {
             >
               <div className="flex justify-between items-start gap-4">
                 <div>
-                  <h2 className="text-lg font-bold text-white">30-Day Autopilot Calendar</h2>
-                  <p className="text-xs text-muted-foreground">Automated posting schedule with curated hooks, audio directions, and timing</p>
+                  <h2 className="text-lg font-bold text-white">30-Day Starter Template</h2>
+                  <p className="text-xs text-muted-foreground">A generic posting schedule to build the habit — personalized calendars are coming soon</p>
                 </div>
                 <Button 
                   onClick={handleGenerateCalendar} 

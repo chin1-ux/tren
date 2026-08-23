@@ -176,14 +176,14 @@ export function IndiaFeaturesDashboard() {
         </Card>
       )}
 
-      {/* Regional Trends */}
+      {/* Regional Trends — illustrative only until live regional data ships */}
       <Card>
         <CardHeader>
           <CardTitle className="text-sm font-medium flex items-center gap-2">
             <MapPin className="h-4 w-4" />
-            Regional Trends
+            Regional Trend Examples
           </CardTitle>
-          <CardDescription>Trending content in your selected region</CardDescription>
+          <CardDescription>Illustrative template content — live regional trend tracking is coming soon</CardDescription>
         </CardHeader>
         <CardContent>
           <div className="space-y-3">
@@ -193,9 +193,6 @@ export function IndiaFeaturesDashboard() {
                   <p className="font-medium">{trend.city} - {trend.language}</p>
                   <p className="text-sm text-muted-foreground">{trend.trend_name}</p>
                 </div>
-                <Badge variant="outline">
-                  {trend.viral_score.toFixed(0)}/100
-                </Badge>
               </div>
             ))}
           </div>

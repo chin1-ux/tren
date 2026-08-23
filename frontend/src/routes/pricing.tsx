@@ -1,12 +1,15 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { Check, Star, Zap, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useUserStore } from "@/store/useAppStore";
 
 export const Route = createFileRoute("/pricing")({
-  component: PricingPage,
+component: PricingPage,
 });
 
 function PricingPage() {
+const userPlan = useUserStore((s) => s.plan) || "free";
+const isPro = userPlan === "pro" || userPlan === "agency";
   return (
     <div className="flex flex-col items-center justify-center min-h-screen px-4 py-16">
       <div className="text-center max-w-2xl mb-12">
@@ -85,13 +88,23 @@ function PricingPage() {
               <Check className="h-4 w-4 text-indigo-500 shrink-0 mt-0.5" /> India-specific trend intelligence
             </li>
           </ul>
-          <Button
-            className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11"
-            onClick={() => (window.location.href = "/login")}
-          >
-            <Coins className="w-4 h-4 mr-2" />
-            Upgrade to Pro
-          </Button>
+          {isPro ? (
+            <Button
+              disabled
+              className="w-full rounded-xl bg-muted text-muted-foreground font-bold h-11 cursor-not-allowed"
+            >
+              <Check className="w-4 h-4 mr-2" />
+              Current Plan
+            </Button>
+          ) : (
+            <Button
+              className="w-full rounded-xl bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11"
+              onClick={() => (window.location.href = "/login")}
+            >
+              <Coins className="w-4 h-4 mr-2" />
+              Upgrade to Pro
+            </Button>
+          )}
         </div>
       </div>
     </div>
