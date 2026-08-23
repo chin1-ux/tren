@@ -29,6 +29,39 @@ interface CulturalEvent {
   hashtags: string[];
 }
 
+// The /trends/emerging endpoint returns a flat trend shape (creator_fit_score,
+// hook_retention_score, saturation_penalty, window_hours_remaining,
+// optimal_post_hour_ist) — not the nested `prediction` object this panel
+// renders. Derive the display fields from the real values instead of
+// filtering everything out.
+function mapEarlyTrend(t: any): EarlyDetectionTrend | null {
+  if (!t || t.id == null) return null;
+  if (t?.prediction?.combined_score != null) return t as EarlyDetectionTrend;
+  if (t.status !== 'emerging' && t.status !== 'rising') return null;
+  const fit = typeof t.creator_fit_score === 'number' ? t.creator_fit_score : null;
+  const hook = typeof t.hook_retention_score === 'number' ? t.hook_retention_score : null;
+  const sat = typeof t.saturation_penalty === 'number' ? t.saturation_penalty : null;
+  if (fit == null || hook == null || sat == null) return null;
+  const score = Math.round(100 * Math.min(1, Math.max(0, 0.4 * fit + 0.35 * hook + 0.25 * (1 - sat))));
+  const hoursLeft = Number.isFinite(t.window_hours_remaining) ? Math.max(0, Math.round(t.window_hours_remaining)) : null;
+  const timing = Number.isFinite(t.optimal_post_hour_ist)
+    ? `${String(Math.floor(t.optimal_post_hour_ist)).padStart(2, '0')}:00 IST`
+    : 'N/A';
+  return {
+    id: t.id,
+    audio_title: t.audio_title ?? 'Unknown audio',
+    audio_artist: t.audio_artist ?? '',
+    prediction: {
+      combined_score: score,
+      prediction: t.status ?? '',
+      optimal_timing: timing,
+      reach_multiplier: hoursLeft != null ? `${hoursLeft}h` : '—',
+      recommended_action:
+        hoursLeft == null || hoursLeft <= 0 ? 'WINDOW CLOSED' : hoursLeft < 12 ? 'POST SOON' : 'CREATE CONTENT NOW',
+    },
+  };
+}
+
 export function EarlyDetectionPanel() {
   const [earlyTrends, setEarlyTrends] = useState<EarlyDetectionTrend[]>([]);
   const [culturalEvents, setCulturalEvents] = useState<CulturalEvent[]>([]);
@@ -51,8 +84,8 @@ export function EarlyDetectionPanel() {
       const res = await apiFetch('/api/trends/emerging');
       if (res.ok) {
         const data = await res.json();
-        // Filter out items with missing prediction to avoid TypeError crashes
-        setEarlyTrends((data || []).filter((t: EarlyDetectionTrend) => t?.prediction?.combined_score != null));
+        // Map flat API rows into the display shape; drop rows we can't derive.
+        setEarlyTrends((data || []).map(mapEarlyTrend).filter(Boolean));
       } else if (res.status === 401 || res.status === 403) {
         // 401 = unauthenticated (token missing/expired), 403 = plan gate
         // Both mean we cannot show early trends — PlanGate will handle the UI.

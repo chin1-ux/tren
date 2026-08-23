@@ -68,9 +68,10 @@ function DealsDashboardPage() {
           <div className="h-16 w-16 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground mx-auto">
             <Briefcase className="h-8 w-8" />
           </div>
-          <h1 className="text-xl font-bold text-foreground">Feature Temporarily Disabled</h1>
+          <h1 className="text-xl font-bold text-foreground">Deals Launch After Beta</h1>
           <p className="text-sm text-muted-foreground max-w-xs">
-            The Brand Deals Dashboard is currently unavailable. Focus on the core trend detection dashboard for now.
+            Brand deal tracking isn't part of the beta — it launches right after. For now, focus on
+            the trend dashboard.
           </p>
         </div>
       </div>

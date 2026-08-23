@@ -331,6 +331,12 @@ function GeneratePage() {
             </p>
           </header>
 
+          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-300">
+            <span className="font-bold">Coming soon.</span> Video generation isn't live in the
+            beta yet — this studio is in private testing. Trend discovery and the AI caption/idea
+            tools are fully available today.
+          </div>
+
           {/* Active Trend Badge */}
           {activeTrend && (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 backdrop-blur-md p-4">
