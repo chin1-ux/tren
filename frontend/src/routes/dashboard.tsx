@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { useUserStore } from "@/store/useAppStore";
 
 export const Route = createFileRoute("/dashboard")({
   component: Dashboard,
@@ -16,6 +17,7 @@ export const Route = createFileRoute("/dashboard")({
 
 function Dashboard() {
   const { isOpen, closeOnboarding } = useOnboarding();
+  const userEmail = useUserStore((s) => s.email) ?? "";
 
   return (
     <>
@@ -41,7 +43,7 @@ function Dashboard() {
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6">
-            <CreatorAnalyticsDashboard creatorEmail="user@example.com" />
+            <CreatorAnalyticsDashboard creatorEmail={userEmail} />
           </TabsContent>
 
           <TabsContent value="ai" className="mt-6">
