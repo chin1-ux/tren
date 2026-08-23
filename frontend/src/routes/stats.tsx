@@ -23,7 +23,9 @@ function StatsPage() {
   const [activeTab, setActiveTab] = useState<"diagnostics" | "niche">("diagnostics");
 
   useEffect(() => {
-    setEmail(localStorage.getItem("trendrop_email") || "creator@example.com");
+    // Read the key AuthContext actually writes (trendrop_user_email); never
+    // fall back to a fictional address — queries stay disabled until known.
+    setEmail(localStorage.getItem("trendrop_user_email") || "");
   }, []);
 
   const { data: diagnostics, isLoading: loadingDiag, refetch: refetchDiag } = useQuery({
@@ -106,7 +108,7 @@ function StatsPage() {
               <AlertTriangle className="h-10 w-10 text-warning mx-auto" />
               <h3 className="font-bold text-foreground text-sm">No Sync Data Available</h3>
               <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                Connect your Instagram Graph API in profile settings to sync recent posts for diagnostic evaluation.
+                Instagram sync is coming soon — diagnostics will appear here once syncing launches.
               </p>
             </div>
           ) : (
@@ -188,7 +190,7 @@ function StatsPage() {
               <AlertTriangle className="h-10 w-10 text-warning mx-auto" />
               <h3 className="font-bold text-foreground text-sm">No Sync Data Available</h3>
               <p className="text-xs text-muted-foreground max-w-xs mx-auto">
-                Post captions must be synced via Instagram OAuth first to perform category analyses.
+                Instagram sync is coming soon — niche analysis unlocks once your posts can be synced.
               </p>
             </div>
           ) : (

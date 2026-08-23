@@ -303,7 +303,7 @@ function TrendDetailPage() {
               <div className="h-20 rounded-xl shimmer" />
               <div className="h-20 rounded-xl shimmer" />
             </div>
-          ) : captionKit ? (
+          ) : Array.isArray(captionKit?.captions) && captionKit.captions.length > 0 ? (
             <>
               {/* Vibe tabs */}
               <div className="flex gap-2">
@@ -357,7 +357,9 @@ function TrendDetailPage() {
               </div>
             </>
           ) : (
-            <p className="text-sm text-muted-foreground">Caption kit generation failed. Try again later.</p>
+            <p className="text-sm text-muted-foreground">
+              ⏳ Caption generation is coming soon for this trend — check back shortly.
+            </p>
           )}
         </div>
       </PlanGate>
