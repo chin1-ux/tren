@@ -15,9 +15,15 @@ load_dotenv()
 
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY", "your-secret-key-change-in-production")
+JWT_SECRET_KEY = os.getenv("JWT_SECRET_KEY")
 JWT_ALGORITHM = "HS256"
 JWT_EXPIRATION_MINUTES = 30
+
+if not JWT_SECRET_KEY:
+    raise ValueError(
+        "JWT_SECRET_KEY must be set in environment variables. "
+        "Generate one with: python -c \"import secrets; print(secrets.token_hex(32))\""
+    )
 
 # Handle missing Supabase credentials gracefully for CI/testing
 if not SUPABASE_URL or not SUPABASE_KEY:
