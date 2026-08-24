@@ -234,7 +234,7 @@ function GeneratePage() {
   const handleCreateReel = async () => {
     if (photos.length < 3 || !activeTrend) return;
     try {
-      const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
       const { job_id } = await generateReel({
         files: photos.map((p) => p.file),
         trendId: activeTrend.id,
@@ -250,7 +250,7 @@ function GeneratePage() {
   const handleCreateNarrative = async () => {
     if (narrativePhotos.length < 2 || !activeTrend) return;
     try {
-      const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
       const { job_id } = await generateNarrative({
         files: narrativePhotos.map((p) => p.file),
         trendId: activeTrend.id,
@@ -268,7 +268,7 @@ function GeneratePage() {
   const handleCreateFaceless = async () => {
     if (!contentDescription.trim() || !activeTrend) return;
     try {
-      const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
       const { job_id } = await generateFaceless({
         trendId: activeTrend.id,
         userEmail: email,
@@ -285,7 +285,7 @@ function GeneratePage() {
   const handleRepurpose = async () => {
     if (!repurposeVideoFile) return;
     try {
-      const email = localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
       const { job_id } = await repurposeVideo({
         file: repurposeVideoFile,
         trendId: selectedRepurposeTrendId,

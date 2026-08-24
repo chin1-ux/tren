@@ -105,7 +105,7 @@ function IdeasPage() {
   const [copiedText, setCopiedText] = useState<string | null>(null);
 
   useEffect(() => {
-    const email = user?.email || localStorage.getItem("trendrop_email") || "anonymous@trendrop.app";
+    const email = user?.email || localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
     const niche = localStorage.getItem("trendrop_niche") || "dance";
     setUserEmail(email);
     setUserNiche(niche);

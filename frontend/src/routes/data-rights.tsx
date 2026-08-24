@@ -30,7 +30,7 @@ function DataRightsPage() {
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    const e = localStorage.getItem("trendrop_email") || "";
+    const e = localStorage.getItem("trendrop_user_email") || "";
     setEmail(e);
     setNotifyTrendAlerts(localStorage.getItem("trendrop_notify_trend_alerts") !== "false");
     setNotifyDailyIdeas(localStorage.getItem("trendrop_notify_daily_ideas") !== "false");

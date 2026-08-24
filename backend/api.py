@@ -2430,12 +2430,38 @@ def verify(request: Request, req: VerifyRequest):
             max_active = 1
         
         # 4. Check active sessions count — only RECENT sessions count toward
-        #    the cap, otherwise abandoned devices permanently lock users out
-        #    (there is no background cleanup for this table).
+        #    the cap, otherwise abandoned devices permanently lock users out.
+        #    Clean up stale sessions from DB so they don't accumulate forever.
         sessions_res = supabase.table("active_sessions").select("*").eq("user_id", user_id).order("last_active_at", desc=False).execute()
         active_sessions = sessions_res.data or []
-        _stale_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
-        recent_sessions = [s for s in active_sessions if (s.get("last_active_at") or "") >= _stale_cutoff]
+        _stale_cutoff_30d = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        _stale_cutoff_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+        recent_sessions = []
+        stale_ids = []
+        for s in active_sessions:
+            last_active = s.get("last_active_at") or ""
+            if last_active >= _stale_cutoff_24h:
+                recent_sessions.append(s)
+            else:
+                stale_ids.append(s.get("id"))
+        # Delete stale sessions (>24h) from DB so they don't accumulate forever
+        if stale_ids:
+            for sid in stale_ids:
+                try:
+                    supabase.table("active_sessions").delete().eq("id", sid).execute()
+                except Exception:
+                    pass
+        
+        # If more sessions exist than max_active, delete the oldest excess ones
+        # This handles the case where multiple logins pile up within 24h
+        if len(recent_sessions) > max_active:
+            excess = recent_sessions[:-max_active]  # keep only the newest max_active
+            for s in excess:
+                try:
+                    supabase.table("active_sessions").delete().eq("id", s.get("id")).execute()
+                except Exception:
+                    pass
+            recent_sessions = recent_sessions[-max_active:]
         
         device_label = "Web Session"
         import hashlib
@@ -2445,20 +2471,21 @@ def verify(request: Request, req: VerifyRequest):
         
         if not matching_session:
             if len(recent_sessions) >= max_active:
-                # Hard reject and increment session_cap_exceeded_count
-                current_count = user.get("session_cap_exceeded_count", 0)
-                if current_count is None: current_count = 0
-                supabase.table("users").update({"session_cap_exceeded_count": current_count + 1}).eq("id", user_id).execute()
-                raise HTTPException(
-                    status_code=403, 
-                    detail="Device limit reached. Log out from another device to continue."
-                )
+                # Kick the oldest session to make room for the new device
+                # (previously this was a hard reject that locked users out permanently)
+                oldest_session = recent_sessions[0]
+                try:
+                    supabase.table("active_sessions").delete().eq("id", oldest_session.get("id")).execute()
+                except Exception:
+                    pass
+                recent_sessions = recent_sessions[1:]
             
             # Register new session
             supabase.table("active_sessions").insert({
                 "user_id": user_id,
                 "device_fingerprint": device_fingerprint,
-                "device_label": device_label
+                "device_label": device_label,
+                "last_active_at": datetime.now(timezone.utc).isoformat()
             }).execute()
         else:
             # Update last active timestamp
