@@ -1,11 +1,8 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
-  "buildCommand": "cd frontend && npm run build",
+  "buildCommand": "cd frontend && npm run build && cd .. && python inject_routes.py",
   "installCommand": "cd frontend && npm install",
   "framework": null,
-  "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.py" }
-  ],
   "crons": [
     {
       "path": "/api/cron/trigger",
@@ -15,10 +12,5 @@
       "path": "/api/cron/refresh",
       "schedule": "0 12 * * *"
     }
-  ],
-  "functions": {
-    "api/index.py": {
-      "maxDuration": 30
-    }
-  }
+  ]
 }
