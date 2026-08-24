@@ -11,6 +11,7 @@ from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 from supabase import create_client, Client
 from classification_rules import build_source_hashtag_pool, classify_content_tone, classify_niche
+from event_monitor import EventMonitor
 import requests
 
 # Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
@@ -304,6 +305,21 @@ class InstagramScraper:
                 "edmmusic", "kpopreels", "viral", "trending"
             ]
         }
+
+        # Dynamically load event hashtags from EventMonitor
+        try:
+            em = EventMonitor()
+            active_events = em.get_active_events(days_ahead=14, days_behind=3)
+            event_hashtags = []
+            for ev in active_events:
+                for h in ev.hashtags[:3]:
+                    tag = h.lstrip("#").lower()
+                    if tag not in [t.lower() for t in sum(self.hashtag_groups.values(), [])]:
+                        event_hashtags.append(tag)
+            if event_hashtags:
+                self.hashtag_groups["EVENT_HASHTAGS"] = event_hashtags[:10]
+        except Exception:
+            pass
 
         override = os.getenv("SCRAPER_HASHTAGS", "").strip()
         if override:
@@ -730,9 +746,8 @@ class InstagramScraper:
             ig_artist = orig.get("ig_artist") or {}
             audio_artist = ig_artist.get("username") or ig_artist.get("full_name")
             if audio_id:
-                # Check use count for user-uploaded audio tracks.
-                # If it has 50+ uses, treat it as a reused trend sound rather than personal original audio.
-                use_cnt = self._extract_audio_use_count(media)
+                # Pass audio_id so _extract_audio_use_count can query audio_official_counts
+                use_cnt = self._extract_audio_use_count(media, audio_id=str(audio_id))
                 is_orig = True
                 if use_cnt >= 50:
                     is_orig = False
@@ -978,6 +993,8 @@ class InstagramScraper:
                 layout_content = section.get("layout_content") or {}
                 
                 # Standard list of medias
+                
+                # Standard list of medias
                 for m_wrapper in layout_content.get("medias", []):
                     media = m_wrapper.get("media")
                     if media:
@@ -1032,6 +1049,54 @@ class InstagramScraper:
                 })
                 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
+
+            # Pagination: follow max_id cursor for one extra page
+            more_info = raw_data.get("more_info") or {}
+            next_max_id = more_info.get("max_id")
+            if next_max_id and len(items) < 100:
+                try:
+                    headers, cookies = self._load_instagram_cookie_headers()
+                    resp2 = requests.get(
+                        f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}&max_id={next_max_id}",
+                        headers=headers,
+                        cookies=cookies,
+                        timeout=10,
+                    )
+                    resp2.raise_for_status()
+                    data2 = resp2.json()
+                    raw2 = data2.get("data", {})
+                    for section in raw2.get("top", {}).get("sections", []) + raw2.get("recent", {}).get("sections", []):
+                        for m_wrapper in section.get("layout_content", {}).get("medias", []):
+                            media = m_wrapper.get("media")
+                            if not media or media.get("media_type") not in (2, 8):
+                                continue
+                            sc = media.get("code")
+                            if sc and not any(it.get("shortCode") == sc for it in items):
+                                owner = media.get("user") or {}
+                                cap = (media.get("caption") or {}).get("text", "")
+                                taken_at = media.get("taken_at", 0)
+                                ts = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
+                                vurl = media.get("video_url")
+                                if not vurl and media.get("video_versions"):
+                                    vurl = media["video_versions"][0].get("url")
+                                items.append({
+                                    "shortCode": sc,
+                                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
+                                    "likesCount": media.get("like_count") or 0,
+                                    "commentsCount": media.get("comment_count") or 0,
+                                    "ownerFollowersCount": owner.get("follower_count") or 0,
+                                    "timestamp": ts,
+                                    "ownerUsername": owner.get("username"),
+                                    "caption": cap[:500],
+                                    "videoUrl": vurl,
+                                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
+                                    "media_dict": media,
+                                    "pk": media.get("pk"),
+                                })
+                    logger.info(f"Pagination page 2: total items now {len(items)} for #{hashtag}")
+                except Exception as pag_err:
+                    logger.debug(f"Pagination failed for #{hashtag}: {pag_err}")
+
             return items
             
         except Exception as e:
@@ -1662,6 +1727,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
+                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
                     + self.hashtag_groups.get("GLOBAL_NICHES", [])[:3]
                 )
             
@@ -1740,335 +1806,6 @@ Return ONLY valid JSON, no markdown, no explanation:
                         scrape_stats["item_errors"] += len(items)
                     continue  # Skip legacy path
 
-                for item in items:
-                    try:
-                        reel_id = item.get("shortCode")
-                        if not reel_id:
-                            logger.info("Skipping item with missing reel_id")
-                            scrape_stats["missing_reel_id"] += 1
-                            continue
-                        
-                        view = int(item.get("videoViewCount") or 0)
-                        likes = int(item.get("likesCount") or 0)
-                        comments = int(item.get("commentsCount") or 0)
-                        followers = int(item.get("ownerFollowersCount") or 0)
-                        
-                        timestamp = item.get("timestamp")
-                        if not timestamp:
-                            logger.info(f"Skipping reel {reel_id}: missing timestamp")
-                            scrape_stats["missing_timestamp"] += 1
-                            continue
-                        
-                        posted = datetime.fromisoformat(timestamp)
-                        hours_live = max((datetime.now(timezone.utc) - posted).total_seconds() / 3600.0, 0.5)
-                        
-                        # Calculate velocity
-                        engagement = (view * 1.0) + (likes * 3.0) + (comments * 5.0)
-                        
-                        # Fallback for missing/0 follower count from Instagram API to prevent math explosion.
-                        # The true median for tracked creators is ~2500, so we use that as a safe floor.
-                        effective_followers = followers if followers > 0 else 2500
-                        
-                        normalized_followers = math.log(effective_followers + 10)
-                        velocity = (engagement / hours_live / normalized_followers) * 100
-                        
-                        # Filter low-engagement
-                        if view < 10000 and likes < 200:
-                            logger.info(
-                                f"Skipping reel {reel_id}: low engagement (views={view}, likes={likes}, comments={comments})"
-                            )
-                            scrape_stats["low_engagement"] += 1
-                            continue
-                        
-                        if not (velocity > 0.3 or (view > 15000 and hours_live < 6)):
-                            logger.info(
-                                f"Skipping reel {reel_id}: velocity threshold failed "
-                                f"(velocity={velocity:.3f}, hours_live={hours_live:.2f}, views={view})"
-                            )
-                            scrape_stats["velocity_failed"] += 1
-                            continue
-                        
-                        # Check duplicates
-                        dup = self.supabase.table("reels").select("reel_id").eq("reel_id", reel_id).execute()
-                        if dup.data:
-                            logger.info(f"Skipping reel {reel_id}: already exists in reels table")
-                            scrape_stats["duplicate"] += 1
-                            continue
-                        
-                        # Extract data
-                        owner = item.get("ownerUsername")
-                        caption = (item.get("caption") or "")[:500]
-                        hashtags = re.findall(r"#(\w+)", caption)
-                        video_url = item.get("videoUrl")
-                        thumbnail_url = item.get("thumbnailUrl")
-                        
-                        # Extract audio using the raw media dictionary
-                        media_dict = item.get("media_dict")
-                        audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
-                        audio_use = self._extract_audio_use_count(media_dict, audio_id=audio_id)
-                        
-                        # Secondary database-level safeguard:
-                        # If another creator has already used this audio_id, treat it as non-original.
-                        if audio_id and is_original_audio:
-                            try:
-                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_id", audio_id).execute()
-                                if creators_res.data:
-                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
-                                    unique_creators.add(owner)
-                                    if len(unique_creators) >= 2:
-                                        is_original_audio = False
-                            except Exception as ex:
-                                logger.warning(f"Error checking secondary safeguard for audio_id {audio_id}: {ex}")
-
-                        source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags) or "GLOBAL_DISCOVERY"
-
-                        reel = {
-                            "platform": "instagram",
-                            "reel_id": reel_id,
-                            "view_count": view,
-                            "like_count": likes,
-                            "comment_count": comments,
-                            "posted_at": posted.isoformat(),
-                            "owner_username": owner,
-                            "owner_follower_count": followers,
-                            "caption": caption,
-                            "hashtags": hashtags,
-                            "source_hashtag_pool": source_hashtag_pool,
-                            "video_url": video_url,
-                            "thumbnail_url": thumbnail_url,
-                            "audio_title": audio_title,
-                            "audio_artist": audio_artist,
-                            "audio_id": audio_id,
-                            "audio_use_count": audio_use,
-                            "is_original_audio": is_original_audio,
-                            "velocity_score": velocity,
-                            "scraped_at": scraped_at,
-                            "pk": item.get("pk"),
-                            # Audio backfill queue: flag rows where IG returned no audio metadata
-                            "audio_backfill_status": (
-                                "needs_audio_backfill"
-                                if not audio_id or not audio_title
-                                else None
-                            ),
-                            "audio_backfill_attempts": 0,
-                        }
-                        
-                        # Metadata tagging — pass source_hashtag_pool so language
-                        # detection uses the strongest available signal first
-                        meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
-                        source_hashtag_pool = meta.get("source_hashtag_pool", source_hashtag_pool)
-                        reel["source_hashtag_pool"] = source_hashtag_pool
-                        creator_country = meta.get("creator_country", "unknown")
-                        
-                        # Calculate India saturation
-                        india_use = 0
-                        try:
-                            if audio_id:
-                                res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).eq("creator_country", "IN").execute()
-                                india_use = res.count or 0
-                            elif audio_title:
-                                res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_title", audio_title).eq("creator_country", "IN").execute()
-                                india_use = res.count or 0
-                        except Exception as e:
-                            logger.warning(f"Error querying India reels count: {e}")
-                        
-                        if creator_country == "IN":
-                            india_use += 1
-                        
-                        sat = calculate_saturation(audio_use, india_use)
-                        window = calculate_window_hours(audio_use, velocity * 100)
-                        
-                        reel.update({
-                            "audio_language": meta.get("audio_language", "unknown"),
-                            "caption_language": meta.get("caption_language", "unknown"),
-                            "trend_origin": meta.get("trend_origin", "unknown"),
-                            "creator_country": creator_country,
-                            "is_cross_cultural": meta.get("is_cross_cultural", False),
-                            "language_confidence": meta.get("confidence", 0.0),
-                            "global_saturation_pct": sat["global"],
-                            "india_saturation_pct": sat["india"],
-                            "window_hours_remaining": window,
-                            "content_tone": meta.get("content_tone", "unknown"),
-                            "niche_tag": classify_niche(caption, hashtags, source_hashtag_pool=source_hashtag_pool),
-                        })
-                        
-                        # Video storage
-                        is_trend = (velocity > 0.5) or self._is_top_20_for_audio(audio_id, view)
-                        if is_trend:
-                            stored = self._store_reel_video(reel_id, video_url, audio_id)
-                            if stored:
-                                reel["preview_url"] = stored
-                                reel["video_storage_status"] = "stored"
-                                reel["video_stored_at"] = datetime.now(timezone.utc).isoformat()
-                                scrape_stats["stored_videos"] += 1
-                            else:
-                                reel["preview_url"] = None
-                                reel["video_storage_status"] = "failed"
-                                reel["video_stored_at"] = None
-                                scrape_stats["failed_video_stores"] += 1
-                        else:
-                            reel["video_storage_status"] = "pending"
-                        
-                        # Classify semantic niches
-                        reel["semantic_niches"] = self._classify_caption_niches(caption, hashtags, source_hashtag_pool)
-
-                        # Creator baseline caching and outlier tagging
-                        multiplier = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
-                        is_outlier = None
-                        
-                        try:
-                            cached_res = self.supabase.table("creator_baselines").select("*").eq("username", owner).execute()
-                            cached_data = cached_res.data
-                        except Exception as ex:
-                            logger.warning(f"Error querying creator baseline for @{owner}: {ex}")
-                            cached_data = []
-
-                        baseline = None
-                        if cached_data:
-                            baseline = cached_data[0]
-                            last_scraped_str = baseline.get("last_scraped_at")
-                            if last_scraped_str:
-                                last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
-                                if (datetime.now(timezone.utc) - last_scraped).days >= 7:
-                                    baseline = None
-
-                        if not baseline and view > 30000 and baseline_fetches_this_cycle < 5:
-                            new_baseline = await self.scrape_creator_baseline(owner)
-                            if new_baseline:
-                                baseline = new_baseline
-                                baseline_fetches_this_cycle += 1
-
-                        if baseline:
-                            post_count = baseline.get("post_count") or 0
-                            if post_count < 6:
-                                is_outlier = None
-                            else:
-                                median_v = baseline.get("median_views") or 0.0
-                                if view > multiplier * median_v:
-                                    is_outlier = True
-                                else:
-                                    is_outlier = False
-
-                        reel["is_creator_outlier"] = is_outlier
-
-                        # Insert to DB
-                        logger.info(f"Inserting reel {reel_id} for @{owner} into Supabase...")
-                        scrape_stats["insert_attempts"] += 1
-                        self.supabase.table("reels").insert(reel).execute()
-                        logger.info(f"Saved reel {reel_id} by @{owner} (velocity={velocity:.3f}, lang={meta.get('caption_language')}, outlier={is_outlier})")
-                        scrape_stats["insert_saved"] += 1
-
-                        # Snapshots and delta computation
-                        try:
-                            # 1. Fetch most recent snapshot for this reel
-                            prev_snap_res = self.supabase.table("reel_snapshots") \
-                                .select("view_count, like_count, audio_use_count") \
-                                .eq("reel_id", reel_id) \
-                                .order("snapshotted_at", desc=True) \
-                                .limit(1) \
-                                .execute()
-                            
-                            views_delta = 0
-                            likes_delta = 0
-                            audio_delta = 0
-                            
-                            if prev_snap_res.data:
-                                last_snap = prev_snap_res.data[0]
-                                views_delta = max(0, view - (last_snap.get("view_count") or 0))
-                                likes_delta = max(0, likes - (last_snap.get("like_count") or 0))
-                                audio_delta = max(0, audio_use - (last_snap.get("audio_use_count") or 0))
-                            
-                            # 2. Insert new snapshot
-                            self.supabase.table("reel_snapshots").insert({
-                                "reel_id": reel_id,
-                                "audio_id": audio_id,
-                                "view_count": view,
-                                "like_count": likes,
-                                "comment_count": comments,
-                                "audio_use_count": audio_use
-                            }).execute()
-
-                            # 3. Update deltas on the reels row
-                            if views_delta > 0 or likes_delta > 0 or audio_delta > 0:
-                                self.supabase.table("reels").update({
-                                    "views_delta_last_run": views_delta,
-                                    "likes_delta_last_run": likes_delta,
-                                    "audio_delta_last_run": audio_delta
-                                }).eq("reel_id", reel_id).execute()
-                                
-                        except Exception as snap_ex:
-                            logger.warning(f"Error updating snapshots/deltas for reel {reel_id}: {snap_ex}")
-
-
-                        # Check unique creator count for original audio contaminant check
-                        unique_creators_count = 1
-                        if audio_id:
-                            try:
-                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_id", audio_id).execute()
-                                if creators_res.data:
-                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
-                                    unique_creators.add(owner)
-                                    unique_creators_count = len(unique_creators)
-                            except Exception as ex:
-                                logger.warning(f"Error checking creators for audio_id {audio_id}: {ex}")
-                        elif audio_title:
-                            try:
-                                creators_res = self.supabase.table("reels").select("owner_username").eq("audio_title", audio_title).execute()
-                                if creators_res.data:
-                                    unique_creators = {c.get("owner_username") for c in creators_res.data if c.get("owner_username")}
-                                    unique_creators.add(owner)
-                                    unique_creators_count = len(unique_creators)
-                            except Exception as ex:
-                                logger.warning(f"Error checking creators for audio_title {audio_title}: {ex}")
-
-                        is_contaminant = is_original_audio and unique_creators_count == 1
-                        is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
-
-                        if is_contaminant:
-                            logger.info(f"Skipping tracked_audio and trend_lifecycle for original audio contaminant '{audio_title}' (creator count: {unique_creators_count})")
-                        elif is_unrecoverable:
-                            logger.info(f"Skipping tracked_audio and trend_lifecycle for unrecoverable audio reel {reel_id} (audio missing after max retries)")
-                        else:
-                            # Track audio if it is a real (non-original) audio
-                            if audio_id:
-                                try:
-                                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
-                                    if not exist.data:
-                                        # Ensure we have at least 2 reels in the DB for this audio (including the one just inserted)
-                                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
-                                        reel_count = reels_res.count or 0
-                                        if reel_count >= 2:
-                                            self.supabase.table("tracked_audio").insert({
-                                                "audio_id": audio_id,
-                                                "audio_title": audio_title,
-                                                "audio_artist": audio_artist,
-                                                "first_seen_at": datetime.now(timezone.utc).isoformat()
-                                            }).execute()
-                                            logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
-                                        else:
-                                            logger.info(f"Skipped tracking audio_id {audio_id} ('{audio_title}'): only has {reel_count} reel(s) in DB (floor is 2+)")
-                                except Exception as tae:
-                                    logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
-                            
-                            # Trend lifecycle
-                            self._update_trend_lifecycle(
-                                audio_title=audio_title or "unknown_trend",
-                                creator_country=creator_country,
-                                scraped_at=scraped_at,
-                            )
-                        
-                        saved_count += 1
-                        high_velocity.append(velocity)
-                        
-                        # Group for hook analysis
-                        if audio_title:
-                            key = (audio_title.strip(), (audio_artist or "").strip())
-                            audio_groups.setdefault(key, []).append(reel)
-                        
-                    except Exception as e:
-                        logger.error(f"Error processing reel {reel_id if 'reel_id' in locals() else 'unknown'}: {e}", exc_info=True)
-                        scrape_stats["item_errors"] += 1
-            
             high_velocity.sort(reverse=True)
             top3 = [round(v, 4) for v in high_velocity[:3]]
             print(f"Total scraped: {total_scraped} | Saved: {saved_count} | Top 3 velocities: {top3}")
