@@ -60,10 +60,7 @@ credentials.json
 
 
 # Diagnostic scratch scripts (not for production)
-scratch/*.py
-!scratch/check_gh_actions.py
-!scratch/analyze_gaps.py
-!scratch/migrate_add_reels_count.py
+scratch/
 
 # Artifacts
 artifacts/
@@ -91,3 +88,76 @@ tokens.json
 test_h8_tokens.json
 _tmp_*.json
 .git-rewrite/
+
+# Diagnostic / debug scripts (root level — one-off scripts not for production)
+/test_*.py
+/check_*.py
+/debug_*.py
+/get_*.py
+/set_*.py
+/find_*.py
+/clear_*.py
+/run_*.py
+/ensure_*.py
+/add_*.py
+/reset_*.py
+/clickthrough.py
+/clickthrough_output/
+/_*.py
+/_*.txt
+/_*.tmp
+*.bat
+
+# Backend diagnostic scripts
+/backend/test_*.py
+/backend/test[0-9]*.py
+/backend/check_*.py
+/backend/fix_*.py
+/backend/verify_*.py
+/backend/investigate_*.py
+/backend/analyze_*.py
+/backend/inspect_*.py
+/backend/audit_*.py
+/backend/quick_*.py
+/backend/revalidate_*.py
+/backend/rising_*.py
+/backend/supabase_migration*.sql
+/backend/final_*.py
+/backend/preview_*.py
+/backend/revert_*.py
+/backend/monitor_*.py
+/backend/migrate_*.py
+/backend/create_*.py
+/backend/ensure_*.py
+/backend/reset_*.py
+/backend/add_*.py
+/backend/set_*.py
+/backend/empirical_*.txt
+/backend/external_discovery_*.py
+/backend/trend_delete_list.csv
+
+# Audit / deployment markdown reports
+/*_SUMMARY.md
+/*_REPORT.md
+/*_SETUP.md
+/*_FIX.md
+/*_COMPLETE.md
+/*_IMPLEMENTATION*.md
+/*_STATUS.md
+/*_REMINDER.md
+FRONTEND_AUDIT*.md
+VERIFICATION_*.md
+PRE_DEPLOYMENT*.md
+CHANGES_*.md
+CHICKEN_*.md
+QUEUE_*.md
+RE_AUDIT*.md
+ADD_GITHUB_SECRETS.md
+DYNAMIC_THRESHOLD_DEPLOYMENT.md
+
+# Temp files
+*.tmp
+*.png
+!frontend/**/*.png
+add_github_secrets.sh
+frontend/audit_script.js
