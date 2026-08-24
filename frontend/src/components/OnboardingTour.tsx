@@ -196,20 +196,19 @@ export function OnboardingTour({ onComplete, open }: OnboardingTourProps) {
   );
 }
 
-// Hook to control onboarding
+// Hook to control onboarding — does NOT auto-open.
+// Users can start the tour manually via the "Tour" button in the Dashboard.
 export function useOnboarding() {
   const [isOpen, setIsOpen] = useState(false);
 
-  useEffect(() => {
-    const hasCompleted = localStorage.getItem("trendrop_onboarding_completed");
-    if (!hasCompleted) {
-      setIsOpen(true);
-    }
-  }, []);
+  const startOnboarding = () => {
+    setIsOpen(true);
+  };
 
   const closeOnboarding = () => {
     setIsOpen(false);
+    localStorage.setItem("trendrop_onboarding_completed", "true");
   };
 
-  return { isOpen, closeOnboarding };
+  return { isOpen, startOnboarding, closeOnboarding };
 }

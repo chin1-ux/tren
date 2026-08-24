@@ -6,6 +6,8 @@ import { EarlyDetectionPanel } from "@/components/EarlyDetectionPanel";
 import { VideoAnalysisPanel } from "@/components/VideoAnalysisPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
+import { Button } from "@/components/ui/button";
+import { HelpCircle } from "lucide-react";
 
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useUserStore } from "@/store/useAppStore";
@@ -16,13 +18,20 @@ export const Route = createFileRoute("/dashboard")({
 });
 
 function Dashboard() {
-  const { isOpen, closeOnboarding } = useOnboarding();
+  const { isOpen, startOnboarding, closeOnboarding } = useOnboarding();
   const userEmail = useUserStore((s) => s.email) ?? "";
 
   return (
     <>
       <OnboardingTour open={isOpen} onComplete={closeOnboarding} />
       <div className="container mx-auto py-8 px-4">
+        <div className="flex items-center justify-between mb-4">
+          <div />
+          <Button variant="ghost" size="sm" onClick={startOnboarding} className="gap-1.5 text-muted-foreground">
+            <HelpCircle className="h-4 w-4" />
+            Tour
+          </Button>
+        </div>
         <Tabs defaultValue="early-detection" className="w-full">
           <div className="w-full overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
             <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1 h-11 gap-1.5 bg-muted/60 rounded-xl">
