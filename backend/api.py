@@ -5601,7 +5601,7 @@ def admin_change_password(request: Request, req: AdminChangePasswordRequest, adm
             "details": {},
             "ip_address": client_ip,
             "user_agent": user_agent,
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }).execute()
         
         return {"success": True, "message": "Password changed successfully"}
@@ -5740,7 +5740,7 @@ def admin_update_user_plan(
                 "reason": reason,
                 "expires_at": expires_at
             },
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }).execute()
         
         invalidate_cached_user_profile(email)
@@ -5783,7 +5783,7 @@ def admin_lock_user(
             "action": "account_lock",
             "target_user_email": email,
             "details": {"reason": reason},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }).execute()
         
         return {"success": True, "message": "User account locked"}
@@ -5824,7 +5824,7 @@ def admin_unlock_user(
             "action": "account_unlock",
             "target_user_email": email,
             "details": {"reason": reason},
-            "timestamp": datetime.utcnow().isoformat()
+            "timestamp": datetime.now(timezone.utc).isoformat()
         }).execute()
         
         return {"success": True, "message": "User account unlocked"}
