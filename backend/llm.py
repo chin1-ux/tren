@@ -1,6 +1,7 @@
 import os
 import json
 import logging
+import re
 import socket
 import requests
 
@@ -228,10 +229,12 @@ def _try_gemini_fallback(system_prompt: str, user_prompt: str, response_mime_typ
 
 # Verified free models on OpenRouter (2026-08-24)
 _OPENROUTER_MODELS = [
-    "google/gemma-4-26b-a4b-it:free",
-    "google/gemma-4-31b-it:free",
     "nvidia/nemotron-3-super-120b-a12b:free",
-    "nvidia/nemotron-3.5-lightning:free",
+    "nvidia/nemotron-3-nano-30b-a3b:free",
+    "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+    "cohere/north-mini-code:free",
+    "nvidia/nemotron-nano-12b-v2-vl:free",
+    "liquid/lfm-2.5-2.6b:free",
 ]
 
 
@@ -271,10 +274,20 @@ def _try_openrouter_fallback(system_prompt: str, user_prompt: str, response_mime
                 )
                 response.raise_for_status()
                 rj = response.json()
-                text = rj["choices"][0]["message"]["content"].strip()
+                content = rj["choices"][0]["message"]["content"]
+                if content is None:
+                    logger.warning(f"OpenRouter returned null content for {model}")
+                    continue
+                text = content.strip()
 
                 if response_mime_type == "application/json":
-                    if text.startswith("```"):
+                    # Handle markdown code blocks: ```json\n{...}\n```
+                    if "```" in text:
+                        m = re.search(r"```(?:json)?\s*\n?(.*?)\n?\s*```", text, re.DOTALL)
+                        if m:
+                            text = m.group(1).strip()
+                    # If still not JSON, try to extract the outermost {...}
+                    if not text.startswith("{"):
                         start = text.find("{")
                         end = text.rfind("}")
                         if start != -1 and end != -1:
