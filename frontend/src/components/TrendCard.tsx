@@ -82,38 +82,6 @@ function getVelocityPatternIndicator(pattern?: string): { label: string; icon: s
 }
 
 /** 2026-algo: optimal reel length in seconds by content type */
-function getOptimalLength(category: string): string {
-  const c = (category ?? "").toLowerCase();
-  if (c === "dance") return "15–20s";
-  if (c === "scenic" || c === "travel") return "20–25s";
-  if (c === "fitness" || c === "motivation") return "30–45s";
-  if (c === "food" || c === "fashion") return "15–30s";
-  if (c === "narrative" || c === "study") return "45–60s";
-  if (c === "faceless") return "20–30s";
-  return "20–30s";
-}
-
-/** 2026-algo: save-bait tip by content type */
-function getSaveBaitTip(category: string): string {
-  const c = (category ?? "").toLowerCase();
-  if (c === "travel") return "Add '3 must-pack items for this trip' as text overlay";
-  if (c === "fitness") return "Show the exact rep/set breakdown in text on-screen";
-  if (c === "food") return "List the 2–3 key ingredients as a text overlay";
-  if (c === "fashion") return "Tag where to buy each item — saves triple when links are visible";
-  if (c === "motivation") return "Use a numbered list (e.g. '5 habits') to trigger saves";
-  if (c === "study") return "Share a framework or template viewers can screenshot";
-  if (c === "dance") return "Add a 'step breakdown' comment to get saves from learners";
-  return "Include a numbered tip or stat viewers want to refer back to";
-}
-
-/** Estimated DM-shareability score 0–10 based on trend signals */
-function getDMShareScore(trend: UiTrend): number {
-  const base = (trend.hookRetentionScore ?? 0) * 5
-    + (trend.creatorFitScore ?? 0) * 3
-    + Math.min(3, (trend.viralMultiplier / 10));
-  return Math.min(10, Math.round(base * 10) / 10);
-}
-
 function getTargetedSaturationMeta(count: number): { label: string; color: string; bgColor: string } {
   if (count === 0) return { label: "0 targeting", color: "text-emerald-400 border-emerald-500/20", bgColor: "bg-emerald-500/10" };
   if (count <= 2) return { label: `${count} targeting`, color: "text-amber-400 border-amber-500/20", bgColor: "bg-amber-500/10" };
@@ -315,9 +283,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const creatorFit = trend.creatorFitScore ?? 0;
   const hookRetention = trend.hookRetentionScore ?? 0;
   const saturationPenalty = trend.saturationPenalty ?? 0;
-  const dmShareScore = getDMShareScore(trend);
-  const optimalLength = getOptimalLength(trend.category);
-  const saveBaitTip = getSaveBaitTip(trend.category);
   const velocityStrength = trend.viralMultiplier ?? 0;
   
   // Trend classification for display differentiation
@@ -432,8 +397,16 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
       {/* ── 1. Top row: platform and status badges (unified tag cloud to prevent overlaps) ── */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        <span className="inline-flex items-center gap-1 rounded-full bg-primary/10 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide text-primary">
-          <TrendingUp className="h-2.5 w-2.5" /> Trending
+        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
+          trend.status === "emerging" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
+          trend.status === "peaked" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
+          trend.status === "expired" ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
+          "bg-primary/10 text-primary border-primary/20"
+        }`}>
+          {trend.status === "emerging" ? "⚡ Emerging" :
+           trend.status === "peaked" ? "📉 Peaked" :
+           trend.status === "expired" ? "⏰ Expired" :
+           "📈 Rising"}
         </span>
 
         {/* Trend Classification Badge (Hidden temporarily) */}
@@ -566,7 +539,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             🔀 {trend.crossoverFromLanguage} crossover
           </Chip>
         )}
-        {trend.nicheFitScore !== undefined && trend.nicheFitScore >= 80 && (
+        {trend.creatorFitScore !== undefined && trend.creatorFitScore >= 0.8 && (
           <Chip className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
             🎯 Niche Match
           </Chip>
@@ -658,25 +631,9 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               </div>
             )}
 
-            {/* ── 2026 Algorithm Insight ── */}
+            {/* ── Content Strategy ── */}
             <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 space-y-3">
-              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">⚡ 2026 Algorithm Insights</p>
-
-              {/* Row 1: DM Share + Optimal Length */}
-              <div className="grid grid-cols-2 gap-2">
-                <div className="rounded-lg bg-white/[0.03] border border-border/40 p-2 text-center">
-                  <Share2 className="h-3.5 w-3.5 text-[#ff006e] mx-auto mb-1" />
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">DM Share Score</p>
-                  <p className="text-base font-extrabold text-[#ff006e]">{dmShareScore}<span className="text-[10px] text-muted-foreground">/10</span></p>
-                  <p className="text-[8px] text-muted-foreground/70 mt-0.5">1 DM = 15× likes in reach</p>
-                </div>
-                <div className="rounded-lg bg-white/[0.03] border border-border/40 p-2 text-center">
-                  <Film className="h-3.5 w-3.5 text-secondary mx-auto mb-1" />
-                  <p className="text-[9px] font-bold uppercase tracking-wide text-muted-foreground">Optimal Length</p>
-                  <p className="text-base font-extrabold text-secondary">{optimalLength}</p>
-                  <p className="text-[8px] text-muted-foreground/70 mt-0.5">for {trend.category} content</p>
-                </div>
-              </div>
+              <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Content Strategy</p>
 
               {/* Hook */}
               <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
@@ -686,12 +643,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                     ? (trend.whyThisWorks || "No hook advice available.") 
                     : "Not enough data yet for a tailored strategy."}
                 </p>
-              </div>
-
-              {/* Save-bait */}
-              <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">💾 Save-Bait (1 save = 10× likes)</p>
-                <p className="text-xs text-foreground/80 leading-relaxed">{saveBaitTip}</p>
               </div>
 
               {/* Trial reel badge row */}

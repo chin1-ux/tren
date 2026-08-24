@@ -84,7 +84,7 @@ export const AudioIdentityCard = ({
         {/* Sparkline integration */}
         {!loadingHistory && history.length > 0 && (
           <div className="flex flex-col items-end gap-0.5">
-            <span className="text-[9px] font-semibold tracking-wider text-white/40 uppercase">72H Trend</span>
+            <span className="text-[9px] font-semibold tracking-wider text-white/40 uppercase">Growth</span>
             <SparklineChart data={history} color={getSparklineColor()} />
           </div>
         )}

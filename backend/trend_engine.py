@@ -1125,7 +1125,15 @@ class TrendEngine:
 
                 # Saturation percentages
                 global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
-                india_sat = round(min(100.0, (india_use_count / INDIA_SATURATION_THRESHOLD_REELS) * 100), 1)
+                # India saturation: proportional to global saturation based on Indian creator ratio.
+                # Raw count approach (india_use_count / 500) permanently yields ~0% because
+                # max india_use_count across all audio is ~13. Instead, scale global saturation
+                # by the fraction of scraped reels from Indian creators.
+                if len(group_reels) > 0 and india_use_count > 0:
+                    india_ratio = india_use_count / len(group_reels)
+                    india_sat = round(min(100.0, global_sat * india_ratio * 2), 1)
+                else:
+                    india_sat = 0.0
 
                 # Fix #9: Window hours — saturation-based baseline adjusted by velocity direction.
                 # A trend with falling velocity gets 30% fewer hours regardless of saturation.
