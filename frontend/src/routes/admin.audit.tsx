@@ -68,7 +68,7 @@ function AdminAuditPage() {
   const fetchAuditLogs = async () => {
     setLoading(true);
     try {
-      const response = await getAdminAuditLog(debouncedSearch, actionFilter, 100);
+      const response = await getAdminAuditLog(debouncedSearch, actionFilter, 100, dateFrom || undefined, dateTo || undefined);
       setLogs(response.audit_log || []);
     } catch (err: any) {
       console.error(err);

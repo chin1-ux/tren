@@ -4755,15 +4755,25 @@ def log_analytics_event(
         raise HTTPException(status_code=500, detail="Failed to log analytics event")
 
 @app.get("/api/admin/analytics-summary")
-def get_analytics_summary(admin_info: dict = Depends(require_admin)):
+def get_analytics_summary(
+    days: int = 30,
+    admin_info: dict = Depends(require_admin)
+):
     try:
-        res = supabase.table("analytics_events").select("event_name").execute()
+        from datetime import datetime, timezone, timedelta
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+        res = supabase.table("analytics_events") \
+            .select("event_name") \
+            .gte("created_at", cutoff) \
+            .order("created_at", desc=True) \
+            .limit(5000) \
+            .execute()
         events = res.data or []
         summary = {}
         for ev in events:
             name = ev["event_name"]
             summary[name] = summary.get(name, 0) + 1
-        return {"success": True, "event_counts": summary}
+        return {"success": True, "event_counts": summary, "total_events": len(events), "days": days}
     except Exception as e:
         logger.error(f"Error getting analytics summary: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -6728,9 +6738,11 @@ def get_phone_verification_status(
 
 @app.get("/api/admin/audit-log", tags=["Admin"])
 def admin_get_audit_log(
-    admin_user: str = Depends(require_admin),
+    admin_user: dict = Depends(require_admin),
     admin_email_filter: Optional[str] = None,
     action_filter: Optional[str] = None,
+    date_from: Optional[str] = None,
+    date_to: Optional[str] = None,
     limit: int = 100
 ):
     """Get admin audit log with optional filters."""
@@ -6740,13 +6752,17 @@ def admin_get_audit_log(
         query = supabase.table("admin_actions").select("*").order("created_at", desc=True)
         
         if admin_email_filter:
-            # Get admin ID from email
             admin_res = supabase.table("users").select("id").eq("email", admin_email_filter).single().execute()
             if admin_res.data:
                 query = query.eq("admin_id", admin_res.data.get("id"))
         
         if action_filter:
             query = query.eq("action", action_filter)
+        
+        if date_from:
+            query = query.gte("created_at", date_from)
+        if date_to:
+            query = query.lte("created_at", date_to)
         
         query = query.limit(limit)
         res = query.execute()

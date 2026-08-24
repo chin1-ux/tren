@@ -205,10 +205,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     setAuthToken(null);
-    localStorage.removeItem("trendrop_session_token");
-    localStorage.removeItem("trendrop_user_email");
-    localStorage.removeItem("trendrop_user_niche");
-    localStorage.removeItem("trendrop_user_language");
+    // Clear all auth and preference keys
+    const keysToRemove = [
+      "trendrop_session_token",
+      "trendrop_user_email",
+      "trendrop_user_niche",
+      "trendrop_user_language",
+      "trendrop_user_plan",
+      "trendrop_token",
+      "trendrop_email",
+      "trendrop_onboarded",
+      "trendrop_visited",
+      "trendrop_tutorial_done",
+      "admin_token",
+      "admin_email",
+      "admin_role",
+    ];
+    for (const key of keysToRemove) {
+      localStorage.removeItem(key);
+    }
     setUser(null);
   };
 

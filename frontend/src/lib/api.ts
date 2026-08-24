@@ -1432,10 +1432,12 @@ export async function getAdminBusinessMetrics(days: number = 30): Promise<any> {
   });
 }
 
-export async function getAdminAuditLog(admin_email_filter?: string, action_filter?: string, limit: number = 100): Promise<any> {
+export async function getAdminAuditLog(admin_email_filter?: string, action_filter?: string, limit: number = 100, date_from?: string, date_to?: string): Promise<any> {
   const params = new URLSearchParams();
   if (admin_email_filter) params.append("admin_email_filter", admin_email_filter);
   if (action_filter) params.append("action_filter", action_filter);
+  if (date_from) params.append("date_from", date_from);
+  if (date_to) params.append("date_to", date_to);
   params.append("limit", limit.toString());
   
   return http<any>(`/api/admin/audit-log?${params.toString()}`, {
