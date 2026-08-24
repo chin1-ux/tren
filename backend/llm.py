@@ -1,16 +1,23 @@
 import os
 import json
 import logging
+import socket
 import requests
 
 logger = logging.getLogger("llm")
 
-# Verified available models for this API key (confirmed via /v1beta/models endpoint 2026-07-18):
-# models/gemini-2.0-flash  — primary stable fallback
-# models/gemini-2.0-flash-lite — secondary fallback if primary is rate-limited
+# Force IPv4 — IPv6 is broken on some environments causing hangs
+_orig_getaddrinfo = socket.getaddrinfo
+def _ipv4_only(*args, **kwargs):
+    return [r for r in _orig_getaddrinfo(*args, **kwargs) if r[0] == socket.AF_INET]
+socket.getaddrinfo = _ipv4_only
+
+# Available Gemini models (verified 2026-08-24):
+# gemini-3.6-flash — latest stable, primary
+# gemini-3.5-flash-lite — secondary fallback
 _GEMINI_FALLBACK_MODELS = [
-    "gemini-2.0-flash",
-    "gemini-2.0-flash-lite",
+    "gemini-3.6-flash",
+    "gemini-3.5-flash-lite",
 ]
 
 
@@ -59,13 +66,13 @@ def call_gemini(system_prompt: str, user_prompt: str, gemini_key: str, response_
 
 def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "application/json", timeout: int = 30) -> dict:
     """
-    Unified LLM call supporting Gemini (default) and Grok / OpenAI compatible providers.
-    Uses environment variables:
-      - LLM_PROVIDER: "gemini" or "grok" or "openai"
-      - GEMINI_API_KEY: for Gemini
-      - GROK_API_KEY / LLM_API_KEY: for Grok / OpenAI compatible API
-      - LLM_BASE_URL: default is https://api.x.ai/v1 for grok, or custom
-      - LLM_MODEL: default is "grok-beta" for grok, or custom
+    Unified LLM call with automatic fallback: Groq → Gemini → OpenRouter.
+    Environment variables:
+      - GROQ_API_KEY: primary provider (required)
+      - GEMINI_API_KEY: fallback when Groq fails
+      - OPENROUTER_API_KEY: last-resort fallback (free models)
+      - LLM_MODEL: override default model (default: allam-2-7b)
+      - LLM_PROVIDER: "groq" (default) or "grok"/"openai" for custom providers
     """
     provider = os.getenv("LLM_PROVIDER", "groq").lower()
     # Groq is the primary LLM provider; Gemini remains a fallback when Groq is exhausted
@@ -138,7 +145,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
             logger.info(f"Using all {len(keys)} configured Groq key(s) for this request.")
 
         # Apply cost optimisation defaults
-        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
+        model = os.getenv("LLM_MODEL", "allam-2-7b")
         payload = {
             "model": model,
             "messages": [
@@ -181,14 +188,20 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
                     try:
                         return _try_gemini_fallback(system_prompt, user_prompt, response_mime_type, timeout)
                     except RuntimeError:
-                        raise RuntimeError("All Groq API keys failed. All Gemini fallbacks failed.") from e
+                        try:
+                            return _try_openrouter_fallback(system_prompt, user_prompt, response_mime_type, timeout)
+                        except RuntimeError:
+                            raise RuntimeError("All Groq keys failed. All Gemini fallbacks failed. All OpenRouter fallbacks failed.") from e
             except requests.RequestException as e:
                 logger.warning(f"Groq request error with key #{idx}: {e}")
                 if idx == len(keys):
                     try:
                         return _try_gemini_fallback(system_prompt, user_prompt, response_mime_type, timeout)
                     except RuntimeError:
-                        raise RuntimeError("All Groq API keys failed. All Gemini fallbacks failed.") from e
+                        try:
+                            return _try_openrouter_fallback(system_prompt, user_prompt, response_mime_type, timeout)
+                        except RuntimeError:
+                            raise RuntimeError("All Groq keys failed. All Gemini fallbacks failed. All OpenRouter fallbacks failed.") from e
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
 
@@ -211,3 +224,64 @@ def _try_gemini_fallback(system_prompt: str, user_prompt: str, response_mime_typ
                 last_err = gemini_err
                 logger.error(f"Gemini fallback key #{gemini_idx} ({gemini_model}) also failed: {gemini_err}")
     raise RuntimeError(f"All Groq keys failed. All Gemini fallbacks failed. Last error: {last_err}")
+
+
+# Verified free models on OpenRouter (2026-08-24)
+_OPENROUTER_MODELS = [
+    "google/gemma-4-26b-a4b-it:free",
+    "google/gemma-4-31b-it:free",
+    "nvidia/nemotron-3-super-120b-a12b:free",
+    "nvidia/nemotron-3.5-lightning:free",
+]
+
+
+def _try_openrouter_fallback(system_prompt: str, user_prompt: str, response_mime_type: str, timeout: int) -> dict:
+    """Try OpenRouter free models as last-resort fallback."""
+    keys = _collect_env_keys(("OPENROUTER_API_KEY",))
+    if not keys:
+        raise RuntimeError("No OPENROUTER_API_KEY configured.")
+
+    last_err = None
+    for key_idx, api_key in enumerate(keys, start=1):
+        for model in _OPENROUTER_MODELS:
+            logger.warning(f"Attempting OpenRouter fallback key #{key_idx} ({model})...")
+            try:
+                headers = {
+                    "Content-Type": "application/json",
+                    "Authorization": f"Bearer {api_key}",
+                    "HTTP-Referer": "https://trendrop.app",
+                    "X-Title": "Trendrop",
+                }
+                payload = {
+                    "model": model,
+                    "messages": [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": user_prompt},
+                    ],
+                    "temperature": 0.2,
+                    "max_tokens": 1024,
+                }
+                # Free models on OpenRouter don't support response_format
+
+                response = requests.post(
+                    "https://openrouter.ai/api/v1/chat/completions",
+                    headers=headers,
+                    json=payload,
+                    timeout=timeout,
+                )
+                response.raise_for_status()
+                rj = response.json()
+                text = rj["choices"][0]["message"]["content"].strip()
+
+                if response_mime_type == "application/json":
+                    if text.startswith("```"):
+                        start = text.find("{")
+                        end = text.rfind("}")
+                        if start != -1 and end != -1:
+                            text = text[start:end + 1]
+                    return json.loads(text)
+                return {"text": text}
+            except Exception as err:
+                last_err = err
+                logger.error(f"OpenRouter key #{key_idx} ({model}) failed: {err}")
+    raise RuntimeError(f"All OpenRouter fallbacks failed. Last error: {last_err}")
