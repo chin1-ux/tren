@@ -1,6 +1,12 @@
 """
 Plan Enforcement Middleware
-Credits-based pricing: free / pro tiers with credit metering.
+
+Subscription-based pricing with 4 creator tiers + 3 brand tiers:
+  Creator:  free | early_bird (₹999) | pro (₹2,999)
+  Brand:    brand_starter (₹4,999) | brand_growth (₹14,999) | brand_enterprise (₹49,999)
+
+Marketplace commission: 10% on brand-creator deals (separate from subscriptions).
+Credits are deprecated — subscriptions + hard rate limits are the model.
 """
 import os
 import logging
@@ -36,7 +42,25 @@ if not SUPABASE_URL or not SUPABASE_KEY:
 supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 
-# ── Credit costs per operation ─────────────────────────────────────────────────
+# ── Tier definitions (creator plans) ───────────────────────────────────────────
+# These are the valid plan values stored in users.plan column.
+# Current DB supports 'free' | 'pro'. Early bird and brand tiers
+# will be added when the DB schema is migrated to 4-tier subscriptions.
+CREATOR_TIERS = ('free', 'early_bird', 'pro')
+BRAND_TIERS = ('brand_starter', 'brand_growth', 'brand_enterprise')
+ALL_TIERS = CREATOR_TIERS + BRAND_TIERS
+
+# ── Daily rate limits per tier (trends per day) ────────────────────────────────
+TIER_DAILY_LIMITS = {
+    'free': 5,
+    'early_bird': 50,
+    'pro': 999999,  # unlimited
+    'brand_starter': 100,
+    'brand_growth': 500,
+    'brand_enterprise': 999999,
+}
+
+# ── Credit costs per operation (legacy — kept for backward compatibility) ──────
 CREDIT_COSTS = {
     'ai_generation': 5,
     'video_analysis': 10,
@@ -49,25 +73,37 @@ FREE_TIER_FEATURES = ['basic_trends', 'algorithm_insights', 'limited_analytics']
 
 class PlanEnforcement:
     """
-    Credits-based plan enforcement. Plans: 'free' | 'pro'.
-    No more normalize/display name mapping.
+    Subscription-based plan enforcement.
+
+    Creator plans: free | early_bird | pro
+    Brand plans: brand_starter | brand_growth | brand_enterprise
+
+    The DB currently stores 'free' or 'pro' in users.plan.
+    Early bird and brand tiers are defined here for when the DB migrates.
     """
 
     PAID_FEATURES = {
-        'early_detection': ['pro'],
+        'early_detection': ['early_bird', 'pro'],
         'unlimited_trends': ['pro'],
-        'ai_generation': ['pro'],
-        'advanced_analytics': ['pro'],
-        'india_features': ['pro'],
+        'ai_generation': ['early_bird', 'pro'],
+        'advanced_analytics': ['early_bird', 'pro'],
+        'india_features': ['early_bird', 'pro'],
         'video_analysis': ['pro'],
         'team_features': ['pro'],
         'api_access': ['pro'],
         'priority_support': ['pro'],
+        'marketplace_access': ['free', 'early_bird', 'pro'],  # free for all creators
+        'brand_matching': ['early_bird', 'pro'],
+        'campaign_analytics': ['pro'],
     }
 
     BRAND_DEALS_CONFIG = {
         'free': {'delay_hours': 48, 'max_deals': 5},
+        'early_bird': {'delay_hours': 24, 'max_deals': 20},
         'pro':  {'delay_hours': 0,  'max_deals': None},
+        'brand_starter': {'delay_hours': 0, 'max_deals': 10},
+        'brand_growth': {'delay_hours': 0, 'max_deals': 50},
+        'brand_enterprise': {'delay_hours': 0, 'max_deals': None},
     }
 
     # ── Plan resolution ────────────────────────────────────────────────────────
@@ -97,7 +133,7 @@ class PlanEnforcement:
                 return 'free'
 
             plan = user_res.data.get('plan', 'free')
-            if plan not in ('free', 'pro'):
+            if plan not in ALL_TIERS:
                 plan = 'free'
             subscription_status = user_res.data.get('subscription_status')
             grace_period_ends_at = user_res.data.get('grace_period_ends_at')
@@ -111,7 +147,7 @@ class PlanEnforcement:
                     expires_at = override.get('expires_at')
                     if not expires_at or expires_at > now:
                         t = override.get('tier', plan)
-                        return t if t in ('free', 'pro') else 'free'
+                        return t if t in ALL_TIERS else 'free'
 
             if subscription_status in ['cancelled', 'halted', 'past_due']:
                 if grace_period_ends_at:

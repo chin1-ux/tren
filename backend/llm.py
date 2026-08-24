@@ -1,5 +1,4 @@
 import os
-import os
 import json
 import logging
 import requests
@@ -25,8 +24,9 @@ def _collect_env_keys(prefixes: tuple[str, ...]) -> list[str]:
                     keys.append(clean_part)
     return keys
 
-def call_gemini(system_prompt: str, user_prompt: str, gemini_key: str, response_mime_type: str = "application/json", timeout: int = 30) -> dict:
-    model = os.getenv("GEMINI_MODEL", _GEMINI_FALLBACK_MODELS[0])
+def call_gemini(system_prompt: str, user_prompt: str, gemini_key: str, response_mime_type: str = "application/json", timeout: int = 30, model: str | None = None) -> dict:
+    if model is None:
+        model = _GEMINI_FALLBACK_MODELS[0]
     gemini_url = (
         f"https://generativelanguage.googleapis.com/v1beta/models/"
         f"{model}:generateContent?key={gemini_key}"
@@ -138,7 +138,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
             logger.info(f"Using all {len(keys)} configured Groq key(s) for this request.")
 
         # Apply cost optimisation defaults
-        model = os.getenv("LLM_MODEL", "openai/gpt-oss-120b")
+        model = os.getenv("LLM_MODEL", "llama-3.1-8b-instant")
         payload = {
             "model": model,
             "messages": [
@@ -151,7 +151,7 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         # Groq returns HTTP 400 json_validate_failed for models that don't support
         # response_format: json_object. Skip for known-unsupported models; callers
         # still get JSON via prompt + markdown extraction at L163+.
-        _GROQ_NO_JSON_FORMAT = {"openai/gpt-oss-120b", "qwen/qwen3.6-27b"}
+        _GROQ_NO_JSON_FORMAT = set()
         if response_mime_type == "application/json" and model not in _GROQ_NO_JSON_FORMAT:
             payload["response_format"] = {"type": "json_object"}
         headers_common = {"Content-Type": "application/json"}
@@ -178,56 +178,36 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
             except requests.HTTPError as e:
                 logger.warning(f"Groq request failed with key #{idx}: {e}")
                 if idx == len(keys):
-                    gemini_keys = _collect_env_keys(("GEMINI_API_KEY",))
-                    if gemini_keys:
-                        # Try each Gemini key and each Gemini model in order until one succeeds.
-                        last_gemini_err = None
-                        for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):
-                            for gemini_model in _GEMINI_FALLBACK_MODELS:
-                                logger.warning(
-                                    f"All Groq API keys failed. Attempting fallback to Gemini key #{gemini_idx} ({gemini_model})..."
-                                )
-                                try:
-                                    prev_model = os.environ.get("GEMINI_MODEL")
-                                    os.environ["GEMINI_MODEL"] = gemini_model
-                                    res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
-                                    if prev_model is None:
-                                        os.environ.pop("GEMINI_MODEL", None)
-                                    else:
-                                        os.environ["GEMINI_MODEL"] = prev_model
-                                    logger.info(f"Fallback to Gemini key #{gemini_idx} ({gemini_model}) successful.")
-                                    return res
-                                except Exception as gemini_err:
-                                    last_gemini_err = gemini_err
-                                    logger.error(f"Gemini fallback key #{gemini_idx} ({gemini_model}) also failed: {gemini_err}")
-                        raise RuntimeError(f"All Groq keys failed. All Gemini fallbacks failed. Last error: {last_gemini_err}") from e
-                    raise RuntimeError("All Groq API keys failed.")
+                    try:
+                        return _try_gemini_fallback(system_prompt, user_prompt, response_mime_type, timeout)
+                    except RuntimeError:
+                        raise RuntimeError("All Groq API keys failed. All Gemini fallbacks failed.") from e
             except requests.RequestException as e:
                 logger.warning(f"Groq request error with key #{idx}: {e}")
                 if idx == len(keys):
-                    gemini_keys = _collect_env_keys(("GEMINI_API_KEY",))
-                    if gemini_keys:
-                        # Try each Gemini key and each Gemini model in order until one succeeds.
-                        last_gemini_err = None
-                        for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):
-                            for gemini_model in _GEMINI_FALLBACK_MODELS:
-                                logger.warning(
-                                    f"All Groq API keys failed. Attempting fallback to Gemini key #{gemini_idx} ({gemini_model})..."
-                                )
-                                try:
-                                    prev_model = os.environ.get("GEMINI_MODEL")
-                                    os.environ["GEMINI_MODEL"] = gemini_model
-                                    res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout)
-                                    if prev_model is None:
-                                        os.environ.pop("GEMINI_MODEL", None)
-                                    else:
-                                        os.environ["GEMINI_MODEL"] = prev_model
-                                    logger.info(f"Fallback to Gemini key #{gemini_idx} ({gemini_model}) successful.")
-                                    return res
-                                except Exception as gemini_err:
-                                    last_gemini_err = gemini_err
-                                    logger.error(f"Gemini fallback key #{gemini_idx} ({gemini_model}) also failed: {gemini_err}")
-                        raise RuntimeError(f"All Groq keys failed. All Gemini fallbacks failed. Last error: {last_gemini_err}") from e
-                    raise RuntimeError("All Groq API keys failed.")
+                    try:
+                        return _try_gemini_fallback(system_prompt, user_prompt, response_mime_type, timeout)
+                    except RuntimeError:
+                        raise RuntimeError("All Groq API keys failed. All Gemini fallbacks failed.") from e
     else:
         raise ValueError(f"Unsupported LLM provider: {provider}")
+
+
+def _try_gemini_fallback(system_prompt: str, user_prompt: str, response_mime_type: str, timeout: int) -> dict:
+    """Try all Gemini keys and models as fallback when Groq fails. Thread-safe (no os.environ mutation)."""
+    gemini_keys = _collect_env_keys(("GEMINI_API_KEY",))
+    if not gemini_keys:
+        raise RuntimeError("All Groq API keys failed. No Gemini keys configured for fallback.")
+    
+    last_err = None
+    for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):
+        for gemini_model in _GEMINI_FALLBACK_MODELS:
+            logger.warning(f"All Groq API keys failed. Attempting Gemini fallback key #{gemini_idx} ({gemini_model})...")
+            try:
+                res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout, model=gemini_model)
+                logger.info(f"Gemini fallback key #{gemini_idx} ({gemini_model}) successful.")
+                return res
+            except Exception as gemini_err:
+                last_err = gemini_err
+                logger.error(f"Gemini fallback key #{gemini_idx} ({gemini_model}) also failed: {gemini_err}")
+    raise RuntimeError(f"All Groq keys failed. All Gemini fallbacks failed. Last error: {last_err}")

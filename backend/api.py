@@ -146,6 +146,8 @@ except Exception as e:
     logger.warning(f"Auth functions import failed: {e}")
     def get_current_user():
         return "guest@trendrop.app"
+    def require_auth():
+        raise HTTPException(status_code=503, detail="Auth system not configured")
     def require_admin():
         raise HTTPException(status_code=503, detail="Auth system not configured")
     def require_super_admin():
@@ -183,7 +185,13 @@ except Exception as e:
         return lambda: "guest@trendrop.app"
     def log_endpoint_usage(feature):
         return lambda: "guest@trendrop.app"
-    CREDIT_COSTS = {}
+    def require_phone_verified():
+        return lambda: "guest@trendrop.app"
+    CREDIT_COSTS = {
+        "ai_generation": 0,
+        "export": 0,
+        "video_analysis": 0,
+    }
 
 try:
     from instagram_oauth import InstagramOAuth
