@@ -66,29 +66,8 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
     );
   }
 
-  if (metrics.is_connected === false) {
-    return (
-      <Card className="max-w-md mx-auto mt-8 border-border bg-card/60 backdrop-blur-lg rounded-2xl">
-        <CardHeader className="text-center pb-2">
-          <div className="mx-auto w-12 h-12 rounded-full bg-primary/10 flex items-center justify-center text-primary mb-3">
-            <Users className="h-6 w-6" />
-          </div>
-          <CardTitle className="font-display text-lg font-bold">Instagram Analytics — Coming Soon</CardTitle>
-          <CardDescription className="text-xs max-w-sm mx-auto">
-            Instagram account syncing isn't available in the beta yet, so personalized analytics are disabled for now. Everything else in your dashboard works today.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="p-6 pt-2 text-center space-y-4">
-          <Button
-            disabled
-            className="w-full bg-muted text-muted-foreground font-bold text-xs uppercase tracking-wider h-11 rounded-xl cursor-not-allowed"
-          >
-            Coming Soon
-          </Button>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Instagram OAuth not available in beta — show analytics with whatever data exists
+  // instead of blocking with a "Coming Soon" dead-end
 
   const getGrowthIcon = (trend: string) => {
     if (trend === "growing") return <TrendingUp className="h-4 w-4 text-emerald-500" />;

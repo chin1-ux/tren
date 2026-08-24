@@ -87,7 +87,7 @@ function SettingsPage() {
     const activeTheme = localStorage.getItem("trendrop_theme") as "light" | "dark" | null;
     if (activeTheme) setTheme(activeTheme);
 
-    setEmail(localStorage.getItem("trendrop_email") || "");
+    setEmail(localStorage.getItem("trendrop_user_email") || "");
     setInstagramHandle(localStorage.getItem("trendrop_instagram_handle") || "");
     setFollowers(localStorage.getItem("trendrop_followers") || "");
 
@@ -194,7 +194,7 @@ function SettingsPage() {
   }, []);
 
   const saveSettings = () => {
-    localStorage.setItem("trendrop_email", email);
+    localStorage.setItem("trendrop_user_email", email);
     localStorage.setItem("trendrop_instagram_handle", instagramHandle);
     localStorage.setItem("trendrop_followers", followers);
 

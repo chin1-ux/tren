@@ -47,7 +47,7 @@ export const useUserStore = create<UserState>((set) => ({
 
   initializeFromLocalStorage: () => {
     if (typeof window !== "undefined") {
-      const email = localStorage.getItem("trendrop_email");
+      const email = localStorage.getItem("trendrop_user_email");
       const niche = localStorage.getItem("trendrop_niche");
       const language = localStorage.getItem("trendrop_language");
       const plan = localStorage.getItem("trendrop_user_plan");
@@ -63,8 +63,8 @@ export const useUserStore = create<UserState>((set) => ({
       const next = { ...state, ...updates };
       if (typeof window !== "undefined") {
         if (updates.email !== undefined) {
-          if (updates.email) localStorage.setItem("trendrop_email", updates.email);
-          else localStorage.removeItem("trendrop_email");
+          if (updates.email) localStorage.setItem("trendrop_user_email", updates.email);
+          else localStorage.removeItem("trendrop_user_email");
         }
         if (updates.niche !== undefined) {
           if (updates.niche) localStorage.setItem("trendrop_niche", updates.niche);
@@ -95,7 +95,7 @@ export const useUserStore = create<UserState>((set) => ({
     setAuthToken(null);
 
     if (typeof window !== "undefined") {
-      localStorage.removeItem("trendrop_email");
+      localStorage.removeItem("trendrop_user_email");
       localStorage.removeItem("trendrop_niche");
       localStorage.removeItem("trendrop_language");
       localStorage.removeItem("trendrop_user_plan");

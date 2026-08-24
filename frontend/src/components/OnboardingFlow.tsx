@@ -49,12 +49,12 @@ export function OnboardingFlow({ onComplete }: Props) {
 
   // Pre-fill email from localStorage
   useEffect(() => {
-    const saved = localStorage.getItem("trendrop_email");
+    const saved = localStorage.getItem("trendrop_user_email");
     if (saved) setEmail(saved);
   }, []);
 
   const persistLocalSetup = () => {
-    localStorage.setItem("trendrop_email", email);
+    localStorage.setItem("trendrop_user_email", email);
     localStorage.setItem("trendrop_niche", niche);
     localStorage.setItem("trendrop_language", language);
     localStorage.setItem("trendrop_pref_size", followerTier);
