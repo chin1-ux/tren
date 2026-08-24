@@ -39,7 +39,37 @@ logging.basicConfig(
 def generate_local_fallback(trend):
     title = (trend.get("audio_title") or "Unknown Song").lower()
     is_dance = any(word in title for word in ["dance", "nach", "step", "groove", "taal", "bhangra", "dancecover"])
-        
+    use_count = trend.get("use_count") or 0
+    age_hours = trend.get("age_hours") or 48
+
+    # Dynamic scores based on actual trend data
+    if use_count > 100000:
+        saturation_score = 0.8
+        confidence = 0.7
+    elif use_count > 10000:
+        saturation_score = 0.5
+        confidence = 0.8
+    else:
+        saturation_score = 0.2
+        confidence = 0.9
+
+    # Recency boost — newer trends score higher
+    if age_hours < 6:
+        confidence = min(confidence + 0.05, 0.95)
+        saturation_score = max(saturation_score - 0.1, 0.0)
+    elif age_hours > 48:
+        confidence = max(confidence - 0.1, 0.5)
+
+    # Optimal posting hour based on current time of day
+    from datetime import datetime, timezone
+    current_hour_ist = (datetime.now(timezone.utc).hour + 5 + 30 // 60) % 24
+    if current_hour_ist < 12:
+        optimal_post_hour_ist = 20  # evening peak
+    elif current_hour_ist < 17:
+        optimal_post_hour_ist = 13  # afternoon
+    else:
+        optimal_post_hour_ist = 10  # next morning
+
     return {
         "content_type": None,
         "is_dance": is_dance,
@@ -48,24 +78,22 @@ def generate_local_fallback(trend):
         "edit_style": "fast_cuts" if is_dance else "slow_dissolve",
         "narrative_structure": "transformation" if is_dance else "none",
         "text_overlay_template": f"POV: Listening to {trend.get('audio_title') or 'this track'}",
-        # Leave unverified fields empty so the UI can show "Classifying..." instead
-        # of presenting a fabricated language/category as if the LLM had confirmed it.
         "language": None,
         "cultural_context": "celebration" if is_dance else "everyday",
         "ideal_content_description": f"Post aesthetic clips or photos matching the vibe of {trend.get('audio_title') or 'the song'}.",
         "camera_style": "static" if is_dance else "handheld",
-        "window_hours_remaining": 24,
-        "confidence": 0.90,
-        "saturation_score": 0.3,
-        "optimal_post_hour_ist": 18,
+        "window_hours_remaining": max(6, 72 - age_hours),
+        "confidence": confidence,
+        "saturation_score": saturation_score,
+        "optimal_post_hour_ist": optimal_post_hour_ist,
         "best_platform_first": "instagram",
         "why_this_works": f"The track {trend.get('audio_title') or 'this track'} is currently driving high engagement on short-form feeds.",
         "audio_cue_second": 0,
         "format_transferable": True,
         "transfer_instructions": f"Adapt the aesthetic visual style of {trend.get('audio_title') or 'the song'} to show your niche products or behind-the-scenes processes.",
         "creator_fit_score": 0.62,
-        "saturation_penalty": 0.35,
-        "hook_retention_score": 0.58,
+        "saturation_penalty": saturation_score,
+        "hook_retention_score": round(0.5 + (confidence - 0.5) * 0.4, 2),
     }
 
 

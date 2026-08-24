@@ -301,7 +301,7 @@ def run_full_pipeline(stages: list = None):
             try:
                 sb = _get_supabase()
                 from datetime import timedelta
-                recent_time = (datetime.utcnow() - timedelta(minutes=30)).isoformat()
+                recent_time = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
                 recent_reels = sb.table("reels").select("audio_title").gte("scraped_at", recent_time).execute().data or []
                 if recent_reels:
                     null_titles = sum(1 for r in recent_reels if not r.get("audio_title"))
@@ -472,7 +472,7 @@ def run_data_retention_job():
         logging.error(f"Cannot initialize Supabase client for data retention: {sb_err}")
         return
         
-    now_ts = datetime.utcnow()
+    now_ts = datetime.now(timezone.utc)
 
     # 1. Delete local uploads and outputs older than 24 hours
     for folder in ["uploads", "outputs"]:
@@ -774,7 +774,7 @@ def check_and_send_milestone_reminders() -> int:
         logging.error(f"Failed to query unpaid milestones: {query_err}")
         return 0
         
-    now = datetime.utcnow()
+    now = datetime.now(timezone.utc)
     emails_sent = 0
     
     for m in milestones:
