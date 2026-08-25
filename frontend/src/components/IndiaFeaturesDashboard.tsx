@@ -1,5 +1,4 @@
 import React, { useState } from "react";
-import { toast } from "sonner";
 import { MapPin, Calendar, Globe, Languages, Clock, TrendingUp, Sparkles } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";

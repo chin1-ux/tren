@@ -113,6 +113,7 @@ function TrendsFeed() {
     queryFn: () => fetchEmergingTrends(language),
     staleTime: 3 * 60_000,
     refetchInterval: 5 * 60_000,
+    enabled: userPlan === "pro",
   });
 
   const {

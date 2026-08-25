@@ -623,17 +623,17 @@ function GeneratePage() {
                 />
               </div>
 
-              {/* AI Preview Card */}
+              {/* Preview Card */}
               <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">3. Live AI Preview Mockup</label>
+                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">3. Script Preview</label>
                 <div className="rounded-xl border border-border bg-surface p-4 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 bg-violet-500/10 border-l border-b border-border rounded-bl-xl text-[9px] font-bold text-violet-400 flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Live Script Plan
+                  <div className="absolute top-0 right-0 p-2 bg-primary/10 border-l border-b border-border rounded-bl-xl text-[9px] font-bold text-primary flex items-center gap-1">
+                    <Sparkles className="h-3 w-3" /> Template
                   </div>
 
                   <div className="space-y-3 mt-2">
                     <div>
-                      <span className="text-[10px] font-bold text-text-muted uppercase">Estimated Hook</span>
+                      <span className="text-[10px] font-bold text-text-muted uppercase">Sample Hook</span>
                       <p className="text-sm font-semibold text-text italic mt-0.5">
                         "{contentDescription.trim() 
                           ? `Why everyone is wrong about ${contentDescription.slice(0, 30)}...` 

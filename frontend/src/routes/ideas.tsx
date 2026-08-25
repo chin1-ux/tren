@@ -126,41 +126,9 @@ function IdeasPage() {
       setUsingFallbackIdeas(false);
     } catch (err) {
       console.error("Failed to load daily ideas", err);
-      toast.error("Failed to load daily ideas. Using fallback ideas.");
+      toast.error("Could not load personalized ideas. Check your connection.");
       setUsingFallbackIdeas(true);
-      
-      // Dynamic Date Seeded ideas generator supporting 150+ days.
-      const dayOfYear = Math.floor((Date.now() - new Date(new Date().getFullYear(), 0, 1).getTime()) / 86400000);
-      const seed1 = (dayOfYear % 150) + 1;
-      const seed2 = ((dayOfYear + 50) % 150) + 1;
-      const seed3 = ((dayOfYear + 100) % 150) + 1;
-
-      setIdeas([
-        { 
-          title: `Daily Drop #${seed1}: The Niche Revelation`, 
-          description: `Highlight a secret tip about ${userNiche} that only top creators know.`, 
-          hook: "Here is the biggest lie they tell you about this...", 
-          audio_suggestion: "Slow build-up electronic", 
-          posting_time: "5:30 PM", 
-          difficulty: "Easy" 
-        },
-        { 
-          title: `Daily Drop #${seed2}: Behind The Scenes`, 
-          description: `Show the raw unpolished process of your latest project in ${userNiche}.`, 
-          hook: "No one shows this side of the process...", 
-          audio_suggestion: "Upbeat instrumental", 
-          posting_time: "7:00 PM", 
-          difficulty: "Medium" 
-        },
-        { 
-          title: `Daily Drop #${seed3}: Interactive Q&A Challenge`, 
-          description: "Answer a controversial comment or feedback with a screen recording overlay.", 
-          hook: "Someone commented this, and I had to reply...", 
-          audio_suggestion: "Dramatic cinema strings", 
-          posting_time: "8:15 PM", 
-          difficulty: "Hard" 
-        }
-      ]);
+      setIdeas([]);
     } finally {
       setLoadingIdeas(false);
     }
@@ -421,7 +389,7 @@ function IdeasPage() {
                 </Button>
               </div>
 
-              {usingFallbackIdeas && !loadingIdeas && (
+              {usingFallbackIdeas && !loadingIdeas && ideas.length > 0 && (
                 <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 mb-4 text-xs text-amber-400 leading-relaxed">
                   ⚠️ <strong>Personalized Ideas Offline:</strong> We couldn't load custom ideas tailored to your niche. Showing generic fallback starting points instead.
                 </div>
@@ -431,6 +399,27 @@ function IdeasPage() {
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
                   <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
                   <span className="text-sm font-semibold animate-pulse">Curating personalized ideas...</span>
+                </div>
+              ) : ideas.length === 0 ? (
+                <div className="flex flex-col items-center justify-center py-16 text-center gap-4">
+                  <div className="h-16 w-16 rounded-2xl bg-muted/50 flex items-center justify-center">
+                    <Lightbulb className="h-8 w-8 text-muted-foreground" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-foreground">No ideas available</h3>
+                    <p className="text-sm text-muted-foreground mt-1 max-w-xs">
+                      We couldn't generate personalized ideas right now. Tap Refresh to try again.
+                    </p>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="rounded-xl text-xs"
+                    onClick={() => getIdeas(userEmail)}
+                  >
+                    <RefreshCw className="h-3 w-3 mr-1" />
+                    Try Again
+                  </Button>
                 </div>
               ) : (
                 <div className="grid gap-4">
