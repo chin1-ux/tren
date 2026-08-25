@@ -2,7 +2,7 @@ name: Trend Refresh
 
 on:
   schedule:
-    - cron: '30 4,20 * * *'
+    - cron: '30 0,6,12,18 * * *'
   workflow_dispatch:
 
 concurrency:
