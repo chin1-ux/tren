@@ -1,0 +1,62 @@
+name: Comment Pipeline (Manual)
+
+on:
+  workflow_dispatch:
+    inputs:
+      hashtag:
+        description: 'Hashtag to scrape comments from (e.g. trendingindia)'
+        required: false
+        type: string
+      reels:
+        description: 'Comma-separated reel IDs (e.g. abc123,def456)'
+        required: false
+        type: string
+
+jobs:
+  run-comment-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Create cookies.json
+        continue-on-error: true
+        env:
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
+            echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
+            echo "Cookies file created"
+          else
+            echo "Instagram cookies not configured"
+          fi
+
+      - name: Run comment pipeline
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          cd backend
+          if [ -n "${{ github.event.inputs.hashtag }}" ]; then
+            python run_comment_trend_check.py --hashtag ${{ github.event.inputs.hashtag }}
+          elif [ -n "${{ github.event.inputs.reels }}" ]; then
+            python run_comment_trend_check.py --reels ${{ github.event.inputs.reels }}
+          else
+            echo "ERROR: Must provide --hashtag or --reels"
+            exit 1
+          fi

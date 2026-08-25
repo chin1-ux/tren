@@ -1,0 +1,34 @@
+[project]
+name = "trendrop"
+requires-python = ">=3.11"
+version = "0.1.0"
+dependencies = [
+    "fastapi",
+    "uvicorn",
+    "requests",
+    "python-dotenv",
+    "supabase",
+    "slowapi",
+    "pydantic",
+    "email-validator",
+    "python-multipart",
+    "schedule",
+    "resend",
+    "psycopg2-binary",
+    "razorpay",
+    "redis",
+    "rq",
+]
+
+[project.optional-dependencies]
+worker = [
+    "numpy",
+    "google-generativeai",
+]
+browser-scraper = [
+    "camoufox[geoip]>=0.4.11",
+    "browser-use>=0.11.13",
+]
+
+[tool.setuptools]
+packages = []

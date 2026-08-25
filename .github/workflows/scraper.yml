@@ -1,0 +1,154 @@
+name: Scraper (3h)
+
+on:
+  schedule:
+    - cron: '0 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Which mode to run'
+        required: false
+        default: 'both'
+        type: choice
+        options:
+          - both
+          - india
+          - global
+
+concurrency:
+  group: scraper-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Cache Camoufox browser binaries
+        uses: actions/cache@v4
+        id: camoufox-cache
+        with:
+          path: ~/.camoufox
+          key: camoufox-${{ runner.os }}-${{ hashFiles('**/pyproject.toml') }}
+          restore-keys: |
+            camoufox-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install .[worker,browser-scraper]
+
+      - name: Install system deps for Camoufox browser
+        run: |
+          if ! timeout 300 python -m playwright install-deps firefox; then
+            echo "First attempt failed -- clearing apt state and retrying..."
+            sudo apt-get clean
+            sudo rm -rf /var/lib/apt/lists/*
+            timeout 300 python -m playwright install-deps firefox
+          fi
+
+      - name: Install Camoufox browser
+        run: |
+          python -m camoufox fetch
+
+      - name: Create cookies.json
+        continue-on-error: true
+        env:
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
+            echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
+            echo "Cookies file created successfully"
+            cd backend && python validate_cookies_format.py && cd ..
+          else
+            echo "Instagram cookies not configured"
+          fi
+
+      - name: Run DB migrations
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/migrate_creator_growth.py
+
+      - name: Initialize auth system
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/auth_system.py
+
+      - name: Run pipeline (India mode)
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || github.event.inputs.mode == 'both'
+          || github.event.inputs.mode == 'india'
+        env:
+          SCRAPER_MODE: india
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          SCRAPER_BACKEND: browser_use
+          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
+          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+        run: |
+          python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
+          PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+
+      - name: Run pipeline (Global mode)
+        if: >-
+          github.event_name != 'workflow_dispatch'
+          || github.event.inputs.mode == 'both'
+          || github.event.inputs.mode == 'global'
+        env:
+          SCRAPER_MODE: global
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          APIFY_API_TOKEN: ${{ secrets.APIFY_API_TOKEN }}
+          YOUTUBE_API_KEY: ${{ secrets.YOUTUBE_API_KEY }}
+          RESEND_API_KEY: ${{ secrets.RESEND_API_KEY }}
+          RESEND_FROM_EMAIL: ${{ secrets.RESEND_FROM_EMAIL }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GROQ_API_KEY_2: ${{ secrets.GROQ_API_KEY_2 }}
+          GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
+          SCRAPER_BACKEND: browser_use
+          INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
+          INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
+        run: |
+          python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
+          PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
+
+      - name: Verify scraper run
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+        run: |
+          python backend/verify_scraper_run.py
