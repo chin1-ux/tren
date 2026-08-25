@@ -530,8 +530,17 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
 
 export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]> {
   const qs = language && language !== "all" ? `?language=${language}` : "";
-  const data = await http<ApiTrend[]>(`/api/trends/emerging${qs}`);
-  return data.map(adaptTrend);
+  try {
+    const data = await http<ApiTrend[]>(`/api/trends/emerging${qs}`);
+    return data.map(adaptTrend);
+  } catch (e: any) {
+    // 403 = plan restriction (early_detection requires Pro) — return empty
+    // array so the UI can show an upgrade prompt instead of crashing.
+    if (String(e?.message || "").startsWith("403")) {
+      return [];
+    }
+    throw e;
+  }
 }
 
 export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
