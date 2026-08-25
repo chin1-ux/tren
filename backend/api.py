@@ -33,6 +33,13 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
+# Force IPv4 — IPv6 broken on Windows, causes hangs on Supabase/LLM calls
+import socket
+_orig_gai = socket.getaddrinfo
+def _ipv4_only(*a, **kw):
+    return [r for r in _orig_gai(*a, **kw) if r[0] == socket.AF_INET]
+socket.getaddrinfo = _ipv4_only
+
 try:
     from supabase import create_client, Client
 except Exception as e:
@@ -369,13 +376,19 @@ if not any(
 if missing_env_vars:
         logger.warning(f"Startup warning: Missing optional environment variables: {', '.join(missing_env_vars)}")
 
-# Validate SUPABASE_SERVICE_ROLE_KEY and remove it from environment if it is invalid
+# Validate SUPABASE_SERVICE_ROLE_KEY (non-blocking with timeout)
 supabase_url_debug = os.getenv("SUPABASE_URL")
 service_key_debug = os.getenv("SUPABASE_SERVICE_ROLE_KEY")
 if supabase_url_debug and service_key_debug and create_client:
-    try:
+    import concurrent.futures
+    def _validate_svc_key():
         create_client(supabase_url_debug, service_key_debug).table("trends").select("id").limit(1).execute()
+    try:
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+            pool.submit(_validate_svc_key).result(timeout=5)
         logger.info("SUPABASE_SERVICE_ROLE_KEY is valid.")
+    except concurrent.futures.TimeoutError:
+        logger.warning("SUPABASE_SERVICE_ROLE_KEY validation timed out, keeping key anyway")
     except Exception as e:
         logger.warning(f"SUPABASE_SERVICE_ROLE_KEY is invalid ({e}), deleting it from environment to fallback to SUPABASE_KEY (anon)")
         if "SUPABASE_SERVICE_ROLE_KEY" in os.environ:
@@ -2106,19 +2119,38 @@ def signup(request: Request, req: SignupRequest):
     """
     _enforce_rate_limit(request, "signup", 3, 3600, [])
     try:
-        # Step 1: Create user in Supabase Auth (auto-confirmed, but not fully verified)
+        # Step 1: Create user via sign_up (properly hashes password for login)
+        # Then auto-confirm email via admin API so user can login immediately
         auth_res = None
         try:
-            auth_res = supabase.auth.admin.create_user({
-                "email": req.email,
-                "password": req.password,
-                "email_confirm": True
-            })
-            logger.info(f"User created via admin auth API: {req.email}")
-        except Exception as admin_err:
-            logger.warning(f"Admin auth signup failed: {admin_err}, falling back to standard sign_up")
-            fallback = supabase.auth.sign_up({"email": req.email, "password": req.password})
-            auth_res = fallback
+            auth_res = supabase.auth.sign_up({"email": req.email, "password": req.password})
+            logger.info(f"User created via sign_up: {req.email}")
+            
+            # Auto-confirm email via admin if sign_up didn't confirm it
+            if auth_res and auth_res.user and not auth_res.user.email_confirmed_at:
+                try:
+                    import requests as _req
+                    _req.post(
+                        f"{SUPABASE_URL}/auth/v1/admin/users/{auth_res.user.id}/confirm",
+                        headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
+                        timeout=10
+                    )
+                    logger.info(f"Auto-confirmed email for: {req.email}")
+                except Exception as confirm_err:
+                    logger.warning(f"Auto-confirm failed (non-fatal): {confirm_err}")
+        except Exception as sign_err:
+            # If user already exists via sign_up, try admin create as fallback
+            logger.warning(f"sign_up failed: {sign_err}, trying admin create")
+            try:
+                auth_res = supabase.auth.admin.create_user({
+                    "email": req.email,
+                    "password": req.password,
+                    "email_confirm": True
+                })
+                logger.info(f"User created via admin auth API: {req.email}")
+            except Exception as admin_err:
+                logger.error(f"Both signup methods failed: {admin_err}")
+                raise HTTPException(status_code=400, detail="Failed to create account")
 
         if not auth_res or not auth_res.user:
             raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
