@@ -93,6 +93,7 @@ export function EarlyDetectionPanel() {
       }
     } catch (err) {
       console.error('Error fetching early trends:', err);
+      toast.error("Could not load early trend data");
     } finally {
       setLoading(false);
     }
@@ -110,15 +111,32 @@ export function EarlyDetectionPanel() {
       }
     } catch (err) {
       console.error('Error fetching cultural events:', err);
+      toast.error("Could not load cultural events");
     }
     
-    // Localized Indian festivals fallback content calendar
-    setCulturalEvents([
-      { name: "Independence Day Celebration", date: "August 15, 2026", days_until: 6, content_themes: ["Patriotic edits", "Freedom transitions", "Indian flag colors styling"], hashtags: ["independenceday", "india", "harghartiranga"] },
-      { name: "Raksha Bandhan", date: "August 28, 2026", days_until: 19, content_themes: ["Sibling comedy reels", "Gift unboxings", "Traditional outfits transitions"], hashtags: ["rakshabandhan", "siblings", "festivevibes"] },
-      { name: "Krishna Janmashtami", date: "September 4, 2026", days_until: 26, content_themes: ["Dahi Handi celebrations", "Krishna bhajan transition audio", "Ethnic wear styling"], hashtags: ["janmashtami", "krishna", "festive"] },
-      { name: "Ganesh Chaturthi", date: "September 15, 2026", days_until: 37, content_themes: ["Ganesha welcome reels", "Modak making recipe", "Aarti singing challenge"], hashtags: ["ganeshchaturthi", "ganpati", "morya"] }
-    ]);
+    // Localized Indian festivals fallback content calendar — days_until computed dynamically
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const calcDays = (monthDay: string, year?: number) => {
+      const d = new Date(`${monthDay}, ${year ?? today.getFullYear()}`);
+      return Math.max(0, Math.ceil((d.getTime() - today.getTime()) / 86400000));
+    };
+    const festivals = [
+      { name: "Independence Day Celebration", monthDay: "August 15", content_themes: ["Patriotic edits", "Freedom transitions", "Indian flag colors styling"], hashtags: ["independenceday", "india", "harghartiranga"] },
+      { name: "Raksha Bandhan", monthDay: "August 28", content_themes: ["Sibling comedy reels", "Gift unboxings", "Traditional outfits transitions"], hashtags: ["rakshabandhan", "siblings", "festivevibes"] },
+      { name: "Krishna Janmashtami", monthDay: "September 4", content_themes: ["Dahi Handi celebrations", "Krishna bhajan transition audio", "Ethnic wear styling"], hashtags: ["janmashtami", "krishna", "festive"] },
+      { name: "Ganesh Chaturthi", monthDay: "September 15", content_themes: ["Ganesha welcome reels", "Modak making recipe", "Aarti singing challenge"], hashtags: ["ganeshchaturthi", "ganpati", "morya"] },
+    ];
+    setCulturalEvents(
+      festivals
+        .map((f) => ({
+          ...f,
+          date: `${f.monthDay}, ${today.getFullYear()}`,
+          days_until: calcDays(f.monthDay),
+        }))
+        .sort((a, b) => a.days_until - b.days_until)
+        .filter((f) => f.days_until >= 0)
+    );
   };
 
   const getScoreColor = (score: number) => {

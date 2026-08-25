@@ -505,7 +505,7 @@ function DealsDashboardPage() {
                     </button>
                   </div>
                   <blockquote className="bg-muted/40 border border-border/40 p-2.5 rounded-xl text-xs text-foreground/80 leading-relaxed italic">
-                    "Hi team, humare campaign deliverables ke context mein ek chota reminder. Humare agreement ke hisab se milestone payment of ₹{Number(selectedMilestoneForFollowUp.milestone.amount).toLocaleString("en-IN")} ({selectedMilestoneForFollowUp.milestone.milestone_name}) due ho chuka hai / hone wala hai. Please share update on the status. Thanks!"
+                    {`"Hi team, humare campaign deliverables ke context mein ek chota reminder. Humare agreement ke hisab se milestone payment of ₹${Number(selectedMilestoneForFollowUp.milestone.amount).toLocaleString("en-IN")} (${selectedMilestoneForFollowUp.milestone.milestone_name}) due ho chuka hai / hone wala hai. Please share update on the status. Thanks!"`}
                   </blockquote>
                 </div>
 
@@ -525,7 +525,7 @@ function DealsDashboardPage() {
                     </button>
                   </div>
                   <blockquote className="bg-muted/40 border border-border/40 p-2.5 rounded-xl text-xs text-foreground/80 leading-relaxed italic">
-                    "Hi team, a quick reminder regarding the milestone payment for our campaign. The payment of ₹{Number(selectedMilestoneForFollowUp.milestone.amount).toLocaleString("en-IN")} for '{selectedMilestoneForFollowUp.milestone.milestone_name}' is currently due under our agreement. Could you please share a status update or remittance advice once processed? Thank you!"
+                    {`"Hi team, a quick reminder regarding the milestone payment for our campaign. The payment of ₹${Number(selectedMilestoneForFollowUp.milestone.amount).toLocaleString("en-IN")} for '${selectedMilestoneForFollowUp.milestone.milestone_name}' is currently due under our agreement. Could you please share a status update or remittance advice once processed? Thank you!"`}
                   </blockquote>
                 </div>
               </div>

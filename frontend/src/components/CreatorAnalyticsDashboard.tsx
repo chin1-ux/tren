@@ -1,4 +1,5 @@
 import React, { useState, Suspense } from "react";
+import { toast } from "sonner";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from "recharts";
 import { TrendingUp, TrendingDown, Minus, Clock, Users, Video, Heart, MessageCircle, Share2, Award, AlertCircle, CheckCircle } from "lucide-react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";

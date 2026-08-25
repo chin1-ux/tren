@@ -1,6 +1,7 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { setAuthToken, API_URL } from "@/lib/api";
+import { toast } from "sonner";
 import { useUserStore } from "@/store/useAppStore";
 import { supabase } from "@/lib/supabase";
 
@@ -217,7 +218,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ session_token: sessionToken }),
         });
       } catch (error) {
-        console.error("Logout failed:", error);
+        toast.error("Logout failed — please try again");
       }
     }
 
