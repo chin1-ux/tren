@@ -41,11 +41,14 @@ export function VideoAnalysisPanel() {
         setPrediction(data);
         toast.success("Video analysis complete!");
       } else {
-        toast.error("Failed to analyze video");
+        let msg = "Failed to analyze video";
+        try { const err = await res.json(); msg = err.detail || err.message || msg; } catch {}
+        if (res.status === 401 || res.status === 403) msg = "Video analysis requires a Pro plan";
+        toast.error(msg);
       }
-    } catch (err) {
-      console.error('Error analyzing video:', err);
-      toast.error("Failed to analyze video");
+    } catch (err: any) {
+      const msg = err?.name === "AbortError" ? "Analysis timed out" : "Failed to analyze video";
+      toast.error(msg);
     } finally {
       setAnalyzing(false);
     }

@@ -250,15 +250,6 @@ export interface UiTrend {
   nicheTag?: string;
   hookBrief?: Array<{
     dominant_hook_type?: string;
-  // Trend classification fields for display differentiation
-  trendClassification?: string;
-  velocityPattern?: string;
-  isEvergreen?: boolean;
-  trendAgeHours?: number;
-  audioReleaseDate?: string;
-  audioOriginalReleaseYear?: number;
-  audioGenre?: string;
-  audioLabel?: string;
     hook_opening_patterns?: string[];
     hook_brief_one_line?: string;
     optimal_length_seconds?: number;
@@ -551,14 +542,24 @@ export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]>
 
 export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
   const qs = language && language !== "all" ? `?language=${language}` : "";
-  const data = await http<ApiTrend[]>(`/api/trends/peaked${qs}`);
-  return data.map(adaptTrend);
+  try {
+    const data = await http<ApiTrend[]>(`/api/trends/peaked${qs}`);
+    return data.map(adaptTrend);
+  } catch (e: any) {
+    if (String(e?.message || "").startsWith("403")) return [];
+    throw e;
+  }
 }
 
 export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> {
   const qs = language && language !== "all" ? `?language=${language}` : "";
-  const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
-  return data.map(adaptTrend);
+  try {
+    const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
+    return data.map(adaptTrend);
+  } catch (e: any) {
+    if (String(e?.message || "").startsWith("403")) return [];
+    throw e;
+  }
 }
 
 // ── Instagram Algorithm Insights API ─────────────────────────────────────

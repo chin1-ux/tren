@@ -14,7 +14,6 @@ from fastapi.staticfiles import StaticFiles
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from dotenv import load_dotenv
-import logging
 import tempfile
 from datetime import datetime, timezone, timedelta
 is_vercel = os.getenv("VERCEL") is not None or os.getenv("VERCEL_TMP_DIR") is not None
@@ -4339,9 +4338,6 @@ def get_brand_deals_marketplace(
             except Exception as e:
                 logger.exception(f"Error fetching brand deals from DB: {e}")
         
-        # Return only real database brand deals
-        pass
-
         # 2. Fetch user's applications to see which ones they already applied for
         user_apps = []
         if supabase:
@@ -4433,7 +4429,7 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
                 logger.exception(f"Failed to submit application: {e}")
                 raise HTTPException(status_code=500, detail="Database submission failed")
         else:
-            return {"success": True, "message": "Application submitted successfully (mock)!"}
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
     except Exception as e:
         logger.exception(f"Error in POST /api/apply-deal: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -4533,7 +4529,7 @@ def send_collab_request(req: CollabRequest, request: Request, current_user_email
                 logger.error(f"Failed to save collab request: {e}")
                 raise HTTPException(status_code=500, detail="Database request submission failed")
         else:
-            return {"success": True, "message": "Collab request sent successfully (mock)!"}
+            raise HTTPException(status_code=503, detail="Service temporarily unavailable. Please try again.")
     except Exception as e:
         logger.error(f"Error in POST /api/send-collab-request: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
