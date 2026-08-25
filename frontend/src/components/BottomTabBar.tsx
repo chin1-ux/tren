@@ -5,12 +5,14 @@ import { fetchEmergingTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserStore } from "@/store/useAppStore";
 
 export function BottomTabBar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
   const { user, logout } = useAuth();
+  const userPlan = useUserStore((s) => s.plan) || "free";
 
   const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
   const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
@@ -20,7 +22,7 @@ export function BottomTabBar() {
     queryFn: () => fetchEmergingTrends(),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
-    enabled: !shouldHide,
+    enabled: !shouldHide && userPlan === "pro",
   });
 
   const emergingCount = emergingTrends?.length ?? 0;
@@ -38,12 +40,9 @@ export function BottomTabBar() {
   const allTabs = [
     { to: "/", label: "Trends", Icon: Flame },
     { to: "/dashboard", label: "Dashboard", Icon: BarChart3 },
-    // Generate tab: hidden behind feature flag. Files/routes are untouched.
-    // TODO(brand): E-1 — Trends tab now uses Flame icon (same as other tabs)
-    // so active state shows primary colour consistently. Swap back to TrenddropLogo
-    // once brand finalises nav icon treatment.
     ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
     ...(FEATURES.IDEAS_ENABLED ? [{ to: "/ideas", label: "Ideas", Icon: Lightbulb }] : []),
+    ...(FEATURES.MARKETPLACE_ENABLED ? [{ to: "/marketplace", label: "Marketplace", Icon: Building2 }] : []),
     ...(FEATURES.DEALS_ENABLED ? [{ to: "/deals", label: "Deals", Icon: Handshake }] : []),
     user ? { to: "/settings", label: "Settings", Icon: Settings } : { to: "/login", label: "Login", Icon: LogIn },
   ] as const;
@@ -52,6 +51,7 @@ export function BottomTabBar() {
   const gridCols = [
     FEATURES.GENERATE_ENABLED,
     FEATURES.IDEAS_ENABLED,
+    FEATURES.MARKETPLACE_ENABLED,
     FEATURES.DEALS_ENABLED
   ].filter(Boolean).length + 3; // Base 3 (Trends, Dashboard, Settings/Login)
 
@@ -60,6 +60,7 @@ export function BottomTabBar() {
     4: "grid-cols-4",
     5: "grid-cols-5",
     6: "grid-cols-6",
+    7: "grid-cols-7",
   }[gridCols] || "grid-cols-3";
 
   return (

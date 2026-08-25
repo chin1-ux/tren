@@ -86,7 +86,7 @@ function GeneratePage() {
     : undefined;
 
   // Global stages & state
-  const [activeTab, setActiveTab] = useState<Tab>("faceless");
+  const [activeTab, setActiveTab] = useState<Tab>("photos");
   const [stage, setStage] = useState<Stage>("upload");
   const [progress, setProgress] = useState(0);
   const [statusText, setStatusText] = useState("Starting...");
@@ -331,12 +331,6 @@ function GeneratePage() {
             </p>
           </header>
 
-          <div className="rounded-2xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs leading-relaxed text-amber-300">
-            <span className="font-bold">Coming soon.</span> Video generation isn't live in the
-            beta yet — this studio is in private testing. Trend discovery and the AI caption/idea
-            tools are fully available today.
-          </div>
-
           {/* Active Trend Badge */}
           {activeTrend && (
             <div className="flex items-center justify-between gap-3 rounded-2xl border border-border bg-surface-2 backdrop-blur-md p-4">
@@ -359,13 +353,17 @@ function GeneratePage() {
             </div>
           )}
 
-          {/* Sliding Tab Header - Hidden as only Faceless generation is supported */}
-          <div className="hidden bg-slate-900/80 p-1 border border-white/5">
-            {(["faceless"] as Tab[]).map((tab) => (
+          {/* Tab Header */}
+          <div className="bg-surface border border-border rounded-xl p-1 flex gap-1">
+            {(["photos", "narrative", "faceless", "repurpose"] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
-                className="hidden"
+                className={`flex-1 py-2 rounded-lg text-xs font-bold capitalize transition-all ${
+                  activeTab === tab
+                    ? "bg-primary text-white shadow-sm"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50"
+                }`}
               >
                 {tab}
               </button>
@@ -653,20 +651,23 @@ function GeneratePage() {
                 </div>
               </div>
 
-              {/* Coming Soon Beta Banner */}
-              <div className="rounded-xl border border-dashed border-amber-500/30 bg-[rgba(245,158,11,0.03)] p-4 text-center">
-                <AlertTriangle className="h-5 w-5 text-amber-500 mx-auto mb-2" />
-                <p className="text-xs font-bold text-amber-500 uppercase tracking-wider">Feature Coming Soon</p>
-                <p className="text-[11px] text-slate-400 mt-1">
-                  Faceless video generation using AI-generated templates is currently undergoing private beta testing.
-                </p>
-              </div>
-
+              {/* Generate Button */}
               <Button
-                disabled={true}
-                className="w-full h-12 bg-white/5 border border-white/10 text-slate-400 font-bold uppercase tracking-wider rounded-xl cursor-not-allowed"
+                onClick={handleCreateFaceless}
+                disabled={stage === "progress" || !contentDescription.trim()}
+                className="w-full h-12 bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white font-bold uppercase tracking-wider rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
               >
-                Coming Soon
+                {stage === "progress" ? (
+                  <span className="flex items-center gap-2">
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                    Generating...
+                  </span>
+                ) : (
+                  <span className="flex items-center gap-2">
+                    <Sparkles className="h-4 w-4" />
+                    Generate Faceless Video
+                  </span>
+                )}
               </Button>
             </div>
           )}
