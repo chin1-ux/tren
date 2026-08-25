@@ -499,13 +499,11 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     headers,
   });
   if (res.status === 401) {
+    // Dispatch a soft event — AuthWrapper will redirect via React Router.
+    // Do NOT wipe the session token or hard-redirect here: if the 401 is
+    // from a plan-gated endpoint, we should not destroy the session.
     if (typeof window !== "undefined") {
-      localStorage.removeItem("trendrop_token");
-      localStorage.removeItem("trendrop_onboarded");
-      setAuthToken(null);
-      import("../store/useAppStore").then(({ useUserStore }) => {
-        useUserStore.getState().logout();
-      });
+      window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
     }
   }
   return res;

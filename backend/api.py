@@ -1,4 +1,5 @@
 import os
+import re
 import uuid
 import json
 import logging
@@ -1351,7 +1352,7 @@ def get_all_active_trends(
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
     except Exception as e:
-        logger.exception(f"Error fetching trend {trend_id}: {e}")
+        logger.exception(f"Error fetching all-active trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
@@ -6221,17 +6222,12 @@ def get_cultural_event(
 def analyze_video_metadata(
     request: Request,
     payload: VideoUrlRequest,
+    background_tasks: BackgroundTasks,
     current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Analyze video metadata using FFmpeg, falling back to simulated data if not available.
-    
-    TODO: [BACKLOG] Wire real FFmpeg dependency or remove this endpoint
-    - Currently returns simulated data when FFmpeg not configured
-    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
-    - Risk: If accidentally exposed, users will see fake analysis results
-    - Action: Install FFmpeg on server or remove endpoint until real implementation
+    Credits are ONLY charged when real analysis is returned (not simulated).
     """
     try:
         video_url = payload.video_url
@@ -6270,6 +6266,7 @@ def analyze_video_metadata(
         analysis = VideoMetadataAnalyzer.analyze_metadata_quality(sample_metadata)
         if isinstance(analysis, dict):
             analysis['is_simulated'] = False
+        background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/analyze-metadata')
         return analysis
     except Exception as e:
         logger.exception(f"Error analyzing video metadata: {e}")
@@ -6280,17 +6277,12 @@ def analyze_video_metadata(
 def analyze_video_visual(
     request: Request,
     payload: VideoUrlRequest,
+    background_tasks: BackgroundTasks,
     current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Analyze video visual content using OpenCV, falling back to simulated data if not available.
-    
-    TODO: [BACKLOG] Wire real OpenCV/pytesseract dependency or remove this endpoint
-    - Currently returns simulated data when OpenCV not configured
-    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
-    - Risk: If accidentally exposed, users will see fake visual analysis
-    - Action: Install OpenCV/pytesseract on server or remove endpoint until real implementation
+    Credits are ONLY charged when real analysis is returned (not simulated).
     """
     try:
         video_url = payload.video_url
@@ -6317,6 +6309,7 @@ def analyze_video_visual(
             }
         if isinstance(analysis, dict):
             analysis['is_simulated'] = False
+        background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/analyze-visual')
         return analysis
     except Exception as e:
         logger.exception(f"Error analyzing video visual: {e}")
@@ -6327,23 +6320,12 @@ def analyze_video_visual(
 def predict_video_virality(
     request: Request,
     payload: VideoUrlRequest,
+    background_tasks: BackgroundTasks,
     current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Predict video virality combining metadata and visual analysis.
-    
-    USER-FACING WARNING: This endpoint IS called from frontend VideoAnalysisPanel (dashboard.tsx)
-    - Currently returns simulated data when ViralityScorer not configured
-    - Frontend DOES show warning banner when is_simulated: true (good practice)
-    - TRUST ISSUE: Paying customers may see fake virality scores
-    
-    TODO: [HIGH PRIORITY] Either:
-    1. Wire real ViralityScorer dependency (FFmpeg + OpenCV + ML model)
-    2. Hide this feature behind "Coming Soon" until real implementation
-    3. Remove simulated fallback entirely and return 503 with clear message
-    
-    Current behavior: Frontend shows amber warning banner with "Simulated Result" when fallback active
+    Credits are ONLY charged when real analysis is returned (not simulated).
     """
     try:
         video_url = payload.video_url
@@ -6384,6 +6366,7 @@ def predict_video_virality(
         prediction = VideoViralityScorer.calculate_virality_score(sample_metadata, sample_visual)
         if isinstance(prediction, dict):
             prediction['is_simulated'] = False
+        background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/predict-virality')
         return prediction
     except Exception as e:
         logger.exception(f"Error predicting video virality: {e}")
@@ -6394,17 +6377,12 @@ def predict_video_virality(
 def get_video_improvements(
     request: Request,
     payload: VideoUrlRequest,
+    background_tasks: BackgroundTasks,
     current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['video_analysis']))
 ):
     """
     Get improvement suggestions for video virality.
-    
-    TODO: [BACKLOG] Wire real ViralityScorer dependency or remove this endpoint
-    - Currently returns simulated data when ViralityScorer not configured
-    - NOT USER-FACING: Not called from frontend (checked 2026-08-14)
-    - Risk: If accidentally exposed, users will see fake improvement suggestions
-    - Action: Install ViralityScorer dependencies or remove endpoint
+    Credits are ONLY charged when real analysis is returned (not simulated).
     """
     try:
         video_url = payload.video_url
@@ -6441,6 +6419,7 @@ def get_video_improvements(
             }
 
         suggestions = VideoViralityScorer.get_improvement_suggestions(sample_metadata, sample_visual)
+        background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/improvements')
         return {
             'suggestions': suggestions,
             'total': len(suggestions),
