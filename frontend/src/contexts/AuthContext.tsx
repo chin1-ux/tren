@@ -39,13 +39,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
+
       const response = await fetch(`${API_URL}/api/auth/verify`, {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_token: token }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
 
       const data = await response.json();
       
@@ -56,7 +59,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.setItem("trendrop_user_niche", data.user.niche);
         localStorage.setItem("trendrop_user_language", data.user.language);
         localStorage.setItem("trendrop_user_plan", data.user.plan);
-        // Sync into Zustand store so components reading useUserStore get the right plan
         useUserStore.getState().setUser({
           email: data.user.email,
           niche: data.user.niche,
@@ -65,7 +67,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           authToken: token,
         });
       } else {
-        // Session invalid, clear it
+        // Server says token is invalid — clear session
         setAuthToken(null);
         localStorage.removeItem("trendrop_session_token");
         localStorage.removeItem("trendrop_user_email");
@@ -74,16 +76,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         localStorage.removeItem("trendrop_user_plan");
         setUser(null);
       }
-    } catch (error) {
-      console.error("Auth check failed:", error);
-      // Clear session on error
-      setAuthToken(null);
-      localStorage.removeItem("trendrop_session_token");
-      localStorage.removeItem("trendrop_user_email");
-      localStorage.removeItem("trendrop_user_niche");
-      localStorage.removeItem("trendrop_user_language");
-      localStorage.removeItem("trendrop_user_plan");
-      setUser(null);
+    } catch (error: any) {
+      // Network error or timeout — do NOT wipe the session.
+      // The backend may be temporarily unreachable (cold start, network blip).
+      // Keep the user logged in with cached localStorage data instead.
+      if (error?.name === "AbortError") {
+        console.warn("Auth check timed out, using cached session");
+      } else {
+        console.warn("Auth check failed (network), using cached session:", error?.message);
+      }
+      // Restore user from localStorage so the app isn't stuck on "Loading..."
+      const cachedEmail = localStorage.getItem("trendrop_user_email");
+      if (cachedEmail) {
+        setUser({
+          email: cachedEmail,
+          niche: localStorage.getItem("trendrop_user_niche") || "all",
+          language: localStorage.getItem("trendrop_user_language") || "en",
+          plan: localStorage.getItem("trendrop_user_plan") || "free",
+        });
+      } else {
+        setUser(null);
+      }
     } finally {
       setLoading(false);
     }
@@ -114,11 +127,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     let language = "en";
     let plan = "free";
     try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 8000);
       const profileRes = await fetch(`${API_URL}/api/auth/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ session_token: token }),
+        signal: controller.signal,
       });
+      clearTimeout(timeout);
       const profileData = await profileRes.json();
       if (profileData?.success && profileData.valid && profileData.user) {
         niche = profileData.user.niche ?? "all";
@@ -126,7 +143,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         plan = profileData.user.plan ?? "free";
       }
     } catch (err) {
-      console.warn("Could not fetch user profile after login:", err);
+      console.warn("Could not fetch user profile after login (non-fatal):", err);
     }
 
     localStorage.setItem("trendrop_user_email", email);

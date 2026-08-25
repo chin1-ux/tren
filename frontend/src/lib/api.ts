@@ -470,10 +470,14 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
+    signal: controller.signal,
   });
+  clearTimeout(timeout);
   if (res.status === 401) {
     // Dispatch a soft event — AuthWrapper will redirect via React Router.
     // Do NOT wipe the session token or hard-redirect here: if the 401 is
@@ -494,10 +498,14 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  const controller = new AbortController();
+  const timeout = setTimeout(() => controller.abort(), 15000);
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
+    signal: controller.signal,
   });
+  clearTimeout(timeout);
   if (res.status === 401) {
     // Dispatch a soft event — AuthWrapper will redirect via React Router.
     // Do NOT wipe the session token or hard-redirect here: if the 401 is
