@@ -784,7 +784,7 @@ class TrendEngine:
             # STEP 3: Fetch ALL existing trends for dedup (all statuses).
             # On re-detection, update existing row in-place instead of inserting
             # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
-            STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
+            STATUS_PRIORITY = {"expired": 0, "peaked": 1, "baby": 1.5, "emerging": 2, "rising": 3}
             all_trends_res = self.supabase.table("trends") \
                 .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()

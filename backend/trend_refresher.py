@@ -101,7 +101,7 @@ class TrendRefresher:
 
                 # Refresh official Instagram audio page count every other run (rate limit safe)
                 audio_id = trend.get("audio_id")
-                if audio_id and current_status in ["emerging", "rising"]:
+                if audio_id and current_status in ["baby", "emerging", "rising"]:
                     refresh_result = self._refresh_audio_page_count(trend_id, audio_id)
                     if refresh_result == "THROTTLED":
                         local_summary["throttled"] += 1
@@ -109,11 +109,11 @@ class TrendRefresher:
                         local_summary["audio_page_count_refreshed"] += 1
 
                 # Refresh peaking score for active trends
-                if current_status in ["emerging", "rising"]:
+                if current_status in ["baby", "emerging", "rising"]:
                     self._refresh_peaking_score(trend)
 
                 # Only run state transitions and velocity calculations for active status
-                if current_status not in ["emerging", "rising"]:
+                if current_status not in ["baby", "emerging", "rising"]:
                     return local_summary
 
                 if created_at_str:
@@ -186,6 +186,49 @@ class TrendRefresher:
                     })
                     logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
                     local_summary["peaked"] += 1
+                    return local_summary
+
+                if current_status == "baby":
+                    # Baby -> emerging: requires at least 2 creators or 150K official use count
+                    creator_count = self._count_unique_creators(
+                        trend.get("audio_title"), trend.get("audio_artist"), now
+                    )
+                    use_count = trend.get("audio_use_count") or 0
+                    qualifies_by_creators = creator_count >= 2
+                    qualifies_by_use_count = use_count >= 150000
+                    qualifies_by_velocity = velocity_for_check >= 1.0 and age_hours >= 6
+
+                    should_promote = qualifies_by_creators or qualifies_by_use_count or qualifies_by_velocity
+                    if should_promote:
+                        promotion_reason = "baby_to_emerging"
+                        if qualifies_by_creators:
+                            promotion_reason = "creator_adoption_baby"
+                        elif qualifies_by_use_count:
+                            promotion_reason = "use_count_threshold"
+                        else:
+                            promotion_reason = "velocity_persistence"
+
+                        self._update_status(trend_id, "emerging", {
+                            "window_hours_remaining": new_window,
+                            "velocity_avg": velocity_for_check,
+                            "peak_velocity": max(velocity_for_check, peak_velocity),
+                            "reel_count": total_reels_count,
+                            "high_confidence": creator_count >= 3,
+                            "promotion_reason": promotion_reason,
+                        })
+                        logger.info(
+                            f"[EMERGED from baby] '{audio_title}' ({creator_count} creators, "
+                            f"use_count={use_count}, velocity={velocity_for_check:.2f})"
+                        )
+                        local_summary["emerged"] += 1
+                    else:
+                        self._update_status(trend_id, "baby", {
+                            "window_hours_remaining": new_window,
+                            "velocity_avg": velocity_for_check,
+                            "reel_count": total_reels_count,
+                            "confidence": trend.get("confidence"),
+                        })
+                        local_summary["stayed_baby"] = local_summary.get("stayed_baby", 0) + 1
                     return local_summary
 
                 if current_status == "emerging":

@@ -6255,6 +6255,95 @@ def get_cultural_event(
         raise HTTPException(status_code=500, detail="Failed to get cultural event")
 
 
+# ── Trend Detection Engine ────────────────────────────────────────────────
+
+@app.get("/api/trends/baby")
+@limiter.limit("30/minute")
+async def get_baby_trends_endpoint(
+    request: Request,
+    niche: Optional[str] = None,
+    limit: int = 20,
+    current_user: str = Depends(get_current_user),
+):
+    """Get baby trends (pre-emerging, detected by velocity spikes)."""
+    try:
+        from trend_detector import get_baby_trends
+        trends = get_baby_trends(niche=niche, limit=min(limit, 50))
+        return {"trends": trends, "count": len(trends), "status": "baby"}
+    except Exception as e:
+        logger.exception(f"Error fetching baby trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch baby trends")
+
+@app.get("/api/trends/rising")
+@limiter.limit("30/minute")
+async def get_rising_trends_endpoint(
+    request: Request,
+    niche: Optional[str] = None,
+    limit: int = 20,
+    current_user: str = Depends(get_current_user),
+):
+    """Get rising trends."""
+    try:
+        from trend_detector import get_trends_by_status
+        trends = get_trends_by_status(status="rising", niche=niche, limit=min(limit, 50))
+        return {"trends": trends, "count": len(trends), "status": "rising"}
+    except Exception as e:
+        logger.exception(f"Error fetching rising trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch rising trends")
+
+@app.get("/api/trends/peak")
+@limiter.limit("30/minute")
+async def get_peak_trends_endpoint(
+    request: Request,
+    niche: Optional[str] = None,
+    limit: int = 20,
+    current_user: str = Depends(get_current_user),
+):
+    """Get peaked trends (at peak, act now or skip)."""
+    try:
+        from trend_detector import get_trends_by_status
+        trends = get_trends_by_status(status="peaked", niche=niche, limit=min(limit, 50))
+        return {"trends": trends, "count": len(trends), "status": "peaked"}
+    except Exception as e:
+        logger.exception(f"Error fetching peak trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch peak trends")
+
+@app.get("/api/trends/your-niche")
+@limiter.limit("30/minute")
+async def get_niche_trends_endpoint(
+    request: Request,
+    limit: int = 20,
+    current_user: str = Depends(get_current_user),
+):
+    """Get trends personalized to the user's niche."""
+    try:
+        from trend_detector import get_baby_trends, get_trends_by_status
+        # Look up user's niche
+        user_niche = "lifestyle"
+        if supabase:
+            try:
+                res = supabase.table("users").select("niche").eq("email", current_user).execute()
+                if res.data and res.data[0].get("niche"):
+                    user_niche = res.data[0]["niche"]
+            except Exception:
+                pass
+
+        # Get trends across all statuses for this niche
+        all_trends = []
+        for status in ["baby", "emerging", "rising"]:
+            trends = get_trends_by_status(status=status, niche=user_niche, limit=10)
+            all_trends.extend(trends)
+
+        return {
+            "trends": all_trends[:limit],
+            "count": len(all_trends[:limit]),
+            "niche": user_niche,
+        }
+    except Exception as e:
+        logger.exception(f"Error fetching niche trends: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch niche trends")
+
+
 # ── Phase 3: Video Analysis Endpoints ─────────────────────────────────────
 
 def _download_video_to_temp(video_url: str) -> str:
