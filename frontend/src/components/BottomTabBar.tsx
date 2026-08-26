@@ -64,7 +64,7 @@ export function BottomTabBar() {
   }[gridCols] || "grid-cols-3";
 
   return (
-    <nav className="fixed bottom-0 left-1/2 z-50 w-full max-w-lg lg:max-w-2xl xl:max-w-4xl -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
+    <nav aria-label="Main navigation" className="fixed bottom-0 left-1/2 z-50 w-full max-w-lg lg:max-w-2xl xl:max-w-4xl -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
       <ul className={`grid relative ${gridColsClass}`}>
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
