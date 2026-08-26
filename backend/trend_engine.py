@@ -786,7 +786,7 @@ class TrendEngine:
             # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
             STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
             all_trends_res = self.supabase.table("trends") \
-                .select("audio_title, audio_artist, audio_id, status") \
+                .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()
             existing_named = {
                 (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())

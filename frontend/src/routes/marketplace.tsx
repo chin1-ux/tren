@@ -3,9 +3,10 @@ import { useEffect, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserStore } from "@/store/useAppStore";
-import { 
-  Building2, Search, Users, TrendingUp, Star, Send, ExternalLink, 
-  Filter, Heart, MessageCircle, Eye, X, CheckCircle 
+import { FEATURES } from "@/lib/features";
+import {
+  Building2, Search, Users, TrendingUp, Star, Send, ExternalLink,
+  Filter, Heart, MessageCircle, Eye, X, CheckCircle
 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -73,6 +74,14 @@ function MarketplacePage() {
   const userEmail = useUserStore((s) => s.email) ?? "";
   const navigate = useNavigate();
   const queryClient = useQueryClient();
+
+  useEffect(() => {
+    if (!FEATURES.MARKETPLACE_ENABLED) {
+      navigate({ to: "/" });
+    }
+  }, [navigate]);
+
+  if (!FEATURES.MARKETPLACE_ENABLED) return null;
 
   const [activeTab, setActiveTab] = useState<"discover" | "matches">("discover");
   const [nicheFilter, setNicheFilter] = useState("all");

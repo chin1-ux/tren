@@ -1,6 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { FEATURES } from "@/lib/features";
 import { ArrowLeft, Handshake } from "lucide-react";
 
 export const Route = createFileRoute("/deals/new")({
@@ -20,10 +21,12 @@ function CreateDealPlaceholder() {
   useEffect(() => {
     if (!user) {
       navigate({ to: "/login" });
+    } else if (!FEATURES.DEALS_ENABLED) {
+      navigate({ to: "/" });
     }
   }, [user, navigate]);
 
-  if (!user) return null;
+  if (!user || !FEATURES.DEALS_ENABLED) return null;
 
   return (
     <div className="flex flex-col gap-6 px-4 pt-6 pb-12 min-h-screen text-foreground">

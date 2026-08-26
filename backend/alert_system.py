@@ -41,8 +41,7 @@ class AlertSystem:
             logging.error("Supabase credentials (SUPABASE_URL / SUPABASE_KEY) are missing.")
             raise ValueError("Supabase credentials are missing from .env")
         if not self.resend_key:
-            logging.error("RESEND_API_KEY is missing from environment variables.")
-            raise ValueError("RESEND_API_KEY is missing from .env")
+            logging.warning("RESEND_API_KEY is missing — email alerts disabled.")
             
         # Initialize Supabase client
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
@@ -61,6 +60,9 @@ class AlertSystem:
         if not trend_ids:
             logging.info("No trend_ids provided. Exiting.")
             return
+        if not self.resend_key:
+            logging.warning("RESEND_API_KEY not set — skipping email alerts.")
+            return 0
 
         try:
             users_res = self.supabase.table("users").select("*").execute()

@@ -6,8 +6,8 @@
 export const FEATURES = {
   GENERATE_ENABLED: true,
   IDEAS_ENABLED: true,
-  DEALS_ENABLED: true,
-  MARKETPLACE_ENABLED: true,
+  DEALS_ENABLED: false,
+  MARKETPLACE_ENABLED: false,
   INSTAGRAM_OAUTH_ENABLED: false,
   CALENDAR_ENABLED: true,
 } as const;
