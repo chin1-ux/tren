@@ -1,13 +1,13 @@
 """
-Trend Detector v1 — Baby trend detection engine.
+Trend Detector v1 — Early trend detection engine.
 
-Detects trends BEFORE they reach 'emerging' status by:
-1. Scanning recent reels for velocity spikes (12x baseline)
+Detects trends before they reach 'rising' status by:
+1. Scanning recent reels for velocity spikes
 2. Detecting cross-platform migration signals (TikTok -> Instagram)
 3. Classifying trends by type (audio/format/meme/event/cross-platform)
 4. Scoring saturation and estimating time windows
 
-Lifecycle: baby -> emerging -> rising -> peaked -> expired
+Lifecycle: emerging -> rising -> peaked -> expired
 """
 import os
 import sys
@@ -38,29 +38,29 @@ except ImportError:
     Client = None
 
 # Configuration
-BABY_VELOCITY_MULTIPLIER = 12.0  # A reel must be 12x its creator's baseline
-BABY_MIN_CREATORS = 1            # Minimum unique creators to flag
-BABY_MIN_REELS = 2               # Minimum reels in the group
-BABY_CONFIDENCE_THRESHOLD = 0.5  # Minimum confidence to store
-SATURATION_LOW = 0.2             # Below this = early window
-SATURATION_MID = 0.5             # Below this = moderate window
-SATURATION_HIGH = 0.8            # Below this = high saturation
+VELOCITY_MULTIPLIER = 12.0
+MIN_CREATORS = 1
+MIN_REELS = 2
+CONFIDENCE_THRESHOLD = 0.5
+SATURATION_LOW = 0.2
+SATURATION_MID = 0.5
+SATURATION_HIGH = 0.8
 
 # TikTok migration prediction times (days) from origin country to India
 MIGRATION_TIMES = {
-    "BR": 10,   # Brazilian sounds
-    "MX": 8,    # Mexican sounds
-    "ES": 8,    # Spanish sounds
-    "US": 5,    # US sounds
-    "GB": 5,    # UK sounds
-    "FR": 7,    # French sounds
-    "DE": 7,    # German sounds
-    "JP": 14,   # Japanese sounds
-    "KR": 7,    # Korean sounds
-    "TR": 10,   # Turkish sounds
-    "AR": 9,    # Argentine sounds
-    "PT": 9,    # Portuguese sounds
-    "IT": 8,    # Italian sounds
+    "BR": 10,
+    "MX": 8,
+    "ES": 8,
+    "US": 5,
+    "GB": 5,
+    "FR": 7,
+    "DE": 7,
+    "JP": 14,
+    "KR": 7,
+    "TR": 10,
+    "AR": 9,
+    "PT": 9,
+    "IT": 8,
 }
 
 # Niche classification keywords
@@ -113,7 +113,7 @@ def _classify_niche(audio_title: str, audio_artist: str, captions: List[str] = N
 
     if scores:
         return max(scores, key=scores.get)
-    return "lifestyle"  # default
+    return "lifestyle"
 
 
 def _classify_trend_type(audio_title: str, captions: List[str] = None) -> str:
@@ -126,7 +126,7 @@ def _classify_trend_type(audio_title: str, captions: List[str] = None) -> str:
         if any(kw in text for kw in keywords):
             return trend_type
 
-    return "audio"  # default — most Instagram trends are audio-driven
+    return "audio"
 
 
 def _detect_language(text: str) -> str:
@@ -134,7 +134,6 @@ def _detect_language(text: str) -> str:
     if not text:
         return "en"
 
-    # Count characters by script
     devanagari = sum(1 for c in text if '\u0900' <= c <= '\u097F')
     tamil = sum(1 for c in text if '\u0B80' <= c <= '\u0BFF')
     telugu = sum(1 for c in text if '\u0C00' <= c <= '\u0C7F')
@@ -147,7 +146,6 @@ def _detect_language(text: str) -> str:
     if total == 0:
         return "en"
 
-    # Check ratios
     if devanagari / total > 0.3:
         return "hi"
     if tamil / total > 0.3:
@@ -171,16 +169,9 @@ def _calculate_saturation(reel_count: int, audio_use_count: int, creator_count: 
     Calculate saturation score (0.0 to 1.0).
     Based on: number of unique creators, total use count, and reel velocity.
     """
-    # Creator-based saturation (more creators = more saturated)
     creator_sat = min(1.0, creator_count / 50.0)
-
-    # Use count-based saturation (Instagram audio use count)
     use_sat = min(1.0, audio_use_count / 5_000_000.0)
-
-    # Reel count saturation
     reel_sat = min(1.0, reel_count / 100.0)
-
-    # Weighted average
     return (creator_sat * 0.5) + (use_sat * 0.3) + (reel_sat * 0.2)
 
 
@@ -206,22 +197,12 @@ def _calculate_confidence(
     saturation: float,
     has_official_count: bool
 ) -> float:
-    """Calculate confidence score for a baby trend detection."""
-    # Base confidence from creator diversity
+    """Calculate confidence score for a trend detection."""
     creator_conf = min(0.4, creator_count * 0.15)
-
-    # Velocity confidence
     velocity_conf = min(0.3, avg_velocity / 10.0 * 0.3)
-
-    # Volume confidence
     volume_conf = min(0.15, reel_count * 0.05)
-
-    # Official count bonus
     official_bonus = 0.1 if has_official_count else 0.0
-
-    # Saturation penalty (too saturated = less confidence it's "baby")
     sat_penalty = saturation * 0.2
-
     return min(1.0, max(0.0, creator_conf + velocity_conf + volume_conf + official_bonus - sat_penalty))
 
 
@@ -235,20 +216,19 @@ def _detect_cross_platform_migration(
     Returns migration signal if detected, None otherwise.
     """
     try:
-        # Check if we have TikTok data for this audio
-        # For now, return None — TikTok integration is Phase 2
+        # TikTok integration is Phase 2
         return None
     except Exception as e:
         logger.warning(f"Cross-platform migration check failed: {e}")
         return None
 
 
-def detect_baby_trends(supabase: Client = None) -> List[Dict]:
+def detect_emerging_trends(supabase: Client = None) -> List[Dict]:
     """
     Main detection function. Scans recent reels for velocity spikes
-    that indicate a "baby" trend — before it reaches 'emerging' status.
+    that indicate a new trend — before it reaches 'rising' status.
 
-    Returns list of detected baby trends with metadata.
+    Returns list of detected emerging trends with metadata.
     """
     if not supabase:
         supabase = _get_supabase_client()
@@ -258,7 +238,6 @@ def detect_baby_trends(supabase: Client = None) -> List[Dict]:
 
     now = datetime.now(timezone.utc)
     cutoff_48h = now - timedelta(hours=48)
-    cutoff_6h = now - timedelta(hours=6)
 
     # 1. Fetch recent high-velocity reels (last 48h)
     try:
@@ -301,29 +280,29 @@ def detect_baby_trends(supabase: Client = None) -> List[Dict]:
         existing_titles = {}
 
     # 4. Evaluate each audio group
-    baby_trends = []
+    new_trends = []
     for group_key, group_reels in audio_groups.items():
         try:
             trend = _evaluate_group(
                 group_key, group_reels, existing_audios, existing_titles, now
             )
             if trend:
-                baby_trends.append(trend)
+                new_trends.append(trend)
         except Exception as e:
             logger.warning(f"Error evaluating group {group_key}: {e}")
             continue
 
     # 5. Save to database
     saved_count = 0
-    for trend in baby_trends:
+    for trend in new_trends:
         try:
-            _save_baby_trend(trend, supabase)
+            _save_trend(trend, supabase)
             saved_count += 1
         except Exception as e:
-            logger.warning(f"Failed to save baby trend: {e}")
+            logger.warning(f"Failed to save trend: {e}")
 
-    logger.info(f"Detected {len(baby_trends)} baby trends, saved {saved_count}")
-    return baby_trends
+    logger.info(f"Detected {len(new_trends)} emerging trends, saved {saved_count}")
+    return new_trends
 
 
 def _trend_group_key(reel: dict) -> str:
@@ -344,18 +323,15 @@ def _evaluate_group(
     existing_titles: Dict,
     now: datetime
 ) -> Optional[Dict]:
-    """Evaluate a group of reels with the same audio to determine if it's a baby trend."""
+    """Evaluate a group of reels with the same audio to determine if it's a trend."""
 
-    # Skip if too few reels
-    if len(group_reels) < BABY_MIN_REELS:
+    if len(group_reels) < MIN_REELS:
         return None
 
-    # Get unique creators
     creators = set(r.get("creator_username") for r in group_reels if r.get("creator_username"))
-    if len(creators) < BABY_MIN_CREATORS:
+    if len(creators) < MIN_CREATORS:
         return None
 
-    # Check if already tracked as emerging/rising/peaked
     first_reel = group_reels[0]
     audio_id = first_reel.get("audio_id")
     audio_title = first_reel.get("audio_title", "")
@@ -364,7 +340,7 @@ def _evaluate_group(
     if audio_id and audio_id in existing_audios:
         existing = existing_audios[audio_id]
         if existing.get("status") in ("emerging", "rising", "peaked"):
-            return None  # Already tracked at a higher level
+            return None
 
     title_lower = audio_title.lower().strip()
     artist_lower = audio_artist.lower().strip()
@@ -373,26 +349,20 @@ def _evaluate_group(
         if existing.get("status") in ("emerging", "rising", "peaked"):
             return None
 
-    # Calculate metrics
     velocities = [r.get("velocity_score", 0) for r in group_reels]
     avg_velocity = sum(velocities) / len(velocities) if velocities else 0
     max_velocity = max(velocities) if velocities else 0
 
-    # Check for velocity spike (12x baseline)
-    # We don't have per-creator baselines in this simplified version,
-    # so we use absolute velocity thresholds
-    has_spike = max_velocity >= BABY_VELOCITY_MULTIPLIER or avg_velocity >= (BABY_VELOCITY_MULTIPLIER * 0.7)
+    has_spike = max_velocity >= VELOCITY_MULTIPLIER or avg_velocity >= (VELOCITY_MULTIPLIER * 0.7)
 
     if not has_spike:
         return None
 
-    # Calculate other metrics
     audio_use_count = max(r.get("audio_use_count", 0) or 0 for r in group_reels)
     total_likes = sum(r.get("likes_count", 0) or 0 for r in group_reels)
     total_comments = sum(r.get("comments_count", 0) or 0 for r in group_reels)
     total_views = sum(r.get("views_count", 0) or 0 for r in group_reels)
 
-    # Find oldest and newest reel
     posted_times = []
     for r in group_reels:
         pa = r.get("posted_at")
@@ -409,10 +379,8 @@ def _evaluate_group(
         return None
 
     oldest_reel = min(posted_times)
-    newest_reel = max(posted_times)
     trend_age_hours = int((now - oldest_reel).total_seconds() / 3600)
 
-    # Classify
     captions = [r.get("caption", "") for r in group_reels if r.get("caption")]
     niche = _classify_niche(audio_title, audio_artist, captions)
     trend_type = _classify_trend_type(audio_title, captions)
@@ -424,11 +392,10 @@ def _evaluate_group(
         audio_use_count > 0
     )
 
-    if confidence < BABY_CONFIDENCE_THRESHOLD:
+    if confidence < CONFIDENCE_THRESHOLD:
         return None
 
-    # Determine trend origin (simplified — use language as proxy)
-    origin = "IN"  # Default to India
+    origin = "IN"
     if language == "pt":
         origin = "BR"
     elif language == "es":
@@ -440,7 +407,6 @@ def _evaluate_group(
     elif language == "ar":
         origin = "TR"
 
-    # Check cross-platform migration
     migration_signal = _detect_cross_platform_migration(audio_title, audio_artist, None)
 
     return {
@@ -449,7 +415,7 @@ def _evaluate_group(
         "audio_id": audio_id,
         "audio_use_count": audio_use_count,
         "platform": "instagram",
-        "status": "baby",
+        "status": "emerging",
         "niche_tag": niche,
         "trend_type": trend_type,
         "language": language,
@@ -477,9 +443,8 @@ def _evaluate_group(
     }
 
 
-def _save_baby_trend(trend: Dict, supabase: Client):
-    """Save a detected baby trend to the database."""
-    # Check if already exists by audio_id or title+artist
+def _save_trend(trend: Dict, supabase: Client):
+    """Save a detected trend to the database."""
     audio_id = trend.get("audio_id")
     title = trend.get("audio_title", "")
     artist = trend.get("audio_artist", "")
@@ -496,13 +461,12 @@ def _save_baby_trend(trend: Dict, supabase: Client):
             existing = res.data[0]
 
     if existing:
-        # Update only if current status is lower priority
-        STATUS_PRIORITY = {"expired": 0, "peaked": 1, "baby": 1.5, "emerging": 2, "rising": 3}
+        STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
         current_priority = STATUS_PRIORITY.get(existing.get("status", ""), 0)
-        new_priority = STATUS_PRIORITY.get("baby", 1.5)
+        new_priority = STATUS_PRIORITY.get("emerging", 2)
         if new_priority > current_priority:
             supabase.table("trends").update({
-                "status": "baby",
+                "status": "emerging",
                 "velocity_avg": trend["avg_velocity"],
                 "peak_velocity": trend["max_velocity"],
                 "reel_count": trend["reel_count"],
@@ -512,7 +476,6 @@ def _save_baby_trend(trend: Dict, supabase: Client):
             }).eq("id", existing["id"]).execute()
         return
 
-    # Insert new trend
     trend_data = {
         "audio_title": trend["audio_title"],
         "audio_artist": trend["audio_artist"],
@@ -520,7 +483,7 @@ def _save_baby_trend(trend: Dict, supabase: Client):
         "audio_use_count": trend["audio_use_count"],
         "platform": "instagram",
         "trend_type": "trend",
-        "status": "baby",
+        "status": "emerging",
         "niche_tag": trend["niche_tag"],
         "content_type": trend["trend_type"],
         "language": trend["language"],
@@ -542,31 +505,6 @@ def _save_baby_trend(trend: Dict, supabase: Client):
     }
 
     supabase.table("trends").insert(trend_data).execute()
-
-
-def get_baby_trends(
-    supabase: Client = None,
-    niche: str = None,
-    limit: int = 20
-) -> List[Dict]:
-    """
-    Query baby trends from the database, optionally filtered by niche.
-    """
-    if not supabase:
-        supabase = _get_supabase_client()
-    if not supabase:
-        return []
-
-    try:
-        query = supabase.table("trends").select("*").eq("status", "baby")
-        if niche:
-            query = query.eq("niche_tag", niche)
-        query = query.order("confidence", desc=True).limit(limit)
-        result = query.execute()
-        return result.data or []
-    except Exception as e:
-        logger.error(f"Failed to fetch baby trends: {e}")
-        return []
 
 
 def get_trends_by_status(

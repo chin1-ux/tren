@@ -401,13 +401,11 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           trend.status === "emerging" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
           trend.status === "peaked" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
           trend.status === "expired" ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
-          trend.status === "baby" ? "bg-pink-500/20 text-pink-400 border-pink-500/30" :
           "bg-primary/10 text-primary border-primary/20"
         }`}>
           {trend.status === "emerging" ? "⚡ Emerging" :
            trend.status === "peaked" ? "📉 Peaked" :
            trend.status === "expired" ? "⏰ Expired" :
-           trend.status === "baby" ? "🍼 Baby" :
            "📈 Rising"}
         </span>
 

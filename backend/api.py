@@ -6257,23 +6257,6 @@ def get_cultural_event(
 
 # ── Trend Detection Engine ────────────────────────────────────────────────
 
-@app.get("/api/trends/baby")
-@limiter.limit("30/minute")
-async def get_baby_trends_endpoint(
-    request: Request,
-    niche: Optional[str] = None,
-    limit: int = 20,
-    current_user: str = Depends(get_current_user),
-):
-    """Get baby trends (pre-emerging, detected by velocity spikes)."""
-    try:
-        from trend_detector import get_baby_trends
-        trends = get_baby_trends(niche=niche, limit=min(limit, 50))
-        return {"trends": trends, "count": len(trends), "status": "baby"}
-    except Exception as e:
-        logger.exception(f"Error fetching baby trends: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch baby trends")
-
 @app.get("/api/trends/rising")
 @limiter.limit("30/minute")
 async def get_rising_trends_endpoint(
@@ -6317,7 +6300,7 @@ async def get_niche_trends_endpoint(
 ):
     """Get trends personalized to the user's niche."""
     try:
-        from trend_detector import get_baby_trends, get_trends_by_status
+        from trend_detector import get_trends_by_status
         # Look up user's niche
         user_niche = "lifestyle"
         if supabase:
@@ -6330,7 +6313,7 @@ async def get_niche_trends_endpoint(
 
         # Get trends across all statuses for this niche
         all_trends = []
-        for status in ["baby", "emerging", "rising"]:
+        for status in ["emerging", "rising"]:
             trends = get_trends_by_status(status=status, niche=user_niche, limit=10)
             all_trends.extend(trends)
 
