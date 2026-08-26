@@ -1364,30 +1364,27 @@ class TrendEngine:
                         continue
                 
                 if res.data:
-                        tid = res.data[0].get("id")
-                        new_trend_ids.append(tid)
-                        logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
+                    tid = res.data[0].get("id")
+                    new_trend_ids.append(tid)
+                    logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
+                    
+                    # Try to calculate initial peaking score if we have snapshot data
+                    # This is for existing trends that might already have snapshots
+                    try:
+                        initial_snapshots_res = self.supabase.table('trend_snapshots') \
+                            .select('velocity_avg, captured_at') \
+                            .eq('trend_id', tid) \
+                            .order('captured_at', desc=True) \
+                            .limit(10) \
+                            .execute()
                         
-                        # Try to calculate initial peaking score if we have snapshot data
-                        # This is for existing trends that might already have snapshots
-                        try:
-                            initial_snapshots_res = self.supabase.table('trend_snapshots') \
-                                .select('velocity_avg, captured_at') \
-                                .eq('trend_id', tid) \
-                                .order('captured_at', desc=True) \
-                                .limit(10) \
-                                .execute()
-                            
-                            initial_snapshots = initial_snapshots_res.data or []
-                            if initial_snapshots and calculate_realistic_peaking_score:
-                                initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
-                                self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
-                                logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
-                        except Exception as peaking_err:
-                            logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
-                            
-                except Exception as e:
-                    logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
+                        initial_snapshots = initial_snapshots_res.data or []
+                        if initial_snapshots and calculate_realistic_peaking_score:
+                            initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
+                            self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
+                            logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
+                    except Exception as peaking_err:
+                        logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
 
             # Calculate and save audio-level trend scores
             self.calculate_audio_trend_scores()
