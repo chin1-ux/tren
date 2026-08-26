@@ -814,44 +814,24 @@ class InstagramScraper:
         if official_count > 0:
             return official_count
 
-        # Proxy Calculation fallback:
+        # Reference-based estimate fallback:
+        # Use average of recent official counts as a honest estimate instead of
+        # a fabricated formula. Returns 0 if no reference data exists.
         if audio_id:
             try:
-                res = self.supabase.table("reels") \
-                    .select("owner_username, scraped_at, velocity_score") \
-                    .eq("audio_id", audio_id) \
+                res = self.supabase.table("audio_official_counts") \
+                    .select("official_use_count") \
+                    .order("checked_at", desc=True) \
+                    .limit(100) \
                     .execute()
-                reels_list = res.data or []
-                if reels_list:
-                    import math
-                    from datetime import datetime, timezone
-                    unique_creators = len({r.get("owner_username") for r in reels_list if r.get("owner_username")})
-                    total_reels = len(reels_list)
-                    avg_vel = sum(r.get("velocity_score", 0.0) or 0.0 for r in reels_list) / total_reels
-                    
-                    now = datetime.now(timezone.utc)
-                    reels_last_12h = 0
-                    for r in reels_list:
-                        scraped_str = r.get("scraped_at")
-                        if scraped_str:
-                            try:
-                                if scraped_str.endswith("Z"):
-                                    scraped_str = scraped_str[:-1] + "+00:00"
-                                scraped_dt = datetime.fromisoformat(scraped_str)
-                                if scraped_dt.tzinfo is None:
-                                    scraped_dt = scraped_dt.replace(tzinfo=timezone.utc)
-                                age_h = (now - scraped_dt).total_seconds() / 3600.0
-                                if age_h <= 12:
-                                    reels_last_12h += 1
-                            except Exception:
-                                pass
-                    
-                    base_count = unique_creators * 800 + total_reels * 400
-                    growth_ratio = reels_last_12h / total_reels
-                    growth_mult = 1.0 + (growth_ratio * 2.5) * (1.0 + math.log1p(avg_vel / 1000.0))
-                    return max(100, int(base_count * growth_mult))
+                if res.data:
+                    counts = [int(r["official_use_count"]) for r in res.data
+                              if r.get("official_use_count") and int(r["official_use_count"]) > 0]
+                    if counts:
+                        avg_count = int(sum(counts) / len(counts))
+                        return max(100, avg_count)
             except Exception as e:
-                logger.warning(f"Error calculating proxy audio_use_count for {audio_id}: {e}")
+                logger.warning(f"Error calculating reference audio_use_count: {e}")
 
         return 0
 
