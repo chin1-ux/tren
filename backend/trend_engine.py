@@ -847,7 +847,9 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
+                recent_3h_velocities = []
                 recent_6h_velocities = []
+                recent_3_6h_velocities = []
                 recent_24h_velocities = []
                 recent_reels_6h = []
                 oldest_age_hours = 0.0
@@ -863,16 +865,28 @@ class TrendEngine:
                             created_dt = created_dt.replace(tzinfo=timezone.utc)
                         age_hours = (datetime.now(timezone.utc) - created_dt).total_seconds() / 3600
                         oldest_age_hours = max(oldest_age_hours, age_hours)
+                        vel = r.get("velocity_score", 0.0)
+                        if age_hours <= 3:
+                            recent_3h_velocities.append(vel)
+                        elif age_hours <= 6:
+                            recent_3_6h_velocities.append(vel)
                         if age_hours <= 6:
-                            recent_6h_velocities.append(r.get("velocity_score", 0.0))
+                            recent_6h_velocities.append(vel)
                             recent_reels_6h.append(r)
                         if age_hours <= 24:
-                            recent_24h_velocities.append(r.get("velocity_score", 0.0))
+                            recent_24h_velocities.append(vel)
                     except Exception as _dt_err:
                         logging.debug(f"detect_trends: could not parse reel created_at '{created_str}': {_dt_err}")
 
+                recent_3h_avg = sum(recent_3h_velocities) / len(recent_3h_velocities) if recent_3h_velocities else 0.0
+                recent_3_6h_avg = sum(recent_3_6h_velocities) / len(recent_3_6h_velocities) if recent_3_6h_velocities else 0.0
                 recent_6h_avg = sum(recent_6h_velocities) / len(recent_6h_velocities) if recent_6h_velocities else 0.0
                 recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
+
+                # Velocity acceleration: positive = speeding up, negative = slowing down
+                velocity_acceleration = recent_3h_avg - recent_3_6h_avg if recent_3_6h_velocities else 0.0
+                acceleration_bonus = max(0.0, min(0.4, velocity_acceleration / (avg_velocity + 1) * 0.5))
+
                 recency_bonus = max(0.5, 1.5 - (oldest_age_hours / 48)) if oldest_age_hours else 1.0
                 creator_bonus = 1.0 + min(0.6, creator_count * 0.08)
                 
@@ -880,7 +894,20 @@ class TrendEngine:
                 outlier_count = sum(1 for r in group_reels if r.get("is_creator_outlier") is True)
                 outlier_boost = min(1.5, 1.0 + (outlier_count * 0.20))
                 
-                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus * outlier_boost
+                # Format Trend Boost: detected by format_detector.py
+                format_analysis = detect_dominant_format(group_reels)
+                fmt_is_trend = is_format_trend(format_analysis)
+                fmt_score = get_format_trend_score(format_analysis) if fmt_is_trend else 0.0
+                format_boost = 1.0 + min(0.35, fmt_score / 100 * 0.35) if fmt_is_trend else 1.0
+
+                # Enhanced velocity formula: weighted with acceleration and format signals
+                trend_score = (
+                    (avg_velocity * 0.40)
+                    + (max_velocity * 0.15)
+                    + (recent_3h_avg * 0.25)
+                    + (recent_6h_avg * 0.10)
+                    + (recent_24h_avg * 0.10)
+                ) * creator_bonus * recency_bonus * outlier_boost * format_boost * (1.0 + acceleration_bonus)
 
                 # Creator fit looks at what the trend is actually good for, not just raw momentum.
                 # Fix #10: niche_tag and vibe_tag are derived from classify_single_trend() later;
@@ -921,9 +948,10 @@ class TrendEngine:
                 )
 
                 composite_score = (
-                    (trend_score * 0.40)
+                    (trend_score * 0.35)
                     + (creator_fit_score * 3.0)
                     + (hook_retention_score * 2.0)
+                    + (fmt_score * 0.15 if fmt_is_trend else 0)
                     - (saturation_penalty * 1.8)
                 )
 
@@ -1036,6 +1064,9 @@ class TrendEngine:
                     "usernames": list(usernames),
                     "initial_status": initial_status,
                     "promotion_trigger": promotion_trigger,
+                    "velocity_acceleration": velocity_acceleration,
+                    "is_format_trend": fmt_is_trend,
+                    "format_trend_score": fmt_score,
                     "discovery_source": _trend_discovery_source({
                         "is_cross_cultural": any(r.get("is_cross_cultural") for r in group_reels),
                         "trend_origin": max(
