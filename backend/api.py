@@ -6257,6 +6257,30 @@ def get_cultural_event(
 
 # ── Phase 3: Video Analysis Endpoints ─────────────────────────────────────
 
+def _download_video_to_temp(video_url: str) -> str:
+    """Download a video from URL to a temp file. Returns the temp file path."""
+    import tempfile
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    try:
+        resp = requests.get(video_url, timeout=30, stream=True)
+        resp.raise_for_status()
+        for chunk in resp.iter_content(chunk_size=8192):
+            tmp.write(chunk)
+        tmp.close()
+        return tmp.name
+    except Exception as e:
+        tmp.close()
+        os.unlink(tmp.name)
+        raise HTTPException(status_code=400, detail=f"Failed to download video from URL: {e}")
+
+def _cleanup_temp(path: str):
+    """Remove a temp file, ignoring errors."""
+    try:
+        if path and os.path.exists(path):
+            os.unlink(path)
+    except Exception:
+        pass
+
 @app.post("/api/video/analyze-metadata")
 @limiter.limit("5/minute")
 def analyze_video_metadata(
@@ -6269,21 +6293,9 @@ def analyze_video_metadata(
     Analyze video metadata using FFmpeg, falling back to simulated data if not available.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    temp_path = None
     try:
         video_url = payload.video_url
-        sample_metadata = {
-            'width': 1080,
-            'height': 1920,
-            'duration': 25.5,
-            'frame_rate': 30,
-            'codec': 'h264',
-            'bitrate': 5000000,
-            'size': 25000000,
-            'aspect_ratio': '9:16',
-            'is_vertical': True,
-            'resolution': '1080x1920',
-            'file_size_mb': 23.84
-        }
         
         if not VideoMetadataAnalyzer:
             return {
@@ -6303,14 +6315,21 @@ def analyze_video_metadata(
                 'note': "FFmpeg is not configured on this server. Running in simulated fallback mode."
             }
 
-        analysis = VideoMetadataAnalyzer.analyze_metadata_quality(sample_metadata)
+        temp_path = _download_video_to_temp(video_url)
+        raw_metadata = VideoMetadataAnalyzer.extract_metadata(temp_path)
+        analysis = VideoMetadataAnalyzer.analyze_metadata_quality(raw_metadata)
         if isinstance(analysis, dict):
             analysis['is_simulated'] = False
+            analysis['raw_metadata'] = raw_metadata
         background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/analyze-metadata')
         return analysis
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error analyzing video metadata: {e}")
         raise HTTPException(status_code=500, detail="Failed to analyze video metadata")
+    finally:
+        _cleanup_temp(temp_path)
 
 @app.post("/api/video/analyze-visual")
 @limiter.limit("5/minute")
@@ -6324,6 +6343,7 @@ def analyze_video_visual(
     Analyze video visual content using OpenCV, falling back to simulated data if not available.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    temp_path = None
     try:
         video_url = payload.video_url
         if not VideoVisualAnalyzer:
@@ -6337,23 +6357,19 @@ def analyze_video_visual(
                 'note': "OpenCV/pytesseract is not configured on this server. Running in simulated fallback mode."
             }
         
-        try:
-            analysis = VideoVisualAnalyzer._simulate_visual_analysis()
-        except AttributeError:
-            analysis = {
-                'face_detection': {'face_present_percentage': 26.67},
-                'motion_analysis': {'has_constant_motion': True},
-                'color_analysis': {'is_colorful': True, 'is_well_lit': True},
-                'scene_detection': {'edit_style': 'fast_cuts'},
-                'text_detection': {'has_text_overlays': True}
-            }
+        temp_path = _download_video_to_temp(video_url)
+        analysis = VideoVisualAnalyzer.analyze_visual_content(temp_path)
         if isinstance(analysis, dict):
             analysis['is_simulated'] = False
         background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/analyze-visual')
         return analysis
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error analyzing video visual: {e}")
         raise HTTPException(status_code=500, detail="Failed to analyze video visual")
+    finally:
+        _cleanup_temp(temp_path)
 
 @app.post("/api/video/predict-virality")
 @limiter.limit("5/minute")
@@ -6367,27 +6383,9 @@ def predict_video_virality(
     Predict video virality combining metadata and visual analysis.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    temp_path = None
     try:
         video_url = payload.video_url
-        sample_metadata = {
-            'scores': {
-                'duration': 90,
-                'aspect_ratio': 100,
-                'resolution': 80,
-                'frame_rate': 100,
-                'file_size': 100
-            },
-            'overall_score': 90,
-            'recommendations': []
-        }
-        
-        sample_visual = {
-            'face_detection': {'face_present_percentage': 26.67},
-            'motion_analysis': {'has_constant_motion': True},
-            'color_analysis': {'is_colorful': True, 'is_well_lit': True},
-            'scene_detection': {'edit_style': 'fast_cuts'},
-            'text_detection': {'has_text_overlays': True}
-        }
 
         if not VideoViralityScorer:
             return {
@@ -6403,14 +6401,23 @@ def predict_video_virality(
                 'note': "Virality scorer engine is not configured on this server. Running in simulated fallback mode."
             }
         
-        prediction = VideoViralityScorer.calculate_virality_score(sample_metadata, sample_visual)
+        temp_path = _download_video_to_temp(video_url)
+        raw_metadata = VideoMetadataAnalyzer.extract_metadata(temp_path) if VideoMetadataAnalyzer else {}
+        metadata_analysis = VideoMetadataAnalyzer.analyze_metadata_quality(raw_metadata) if VideoMetadataAnalyzer else {'overall_score': 50, 'scores': {}, 'recommendations': []}
+        visual_analysis = VideoVisualAnalyzer.analyze_visual_content(temp_path) if VideoVisualAnalyzer else {}
+        
+        prediction = VideoViralityScorer.calculate_virality_score(metadata_analysis, visual_analysis)
         if isinstance(prediction, dict):
             prediction['is_simulated'] = False
         background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/predict-virality')
         return prediction
+    except HTTPException:
+        raise
     except Exception as e:
         logger.exception(f"Error predicting video virality: {e}")
         raise HTTPException(status_code=500, detail="Failed to predict video virality")
+    finally:
+        _cleanup_temp(temp_path)
 
 @app.post("/api/video/improvements")
 @limiter.limit("5/minute")
@@ -6424,27 +6431,9 @@ def get_video_improvements(
     Get improvement suggestions for video virality.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    temp_path = None
     try:
         video_url = payload.video_url
-        sample_metadata = {
-            'scores': {
-                'duration': 90,
-                'aspect_ratio': 100,
-                'resolution': 80,
-                'frame_rate': 100,
-                'file_size': 100
-            },
-            'overall_score': 90,
-            'recommendations': []
-        }
-        
-        sample_visual = {
-            'face_detection': {'face_present_percentage': 26.67},
-            'motion_analysis': {'has_constant_motion': True},
-            'color_analysis': {'is_colorful': True, 'is_well_lit': True},
-            'scene_detection': {'edit_style': 'fast_cuts'},
-            'text_detection': {'has_text_overlays': True}
-        }
         
         if not VideoViralityScorer:
             suggestions = [
@@ -6458,7 +6447,12 @@ def get_video_improvements(
                 'is_simulated': True
             }
 
-        suggestions = VideoViralityScorer.get_improvement_suggestions(sample_metadata, sample_visual)
+        temp_path = _download_video_to_temp(video_url)
+        raw_metadata = VideoMetadataAnalyzer.extract_metadata(temp_path) if VideoMetadataAnalyzer else {}
+        metadata_analysis = VideoMetadataAnalyzer.analyze_metadata_quality(raw_metadata) if VideoMetadataAnalyzer else {'overall_score': 50, 'scores': {}, 'recommendations': []}
+        visual_analysis = VideoVisualAnalyzer.analyze_visual_content(temp_path) if VideoVisualAnalyzer else {}
+        
+        suggestions = VideoViralityScorer.get_improvement_suggestions(metadata_analysis, visual_analysis)
         background_tasks.add_task(PlanEnforcement.deduct_credits, current_user, CREDIT_COSTS['video_analysis'], reason='video_analysis', endpoint='/api/video/improvements')
         return {
             'suggestions': suggestions,
