@@ -1617,55 +1617,130 @@ Return ONLY valid JSON, no markdown, no explanation:
             except Exception as e:
                 logger.warning(f"Bulk snapshot insert failed: {e}")
 
-        # Post-insert: tracked_audio + trend_lifecycle (individual operations, lower volume)
+        # Post-insert: tracked_audio + trend_lifecycle (batched)
+        # Collect non-contaminant reels with audio_id
+        eligible_reels = []
         for reel in inserted_reels:
             audio_id = reel.get("audio_id")
-            audio_title = reel.get("audio_title")
-            audio_artist = reel.get("audio_artist")
-            creator_country = reel.get("creator_country", "unknown")
             is_original_audio = reel.get("is_original_audio", False)
             owner = reel.get("owner_username")
-
-            # Unique creators check for contaminant detection
             unique_creators_count = 1
             if audio_id:
                 owners_for_audio = audio_owner_map.get(audio_id, set())
                 unique_creators_count = len(owners_for_audio | {owner})
-            elif audio_title:
-                # Fallback: use audio_owner_map built from reels with audio_id
-                # For audio_title-only, we don't have bulk data — skip the query for batch perf
-                unique_creators_count = 1  # conservative default
-
             is_contaminant = is_original_audio and unique_creators_count == 1
             is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
+            if not is_contaminant and not is_unrecoverable and audio_id:
+                eligible_reels.append(reel)
 
-            if is_contaminant or is_unrecoverable:
-                continue
+        if eligible_reels:
+            unique_audio_ids = list({r["audio_id"] for r in eligible_reels if r.get("audio_id")})
 
-            # tracked_audio check
-            if audio_id:
+            # Bulk check existing tracked_audio (1 query)
+            existing_tracked = set()
+            try:
+                for i in range(0, len(unique_audio_ids), CHUNK):
+                    chunk = unique_audio_ids[i:i + CHUNK]
+                    res = self.supabase.table("tracked_audio").select("audio_id").in_("audio_id", chunk).execute()
+                    existing_tracked.update(r["audio_id"] for r in (res.data or []))
+            except Exception as e:
+                logger.warning(f"Bulk tracked_audio check failed: {e}")
+
+            # Bulk count reels for untracked audios (1 query per chunk)
+            new_tracked = []
+            audio_reel_counts = {}
+            untracked_ids = [aid for aid in unique_audio_ids if aid not in existing_tracked]
+            try:
+                for i in range(0, len(untracked_ids), CHUNK):
+                    chunk = untracked_ids[i:i + CHUNK]
+                    res = self.supabase.table("reels").select("audio_id", count="exact").in_("audio_id", chunk).execute()
+                    for row in (res.data or []):
+                        aid = row.get("audio_id")
+                        if aid:
+                            audio_reel_counts[aid] = audio_reel_counts.get(aid, 0) + 1
+            except Exception as e:
+                logger.warning(f"Bulk reel count for untracked failed: {e}")
+
+            # Build new tracked_audio entries
+            seen_new = set()
+            for reel in eligible_reels:
+                aid = reel.get("audio_id")
+                if aid and aid not in existing_tracked and aid not in seen_new:
+                    if audio_reel_counts.get(aid, 0) >= 2:
+                        new_tracked.append({
+                            "audio_id": aid,
+                            "audio_title": reel.get("audio_title"),
+                            "audio_artist": reel.get("audio_artist"),
+                            "first_seen_at": now_utc.isoformat(),
+                        })
+                        seen_new.add(aid)
+
+            # Bulk insert new tracked_audio (1 query)
+            if new_tracked:
                 try:
-                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
-                    if not exist.data:
-                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
-                        reel_count = reels_res.count or 0
-                        if reel_count >= 2:
-                            self.supabase.table("tracked_audio").insert({
-                                "audio_id": audio_id,
-                                "audio_title": audio_title,
-                                "audio_artist": audio_artist,
-                                "first_seen_at": now_utc.isoformat(),
-                            }).execute()
-                            logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
-                except Exception as tae:
-                    logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
+                    self.supabase.table("tracked_audio").insert(new_tracked).execute()
+                    logger.info(f"Bulk inserted {len(new_tracked)} new tracked_audio entries")
+                except Exception as e:
+                    logger.warning(f"Bulk tracked_audio insert failed: {e}")
 
-            # Trend lifecycle
-            self._update_trend_lifecycle(
-                audio_title=audio_title or "unknown_trend",
-                creator_country=creator_country,
-                scraped_at=scraped_at,
-            )
+            # Trend lifecycle: collect unique titles, bulk check, then bulk upsert
+            lifecycle_reels = [(r.get("audio_title") or "unknown_trend", r.get("creator_country", "unknown"))
+                               for r in eligible_reels]
+            unique_titles = list({t for t, _ in lifecycle_reels})
+            if unique_titles:
+                existing_lifecycle = set()
+                try:
+                    for i in range(0, len(unique_titles), CHUNK):
+                        chunk = unique_titles[i:i + CHUNK]
+                        res = self.supabase.table("trend_lifecycle").select("trend_id").in_("trend_id", chunk).execute()
+                        existing_lifecycle.update(r["trend_id"] for r in (res.data or []))
+                except Exception as e:
+                    logger.warning(f"Bulk lifecycle check failed: {e}")
+
+                # Update existing lifecycle entries in bulk
+                lifecycle_updates = {}
+                for title, country in lifecycle_reels:
+                    if title in existing_lifecycle:
+                        if title not in lifecycle_updates:
+                            lifecycle_updates[title] = {"countries": [], "timeline": []}
+                        lifecycle_updates[title]["countries"].append(country)
+                        lifecycle_updates[title]["timeline"].append({"country": country, "at": scraped_at})
+
+                for title, data in lifecycle_updates.items():
+                    try:
+                        existing = self.supabase.table("trend_lifecycle").select("spread_timeline, saturation_by_region").eq("trend_id", title).execute()
+                        if existing.data:
+                            row = existing.data[0]
+                            timeline = row.get("spread_timeline") or []
+                            saturation = row.get("saturation_by_region") or {}
+                            timeline.extend(data["timeline"])
+                            for c in data["countries"]:
+                                saturation[c] = saturation.get(c, 0) + 1
+                            self.supabase.table("trend_lifecycle").update({
+                                "spread_timeline": timeline,
+                                "saturation_by_region": saturation,
+                                "updated_at": datetime.now(timezone.utc).isoformat()
+                            }).eq("trend_id", title).execute()
+                    except Exception as e:
+                        logger.warning(f"Lifecycle update failed for {title}: {e}")
+
+                # Insert new lifecycle entries
+                new_lifecycle = []
+                for title, country in lifecycle_reels:
+                    if title not in existing_lifecycle and title not in [l["trend_id"] for l in new_lifecycle]:
+                        new_lifecycle.append({
+                            "trend_id": title,
+                            "first_seen_country": country,
+                            "first_seen_at": scraped_at,
+                            "spread_timeline": [{"country": country, "at": scraped_at}],
+                            "saturation_by_region": {country: 1}
+                        })
+                if new_lifecycle:
+                    try:
+                        self.supabase.table("trend_lifecycle").insert(new_lifecycle).execute()
+                        logger.info(f"Bulk inserted {len(new_lifecycle)} new lifecycle entries")
+                    except Exception as e:
+                        logger.warning(f"Bulk lifecycle insert failed: {e}")
 
         return inserted_reels, audio_groups_entries
 
