@@ -240,17 +240,24 @@ Return ONLY a JSON response in the following format:
         if trends_res.data:
             trends_context = "Current active trends: " + ", ".join([f"'{t['audio_title']}' ({t['content_type']})" for t in trends_res.data])
 
-        system_prompt = "You are a creative director for a top creator agency. Pitch highly viral, actionable video ideas."
+        system_prompt = "You are a creative director for a top creator agency specializing in Instagram Reels. You generate actionable, specific video ideas grounded in real content formats. Never invent trend names that don't exist."
         user_prompt = f"""
 Generate 3 highly personalized, specific video ideas for a creator in the '{niche}' niche speaking in '{lang}'.
 {trends_context}
+
+Rules:
+- Only reference audio/trends from the active trends listed above. Do NOT invent trend names.
+- Each idea must be a specific Reels format (POV, transition, tutorial, before/after, day-in-life, etc.)
+- Ideas must be achievable with just a phone camera
+- Include specific visual hooks (first 3 seconds that stop the scroll)
+- posting_time should be in IST (Indian Standard Time)
 
 For each idea, provide:
 1. Title/Concept
 2. The specific hook to use (visual & verbal)
 3. Step-by-step description of what to record/do
-4. Best audio suggestion (incorporate some of the active trends if applicable)
-5. Best time to post
+4. Best audio suggestion (only from active trends listed above, or describe a generic audio style)
+5. Best time to post (IST)
 
 Return ONLY a JSON response in the following format:
 {{
@@ -260,7 +267,7 @@ Return ONLY a JSON response in the following format:
       "description": "What to do in this video",
       "hook": "Wait till the end to see...",
       "audio_suggestion": "Audio name or type",
-      "posting_time": "7:00 PM"
+      "posting_time": "7:00 PM IST"
     }}
   ]
 }}
