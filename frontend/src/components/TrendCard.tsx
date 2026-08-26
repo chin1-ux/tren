@@ -395,51 +395,25 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     >
       {/* Opportunity Score Indicator removed from absolute — now in badge row below as ml-auto item */}
 
-      {/* ── 1. Top row: platform and status badges (unified tag cloud to prevent overlaps) ── */}
+      {/* ── 1. Top row: status and key badges ── */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1">
         <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
           trend.status === "emerging" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
           trend.status === "peaked" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
           trend.status === "expired" ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
+          trend.status === "baby" ? "bg-pink-500/20 text-pink-400 border-pink-500/30" :
           "bg-primary/10 text-primary border-primary/20"
         }`}>
           {trend.status === "emerging" ? "⚡ Emerging" :
            trend.status === "peaked" ? "📉 Peaked" :
            trend.status === "expired" ? "⏰ Expired" :
+           trend.status === "baby" ? "🍼 Baby" :
            "📈 Rising"}
         </span>
 
-        {/* Trend Classification Badge (Hidden temporarily) */}
-        {/* <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${trendBadge.bgColor} ${trendBadge.color}`}>
-          {trendBadge.icon} {trendBadge.label}
-        </span> */}
-        
-        {/* Velocity Pattern Indicator */}
-        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground" title={`Velocity Pattern: ${velocityPattern.label}`}>
-          {velocityPattern.icon}
-        </span>
-        
-        <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-          {platformMeta.icon} {platformMeta.label}
-        </span>
-        {trend.language && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-            {LANG_EMOJIS[trend.language] || trend.language.toUpperCase()}
-          </span>
-        )}
-        {isEmerging && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-[#ff006e]/15 border border-[#ff006e]/20 px-2 py-0.5 text-[9px] font-bold text-[#ff006e]">
-            ⚡ EMERGING
-          </span>
-        )}
         {isMegaTrend && (
           <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[9px] font-bold">
-            🔥 MEGA TREND
-          </span>
-        )}
-        {trend.discoverySource === "unexpected_candidate" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 text-blue-400 border border-blue-500/20 px-2 py-0.5 text-[9px] font-bold">
-            🎯 UNDER RADAR
+            🔥 MEGA
           </span>
         )}
         {hasCreatorBreakout && (
@@ -452,20 +426,11 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             🌐 CROSSOVER
           </span>
         )}
-
-        {/* Saturation Count Badge */}
-        <span className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${getTargetedSaturationMeta(saturationCount).bgColor} ${getTargetedSaturationMeta(saturationCount).color}`}>
-          🎯 {getTargetedSaturationMeta(saturationCount).label}
-        </span>
-        
-        {/* Vibe Tag Badge */}
-        {vibeTag && vibeTag !== "general" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/10 border border-violet-500/25 px-2 py-0.5 text-[9px] font-bold uppercase tracking-wide text-violet-300">
-            🎬 {vibeTag}
+        {trend.language && trend.language !== "en" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
+            {LANG_EMOJIS[trend.language] || trend.language.toUpperCase()}
           </span>
         )}
-
-        {/* Opportunity Score — inline, at end of badge row with auto-left margin */}
         {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
           <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
             🟢 {Math.round(trend.opportunityScore)}
