@@ -225,7 +225,7 @@ function SettingsPage() {
   const activeLangObj = ALL_LANGUAGES.find(l => l.code === selectedLanguage);
 
   return (
-    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-md mx-auto">
+    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
       {/* Header */}
       <div className="flex items-center justify-between border-b border-border/20 pb-4">
         <div>

@@ -176,7 +176,7 @@ function RootComponent() {
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthWrapper>
-          <div className={`mx-auto flex min-h-screen w-full flex-col bg-background overflow-x-hidden relative ${isAdminRoute ? "" : "max-w-lg lg:max-w-2xl xl:max-w-4xl pb-24"}`}>
+          <div className={`mx-auto flex min-h-screen w-full flex-col bg-background overflow-x-hidden relative ${isAdminRoute ? "" : "max-w-lg lg:max-w-2xl xl:max-w-4xl 2xl:max-w-5xl pb-24"}`}>
 
             <AnimatePresence mode="wait">
               <motion.div

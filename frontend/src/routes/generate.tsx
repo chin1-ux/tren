@@ -330,7 +330,7 @@ function GeneratePage() {
       
       {/* ── STAGE 1: UPLOAD & SETUP ── */}
       {stage === "upload" && (
-        <div className="flex flex-col gap-6 px-4 pb-24 pt-6 max-w-lg mx-auto w-full">
+        <div className="flex flex-col gap-6 px-4 pb-24 pt-6 max-w-2xl mx-auto w-full">
           <header className="relative">
             <h1 className="text-3xl font-black tracking-tight bg-gradient-to-r from-violet-400 via-pink-400 to-amber-300 bg-clip-text text-transparent">
               AI Generation Studio
@@ -811,7 +811,7 @@ function GeneratePage() {
 
       {/* ── STAGE 3: RESULT PREVIEW SCREEN ── */}
       {stage === "result" && (
-        <div className="flex flex-col gap-6 px-4 pb-24 pt-6 max-w-lg mx-auto w-full">
+        <div className="flex flex-col gap-6 px-4 pb-24 pt-6 max-w-2xl mx-auto w-full">
           <header className="text-center">
             <h2 className="text-2xl font-black tracking-tight text-white">Your Video is Ready! 🎉</h2>
             <p className="text-xs text-slate-400 mt-1">Ready to share, download, or score for virality.</p>
