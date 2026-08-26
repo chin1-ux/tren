@@ -486,32 +486,6 @@ function TrendsFeed() {
             />
           ))
         )}
-
-        {/* Recently Peaked Section */}
-        {feedTab === "rising" && deduplicatedTrends.peaked.length > 0 && (
-          <div className="mt-8 pt-6 border-t border-border/40">
-            <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-lg font-bold">Recently Peaked</h3>
-              <span className="text-xs text-muted-foreground bg-muted px-2 py-1 rounded-md">
-                Free to view
-              </span>
-            </div>
-            <p className="text-sm text-muted-foreground mb-4">
-              These trends have just passed their peak velocity but still offer high engagement potential.
-            </p>
-            <div className="flex gap-4 overflow-x-auto pb-4 no-scrollbar snap-x">
-              {deduplicatedTrends.peaked.slice(0, 15).map((t) => (
-                <div key={t.id} className="min-w-[280px] max-w-[320px] snap-center shrink-0">
-                  <TrendCard
-                    trend={withCountdown(t)}
-                    onDanceTap={setDanceTrend}
-                    selectedNiche={selectedNiche}
-                  />
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
 
