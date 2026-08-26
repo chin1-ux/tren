@@ -818,27 +818,50 @@ class TrendEngine:
                             break
 
                 if existing_match:
-                    # Update-in-place: never-downgrade status on re-detection.
-                    # Only status is updated here — velocity/metrics are owned by
-                    # trend_refresher.py via snapshot logic. No last_detected_at
-                    # column exists; consider adding via migration for staleness tracking.
+                    # Re-detect: update velocity, window, reel_count from fresh scrape data
+                    _vels = [r.get("velocity_score", 0.0) for r in group_reels]
+                    _new_avg_vel = sum(_vels) / len(_vels) if _vels else 0.0
+                    _new_max_vel = max(_vels) if _vels else 0.0
+                    _new_creator_count = len({r.get("owner_username") for r in group_reels if r.get("owner_username")})
+                    _new_reel_count = len(group_reels)
+
+                    # Extend window if new reels found (same logic as refresher)
+                    _old_window = existing_match.get("window_hours_remaining") or 0
+                    if _new_reel_count > 0 and _old_window < 48:
+                        _new_window = min(48, _old_window + 12)
+                    else:
+                        _new_window = max(0, _old_window - 3)
+
+                    # Update: never-downgrade status, but refresh velocity + window + reels
                     old_status = existing_match.get("status", "emerging")
                     new_detected_status = "emerging"
                     old_priority = STATUS_PRIORITY.get(old_status, 0)
                     new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
                     final_status = old_status if old_priority >= new_priority else new_detected_status
+
+                    update_data = {
+                        "velocity_avg": _new_avg_vel,
+                        "peak_velocity": max(_new_max_vel, existing_match.get("peak_velocity") or 0),
+                        "reel_count": _new_reel_count,
+                        "window_hours_remaining": _new_window,
+                    }
                     if final_status != old_status:
-                        try:
-                            self.supabase.table("trends") \
-                                .update({"status": final_status}) \
-                                .eq("id", existing_match["id"]) \
-                                .execute()
-                            logging.info(
-                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
-                                f"status {old_status} -> {final_status}"
-                            )
-                        except Exception as update_err:
-                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
+                        update_data["status"] = final_status
+
+                    try:
+                        self.supabase.table("trends") \
+                            .update(update_data) \
+                            .eq("id", existing_match["id"]) \
+                            .execute()
+                        logging.info(
+                            f"Refreshed existing trend '{title}' (id={existing_match['id']}): "
+                            f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window} "
+                            f"status={old_status}->{final_status}" if final_status != old_status else
+                            f"Refreshed existing trend '{title}' (id={existing_match['id']}): "
+                            f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window}"
+                        )
+                    except Exception as update_err:
+                        logging.warning(f"Failed to refresh existing trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
