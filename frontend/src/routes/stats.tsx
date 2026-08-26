@@ -7,6 +7,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { fetchCreatorDiagnostics, fetchCreatorNicheHealth } from "@/lib/api";
 import { toast } from "sonner";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/stats")({
   head: () => ({
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/stats")({
       { name: "description", content: "Audit post performance, identify content flops, and assess niche health." },
     ],
   }),
+  errorComponent: RouteErrorBoundary,
   component: StatsPage,
 });
 

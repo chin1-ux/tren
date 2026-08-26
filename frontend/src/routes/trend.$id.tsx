@@ -12,6 +12,7 @@ import { useState } from "react";
 import { useUserStore } from "@/store/useAppStore";
 import { toast } from "sonner";
 import { z } from "zod";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/trend/$id")({
   head: () => ({
@@ -20,6 +21,7 @@ export const Route = createFileRoute("/trend/$id")({
       { name: "description", content: "Deep dive into this trend: caption kit, timing, strategy." },
     ],
   }),
+  errorComponent: RouteErrorBoundary,
   component: TrendDetailPage,
 });
 

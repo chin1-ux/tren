@@ -36,6 +36,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { FEATURES } from "@/lib/features";
 import { PlanGate } from "@/components/PlanGate";
 import { useUserStore } from "@/store/useAppStore";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
@@ -44,6 +45,7 @@ export const Route = createFileRoute("/ideas")({
       { name: "description", content: "Personalized daily ideas, reel scoring gauge, hook generator, and content calendar." },
     ],
   }),
+  errorComponent: RouteErrorBoundary,
   component: IdeasPage,
 });
 

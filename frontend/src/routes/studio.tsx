@@ -7,6 +7,7 @@ import { apiFetch, getAuthToken } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserStore } from "@/store/useAppStore";
 import { PlanGate } from "@/components/PlanGate";
+import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/studio")({
   head: () => ({
@@ -15,6 +16,7 @@ export const Route = createFileRoute("/studio")({
       { name: "description", content: "Pre-Post Score, Hook Generator, and SEO Caption Optimizer." },
     ],
   }),
+  errorComponent: RouteErrorBoundary,
   component: StudioPage,
 });
 
