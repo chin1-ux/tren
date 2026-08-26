@@ -4872,52 +4872,7 @@ def submit_creator_feedback(
         logger.error(f"Error submitting creator feedback: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-
-
-
-@app.get("/api/algorithm/posting-times")
-@limiter.limit("60/minute")
-def get_optimal_posting_times(
-    request: Request,
-    niche: str = "general",
-    target_audience: str = "india",
-    current_user: str = Depends(get_current_user)
-):
-    """Get optimal posting times based on niche and target audience."""
-    if not InstagramAlgorithmInsights:
-        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
-    
-    try:
-        insights = InstagramAlgorithmInsights()
-        times = insights.get_optimal_posting_times(niche, target_audience)
-        return {'niche': niche, 'target_audience': target_audience, 'optimal_times': times}
-    except Exception as e:
-        logger.exception(f"Error getting posting times: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get posting times")
-
-
-@app.get("/api/algorithm/hashtag-strategy")
-@limiter.limit("60/minute")
-def get_hashtag_strategy(
-    request: Request,
-    niche: str = "general",
-    content_type: str = "reel",
-    current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("algorithm_insights")),
-    _usage_log: str = Depends(log_endpoint_usage("algorithm_insights"))
-):
-    """Get hashtag strategy recommendations based on niche and content type."""
-    if not InstagramAlgorithmInsights:
-        raise HTTPException(status_code=500, detail="Instagram Algorithm Insights module not configured.")
-    
-    try:
-        insights = InstagramAlgorithmInsights()
-        strategy = insights.get_hashtag_strategy(niche, content_type)
-        return {'niche': niche, 'content_type': content_type, 'hashtag_strategy': strategy}
-    except Exception as e:
-        logger.exception(f"Error getting hashtag strategy: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get hashtag strategy")
+  
 
 
 @app.get("/api/events/active")
