@@ -1335,11 +1335,34 @@ Return ONLY valid JSON, no markdown, no explanation:
             normalized_followers = math.log(effective_followers + 10)
             velocity = (engagement / hours_live / normalized_followers) * 100
 
-            if view < 10000 and likes < 200:
-                scrape_stats["low_engagement"] += 1
-                continue
+            # Outlier-relative check
+            baseline = creator_baselines.get(owner) if owner else None
+            is_outlier_candidate = False
+            if baseline:
+                last_scraped_str = baseline.get("last_scraped_at")
+                if last_scraped_str:
+                    try:
+                        last_scraped = datetime.fromisoformat(last_scraped_str.replace("Z", "+00:00"))
+                        if (now_utc - last_scraped).days >= 7:
+                            baseline = None
+                    except Exception:
+                        pass
+                if baseline:
+                    post_count = baseline.get("post_count") or 0
+                    if post_count >= 6:
+                        median_v = baseline.get("median_views") or 0.0
+                        multiplier_val = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
+                        if view > multiplier_val * median_v:
+                            is_outlier_candidate = True
 
-            if not (velocity > 0.3 or (view > 15000 and hours_live < 6)):
+            # If it's not a confirmed outlier, enforce a lower absolute fallback floor
+            if not is_outlier_candidate:
+                # Lower absolute floor: 2000 views or 50 likes to catch early/baby state signals
+                if view < 2000 and likes < 50:
+                    scrape_stats["low_engagement"] += 1
+                    continue
+
+            if not (velocity > 0.3 or (view > 15000 and hours_live < 6) or is_outlier_candidate):
                 scrape_stats["velocity_failed"] += 1
                 continue
 
@@ -1652,7 +1675,7 @@ Return ONLY valid JSON, no markdown, no explanation:
             if audio_id:
                 owners_for_audio = audio_owner_map.get(audio_id, set())
                 unique_creators_count = len(owners_for_audio | {owner})
-            is_contaminant = is_original_audio and unique_creators_count == 1
+            is_contaminant = is_original_audio and unique_creators_count == 1 and not reel.get("is_creator_outlier")
             is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
             if not is_contaminant and not is_unrecoverable and audio_id:
                 eligible_reels.append(reel)
@@ -1980,7 +2003,6 @@ Return ONLY valid JSON, no markdown, no explanation:
             three_days_ago = datetime.now(timezone.utc) - timedelta(days=3)
             res = self.supabase.table("reels") \
                 .select("audio_id") \
-                .eq("is_original_audio", False) \
                 .not_.is_("audio_id", "null") \
                 .gte("scraped_at", three_days_ago.isoformat()) \
                 .execute()

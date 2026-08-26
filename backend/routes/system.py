@@ -298,7 +298,6 @@ def get_user_reels_feed(
 
         q = supabase.table("reels") \
             .select("*") \
-            .eq("is_original_audio", False) \
             .not_.is_("audio_title", "null") \
             .neq("audio_title", "Original audio") \
             .in_("caption_language", languages) \
@@ -329,7 +328,6 @@ def get_cross_cultural_reels(
         q = supabase.table("reels") \
             .select("*") \
             .eq("is_cross_cultural", True) \
-            .eq("is_original_audio", False) \
             .not_.is_("audio_title", "null") \
             .neq("audio_title", "Original audio") \
             .not_.is_("owner_username", "null") \
