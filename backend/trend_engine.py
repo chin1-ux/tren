@@ -1046,6 +1046,11 @@ class TrendEngine:
                 elif creator_count >= 2 and len(group_reels) >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "creator_count_emerging"
+                elif creator_count >= 1 and len(group_reels) >= 3:
+                    # Relaxed threshold for global content: 1 creator with 3+ reels
+                    # Global audio is naturally more fragmented, so allow single-creator detection
+                    initial_status = "emerging"
+                    promotion_trigger = "global_single_creator_reels"
 
                 if not initial_status:
                     continue
