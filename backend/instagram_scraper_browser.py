@@ -303,6 +303,16 @@ class InstagramScraper:
                 "music", "trendingaudio", "trendingsong", "viralsong", "musictrend",
                 "viralmusic", "reelsound", "dancechallenge", "popmusic", "hiphopreels",
                 "edmmusic", "kpopreels", "viral", "trending"
+            ],
+            "INDIA_MICRO_NICHES": [
+                "outfittransition", "dancechallenge", "comedyreels",
+                "foodreels", "fitnessreels", "fashionreels",
+                "beautyreels", "travelreels", "artreels",
+                "relatablememe", "funnyreels", "viralchallenge",
+                "trendingdance", "indiandance", "southdance",
+                "streetfood", "foodrecipe", "homecooking",
+                "fashionhacks", "styletips", "outfitideas",
+                "sareestyle", "budgetfashion", "indianfashion"
             ]
         }
 
@@ -1727,6 +1737,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
+                    + self.hashtag_groups.get("INDIA_MICRO_NICHES", [])[:8]
                     + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
                     + self.hashtag_groups.get("GLOBAL_NICHES", [])[:3]
                 )

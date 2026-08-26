@@ -10,6 +10,7 @@ from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
+from format_detector import detect_dominant_format, is_format_trend, get_format_trend_score
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -1216,6 +1217,11 @@ class TrendEngine:
 
                 # Regional crossover detection
                 crossover_info = _detect_regional_crossover(trend.get("language") or "en", group_reels)
+
+                # ── Format trend detection (metadata-level) ──────────────────────
+                format_analysis = detect_dominant_format(group_reels)
+                format_trend = is_format_trend(format_analysis)
+                format_trend_score = get_format_trend_score(format_analysis) if format_trend else 0.0
                 
                 # Trend classification for display differentiation
                 trend_classification = _classify_trend_type(
@@ -1297,6 +1303,13 @@ class TrendEngine:
                     "vibe_tag": trend.get("vibe_tag", "general"),
                     "is_voiceover": trend.get("is_voiceover", False),
                     "saturation_count": trend.get("saturation_count", 0),
+                    # Format trend detection (metadata-level)
+                    "dominant_format": format_analysis.get("dominant_format", "unknown"),
+                    "format_replication_rate": format_analysis.get("format_replication_rate", 0.0),
+                    "format_concepts": format_analysis.get("format_concepts", []),
+                    "creator_diversity": format_analysis.get("creator_diversity", 0.0),
+                    "is_format_trend": format_trend,
+                    "format_trend_score": format_trend_score,
                     # Fix #5: sample_captions written at detection time for nightly LLM batch context
                     "sample_captions": trend.get("sample_captions", ""),
                 }
