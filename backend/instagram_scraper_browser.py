@@ -1030,10 +1030,13 @@ class InstagramScraper:
                 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
 
-            # Pagination: follow max_id cursor for one extra page
+            # Pagination: follow max_id cursor for up to 2 extra pages
             more_info = raw_data.get("more_info") or {}
             next_max_id = more_info.get("max_id")
-            if next_max_id and len(items) < 100:
+            max_pages = int(os.getenv("SCRAPER_PAGINATION_PAGES", "2"))
+            for page_num in range(2, max_pages + 2):
+                if not next_max_id or len(items) >= 300:
+                    break
                 try:
                     headers, cookies = self._load_instagram_cookie_headers()
                     resp2 = requests.get(
@@ -1045,6 +1048,7 @@ class InstagramScraper:
                     resp2.raise_for_status()
                     data2 = resp2.json()
                     raw2 = data2.get("data", {})
+                    new_count = 0
                     for section in raw2.get("top", {}).get("sections", []) + raw2.get("recent", {}).get("sections", []):
                         for m_wrapper in section.get("layout_content", {}).get("medias", []):
                             media = m_wrapper.get("media")
@@ -1073,9 +1077,15 @@ class InstagramScraper:
                                     "media_dict": media,
                                     "pk": media.get("pk"),
                                 })
-                    logger.info(f"Pagination page 2: total items now {len(items)} for #{hashtag}")
+                                new_count += 1
+                    logger.info(f"Pagination page {page_num}: +{new_count} items (total {len(items)}) for #{hashtag}")
+                    more_info = raw2.get("more_info") or {}
+                    next_max_id = more_info.get("max_id")
+                    if new_count == 0:
+                        break
                 except Exception as pag_err:
-                    logger.debug(f"Pagination failed for #{hashtag}: {pag_err}")
+                    logger.debug(f"Pagination page {page_num} failed for #{hashtag}: {pag_err}")
+                    break
 
             return items
             
@@ -1819,10 +1829,11 @@ Return ONLY valid JSON, no markdown, no explanation:
                 # Only available on Linux (GitHub Actions ubuntu-latest). Safe to skip on Windows.
                 _has_sigalrm = hasattr(signal, "SIGALRM")
                 if _has_sigalrm:
+                    hashtag_timeout = int(os.getenv("SCRAPER_HASHTAG_TIMEOUT", "90"))
                     def _hashtag_timeout(signum, frame):
-                        raise TimeoutError(f"#{tag} scrape timed out after 60s â€” Playwright driver likely crashed")
+                        raise TimeoutError(f"#{tag} scrape timed out after {hashtag_timeout}s — Playwright driver likely crashed")
                     signal.signal(signal.SIGALRM, _hashtag_timeout)
-                    signal.alarm(60)  # 60 second wall-clock hard limit per hashtag
+                    signal.alarm(hashtag_timeout)
 
                 try:
                     items = await self._scrape_hashtag_page_async(tag)
