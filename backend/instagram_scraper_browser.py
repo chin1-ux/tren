@@ -420,6 +420,204 @@ class InstagramScraper:
             if ctx:
                 await ctx.close()
 
+    async def _scrape_trending_audios_async(self) -> list[dict]:
+        """Scrape Instagram's audio discovery page to find trending audio IDs.
+        Returns list of dicts with audio_id, audio_title, audio_artist, use_count."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                return []
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            if not os.path.exists(cookies_path):
+                return []
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+            formatted_cookies = [
+                {"name": c["name"], "value": c["value"],
+                 "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
+                for c in cookies
+            ]
+
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            await ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+
+            captured_json = [None]
+            def handle_response(response):
+                if "api/v1/audio" in response.url and "web_info" in response.url:
+                    try:
+                        captured_json[0] = response.json()
+                    except Exception:
+                        pass
+
+            page = await ctx.new_page()
+            page.on("response", handle_response)
+
+            # Navigate to Instagram audio explore page
+            try:
+                await page.goto("https://www.instagram.com/explore/audio/", wait_until="domcontentloaded", timeout=15000)
+                await page.wait_for_timeout(2000)
+            except Exception as e:
+                logger.warning(f"Navigation to audio explore page: {e}")
+            finally:
+                try:
+                    page.remove_listener("response", handle_response)
+                except Exception:
+                    pass
+
+            # If XHR not captured, try direct API
+            if not captured_json[0]:
+                try:
+                    headers, cookies_dict = self._load_instagram_cookie_headers()
+                    resp = requests.get(
+                        "https://www.instagram.com/api/v1/clips/audio/",
+                        headers=headers, cookies=cookies_dict, timeout=20
+                    )
+                    if resp.ok:
+                        captured_json[0] = resp.json()
+                except Exception as e:
+                    logger.warning(f"Direct audio API fetch failed: {e}")
+
+            if not captured_json[0]:
+                logger.warning("No audio data captured from explore page")
+                return []
+
+            # Parse audio data
+            data = captured_json[0]
+            audios = []
+            items = data.get("items", []) or data.get("audio_items", [])
+            for item in items[:20]:
+                audio_info = item.get("audio", {}) or item.get("audio_info", {})
+                audio_id = audio_info.get("id") or audio_info.get("audio_cluster_id")
+                title = audio_info.get("title", "")
+                artist = audio_info.get("artist", "") or audio_info.get("display_artist", "")
+                use_count = audio_info.get("use_count", 0) or audio_info.get("reel_count", 0)
+                if audio_id:
+                    audios.append({
+                        "audio_id": str(audio_id),
+                        "audio_title": title,
+                        "audio_artist": artist,
+                        "use_count": use_count,
+                    })
+
+            logger.info(f"Found {len(audios)} trending audios from explore page")
+            return audios
+
+        except Exception as e:
+            logger.error(f"Error scraping trending audios: {e}")
+            return []
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+
+    async def _scrape_audio_page_reels_async(self, audio_id: str) -> list[dict]:
+        """Scrape the top reels for a specific audio ID from its audio page."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                return []
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            if not os.path.exists(cookies_path):
+                return []
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+            formatted_cookies = [
+                {"name": c["name"], "value": c["value"],
+                 "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
+                for c in cookies
+            ]
+
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            await ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "Accept-Language": "en-US,en;q=0.9",
+            })
+
+            captured_json = [None]
+            def handle_response(response):
+                if "clips" in response.url and ("media" in response.url or "audio" in response.url):
+                    try:
+                        captured_json[0] = response.json()
+                    except Exception:
+                        pass
+
+            page = await ctx.new_page()
+            page.on("response", handle_response)
+
+            url = f"https://www.instagram.com/reels/audio/{audio_id}/"
+            try:
+                await page.goto(url, wait_until="domcontentloaded", timeout=15000)
+                await page.wait_for_timeout(2000)
+            except Exception as e:
+                logger.warning(f"Navigation to audio page {audio_id}: {e}")
+            finally:
+                try:
+                    page.remove_listener("response", handle_response)
+                except Exception:
+                    pass
+
+            # Try direct API if XHR not captured
+            if not captured_json[0]:
+                try:
+                    headers, cookies_dict = self._load_instagram_cookie_headers()
+                    resp = requests.get(
+                        f"https://www.instagram.com/api/v1/clips/{audio_id}/",
+                        headers=headers, cookies=cookies_dict, timeout=20
+                    )
+                    if resp.ok:
+                        captured_json[0] = resp.json()
+                except Exception:
+                    pass
+
+            if not captured_json[0]:
+                return []
+
+            # Extract media items
+            data = captured_json[0]
+            medias = []
+            items = data.get("items", []) or data.get("media", []) or data.get("clips", [])
+            for item in items[:15]:
+                media = item.get("media", {}) or item
+                if media.get("is_video") or media.get("media_type") == 2:
+                    medias.append(media)
+
+            return medias
+
+        except Exception as e:
+            logger.error(f"Error scraping audio page reels for {audio_id}: {e}")
+            return []
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+
     async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
         """Helper to navigate to creator profile using Playwright and intercept XHR response."""
         if not self._camoufox_browser or not self._camoufox_browser.is_connected():
@@ -1734,7 +1932,47 @@ Return ONLY valid JSON, no markdown, no explanation:
             if "CUSTOM" in self.hashtag_groups:
                 priority_pool = self.hashtag_groups["CUSTOM"]
             elif scrape_mode == "global":
-                priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
+                # Audio-first discovery for Global mode: scrape trending audio pages
+                # instead of hashtags, to get concentrated data on popular audio
+                try:
+                    trending_audios = await self._scrape_trending_audios_async()
+                    if trending_audios:
+                        logger.info(f"Global mode: found {len(trending_audios)} trending audios. Scraping top reels for each...")
+                        for audio_info in trending_audios:
+                            if time.monotonic() - _scrape_start > _SCRAPE_TIMEOUT_S:
+                                logger.error("Global timeout reached during audio-first discovery.")
+                                break
+                            audio_id = audio_info.get("audio_id")
+                            audio_title = audio_info.get("audio_title", "")
+                            audio_artist = audio_info.get("audio_artist", "")
+                            use_count = audio_info.get("use_count", 0)
+                            logger.info(f"  Audio: {audio_title} by {audio_artist} (id={audio_id}, uses={use_count})")
+                            # Scrape the audio page to get top reels
+                            try:
+                                audio_items = await self._scrape_audio_page_reels_async(audio_id)
+                                if audio_items:
+                                    total_scraped += len(audio_items)
+                                    # Process through normal batched path
+                                    try:
+                                        inserted, groups = self._process_hashtag_batch(
+                                            items=audio_items,
+                                            tag=f"audio:{audio_title}",
+                                            scraped_at=scraped_at,
+                                            scrape_stats=scrape_stats,
+                                            audio_groups=audio_groups,
+                                        )
+                                        scrape_stats["inserted"] += inserted
+                                    except Exception as batch_err:
+                                        logger.warning(f"Error processing audio batch for {audio_title}: {batch_err}")
+                            except Exception as audio_err:
+                                logger.warning(f"Error scraping audio page for {audio_title}: {audio_err}")
+                            time.sleep(1)
+                    else:
+                        logger.warning("Global mode: no trending audios found. Falling back to hashtags.")
+                        priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
+                except Exception as trending_err:
+                    logger.warning(f"Global mode: trending audio discovery failed ({trending_err}). Falling back to hashtags.")
+                    priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             else:
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
