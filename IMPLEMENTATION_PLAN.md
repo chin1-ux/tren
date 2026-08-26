@@ -3,6 +3,24 @@
 
 ---
 
+## 0.5 PHASES 1-5 COMPLETED (Aug 27, 2026)
+
+### Summary
+| Phase | Status | Commits |
+|---|---|---|
+| Phase 1: Quick wins (Fix broken things) | DONE | P0-1→P0-4, P1, baby cleanup, 11 Playwright tests pass |
+| Phase 2: Data pipeline | DONE | audio_use_count fix, batch DB, 3-page pagination, ad detection |
+| Phase 3: Frontend design | DONE | Inter font, indigo→coral, error boundaries, a11y, responsive |
+| Phase 4: Infrastructure | 3/4 DONE | Removed 2 duplicate routes, 16 pytest tests, GitHub Actions skipped (user billing) |
+| Phase 5: Truth alignment | DONE | Marketing claims already honest, /proof page built with real data |
+
+### Remaining items
+- **api.py modularization** (6870 lines → modules): Deferred, too risky for quick pass
+- **Razorpay KYC**: User must complete
+- **GitHub Actions budget**: User billing issue, minutes reset Sept 1
+
+---
+
 ## 0. WHAT'S BEEN DONE (since v1)
 
 ### 0.1 Committed changes (13 commits, Aug 15-16)
