@@ -3110,6 +3110,17 @@ def run_job_simulation(job_id: str, job_type: str, trend_id: str, files: List[st
             os.makedirs(os.path.dirname(output_path), exist_ok=True)
             shutil.copy2(files[0], output_path)
             update_job_record(job_id, {"progress": 85})
+        elif job_type == "faceless_generation":
+            update_job_record(job_id, {"progress": 50})
+            time.sleep(1.0)
+            os.makedirs(os.path.dirname(output_path), exist_ok=True)
+            extra = extra_params or {}
+            niche = extra.get("niche", "general")
+            desc = extra.get("content_description", "")
+            placeholder_text = f"[Faceless content: {niche}] {desc}" if desc else f"[Faceless content: {niche}]"
+            with open(output_path, "wb") as f:
+                f.write(f"PLACEHOLDER_OUTPUT:{placeholder_text}".encode())
+            update_job_record(job_id, {"progress": 85})
         elif files and len(files) > 0 and job_type in ["reel_generation", "narrative_generation"]:
             audio_path = None
             if audio_url:
@@ -3232,6 +3243,7 @@ async def generate_reel_endpoint(
     files: List[UploadFile] = File(...),
     trend_id: str = Form(...),
     user_email: str = Form(...),
+    style: str = Form("cinematic"),
     current_user_email: str = Depends(get_current_user),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
     _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
@@ -3255,7 +3267,7 @@ async def generate_reel_endpoint(
         raise HTTPException(status_code=400, detail="Invalid trend_id format")
 
     try:
-        job_id = create_job_record("reel_generation", user_email, {"files_count": len(files), "trend_id": trend_id})
+        job_id = create_job_record("reel_generation", user_email, {"files_count": len(files), "trend_id": trend_id, "style": style})
         job_dir = os.path.join(uploads_path, job_id)
         os.makedirs(job_dir, exist_ok=True)
         file_paths = []

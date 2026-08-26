@@ -155,12 +155,20 @@ function GeneratePage() {
     setter((prev) => prev.filter((x) => x.id !== id));
   };
 
-  // Cleanup helper
+  // Cleanup blob URLs on unmount
+  const photosRef = useRef<PhotoItem[]>([]);
+  const narrativePhotosRef = useRef<PhotoItem[]>([]);
+  const repurposeVideoUrlRef = useRef<string | null>(null);
+  
+  useEffect(() => { photosRef.current = photos; }, [photos]);
+  useEffect(() => { narrativePhotosRef.current = narrativePhotos; }, [narrativePhotos]);
+  useEffect(() => { repurposeVideoUrlRef.current = repurposeVideoUrl; }, [repurposeVideoUrl]);
+  
   useEffect(() => {
     return () => {
-      photos.forEach((p) => URL.revokeObjectURL(p.url));
-      narrativePhotos.forEach((p) => URL.revokeObjectURL(p.url));
-      if (repurposeVideoUrl) URL.revokeObjectURL(repurposeVideoUrl);
+      photosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
+      narrativePhotosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
+      if (repurposeVideoUrlRef.current) URL.revokeObjectURL(repurposeVideoUrlRef.current);
     };
   }, []);
 
@@ -239,6 +247,7 @@ function GeneratePage() {
         files: photos.map((p) => p.file),
         trendId: activeTrend.id,
         userEmail: email,
+        style: selectedStyle,
       });
       startPolling(job_id);
     } catch {

@@ -1099,11 +1099,13 @@ export async function generateReel(args: {
   files: File[];
   trendId: string;
   userEmail: string;
+  style?: string;
 }): Promise<GenerateResponse> {
   const fd = new FormData();
   args.files.forEach((f) => fd.append("files", f));
   fd.append("trend_id", args.trendId);
   fd.append("user_email", args.userEmail);
+  if (args.style) fd.append("style", args.style);
   return http<GenerateResponse>("/api/generate-reel", { method: "POST", body: fd });
 }
 
