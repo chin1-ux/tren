@@ -300,9 +300,11 @@ class InstagramScraper:
                 "travelreels", "beautyreels", "artreels"
             ],
             "GLOBAL_DISCOVERY": [
-                "music", "trendingaudio", "trendingsong", "viralsong", "musictrend",
-                "viralmusic", "reelsound", "dancechallenge", "popmusic", "hiphopreels",
-                "edmmusic", "kpopreels", "viral", "trending"
+                "kpopreels", "kbangreels", "jpopreels", "animeedit",
+                "latamreels", "brazilreels", "reggaeton", "afrobeats",
+                "ukdrill", "ukgrime", "spanishreels", "frenchreels",
+                "arabicmusic", "turkishreels", "russianreels",
+                "tiktoktrending", "viralaudio", "trendingsound",
             ],
             "INDIA_MICRO_NICHES": [
                 "outfittransition", "dancechallenge", "comedyreels",
@@ -1752,8 +1754,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.info(f"Scraping {len(selected)} hashtags: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
-            # Global wall-clock guard: abort scrape if pipeline runs >15 minutes total
-            _SCRAPE_TIMEOUT_S = 15 * 60
+            # Global wall-clock guard: abort scrape if pipeline runs >25 minutes total
+            _SCRAPE_TIMEOUT_S = 25 * 60
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
