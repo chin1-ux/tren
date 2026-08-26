@@ -515,6 +515,51 @@ async def health_check_api():
         "supabase_initialized": supabase is not None
     }
 
+@app.get("/api/proof", tags=["Proof"])
+@limiter.limit("10/minute")
+def get_proof_data(request: Request):
+    """Public endpoint returning early detection proof — trends detected before peaking."""
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Database not connected")
+    try:
+        res = supabase.table("trends").select(
+            "id, title, artist, audio_name, status, detected_at, peak_at, "
+            "velocity_score, niche, source_hashtag_pool, language"
+        ).in_("status", ["rising", "peaked", "expired"]).not_.is_(
+            "detected_at", "null"
+        ).order("detected_at", desc=True).limit(20).execute()
+        trends = res.data or []
+        proof_items = []
+        for t in trends:
+            detected = t.get("detected_at")
+            peak = t.get("peak_at")
+            hours_early = None
+            if detected and peak:
+                try:
+                    from datetime import datetime
+                    d = datetime.fromisoformat(detected.replace("Z", "+00:00"))
+                    p = datetime.fromisoformat(peak.replace("Z", "+00:00"))
+                    hours_early = round((p - d).total_seconds() / 3600, 1)
+                except Exception:
+                    pass
+            proof_items.append({
+                "trend_id": t.get("id"),
+                "title": t.get("title"),
+                "artist": t.get("artist"),
+                "audio_name": t.get("audio_name"),
+                "status": t.get("status"),
+                "detected_at": detected,
+                "peak_at": peak,
+                "hours_early": hours_early,
+                "velocity_score": t.get("velocity_score"),
+                "niche": t.get("niche"),
+                "language": t.get("language"),
+            })
+        return {"proof": proof_items, "count": len(proof_items)}
+    except Exception as e:
+        logger.exception(f"Error fetching proof data: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch proof data")
+
 @app.get("/api/cron/trigger", tags=["Cron"])
 async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     """
