@@ -1316,7 +1316,23 @@ class TrendEngine:
 
                 try:
                     res = self.supabase.table("trends").insert(trend_data).execute()
-                    if res.data:
+                except Exception as e:
+                    # If insert fails due to missing columns (migration not run), retry without format fields
+                    if "column" in str(e).lower() and "does not exist" in str(e).lower():
+                        logging.warning(f"Format columns missing (migration needed). Retrying without format fields.")
+                        for fmt_key in ["dominant_format", "format_replication_rate", "format_concepts",
+                                        "creator_diversity", "is_format_trend", "format_trend_score"]:
+                            trend_data.pop(fmt_key, None)
+                        try:
+                            res = self.supabase.table("trends").insert(trend_data).execute()
+                        except Exception as e2:
+                            logging.error(f"Failed to save '{trend['audio_title']}': {e2}", exc_info=True)
+                            continue
+                    else:
+                        logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
+                        continue
+                
+                if res.data:
                         tid = res.data[0].get("id")
                         new_trend_ids.append(tid)
                         logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
