@@ -316,7 +316,7 @@ export function EarlyDetectionPanel() {
       ) : null}
 
       {/* Info Banner */}
-      <div className="bg-gradient-to-r from-primary/10 to-indigo-500/10 border border-primary/20 p-4 rounded-2xl">
+      <div className="bg-gradient-to-r from-primary/10 to-primary/10 border border-primary/20 p-4 rounded-2xl">
         <div className="flex items-start gap-3">
           <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
             <Zap className="h-4 w-4" />

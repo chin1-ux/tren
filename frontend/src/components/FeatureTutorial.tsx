@@ -10,7 +10,7 @@ const STEPS = [
   {
     title: "Welcome to Trendrop! 🚀",
     description: "India's first AI-powered short-form trend intelligence platform. Let's take a quick 1-minute tour of your creator dashboard.",
-    icon: <Sparkles className="h-10 w-10 text-indigo-400" />,
+    icon: <Sparkles className="h-10 w-10 text-primary" />,
   },
   {
     title: "Real-Time Trends Feed 📈",
@@ -20,7 +20,7 @@ const STEPS = [
   {
     title: "AI Video Generation 🎬",
     description: "Upload your photos/videos in the 'Generate' tab, select a trending audio, and let our AI engine compile high-velocity vertical reels for you instantly.",
-    icon: <PlayCircle className="h-10 w-10 text-indigo-400" />,
+    icon: <PlayCircle className="h-10 w-10 text-primary" />,
   },
   {
     title: "Ideation & Script Scoring 💡",
@@ -30,7 +30,7 @@ const STEPS = [
   {
     title: "Creator Marketplace 🤝",
     description: "Explore exclusive brand campaigns with verified creator payouts, or find nearby co-creators in your niche with high compatibility scores to double your reach.",
-    icon: <Compass className="h-10 w-10 text-indigo-400" />,
+    icon: <Compass className="h-10 w-10 text-primary" />,
   },
 ];
 
@@ -93,7 +93,7 @@ export function FeatureTutorial({ onClose }: FeatureTutorialProps) {
             <div
               key={idx}
               className={`h-1.5 rounded-full transition-all duration-300 ${
-                idx === currentStep ? "w-8 bg-indigo-500" : "w-1.5 bg-white/10"
+                idx === currentStep ? "w-8 bg-primary" : "w-1.5 bg-white/10"
               }`}
             />
           ))}
@@ -122,7 +122,7 @@ export function FeatureTutorial({ onClose }: FeatureTutorialProps) {
 
           <Button
             onClick={handleNext}
-            className="flex-1 h-11 bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-500 hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-indigo-600/20"
+            className="flex-1 h-11 bg-gradient-to-r from-primary to-purple-600 hover:from-primary hover:to-purple-500 text-white font-bold text-xs uppercase tracking-wider rounded-xl shadow-lg shadow-primary/20"
           >
             {currentStep === STEPS.length - 1 ? "Get Started 🔥" : "Next"}
             {currentStep < STEPS.length - 1 && <ChevronRight className="h-4 w-4 ml-1" />}

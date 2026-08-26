@@ -199,7 +199,7 @@ function SignupPage() {
                   id="niche"
                   value={niche}
                   onChange={(e) => setNiche(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                  className="w-full pl-10 pr-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                   required
                 >
                   {NICHES.map((n) => (
@@ -220,7 +220,7 @@ function SignupPage() {
                 id="language"
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
-                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
                 required
               >
                 {LANGUAGES.map((l) => (
@@ -256,7 +256,7 @@ function SignupPage() {
             <button
               type="button"
               onClick={() => navigate({ to: "/login" })}
-              className="text-indigo-600 dark:text-indigo-400 hover:underline font-medium"
+              className="text-primary dark:text-primary hover:underline font-medium"
             >
               Login
             </button>

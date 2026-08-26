@@ -481,7 +481,7 @@ function GeneratePage() {
               <Button
                 onClick={handleCreateReel}
                 disabled={photos.length < 3}
-                className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 hover:from-violet-500 hover:to-indigo-500 disabled:opacity-50"
+                className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 hover:from-violet-500 hover:to-primary disabled:opacity-50"
               >
                 {photos.length < 3 ? "Select at least 3 photos" : "Create Reel"}
               </Button>
@@ -586,7 +586,7 @@ function GeneratePage() {
               <Button
                 onClick={handleCreateNarrative}
                 disabled={narrativePhotos.length < narrativeOverlays.length}
-                className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20"
+                className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20"
               >
                 {narrativePhotos.length < narrativeOverlays.length 
                   ? `Select ${narrativeOverlays.length} photos minimum` 
@@ -754,7 +754,7 @@ function GeneratePage() {
               <Button
                 onClick={handleRepurpose}
                 disabled={!repurposeVideoFile}
-                className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 disabled:opacity-50"
+                className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 disabled:opacity-50"
               >
                 Repurpose with Beat Sync
               </Button>
@@ -906,7 +906,7 @@ function GeneratePage() {
               }
             }}
             disabled={scoringLoading}
-            className="w-full h-12 bg-gradient-to-r from-violet-600 to-indigo-600 font-bold uppercase text-white rounded-xl shadow-lg"
+            className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white rounded-xl shadow-lg"
           >
             <Star className="h-4 w-4 mr-2 text-amber-300 fill-amber-300" />
             {scoringLoading ? "Scoring..." : showScoreCard ? "Hide Score" : "Score This Video"}

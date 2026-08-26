@@ -278,9 +278,9 @@ function IdeasPage() {
       case "medium":
         return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
       case "hard":
-        return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+        return "bg-primary/10 text-primary border border-primary/20";
       default:
-        return "bg-indigo-500/10 text-indigo-400 border border-indigo-500/20";
+        return "bg-primary/10 text-primary border border-primary/20";
     }
   };
 
@@ -293,11 +293,11 @@ function IdeasPage() {
     >
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
       <header className="flex items-center gap-3">
-        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-xl font-bold shadow-lg shadow-indigo-500/20 animate-pulse">
+        <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-purple-600 text-white text-xl font-bold shadow-lg shadow-primary/20 animate-pulse">
           <Lightbulb className="h-6 w-6" />
         </div>
         <div>
-          <h1 className="font-display text-2xl font-bold bg-clip-text bg-gradient-to-r from-text via-text to-indigo-500 text-transparent">Ideation Hub</h1>
+          <h1 className="font-display text-2xl font-bold bg-clip-text bg-gradient-to-r from-text via-text to-primary text-transparent">Ideation Hub</h1>
           <p className="text-xs text-muted-foreground">AI-powered trend scoring, hook generators, and daily schedules</p>
         </div>
       </header>
@@ -308,7 +308,7 @@ function IdeasPage() {
           onClick={() => setActiveTab("daily")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
             activeTab === "daily" 
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              ? "bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg" 
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -321,7 +321,7 @@ function IdeasPage() {
           onClick={() => setActiveTab("score")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
             activeTab === "score" 
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              ? "bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg" 
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -334,7 +334,7 @@ function IdeasPage() {
           onClick={() => setActiveTab("hooks")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
             activeTab === "hooks" 
-              ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+              ? "bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg" 
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
@@ -348,7 +348,7 @@ function IdeasPage() {
             onClick={() => setActiveTab("calendar")}
             className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
               activeTab === "calendar" 
-                ? "bg-gradient-to-r from-indigo-600 to-purple-600 text-white shadow-lg" 
+                ? "bg-gradient-to-r from-primary to-purple-600 text-white shadow-lg" 
                 : "text-muted-foreground hover:text-foreground"
             }`}
           >
@@ -397,7 +397,7 @@ function IdeasPage() {
 
               {loadingIdeas ? (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-                  <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
                   <span className="text-sm font-semibold animate-pulse">Curating personalized ideas...</span>
                 </div>
               ) : ideas.length === 0 ? (
@@ -426,13 +426,13 @@ function IdeasPage() {
                   {ideas.map((idea, index) => (
                     <div 
                       key={index} 
-                      className="relative p-5 border border-border hover:border-indigo-500/30 transition-all duration-300 rounded-2xl bg-surface-2 shadow-xl space-y-4"
+                      className="relative p-5 border border-border hover:border-primary/30 transition-all duration-300 rounded-2xl bg-surface-2 shadow-xl space-y-4"
                     >
                       <div className="flex justify-between items-start gap-4">
                         <span className={`text-[10px] font-extrabold uppercase px-2.5 py-1 rounded-full ${getDifficultyBadge(idea.difficulty)}`}>
                           {idea.difficulty || "Medium"} Difficulty
                         </span>
-                        <span className="text-xs font-bold text-indigo-400 bg-indigo-500/10 px-2 py-0.5 rounded-md">
+                        <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-md">
                           Idea #{index + 1}
                         </span>
                       </div>
@@ -445,19 +445,19 @@ function IdeasPage() {
                       {/* Hook & Details */}
                       <div className="bg-surface rounded-xl border border-border p-4 space-y-3">
                         <div className="flex items-start gap-2.5">
-                          <span className="text-indigo-400 text-xs font-black uppercase tracking-wider pt-0.5">Hook:</span>
-                          <p className="text-sm text-indigo-600 dark:text-indigo-300 italic font-medium">"{idea.hook}"</p>
+                          <span className="text-primary text-xs font-black uppercase tracking-wider pt-0.5">Hook:</span>
+                          <p className="text-sm text-primary dark:text-primary italic font-medium">"{idea.hook}"</p>
                         </div>
                         
                         <div className="h-px bg-border" />
                         
                         <div className="flex flex-wrap items-center justify-between gap-3 text-xs text-text-muted">
                           <div className="flex items-center gap-1.5 bg-surface-2 border border-border px-2.5 py-1 rounded-lg">
-                            <Music className="h-3.5 w-3.5 text-indigo-400" />
+                            <Music className="h-3.5 w-3.5 text-primary" />
                             <span className="truncate max-w-[150px]">{idea.audio_suggestion}</span>
                           </div>
                           <div className="flex items-center gap-1.5 bg-surface-2 border border-border px-2.5 py-1 rounded-lg">
-                            <Clock className="h-3.5 w-3.5 text-indigo-400" />
+                            <Clock className="h-3.5 w-3.5 text-primary" />
                             <span>Post: {idea.posting_time}</span>
                           </div>
                         </div>
@@ -467,7 +467,7 @@ function IdeasPage() {
                       <div className="flex gap-2">
                         <Button 
                           onClick={() => handleUseIdea(idea)}
-                          className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold rounded-xl h-10 transition-all shadow-md shadow-indigo-500/10"
+                          className="flex-1 bg-gradient-to-r from-primary to-purple-600 hover:from-primary hover:to-purple-700 text-white font-bold rounded-xl h-10 transition-all shadow-md shadow-primary/10"
                         >
                           Use This Idea
                           <ChevronRight className="ml-1.5 h-4 w-4" />
@@ -512,27 +512,27 @@ function IdeasPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
-                      <Music className="h-3 w-3 text-indigo-400" /> Audio Title
+                      <Music className="h-3 w-3 text-primary" /> Audio Title
                     </label>
                     <input 
                       type="text" 
                       placeholder="e.g. Trending Remix, Chill Beat"
                       value={scoreAudio} 
                       onChange={(e) => setScoreAudio(e.target.value)}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
 
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
-                      <Compass className="h-3 w-3 text-indigo-400" /> Niche
+                      <Compass className="h-3 w-3 text-primary" /> Niche
                     </label>
                     <input 
                       type="text" 
                       placeholder="e.g. dance, finance, tech"
                       value={scoreNiche} 
                       onChange={(e) => setScoreNiche(e.target.value)}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
                 </div>
@@ -540,34 +540,34 @@ function IdeasPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div className="space-y-1">
                     <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
-                      <Clock className="h-3 w-3 text-indigo-400" /> Posting Time (IST)
+                      <Clock className="h-3 w-3 text-primary" /> Posting Time (IST)
                     </label>
                     <input 
                       type="time" 
                       value={scorePostingTime} 
                       onChange={(e) => setScorePostingTime(e.target.value)}
-                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text focus:outline-none focus:border-indigo-500 transition-colors"
+                      className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text focus:outline-none focus:border-primary transition-colors"
                     />
                   </div>
                 </div>
 
                 <div className="space-y-1">
                   <label className="text-[10px] uppercase font-bold text-text-muted tracking-wider flex items-center gap-1">
-                    <Hash className="h-3 w-3 text-indigo-400" /> Caption & Hashtags
+                    <Hash className="h-3 w-3 text-primary" /> Caption & Hashtags
                   </label>
                   <textarea 
                     placeholder="Write your reel caption here... Don't forget to include hashtags!"
                     value={scoreCaption} 
                     onChange={(e) => setScoreCaption(e.target.value)}
                     rows={4}
-                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary transition-colors resize-none"
                   />
                 </div>
 
                 <Button 
                   onClick={handleScoreReel}
                   disabled={loadingScore}
-                  className="w-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
+                  className="w-full bg-gradient-to-r from-primary via-primary to-purple-600 hover:from-primary hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
                 >
                   {loadingScore ? (
                     <span className="flex items-center gap-2 justify-center">
@@ -585,7 +585,7 @@ function IdeasPage() {
                   className="glass-card p-6 border border-border rounded-2xl bg-surface-2 space-y-6 shadow-2xl relative overflow-hidden"
                 >
                   {/* Glowing background decor */}
-                  <div className="absolute -top-16 -right-16 w-32 h-32 bg-indigo-500/10 rounded-full blur-3xl" />
+                  <div className="absolute -top-16 -right-16 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
 
                   <div className="flex flex-col sm:flex-row items-center gap-6 pb-2">
                     {/* Score Gauge Circle */}
@@ -614,19 +614,19 @@ function IdeasPage() {
                       </svg>
                       <div className="absolute flex flex-col items-center justify-center">
                         <span className="text-3xl font-extrabold text-text">{scoringResult.overall_score}</span>
-                        <span className="text-[10px] text-indigo-400 font-bold uppercase tracking-wider">Score</span>
+                        <span className="text-[10px] text-primary font-bold uppercase tracking-wider">Score</span>
                       </div>
                     </div>
 
                     <div className="space-y-2 text-center sm:text-left flex-1">
                       <div className="flex items-center justify-center sm:justify-start gap-2.5">
                         <h3 className="font-display font-extrabold text-xl text-text">Reel Health Grade</h3>
-                        <span className="bg-gradient-to-br from-indigo-500 to-purple-600 text-white text-base font-black px-3 py-1 rounded-lg border border-indigo-400/20 shadow-md">
+                        <span className="bg-gradient-to-br from-primary to-purple-600 text-white text-base font-black px-3 py-1 rounded-lg border border-primary/20 shadow-md">
                           {scoringResult.grade}
                         </span>
                       </div>
                       <p className="text-xs text-text-muted leading-relaxed">
-                        Overall score <span className="text-indigo-400 font-bold">{scoringResult.overall_score}/100</span>. Fix the identified areas below to boost engagement.
+                        Overall score <span className="text-primary font-bold">{scoringResult.overall_score}/100</span>. Fix the identified areas below to boost engagement.
                       </p>
                     </div>
                   </div>
@@ -634,7 +634,7 @@ function IdeasPage() {
                   {/* Score breakdown metrics */}
                   <div className="space-y-4 pt-4 border-t border-border">
                     <h4 className="text-xs font-bold uppercase tracking-wider text-text-muted flex items-center gap-1.5">
-                      <Award className="h-4 w-4 text-indigo-400" /> Detail Score Breakdown
+                      <Award className="h-4 w-4 text-primary" /> Detail Score Breakdown
                     </h4>
                     
                     <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -646,7 +646,7 @@ function IdeasPage() {
                         </div>
                         <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-purple-500 to-primary rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${scoringResult.hook_score}%` }}
                             transition={{ duration: 0.8 }}
@@ -662,7 +662,7 @@ function IdeasPage() {
                         </div>
                         <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-purple-500 to-primary rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${scoringResult.audio_score}%` }}
                             transition={{ duration: 0.8 }}
@@ -678,7 +678,7 @@ function IdeasPage() {
                         </div>
                         <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-purple-500 to-primary rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${scoringResult.caption_score}%` }}
                             transition={{ duration: 0.8 }}
@@ -694,7 +694,7 @@ function IdeasPage() {
                         </div>
                         <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-purple-500 to-primary rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${scoringResult.hashtag_score}%` }}
                             transition={{ duration: 0.8 }}
@@ -710,7 +710,7 @@ function IdeasPage() {
                         </div>
                         <div className="h-1.5 bg-surface rounded-full overflow-hidden">
                           <motion.div 
-                            className="h-full bg-gradient-to-r from-purple-500 to-indigo-500 rounded-full"
+                            className="h-full bg-gradient-to-r from-purple-500 to-primary rounded-full"
                             initial={{ width: 0 }}
                             animate={{ width: `${scoringResult.timing_score}%` }}
                             transition={{ duration: 0.8 }}
@@ -721,14 +721,14 @@ function IdeasPage() {
                   </div>
 
                   {/* Top Fixes */}
-                  <div className="space-y-3 pt-4 border-t border-border bg-indigo-500/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
-                    <h4 className="text-xs font-bold uppercase tracking-wider text-indigo-400 flex items-center gap-1.5">
+                  <div className="space-y-3 pt-4 border-t border-border bg-primary/[0.02] -mx-6 px-6 pb-2 rounded-b-2xl">
+                    <h4 className="text-xs font-bold uppercase tracking-wider text-primary flex items-center gap-1.5">
                       <Wrench className="h-4 w-4" /> Top Fixes Recommended
                     </h4>
                     <ul className="space-y-2.5">
                       {scoringResult.top_fixes.map((fix, idx) => (
                         <li key={idx} className="flex gap-2.5 text-xs text-text-muted leading-relaxed items-start">
-                          <span className="h-4 w-4 shrink-0 rounded-full bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 text-[10px] font-black flex items-center justify-center">
+                          <span className="h-4 w-4 shrink-0 rounded-full bg-primary/10 text-primary border border-primary/20 text-[10px] font-black flex items-center justify-center">
                             {idx + 1}
                           </span>
                           <span>{fix}</span>
@@ -765,7 +765,7 @@ function IdeasPage() {
                     placeholder="e.g. 5 AM Morning Routine, Transition edits"
                     value={hookTrend} 
                     onChange={(e) => setHookTrend(e.target.value)}
-                    className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors"
+                    className="w-full h-10 px-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary transition-colors"
                   />
                 </div>
 
@@ -776,14 +776,14 @@ function IdeasPage() {
                     value={hookDescription} 
                     onChange={(e) => setHookDescription(e.target.value)}
                     rows={3}
-                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-indigo-500 transition-colors resize-none"
+                    className="w-full p-3 bg-surface border border-border rounded-xl text-sm text-text placeholder-text-muted focus:outline-none focus:border-primary transition-colors resize-none"
                   />
                 </div>
 
                 <Button 
                   onClick={handleGenerateHooks}
                   disabled={loadingHooks}
-                  className="w-full bg-gradient-to-r from-indigo-500 via-indigo-600 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
+                  className="w-full bg-gradient-to-r from-primary via-primary to-purple-600 hover:from-primary hover:to-purple-700 text-white font-bold h-11 rounded-xl shadow-lg transition-all"
                 >
                   {loadingHooks ? (
                     <span className="flex items-center gap-2 justify-center">
@@ -802,16 +802,16 @@ function IdeasPage() {
                     {generatedHooks.map((hook, idx) => (
                       <div 
                         key={idx}
-                        className="glass-card p-4 border border-white/5 hover:border-indigo-500/20 transition-all rounded-xl bg-gradient-to-r from-white/[0.02] to-transparent flex gap-4 items-start"
+                        className="glass-card p-4 border border-white/5 hover:border-primary/20 transition-all rounded-xl bg-gradient-to-r from-white/[0.02] to-transparent flex gap-4 items-start"
                       >
                         <div className="flex-1 space-y-2">
                           <div className="flex gap-2 items-center">
-                            <span className="text-[9px] font-black uppercase bg-indigo-500/10 text-indigo-300 border border-indigo-500/20 px-2 py-0.5 rounded">
+                            <span className="text-[9px] font-black uppercase bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 rounded">
                               {hook.style} Style
                             </span>
                           </div>
                           <p className="text-sm font-semibold text-white">"{hook.text}"</p>
-                          <p className="text-xs text-muted-foreground italic"><strong className="text-indigo-400 font-bold not-italic">Why it works:</strong> {hook.why_it_works}</p>
+                          <p className="text-xs text-muted-foreground italic"><strong className="text-primary font-bold not-italic">Why it works:</strong> {hook.why_it_works}</p>
                         </div>
 
                         <Button 
@@ -858,7 +858,7 @@ function IdeasPage() {
                 <Button 
                   onClick={handleGenerateCalendar} 
                   disabled={loadingCalendar}
-                  className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-9 px-3 rounded-lg text-xs"
+                  className="bg-primary hover:bg-primary text-white font-bold h-9 px-3 rounded-lg text-xs"
                 >
                   {loadingCalendar ? "Generating..." : calendar.length > 0 ? "Re-generate" : "Generate Plan"}
                 </Button>
@@ -866,7 +866,7 @@ function IdeasPage() {
 
               {calendar.length === 0 && !loadingCalendar && (
                 <div className="glass-card p-8 text-center border border-white/5 rounded-2xl space-y-4 shadow-xl">
-                  <CalendarIcon className="h-10 w-10 text-indigo-400 mx-auto" />
+                  <CalendarIcon className="h-10 w-10 text-primary mx-auto" />
                   <div>
                     <h3 className="font-bold text-white text-base">Plan Your 30-Day Calendar</h3>
                     <p className="text-xs text-muted-foreground max-w-sm mx-auto mt-1 leading-relaxed">
@@ -875,7 +875,7 @@ function IdeasPage() {
                   </div>
                   <Button 
                     onClick={handleGenerateCalendar} 
-                    className="bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-10 px-6 rounded-xl text-xs"
+                    className="bg-primary hover:bg-primary text-white font-bold h-10 px-6 rounded-xl text-xs"
                   >
                     Generate 30-Day Plan
                   </Button>
@@ -884,7 +884,7 @@ function IdeasPage() {
 
               {loadingCalendar && (
                 <div className="flex flex-col items-center justify-center py-20 gap-3 text-muted-foreground">
-                  <RefreshCw className="h-8 w-8 animate-spin text-indigo-500" />
+                  <RefreshCw className="h-8 w-8 animate-spin text-primary" />
                   <span className="text-sm font-semibold animate-pulse animate-duration-1000">Structuring your 30-Day scheduler...</span>
                 </div>
               )}
@@ -899,8 +899,8 @@ function IdeasPage() {
                         onClick={() => setSelectedDay(item)}
                         className={`aspect-square rounded-xl border flex flex-col justify-center items-center transition-all duration-300 relative overflow-hidden ${
                           selectedDay?.day === item.day 
-                            ? 'border-indigo-500 bg-indigo-500/20 text-indigo-500 dark:text-indigo-300 shadow-lg shadow-indigo-500/10' 
-                            : 'border-border bg-surface-2 dark:bg-card/40 text-foreground/80 hover:border-indigo-500/50 hover:bg-surface-2/80'
+                            ? 'border-primary bg-primary/20 text-primary dark:text-primary shadow-lg shadow-primary/10' 
+                            : 'border-border bg-surface-2 dark:bg-card/40 text-foreground/80 hover:border-primary/50 hover:bg-surface-2/80'
                         }`}
                       >
                         <span className="text-[8px] font-bold uppercase tracking-wider text-muted-foreground opacity-60">Day</span>
@@ -909,7 +909,7 @@ function IdeasPage() {
                         {item.topic.includes("Special") || item.topic.includes("special") || item.topic.includes("Celebrations") ? (
                           <div className="absolute top-1 right-1 w-2 h-2 rounded-full bg-amber shadow-[0_0_6px_#EF9F27]" title="Special Holiday / Festival" />
                         ) : (
-                          <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-indigo-500" />
+                          <div className="absolute bottom-1 w-1.5 h-1.5 rounded-full bg-primary" />
                         )}
                       </button>
                     ))}
@@ -923,10 +923,10 @@ function IdeasPage() {
                         initial={{ opacity: 0, y: 10 }}
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: -10 }}
-                        className="p-5 border border-indigo-500/30 rounded-2xl bg-indigo-500/[0.01] space-y-4 shadow-xl"
+                        className="p-5 border border-primary/30 rounded-2xl bg-primary/[0.01] space-y-4 shadow-xl"
                       >
                         <div className="flex justify-between items-center">
-                          <span className="text-indigo-400 font-extrabold text-xs tracking-wider uppercase bg-indigo-500/10 px-2.5 py-1 rounded-md">
+                          <span className="text-primary font-extrabold text-xs tracking-wider uppercase bg-primary/10 px-2.5 py-1 rounded-md">
                             Day {selectedDay.day} Agenda
                           </span>
                           <button 
@@ -944,7 +944,7 @@ function IdeasPage() {
                         <div className="space-y-3">
                           {/* Recommended Hook */}
                           <div className="p-3.5 bg-surface rounded-xl border border-border relative group">
-                            <span className="block font-bold text-[9px] text-indigo-400 uppercase tracking-widest mb-1.5">RECOMMENDED HOOK</span>
+                            <span className="block font-bold text-[9px] text-primary uppercase tracking-widest mb-1.5">RECOMMENDED HOOK</span>
                             <span className="text-sm text-text font-medium">"{selectedDay.hook}"</span>
                             <button
                               onClick={() => handleCopy(selectedDay.hook, "Hook text")}
@@ -960,11 +960,11 @@ function IdeasPage() {
  
                           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                             <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-border text-text">
-                              <Music className="h-4 w-4 text-indigo-400 shrink-0" />
+                              <Music className="h-4 w-4 text-primary shrink-0" />
                               <span className="truncate">Audio: {selectedDay.audio_style}</span>
                             </div>
                             <div className="flex items-center gap-2 bg-surface p-2.5 rounded-xl border border-border text-text">
-                              <Clock className="h-4 w-4 text-indigo-400 shrink-0" />
+                              <Clock className="h-4 w-4 text-primary shrink-0" />
                               <span>Optimal Time: {selectedDay.posting_time}</span>
                             </div>
                           </div>
@@ -972,7 +972,7 @@ function IdeasPage() {
                           {/* Hashtags */}
                           <div className="flex flex-wrap gap-1.5 pt-1">
                             {selectedDay.hashtags.map((h, i) => (
-                              <span key={i} className="px-2.5 py-1 rounded-lg bg-surface border border-border text-indigo-600 dark:text-indigo-300 text-[10px] font-bold">
+                              <span key={i} className="px-2.5 py-1 rounded-lg bg-surface border border-border text-primary dark:text-primary text-[10px] font-bold">
                                 {h}
                               </span>
                             ))}

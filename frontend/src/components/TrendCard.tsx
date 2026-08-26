@@ -61,7 +61,7 @@ function getTrendClassificationBadge(classification?: string): { label: string; 
       return { label: "Classic Hit", color: "text-amber-300", bgColor: "bg-amber-500/15", icon: "🎵" };
     case "new_viral":
     default:
-      return { label: "New Viral", color: "text-indigo-300", bgColor: "bg-indigo-500/15", icon: "🔥" };
+      return { label: "New Viral", color: "text-primary", bgColor: "bg-primary/15", icon: "🔥" };
   }
 }
 
@@ -85,7 +85,7 @@ function getVelocityPatternIndicator(pattern?: string): { label: string; icon: s
 function getTargetedSaturationMeta(count: number): { label: string; color: string; bgColor: string } {
   if (count === 0) return { label: "0 targeting", color: "text-emerald-400 border-emerald-500/20", bgColor: "bg-emerald-500/10" };
   if (count <= 2) return { label: `${count} targeting`, color: "text-amber-400 border-amber-500/20", bgColor: "bg-amber-500/10" };
-  return { label: `${count} targeting`, color: "text-indigo-400 border-indigo-500/20", bgColor: "bg-indigo-500/10" };
+  return { label: `${count} targeting`, color: "text-primary border-primary/20", bgColor: "bg-primary/10" };
 }
 
 const formatViews = (v: number) => {
@@ -371,7 +371,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     if (score >= 80) return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20 shadow-[0_0_12px_rgba(16,185,129,0.1)]";
     if (score >= 60) return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20 shadow-[0_0_12px_rgba(245,158,11,0.1)]";
     if (score >= 40) return "bg-orange-500/10 text-orange-600 dark:text-orange-400 border-orange-500/20";
-    return "bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20";
+    return "bg-primary/10 text-primary dark:text-primary border-primary/20";
   };
 
   const getOpportunityScoreStatus = (score: number) => {
@@ -745,7 +745,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                         {/* Stats row */}
                         <div className="flex items-center gap-3 text-[10px] text-muted-foreground">
                           <span className="flex items-center gap-1"><Eye className="h-3 w-3" />{formatViews(reel.view_count)}</span>
-                          <span className="flex items-center gap-1"><Heart className="h-3 w-3 text-indigo-400" />{formatViews(reel.like_count)}</span>
+                          <span className="flex items-center gap-1"><Heart className="h-3 w-3 text-primary" />{formatViews(reel.like_count)}</span>
                           {reel.comment_count > 0 && (
                             <span className="flex items-center gap-1"><MessageCircle className="h-3 w-3 text-blue-400" />{formatViews(reel.comment_count)}</span>
                           )}
@@ -927,7 +927,7 @@ function ScorePill({ label, value, tone }: { label: string; value: number; tone:
   const clz =
     tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
     tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                     "bg-indigo-500/10 text-indigo-400 border-indigo-500/20";
+                     "bg-primary/10 text-primary border-primary/20";
   return (
     <div className={`rounded-lg border px-2 py-2 text-center ${clz}`}>
       <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{label}</p>

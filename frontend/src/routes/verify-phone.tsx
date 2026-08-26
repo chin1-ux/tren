@@ -185,7 +185,7 @@ function VerifyPhonePage() {
                 type="button"
                 onClick={handleResend}
                 disabled={cooldown > 0 || resending}
-                className="text-sm font-medium text-indigo-600 dark:text-indigo-400 hover:text-indigo-700 dark:hover:text-indigo-300 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-full gap-2 transition-colors"
+                className="text-sm font-medium text-primary dark:text-primary hover:text-primary dark:hover:text-primary disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center w-full gap-2 transition-colors"
               >
                 <RefreshCw className={`h-4 w-4 ${resending ? 'animate-spin' : ''}`} />
                 {cooldown > 0 ? `Resend code in ${cooldown}s` : "Resend code"}

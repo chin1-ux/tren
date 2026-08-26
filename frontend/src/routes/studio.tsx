@@ -405,7 +405,7 @@ function StudioPage() {
                 />
               </div>
             </div>
-            <Button type="submit" disabled={loadingHooks} className="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold h-11">
+            <Button type="submit" disabled={loadingHooks} className="w-full bg-primary hover:bg-primary text-white font-bold h-11">
               {loadingHooks ? "Generating Hooks..." : "Create 5 Hook Formulas"}
             </Button>
           </form>
@@ -416,7 +416,7 @@ function StudioPage() {
               {hooksResult.hooks.map((h, i) => (
                 <div key={i} className="glass-card p-4 rounded-xl space-y-2 border border-border">
                   <div className="flex justify-between items-center">
-                    <span className="text-xs font-bold text-indigo-400">{h.style} Hook</span>
+                    <span className="text-xs font-bold text-primary">{h.style} Hook</span>
                     <button 
                       onClick={() => {
                         navigator.clipboard.writeText(h.text);
