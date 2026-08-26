@@ -1503,6 +1503,20 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "audio_backfill_attempts": 0,
             }
 
+            # Ad/sponsored detection
+            try:
+                from ad_detector import detect_sponsored
+                ad_result = detect_sponsored(c["caption"], c["item"])
+                reel["is_sponsored"] = ad_result["is_sponsored"]
+                reel["ad_confidence"] = ad_result["confidence"]
+                reel["ad_signals"] = ad_result["signals"]
+                if ad_result["is_sponsored"]:
+                    logger.info(f"Sponsored reel detected: {reel['reel_id']} by @{owner} (confidence={ad_result['confidence']:.2f})")
+            except Exception:
+                reel["is_sponsored"] = False
+                reel["ad_confidence"] = 0.0
+                reel["ad_signals"] = []
+
             # Metadata tagging
             meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
             source_hashtag_pool = meta.get("source_hashtag_pool", source_hashtag_pool)
@@ -1560,8 +1574,8 @@ Return ONLY valid JSON, no markdown, no explanation:
 
             inserted_reels.append(reel)
 
-            # Group for hook analysis
-            if audio_title:
+            # Group for hook analysis (exclude sponsored reels from trend signals)
+            if audio_title and not reel.get("is_sponsored"):
                 key = (audio_title.strip(), (audio_artist or "").strip())
                 audio_groups_entries.append((key, reel))
 
