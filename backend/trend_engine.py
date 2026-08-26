@@ -818,6 +818,12 @@ class TrendEngine:
                             break
 
                 if existing_match:
+                    old_status = existing_match.get("status", "emerging")
+                    
+                    # Only refresh active trends (emerging/rising). Never resurrect peaked/expired.
+                    if old_status not in ("emerging", "rising"):
+                        continue
+                    
                     # Re-detect: update velocity, window, reel_count from fresh scrape data
                     _vels = [r.get("velocity_score", 0.0) for r in group_reels]
                     _new_avg_vel = sum(_vels) / len(_vels) if _vels else 0.0
@@ -832,21 +838,12 @@ class TrendEngine:
                     else:
                         _new_window = max(0, _old_window - 3)
 
-                    # Update: never-downgrade status, but refresh velocity + window + reels
-                    old_status = existing_match.get("status", "emerging")
-                    new_detected_status = "emerging"
-                    old_priority = STATUS_PRIORITY.get(old_status, 0)
-                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
-                    final_status = old_status if old_priority >= new_priority else new_detected_status
-
                     update_data = {
                         "velocity_avg": _new_avg_vel,
                         "peak_velocity": max(_new_max_vel, existing_match.get("peak_velocity") or 0),
                         "reel_count": _new_reel_count,
                         "window_hours_remaining": _new_window,
                     }
-                    if final_status != old_status:
-                        update_data["status"] = final_status
 
                     try:
                         self.supabase.table("trends") \
@@ -854,14 +851,11 @@ class TrendEngine:
                             .eq("id", existing_match["id"]) \
                             .execute()
                         logging.info(
-                            f"Refreshed existing trend '{title}' (id={existing_match['id']}): "
-                            f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window} "
-                            f"status={old_status}->{final_status}" if final_status != old_status else
-                            f"Refreshed existing trend '{title}' (id={existing_match['id']}): "
+                            f"Refreshed active trend '{title}' (id={existing_match['id']}): "
                             f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window}"
                         )
                     except Exception as update_err:
-                        logging.warning(f"Failed to refresh existing trend '{title}': {update_err}")
+                        logging.warning(f"Failed to refresh active trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
