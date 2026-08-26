@@ -48,8 +48,8 @@
   --color-input: var(--border);
   --color-ring: var(--primary);
 
-  --font-sans: "Inter", system-ui, sans-serif;
-  --font-display: "Inter", system-ui, sans-serif;
+  --font-sans: "Bricolage Grotesque", system-ui, sans-serif;
+  --font-display: "Bricolage Grotesque", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", monospace;
 
   --shadow-glow: 0 30px 80px -40px rgba(255,77,61,0.4), 0 8px 24px -16px rgba(0,0,0,0.1);

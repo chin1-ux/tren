@@ -4,6 +4,7 @@ import { TrendingUp, TrendingDown, Minus, Clock, Users, Video, Heart, MessageCir
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { useUserStore } from "@/store/useAppStore";
 import { getCreatorMetrics, getSuccessRecommendations, getContentPerformanceOverTime } from "@/lib/api";
 
 interface CreatorAnalyticsDashboardProps {
@@ -15,15 +16,20 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [performanceData, setPerformanceData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const userPlan = useUserStore((s) => s.plan) || "free";
 
   React.useEffect(() => {
     async function loadData() {
       try {
         setLoading(true);
+        if (userPlan === "free") {
+          setLoading(false);
+          return;
+        }
         const [metricsData, recsData, perfData] = await Promise.all([
-          getCreatorMetrics(30),
-          getSuccessRecommendations(),
-          getContentPerformanceOverTime(30)
+          getCreatorMetrics(30).catch(() => null),
+          getSuccessRecommendations().catch(() => ({ recommendations: [], total_recommendations: 0 })),
+          getContentPerformanceOverTime(30).catch(() => ({ performance_data: [], days_analyzed: 0 }))
         ]);
         setMetrics(metricsData);
         setRecommendations(recsData.recommendations);

@@ -76,6 +76,11 @@ export function EarlyDetectionPanel() {
   }, []);
 
   const fetchEarlyTrends = async () => {
+    if (userPlan === "free") {
+      setEarlyTrends([]);
+      setLoading(false);
+      return;
+    }
     try {
       // Use apiFetch (not bare fetch) so the Authorization: Bearer <token> header
       // is injected automatically from inMemoryToken / trendrop_session_token.

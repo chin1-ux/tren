@@ -4,6 +4,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { useUserStore } from "@/store/useAppStore";
 import { getRegionalTrends, getRegionalTimingOptimization, getCulturalEventAutomation, getCreatorPatternAnalysis } from "@/lib/api";
 
 export function IndiaFeaturesDashboard() {
@@ -13,15 +14,24 @@ export function IndiaFeaturesDashboard() {
   const [culturalEvents, setCulturalEvents] = useState<any[]>([]);
   const [creatorPatterns, setCreatorPatterns] = useState<any>(null);
   const [loading, setLoading] = useState(false);
+  const userPlan = useUserStore((s) => s.plan) || "free";
 
   const loadRegionalData = async () => {
     setLoading(true);
+    if (userPlan === "free") {
+      setRegionalTrends(getFallbackTrends(selectedRegion));
+      setTiming(getFallbackTiming(selectedRegion));
+      setCulturalEvents(getFallbackEvents(selectedRegion));
+      setCreatorPatterns(getFallbackPatterns(selectedRegion));
+      setLoading(false);
+      return;
+    }
     try {
       const [trends, timingData, events, patterns] = await Promise.all([
-        getRegionalTrends(selectedRegion),
-        getRegionalTimingOptimization(selectedRegion),
-        getCulturalEventAutomation(90),
-        getCreatorPatternAnalysis(selectedRegion)
+        getRegionalTrends(selectedRegion).catch(() => ({ regional_trends: [], total_trends: 0 })),
+        getRegionalTimingOptimization(selectedRegion).catch(() => null),
+        getCulturalEventAutomation(90).catch(() => ({ cultural_events: [], total_events: 0 })),
+        getCreatorPatternAnalysis(selectedRegion).catch(() => null)
       ]);
       setRegionalTrends(trends.regional_trends && trends.regional_trends.length > 0 ? trends.regional_trends : getFallbackTrends(selectedRegion));
       setTiming(timingData || getFallbackTiming(selectedRegion));
