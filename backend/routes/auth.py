@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os, json, time, logging, traceback
 from api_globals import *
+from api_globals import _enforce_rate_limit, _get_client_ip
 from schemas import *
 
 router = APIRouter()

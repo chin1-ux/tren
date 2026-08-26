@@ -498,6 +498,22 @@ try:
 except ImportError:
     print("Warning: sentry_sdk not installed. Sentry reporting disabled.")
 
+# redis/queue/cache setup
+standard_queue = None
+priority_queue = None
+_PEAKED_TRENDS_CACHE = {}
+
+try:
+    import redis
+    from rq import Queue
+    UPSTASH_REDIS_URL = os.getenv("UPSTASH_REDIS_URL")
+    if UPSTASH_REDIS_URL:
+        redis_conn = redis.from_url(UPSTASH_REDIS_URL)
+        standard_queue = Queue("standard", connection=redis_conn)
+        priority_queue = Queue("priority", connection=redis_conn)
+except Exception as e:
+    logger.warning(f"Redis/RQ integration in api_globals disabled: {e}")
+
 app = FastAPI(
     title="Trendrop Backend API",
     description="AI-powered trend intelligence for Indian short-form creators",
@@ -505,4 +521,120 @@ app = FastAPI(
 )
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+
+
+# ── Trends Feed ────────────────────────────────────────────────────────────────
+
+# Normalize content_type variants → canonical keys so the frontend filter works
+CONTENT_TYPE_NORMALIZE = {
+    "faceless_video": "faceless",
+    "face_less":      "faceless",
+    "narrative_edit": "narrative_edit",
+    "text_overlay":   "text_overlay",
+    "regional":       "regional",
+    "motivation":     "motivation",
+    "fitness":        "fitness",
+    "study":          "study",
+}
+
+def _normalize_trends(trends: list) -> list:
+    """Normalize content_type and inject song/artist aliases on each trend row."""
+    if not trends:
+        return trends
+
+    # Batch query reels for all trend titles in a single DB round-trip
+    titles = list(set(t.get("audio_title") for t in trends if t.get("audio_title")))
+    reels_lookup = {}
+    if titles and supabase:
+        try:
+            res_reels = supabase.table("reels") \
+                .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score") \
+                .in_("audio_title", titles) \
+                .execute()
+            
+            for r in (res_reels.data or []):
+                key = (r.get("audio_title"), r.get("audio_artist"))
+                velocity = float(r.get("velocity_score") or 0.0)
+                existing = reels_lookup.get(key)
+                if not existing or velocity > float(existing.get("velocity_score") or 0.0):
+                    reels_lookup[key] = r
+        except Exception as e:
+            logger.warning(f"Failed to pre-fetch reels info: {e}")
+
+    for t in trends:
+        t["song"]   = t.get("audio_title")
+        t["artist"] = t.get("audio_artist")
+        ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
+        t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
+        
+        # Inject matching reel details from lookup
+        key = (t.get("audio_title"), t.get("audio_artist"))
+        match = reels_lookup.get(key)
+        if match:
+            t["reel_id"] = match.get("reel_id")
+            t["views_delta_last_run"] = match.get("views_delta_last_run") or 0
+            
+    return trends
+
+
+def _trend_priority_key(trend: dict, user_niche: str = "all", user_lang: str = "all") -> tuple[float, int, int, float, float]:
+    origin = (trend.get("trend_origin") or "").upper()
+    is_cross = bool(trend.get("is_cross_cultural"))
+    global_first = 1 if is_cross or origin not in {"", "IN", "UNKNOWN"} else 0
+    regional = 0 if origin in {"", "IN", "UNKNOWN"} else 1
+    if is_cross:
+        regional = 0
+
+    # 1. Personalization Boost
+    niche_boost = 0.0
+    trend_niche = (trend.get("niche_tag") or "general").lower()
+    if user_niche != "all" and user_niche.lower() in [trend_niche, (trend.get("content_type") or "").lower()]:
+        niche_boost = 50.0  # Heavy boost for niche matching
+        
+    lang_boost = 0.0
+    trend_lang = (trend.get("language") or "").lower()
+    if user_lang != "all" and user_lang.lower() == trend_lang:
+        lang_boost = 20.0  # Boost for language match
+
+    # 2. Saturation Penalty (Game Theory Downranking)
+    # Penalize if multiple creators are actively targeting this trend
+    sat_count = trend.get("saturation_count") or 0
+    saturation_penalty = sat_count * 15.0
+
+    base_score = float(trend.get("composite_score") or trend.get("velocity_avg") or 0.0)
+    personalized_score = base_score + niche_boost + lang_boost - saturation_penalty
+
+    return (
+        personalized_score,
+        global_first,
+        regional,
+        base_score,
+        float(trend.get("reel_count") or 0),
+    )
+
+# --- Subscription Tiers Cache ---
+TIERS_CACHE = {}
+TIERS_CACHE_LAST_FETCH = None
+
+def get_cached_tiers():
+    global TIERS_CACHE_LAST_FETCH, TIERS_CACHE
+    now = datetime.now(timezone.utc)
+    if not TIERS_CACHE or not TIERS_CACHE_LAST_FETCH or (now - TIERS_CACHE_LAST_FETCH).total_seconds() > 300:
+        if supabase:
+            try:
+                res = supabase.table("subscription_tiers").select("*").execute()
+                if res.data:
+                    TIERS_CACHE = {row["name"]: row for row in res.data}
+                    TIERS_CACHE_LAST_FETCH = now
+            except Exception as e:
+                logger.error(f"Error fetching subscription tiers for cache: {e}")
+    return TIERS_CACHE
+
+def get_cached_tier_delay(plan_name: str) -> int:
+    tiers = get_cached_tiers()
+    tier = tiers.get(plan_name)
+    if tier:
+        return tier.get("data_delay_hours", 6)
+    return 6
 

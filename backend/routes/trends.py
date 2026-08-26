@@ -4,6 +4,7 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os, json, time, logging, traceback
 from api_globals import *
+from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key
 from schemas import *
 
 router = APIRouter()
