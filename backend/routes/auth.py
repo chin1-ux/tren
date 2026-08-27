@@ -6,14 +6,35 @@ import os, json, time, logging, traceback
 from api_globals import *
 from api_globals import _enforce_rate_limit, _get_client_ip
 from schemas import *
-try:
-    from backend.api import _email_from_supabase_jwt
-except ImportError:
+import jwt
+
+_jwks_client = None
+
+def _get_supabase_jwks_client():
+    global _jwks_client
+    if _jwks_client is None and SUPABASE_URL:
+        from jwt import PyJWKClient
+        _jwks_client = PyJWKClient(f"{SUPABASE_URL}/auth/v1/.well-known/jwks.json", cache_keys=True)
+    return _jwks_client
+
+def _email_from_supabase_jwt(token: str) -> Optional[str]:
+    """Return the email claim of a valid Supabase access token, else None."""
     try:
-        from api import _email_from_supabase_jwt
-    except ImportError:
-        def _email_from_supabase_jwt(token: str):
+        client = _get_supabase_jwks_client()
+        if client is None:
             return None
+        signing_key = client.get_signing_key_from_jwt(token)
+        claims = jwt.decode(
+            token,
+            signing_key.key,
+            algorithms=["ES256"],
+            audience="authenticated",
+            issuer=f"{SUPABASE_URL}/auth/v1",
+        )
+        return claims.get("email")
+    except Exception as e:
+        logger.warning(f"Supabase JWT validation failed: {e}")
+        return None
 
 router = APIRouter()
 
