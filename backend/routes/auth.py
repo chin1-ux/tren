@@ -7,10 +7,13 @@ from api_globals import *
 from api_globals import _enforce_rate_limit, _get_client_ip
 from schemas import *
 try:
-    from api import _email_from_supabase_jwt
+    from backend.api import _email_from_supabase_jwt
 except ImportError:
-    def _email_from_supabase_jwt(token: str):
-        return None
+    try:
+        from api import _email_from_supabase_jwt
+    except ImportError:
+        def _email_from_supabase_jwt(token: str):
+            return None
 
 router = APIRouter()
 
