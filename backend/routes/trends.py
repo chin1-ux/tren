@@ -61,6 +61,8 @@ def get_trends(
         delay_hours = get_cached_tier_delay(user_plan)
 
         q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        # Minimum quality gate: at least 2 reels needed for a real trend
+        q = q.gte("reel_count", 2)
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -130,6 +132,8 @@ def get_emerging_trends(
                 logger.warning(f"Error querying user profile: {e}")
 
         q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        # Minimum quality gate: at least 2 reels needed for a real trend
+        q = q.gte("reel_count", 2)
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)

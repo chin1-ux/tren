@@ -802,8 +802,44 @@ class TrendEngine:
 
             # STEP 4: Evaluate each audio group
             confirmed = []
+
+            # Quality gate constants
+            # 501034 is a known sentinel/fallback value used by the scraper when the
+            # real audio_use_count is unavailable. It must NOT be treated as a real signal.
+            SENTINEL_USE_COUNT = 501034
+
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
+
+                # ── Original Audio quality gate ──────────────────────────────────────────
+                # Original-audio trends are created per-creator. A single viral creator
+                # (e.g. a Raksha Bandhan reel) has high velocity but is not a *trend*.
+                # Require >= 3 reels from >= 3 distinct creators before qualifying.
+                is_original_audio = (
+                    title.lower() in ("original audio", "original sound", "")
+                    or any(r.get("is_original_audio") is True for r in group_reels)
+                )
+                if is_original_audio:
+                    unique_creators = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
+                    if len(group_reels) < 3 or len(unique_creators) < 3:
+                        logging.debug(
+                            f"Original-audio quality gate: skipping '{title}' | {artist} — "
+                            f"only {len(group_reels)} reels from {len(unique_creators)} creators (need >=3/>=3)"
+                        )
+                        continue
+                # ────────────────────────────────────────────────────────────────────────
+
+                # ── Sentinel use-count gate ──────────────────────────────────────────────
+                # Scraper emits 501034 when real use_count is unavailable. Groups that
+                # only have the sentinel value and fewer than 5 reels are too weak to trust.
+                max_raw_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                if max_raw_use_count == SENTINEL_USE_COUNT and len(group_reels) < 5:
+                    logging.debug(
+                        f"Sentinel use-count gate: skipping '{title}' | {artist} — "
+                        f"use_count={max_raw_use_count} (sentinel) with only {len(group_reels)} reels"
+                    )
+                    continue
+                # ────────────────────────────────────────────────────────────────────────
 
                 # Check for existing trend by audio_id (primary) or title+artist (fallback)
                 existing_match = None
@@ -956,9 +992,10 @@ class TrendEngine:
 
                 # Determine initial status using grounded Option B triggers
                 # Grounded thresholds calibrated on 2026-07-29 against N=108 distinct audio_id values (p50 = 153k, p75 = 798k).
-                # Re-audit these thresholds if scrape distribution changes significantly.
+                # RISING_USE_THRESHOLD lowered from 800k to 500k on 2026-08-27 so trends actually graduate
+                # from emerging → rising. The 800k bar was so high almost no Indian audio trends crossed it.
                 EMERGING_USE_THRESHOLD = 150000
-                RISING_USE_THRESHOLD = 800000
+                RISING_USE_THRESHOLD = 500000
 
                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)

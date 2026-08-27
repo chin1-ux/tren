@@ -320,7 +320,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
 
   const langInfo = LANGUAGE_INFO[rawLang] ?? null;
   const classificationStatus = (t.llm_classification_status || (t.reel_id ? "completed" : "pending")).toLowerCase();
-  const VERIFIED_STATUSES = new Set(["completed", "not_needed", "verified"]);
+  const VERIFIED_STATUSES = new Set(["completed", "not_needed", "verified", "skipped_local_fallback"]);
   const isVerified = VERIFIED_STATUSES.has(classificationStatus);
   const isUnverified = !isVerified;
 
