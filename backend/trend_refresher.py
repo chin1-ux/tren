@@ -135,10 +135,15 @@ class TrendRefresher:
                         .eq("audio_title", trend.get("audio_title")) \
                         .eq("audio_artist", trend.get("audio_artist")) \
                         .execute()
-                    total_reels_count = res_total.count or 0
+                    live_reels_count = res_total.count or 0
                 except Exception as e:
                     logger.warning(f"Failed to check total reels count for '{audio_title}': {e}")
-                    total_reels_count = trend.get("reel_count") or 0
+                    live_reels_count = 0
+
+                # Never allow reel_count to decrease: the reels table may be pruned/deduped,
+                # but the trend's peak reel count is a fact that should be preserved.
+                stored_reel_count = trend.get("reel_count") or 0
+                total_reels_count = max(live_reels_count, stored_reel_count)
 
                 min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(15 * 24)))
                 if age_hours >= min_visible_hours or window_hours <= 0:

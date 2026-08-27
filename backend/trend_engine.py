@@ -1041,6 +1041,18 @@ class TrendEngine:
                 if not initial_status:
                     continue
 
+                # Hard minimum: never insert a trend backed by fewer than 2 reels.
+                # A single reel — even a viral one — is a post, not a trend.
+                # This fires after all status-assignment logic so we don't prematurely
+                # discard good use-count signals, we just require at least 2 reels of
+                # social proof before writing to the DB.
+                if len(group_reels) < 2:
+                    logging.debug(
+                        f"Reel count gate: skipping '{title}' | {artist} — "
+                        f"only {len(group_reels)} reel(s), need >= 2 for trend insertion"
+                    )
+                    continue
+
                 # Validate time window: all reels within 48h of each other
                 posted_times = []
                 for r in group_reels:
