@@ -289,6 +289,30 @@ NICHES: dict[str, NicheProfile] = {
         },
         base_relevance=0.15,
     ),
+    "current_affairs": NicheProfile(
+        name="current_affairs",
+        display_name="Current Affairs & News",
+        emoji="📰",
+        keywords=[
+            "news", "geopolitics", "india", "government", "economy", "politics",
+            "breaking", "crisis", "flood", "earthquake", "war", "election",
+            "budget", "parliament", "supreme court", "rbi", "inflation",
+            "pakistan", "china", "usa", "ukraine", "nato", "un", "imf",
+            "current affairs", "analysis", "explained", "what happened",
+            "why it matters", "hot take", "opinion", "commentary"
+        ],
+        anti_keywords=["recipe", "workout", "makeup", "fashion haul"],
+        adapt_patterns={
+            "news_event":      "Create a greenscreen reaction/analysis reel on this breaking story",
+            "audio_trend":     "Use this trending audio with your news commentary format",
+            "meme":            "Add your analytical take on this viral moment",
+            "geopolitical":    "Break down the India angle with a 60-second explainer",
+            "controversy":     "Give your hot take — balanced but bold",
+            "format/pov":      "POV: You finally understand why [news event] matters",
+            "challenge":       "Participate: 'Tell me without telling me' about [event]",
+        },
+        base_relevance=0.05,
+    ),
 }
 
 

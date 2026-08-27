@@ -32,6 +32,7 @@ function TrendDetailPage() {
   const [copiedHashtags, setCopiedHashtags] = useState(false);
   const [selectedVibe, setSelectedVibe] = useState(0);
   const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userNiche = useUserStore((s) => s.niche) || 'all';
 
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["trend", id],
@@ -188,6 +189,45 @@ function TrendDetailPage() {
                 # {n}
               </span>
             ))}
+          </div>
+        )}
+
+        {/* Per-niche Adaptation Brief — injected by niche_relevance_engine */}
+        {userNiche && userNiche !== 'all' && trend.adaptation_briefs?.[userNiche] && (
+          <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-primary flex items-center gap-1">
+              <Zap className="h-3 w-3" /> Your Angle ({userNiche.replace('_', ' ')})
+            </p>
+            <p className="text-xs text-foreground/80 leading-relaxed">
+              {trend.adaptation_briefs[userNiche]}
+            </p>
+          </div>
+        )}
+
+        {/* Niche Relevance Scores */}
+        {trend.niche_relevance && Object.keys(trend.niche_relevance).length > 0 && (
+          <div className="space-y-2">
+            <p className="text-[10px] font-bold uppercase tracking-wide text-muted-foreground">Niche Fit</p>
+            <div className="grid grid-cols-2 gap-1.5">
+              {Object.entries(trend.niche_relevance as Record<string, number>)
+                .filter(([, v]) => v > 0.2)
+                .sort(([, a], [, b]) => b - a)
+                .slice(0, 6)
+                .map(([niche, score]) => (
+                  <div key={niche} className="flex items-center gap-2 rounded-lg bg-muted/40 px-2.5 py-1.5">
+                    <div
+                      className="h-1.5 rounded-full bg-primary/60 flex-shrink-0"
+                      style={{ width: `${Math.round(score * 100)}%`, maxWidth: '48px', minWidth: '4px' }}
+                    />
+                    <span className="text-[10px] text-muted-foreground capitalize flex-1 truncate">
+                      {niche.replace('_', ' ')}
+                    </span>
+                    <span className="text-[10px] font-bold text-foreground">
+                      {Math.round(score * 100)}%
+                    </span>
+                  </div>
+                ))}
+            </div>
           </div>
         )}
 

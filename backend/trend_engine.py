@@ -1041,17 +1041,11 @@ class TrendEngine:
                 if not initial_status:
                     continue
 
-                # Hard minimum: never insert a trend backed by fewer than 2 reels.
-                # A single reel — even a viral one — is a post, not a trend.
-                # This fires after all status-assignment logic so we don't prematurely
-                # discard good use-count signals, we just require at least 2 reels of
-                # social proof before writing to the DB.
-                if len(group_reels) < 2:
-                    logging.debug(
-                        f"Reel count gate: skipping '{title}' | {artist} — "
-                        f"only {len(group_reels)} reel(s), need >= 2 for trend insertion"
-                    )
-                    continue
+                # Removed Hard minimum 2-reel gate to fix the chicken-and-egg bug.
+                # If an audio has massive use_count (e.g. 50,000+) but we only scraped 1 reel using it,
+                # we MUST track it so the scraper knows to look for it. Blocking it here creates
+                # a loop where we never track it because we don't have enough reels, and we don't 
+                # get more reels because we aren't tracking it.
 
                 # Validate time window: all reels within 48h of each other
                 posted_times = []

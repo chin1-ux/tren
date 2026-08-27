@@ -51,11 +51,19 @@ def get_trends(
             try:
                 user_data = get_cached_user_profile(current_user)
                 if user_data:
-                    user_niche = user_data.get("niche") or "all"
-                    user_lang = user_data.get("language_preference") or "all"
                     user_plan = user_data.get("plan") or "free"
+                    
+                # Query user_preferences DB for personalized feed
+                prefs_res = supabase.table("user_preferences").select("niches, languages, regions, state").eq("email", current_user).execute()
+                if prefs_res.data:
+                    prefs = prefs_res.data[0]
+                    # Convert list to string for current logic or use first element
+                    if prefs.get("niches") and len(prefs["niches"]) > 0:
+                        user_niche = prefs["niches"][0] # Focus on primary niche for sort
+                    if prefs.get("languages") and len(prefs["languages"]) > 0:
+                        user_lang = prefs["languages"][0]
             except Exception as e:
-                logger.warning(f"Error querying user profile for personalization: {e}")
+                logger.warning(f"Error querying user profile/preferences for personalization: {e}")
 
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
@@ -83,6 +91,21 @@ def get_trends(
         q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
+        
+        # Wire C5: Inject niche adaptations using the engine for personalized feed
+        for t in trends:
+            if user_niche and user_niche not in ["all", "general"]:
+                if not t.get("niche_relevance"):
+                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
+                
+                score = t["niche_relevance"].get(user_niche, 0.0)
+                brief = niche_relevance_engine.generate_adaptation_brief(t, user_niche, score)
+                
+                if brief:
+                    if not t.get("adaptation_briefs"):
+                        t["adaptation_briefs"] = {}
+                    t["adaptation_briefs"][user_niche] = brief
+
         trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
 
         # Cache the result in Redis for 5 minutes

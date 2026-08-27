@@ -20,6 +20,8 @@ from routes.india import router as india_router
 app.include_router(india_router)
 from routes.system import router as system_router
 app.include_router(system_router)
+from routes.users import router as users_router
+app.include_router(users_router)
 
 
 @app.get("/api/health", tags=["Health"]) 

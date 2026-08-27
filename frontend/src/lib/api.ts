@@ -300,6 +300,10 @@ export interface UiTrend {
   audioGenre?: string;
   audioLabel?: string;
   firstDetectedAt?: string | null;
+
+  // niche intelligence fields (from niche_relevance_engine)
+  adaptation_briefs?: Record<string, string>;
+  niche_relevance?: Record<string, number>;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {

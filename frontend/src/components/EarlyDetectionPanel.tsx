@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, Clock, AlertCircle, CheckCircle, Calendar, Flame, Zap } from "lucide-react";
+import { Sparkles, TrendingUp, Clock, AlertCircle, CheckCircle, Calendar, Flame, Zap, Music2, Newspaper, PartyPopper, Layout } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { PlanGate } from "./PlanGate";
@@ -67,8 +67,12 @@ export function EarlyDetectionPanel() {
   const [culturalEvents, setCulturalEvents] = useState<CulturalEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'trends' | 'events'>('trends');
-  // Read plan from the Zustand store — same source as the rest of the app.
+  // Signal type filter (E9 — Notification Center filter)
+  type SignalFilter = 'all' | 'audio' | 'format' | 'news' | 'festival';
+  const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
+  // Read plan and niche from the Zustand store — same source as the rest of the app.
   const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userNiche = useUserStore((s) => s.niche) || 'all';
 
   useEffect(() => {
     fetchEarlyTrends();
@@ -215,15 +219,51 @@ export function EarlyDetectionPanel() {
           </div>
         </div>
 
-      {activeTab === 'trends' ? (
+        {/* Signal Type Filter Pills (E9) */}
+        {activeTab === 'trends' && (
+          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
+            {([
+              { key: 'all',      label: 'All',      icon: <Sparkles className="h-3 w-3" /> },
+              { key: 'audio',    label: 'Audio',    icon: <Music2 className="h-3 w-3" /> },
+              { key: 'format',   label: 'Format',   icon: <Layout className="h-3 w-3" /> },
+              { key: 'news',     label: 'News',     icon: <Newspaper className="h-3 w-3" /> },
+              { key: 'festival', label: 'Festival', icon: <PartyPopper className="h-3 w-3" /> },
+            ] as { key: SignalFilter; label: string; icon: React.ReactNode }[]).map((f) => (
+              <button
+                key={f.key}
+                onClick={() => setSignalFilter(f.key)}
+                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
+                  signalFilter === f.key
+                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
+                    : 'bg-muted/50 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+                }`}
+              >
+                {f.icon}
+                {f.label}
+              </button>
+            ))}
+          </div>
+        )}
+
+      {activeTab === 'trends' ? (() => {
+        const filtered = signalFilter === 'all' ? earlyTrends : earlyTrends.filter((t: any) => {
+          if (signalFilter === 'audio')    return (t.content_type ?? '').toLowerCase().includes('audio') || t.niche_tag == null;
+          if (signalFilter === 'format')   return (t.content_type ?? '').toLowerCase().includes('format') || (t.niche_tag ?? '').includes('format');
+          if (signalFilter === 'news')     return (t.niche_tag ?? '').includes('news') || (t.content_type ?? '').includes('news');
+          if (signalFilter === 'festival') return (t.niche_tag ?? '').includes('festival') || (t.niche_tag ?? '').includes('cultural');
+          return true;
+        });
+        return (
         <div className="space-y-3">
-          {earlyTrends.length === 0 ? (
+          {filtered.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <TrendingUp className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">No early trends detected</p>
+              <p className="text-sm text-muted-foreground">
+                {signalFilter === 'all' ? 'No early trends detected' : `No ${signalFilter} trends right now`}
+              </p>
             </div>
           ) : (
-            earlyTrends.map((trend, index) => (
+            filtered.map((trend, index) => (
               <motion.div
                 key={trend.id}
                 initial={{ opacity: 0, y: 10 }}
@@ -262,7 +302,8 @@ export function EarlyDetectionPanel() {
             ))
           )}
         </div>
-      ) : FEATURES.CALENDAR_ENABLED ? (
+        );
+      })() : FEATURES.CALENDAR_ENABLED ? (
         <div className="space-y-3">
           {culturalEvents.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">

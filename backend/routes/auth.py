@@ -133,6 +133,22 @@ def signup(request: Request, req: SignupRequest):
         }
         supabase.table("users").upsert(user_data, on_conflict="email").execute()
 
+        # Step 3.5: Save to user_preferences
+        prefs_data = {
+            "email": req.email,
+            "niches": [req.niche] if req.niche != "all" else [],
+            "languages": [req.language],
+            "regions": ["IN"],
+            "creator_language": req.language,
+            "state": req.state if req.state else None,
+            "creator_tier": req.tier if req.tier else "nano",
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+        try:
+            supabase.table("user_preferences").upsert(prefs_data, on_conflict="email").execute()
+        except Exception as e:
+            logger.error(f"Failed to save user_preferences for {req.email}: {e}")
+
         # Log signup grant in credit_transactions
         try:
             user_id_res = supabase.table("users").select("id").eq("email", req.email).single().execute()

@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request, Header, UploadFile, File, Form, BackgroundTasks
+from fastapi import APIRouter, HTTPException, Depends, Request, Header, UploadFile, File, Form, BackgroundTasks, Query
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
@@ -339,31 +339,23 @@ def get_calendar(request: Request, current_user_email: str = Depends(get_current
 @limiter.limit("20/minute")
 def generate_caption(
     request: Request,
-    trend_name: str,
-    tone: str = "casual",
-    niche: str = "general",
+    trend_id: int = Query(..., description="ID of the trend to generate caption kit for"),
     current_user: str = Depends(get_current_user),
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
-    """Generate an AI caption for a specific trend or topic."""
-    if not AIContentGenerator:
-        raise HTTPException(status_code=500, detail="AI content generator not configured.")
-    
+    """Generate an AI caption kit for a specific trend."""
     try:
-        generator = AIContentGenerator()
-        caption = generator.generate_caption(trend_name, tone=tone, niche=niche)
+        from caption_engine import CaptionEngine
+        engine = CaptionEngine()
+        caption_kit = engine.get_caption_kit(trend_id)
         
-        return {
-            'caption': caption.caption,
-            'hashtags': caption.hashtags,
-            'tone': caption.tone,
-            'target_audience': caption.target_audience,
-            'cta': caption.cta,
-            'emoji_usage': caption.emoji_usage
-        }
+        return caption_kit
+    except ValueError as ve:
+        logger.warning(f"Validation error in caption generation: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
-        logger.exception(f"Error generating caption: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate caption")
+        logger.exception(f"Error generating caption kit: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate caption kit")
 
 
 @router.get("/api/ai/content-ideas")

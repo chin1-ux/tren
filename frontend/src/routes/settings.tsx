@@ -2,12 +2,13 @@ import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState, useRef } from "react";
 import { 
   Settings, User, Bell, SlidersHorizontal, ShieldCheck, 
-  HelpCircle, Eye, Moon, Sun, ChevronRight, Check, X, Search, LogOut, Type, Palette
+  HelpCircle, Eye, Moon, Sun, ChevronRight, Check, X, Search, LogOut, Type, Palette, MapPin, Users
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
 import { FEATURES } from "@/lib/features";
+import { apiFetch } from "@/lib/api";
 
 export const Route = createFileRoute("/settings")({
   head: () => ({
@@ -30,23 +31,51 @@ const ALL_LANGUAGES = [
 ];
 
 const NICHES = [
-  "personal finance",
-  "pottery",
-  "true crime commentary",
-  "dance",
-  "fashion",
-  "travel",
+  "current_affairs",
+  "fitness",
   "food",
+  "travel",
+  "fashion",
+  "dance",
   "comedy",
   "motivation",
+  "personal finance",
   "devotional",
-  "fitness",
-  "study",
-  "scenic",
   "technology",
   "gaming",
   "parenting",
   "real estate",
+  "study",
+  "scenic",
+  "pottery",
+  "true crime commentary",
+];
+
+const STATES = [
+  { code: "", label: "Select State" },
+  { code: "MH", label: "Maharashtra" },
+  { code: "KA", label: "Karnataka" },
+  { code: "KL", label: "Kerala" },
+  { code: "TN", label: "Tamil Nadu" },
+  { code: "DL", label: "Delhi" },
+  { code: "UP", label: "Uttar Pradesh" },
+  { code: "WB", label: "West Bengal" },
+  { code: "GJ", label: "Gujarat" },
+  { code: "RJ", label: "Rajasthan" },
+  { code: "PB", label: "Punjab" },
+  { code: "AP", label: "Andhra Pradesh" },
+  { code: "TG", label: "Telangana" },
+  { code: "AS", label: "Assam" },
+  { code: "BR", label: "Bihar" },
+  { code: "MP", label: "Madhya Pradesh" },
+  { code: "HR", label: "Haryana" },
+];
+
+const TIERS = [
+  { code: "nano",  label: "Nano (0–10k)" },
+  { code: "micro", label: "Micro (10k–100k)" },
+  { code: "macro", label: "Macro (100k–1M)" },
+  { code: "mega",  label: "Mega (1M+)" },
 ];
 
 function SettingsPage() {
@@ -74,6 +103,9 @@ function SettingsPage() {
   // Preference state
   const [selectedLanguage, setSelectedLanguage] = useState("all");
   const [selectedNiche, setSelectedNiche] = useState("all");
+  const [selectedState, setSelectedState] = useState("");
+  const [selectedTier, setSelectedTier] = useState("nano");
+  const [savingPrefs, setSavingPrefs] = useState(false);
 
   // Search-based filters state
   const [langSearch, setLangSearch] = useState("");
@@ -105,6 +137,8 @@ function SettingsPage() {
     const savedNiche = localStorage.getItem("trendrop_pref_niche") ?? "all";
     setSelectedNiche(savedNiche);
     setCustomNiche(savedNiche === "all" ? "" : savedNiche);
+    setSelectedState(localStorage.getItem("trendrop_user_state") ?? "");
+    setSelectedTier(localStorage.getItem("trendrop_creator_tier") ?? "nano");
 
     // Load custom dynamic options
     const savedSize = localStorage.getItem("trendrop_font_size") as any;
@@ -193,7 +227,7 @@ function SettingsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
-  const saveSettings = () => {
+  const saveSettings = async () => {
     localStorage.setItem("trendrop_user_email", email);
     localStorage.setItem("trendrop_instagram_handle", instagramHandle);
     localStorage.setItem("trendrop_followers", followers);
@@ -203,10 +237,36 @@ function SettingsPage() {
     localStorage.setItem("trendrop_notify_brand_deals", String(notifyBrandDeals));
     localStorage.setItem("trendrop_notify_weekly_report", String(notifyWeeklyReport));
 
+    const finalNiche = customNiche.trim() || selectedNiche || "all";
     localStorage.setItem("trendrop_pref_language", selectedLanguage);
-    localStorage.setItem("trendrop_pref_niche", customNiche.trim() || selectedNiche || "all");
+    localStorage.setItem("trendrop_pref_niche", finalNiche);
+    localStorage.setItem("trendrop_user_state", selectedState);
+    localStorage.setItem("trendrop_creator_tier", selectedTier);
 
-    toast.success("Preferences saved on this device ✓");
+    // Persist to backend so alerts + regional feed work correctly
+    setSavingPrefs(true);
+    try {
+      await apiFetch("/api/users/preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          niches: finalNiche !== "all" ? [finalNiche] : [],
+          languages: selectedLanguage !== "all" ? [selectedLanguage] : ["en"],
+          regions: ["IN"],
+          creator_language: selectedLanguage !== "all" ? selectedLanguage : "en",
+          state: selectedState || null,
+          creator_tier: selectedTier,
+          global_enabled: false,
+          notification_triggers: {},
+          platform_focus: ["instagram"],
+        }),
+      });
+      toast.success("Preferences saved ✓");
+    } catch {
+      toast.success("Preferences saved on this device ✓");
+    } finally {
+      setSavingPrefs(false);
+    }
   };
 
   const replayTutorial = () => {
@@ -321,6 +381,48 @@ function SettingsPage() {
                 className="rounded-full border border-border/50 bg-background/60 px-2.5 py-1 text-[10px] font-semibold text-foreground/80 hover:border-primary/50 hover:text-foreground"
               >
                 {niche}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* State */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <MapPin className="h-3 w-3" /> Your State (for regional festival alerts)
+          </label>
+          <select
+            value={selectedState}
+            onChange={(e) => setSelectedState(e.target.value)}
+            className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2.5 text-xs font-medium text-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
+          >
+            {STATES.map((s) => (
+              <option key={s.code} value={s.code}>{s.label}</option>
+            ))}
+          </select>
+          <p className="text-[10px] text-muted-foreground">
+            Used to surface Varamahalakshmi, Onam, Durga Puja etc. at the right time for your audience
+          </p>
+        </div>
+
+        {/* Tier */}
+        <div className="space-y-1.5">
+          <label className="text-xs font-semibold text-muted-foreground flex items-center gap-1">
+            <Users className="h-3 w-3" /> Creator Tier
+          </label>
+          <div className="grid grid-cols-4 gap-2">
+            {TIERS.map((t) => (
+              <button
+                key={t.code}
+                type="button"
+                onClick={() => setSelectedTier(t.code)}
+                className={`rounded-xl py-2 text-[10px] font-bold border transition-all ${
+                  selectedTier === t.code
+                    ? "bg-primary text-white border-primary"
+                    : "bg-muted/40 text-foreground/70 border-border/30 hover:bg-muted"
+                }`}
+              >
+                {t.label}
               </button>
             ))}
           </div>
@@ -532,9 +634,10 @@ function SettingsPage() {
       <div className="flex gap-3">
         <Button
           onClick={saveSettings}
+          disabled={savingPrefs}
           className="h-12 flex-1 bg-primary text-white hover:bg-primary/90 font-bold uppercase rounded-xl shadow-lg transition-all"
         >
-          Save Settings ✓
+          {savingPrefs ? "Saving…" : "Save Settings ✓"}
         </Button>
       </div>
     </div>

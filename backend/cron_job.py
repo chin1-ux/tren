@@ -44,6 +44,7 @@ except ImportError:
 from trend_engine import TrendEngine
 from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
+from unified_signal_processor import UnifiedSignalProcessor
 from supabase import create_client
 
 # Unconditionally use the browser-use Instagram scraper backend.
@@ -217,8 +218,29 @@ def run_full_pipeline(stages: list = None):
             run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
             logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
-    # 2. YouTube Scraper (Bypassed)
-    logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
+    # 2. YouTube Data Fetcher
+    if _stage("scrape"):
+        try:
+            run_state["stage"] = "youtube_scrape"
+            logging.info("Step 2/5: Scraping YouTube trending data...")
+            from youtube_data_fetcher import YouTubeDataFetcher
+            
+            yt_fetcher = YouTubeDataFetcher()
+            # Fetch India trending music and comedy for now
+            yt_music = yt_fetcher.get_trending_music_india()
+            yt_comedy = yt_fetcher.get_trending_comedy_india()
+            
+            total_yt = len(yt_music.get("items", [])) + len(yt_comedy.get("items", []))
+            
+            if total_yt > 0:
+                logging.info(f"Step 2/5: YouTube scraping complete. Found {total_yt} trending items.")
+                # Ideally, extract topics and pass them to unified signals, but for now we just verify it runs.
+                # yt_topics = yt_fetcher.extract_trending_topics(yt_music)
+            else:
+                logging.info("Step 2/5: YouTube scraping complete but no items found (check API key).")
+        except Exception as e:
+            run_state["stage"] = "youtube_scrape_failed"
+            logging.error(f"Step 2/5 FAILED (YouTube): {e}", exc_info=True)
 
     # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
     audio_backfill_filled = 0
@@ -378,6 +400,19 @@ def run_full_pipeline(stages: list = None):
             logging.error(f"Step 4/5 FAILED (TrendRefresher): {e}", exc_info=True)
     else:
         refresher = None
+
+    # 4b. Unified Signals: gather news, formats, and events
+    if _stage("signals") or _stage("detect"):
+        try:
+            run_state["stage"] = "unified_signals"
+            logging.info("Step 4b/5: Running UnifiedSignalProcessor for cross-channel trends...")
+            signal_proc = UnifiedSignalProcessor()
+            signal_proc.run_full_cycle()
+            logging.info("Step 4b/5: UnifiedSignalProcessor complete.")
+        except Exception as e:
+            run_state["stage"] = "unified_signals_failed"
+            run_state["cutoff_reason"] = f"unified signal processor failed: {e}"
+            logging.error(f"Step 4b/5 FAILED (UnifiedSignals): {e}", exc_info=True)
 
     # Append one snapshot per trend for this pipeline run so velocity persistence
     # can be evaluated against real historical data on future runs.

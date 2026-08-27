@@ -68,6 +68,8 @@ class SignupRequest(BaseModel):
     phone_number: str
     niche: str = "all"
     language: str = "en"
+    state: str = ""
+    tier: str = "nano"
 
 
 class LoginRequest(BaseModel):
@@ -184,3 +186,13 @@ class AdminChangePasswordRequest(BaseModel):
     current_password: str
     new_password: str
 
+class UserPreferencesRequest(BaseModel):
+    niches: List[str] = []
+    languages: List[str] = ["en"]
+    regions: List[str] = ["IN"]
+    creator_language: str = "en"
+    state: Optional[str] = None
+    global_enabled: bool = False
+    notification_triggers: dict = {}
+    creator_tier: str = "nano"
+    platform_focus: List[str] = ["instagram"]

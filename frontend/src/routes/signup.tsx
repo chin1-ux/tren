@@ -15,6 +15,7 @@ const NICHES = [
   { id: "comedy", label: "Comedy" },
   { id: "motivation", label: "Motivation" },
   { id: "fitness", label: "Fitness" },
+  { id: "current_affairs", label: "Current Affairs" },
   { id: "all", label: "All" },
 ];
 
@@ -47,6 +48,8 @@ function SignupPage() {
   const [phoneNumber, setPhoneNumber] = useState("");
   const [niche, setNiche] = useState("all");
   const [language, setLanguage] = useState("en");
+  const [stateName, setStateName] = useState("");
+  const [tier, setTier] = useState("nano");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -76,7 +79,7 @@ function SignupPage() {
     setLoading(true);
 
     try {
-      await signup(email, password, phoneNumber, niche, language);
+      await signup(email, password, phoneNumber, niche, language, stateName, tier);
       toast.success("Account created successfully!");
       // AuthContext handles navigation automatically
     } catch (err) {
@@ -228,6 +231,52 @@ function SignupPage() {
                     {l.label}
                   </option>
                 ))}
+              </select>
+            </div>
+
+            {/* State */}
+            <div className="space-y-2">
+              <label htmlFor="state" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                State (Optional)
+              </label>
+              <select
+                id="state"
+                value={stateName}
+                onChange={(e) => setStateName(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="">Select State</option>
+                <option value="MH">Maharashtra</option>
+                <option value="KA">Karnataka</option>
+                <option value="KL">Kerala</option>
+                <option value="TN">Tamil Nadu</option>
+                <option value="DL">Delhi</option>
+                <option value="UP">Uttar Pradesh</option>
+                <option value="WB">West Bengal</option>
+                <option value="GJ">Gujarat</option>
+                <option value="RJ">Rajasthan</option>
+                <option value="PB">Punjab</option>
+                <option value="AP">Andhra Pradesh</option>
+                <option value="TG">Telangana</option>
+                <option value="AS">Assam</option>
+              </select>
+            </div>
+
+            {/* Tier */}
+            <div className="space-y-2">
+              <label htmlFor="tier" className="text-sm font-medium text-slate-700 dark:text-slate-300">
+                Creator Tier
+              </label>
+              <select
+                id="tier"
+                value={tier}
+                onChange={(e) => setTier(e.target.value)}
+                className="w-full px-4 py-2.5 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary"
+              >
+                <option value="nano">Nano (0-10k)</option>
+                <option value="micro">Micro (10k-100k)</option>
+                <option value="macro">Macro (100k-1M)</option>
+                <option value="mega">Mega (1M+)</option>
               </select>
             </div>
 

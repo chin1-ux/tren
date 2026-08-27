@@ -289,15 +289,68 @@ class InstagramScraper:
         self.hashtag_groups = {
             "INDIA_TRENDING": [
                 "trendingindia", "reelsindia", "instagramindia", "indiansong",
-                "reelkarofeelkaro", "desimemes", "exploreindia"
+                "reelkarofeelkaro", "desimemes", "exploreindia", "viralindia",
+                "india", "mumbai", "delhi", "bangalore", "creatorindia"
             ],
             "INDIA_VERNACULAR": [
                 "hindireels", "punjabisongs", "tamilreels", "telugureels",
-                "kannadareels", "bhojpurisong", "marathireels"
+                "kannadareels", "bhojpurisong", "marathireels", "malayalamreels",
+                "gujaratireels", "bengalireels", "keralagram", "chennaimemes"
             ],
-            "GLOBAL_NICHES": [
-                "fitnessreels", "foodreels", "comedyreels", "fashionreels",
-                "travelreels", "beautyreels", "artreels"
+            "FITNESS": [
+                "fitnessreels", "gymindia", "workoutmotivation", "desiworkout",
+                "fitindia", "indianfitness", "gymreels", "fitnessjourney",
+                "bodybuildingindia", "yoga", "yogaindia"
+            ],
+            "FOOD": [
+                "foodreels", "indianstreetfood", "desifood", "foodbloggerindia",
+                "mumbaifoodie", "delhifoodie", "homecooking", "indianrecipes",
+                "foodporn", "streetfoodindia", "paneer", "biryani"
+            ],
+            "COMEDY": [
+                "comedyreels", "desicomedy", "indiancomedy", "funnyreels",
+                "relatablereels", "standupindia", "memesindia", "trolls",
+                "desimemes", "sarcasm"
+            ],
+            "FASHION": [
+                "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",
+                "ethnicwear", "sareelove", "kurtistyle", "fashionbloggerindia",
+                "grwm", "desifashion"
+            ],
+            "TRAVEL": [
+                "travelreels", "incredibleindia", "travelindia", "himalayas",
+                "goadiaries", "keralatourism", "rajasthantourism", "wanderlust",
+                "solotravel", "indiapictures"
+            ],
+            "BEAUTY": [
+                "beautyreels", "indianmakeup", "skincareroutine", "desiwedding",
+                "bridalmakeup", "makeuptutorial", "glowup", "nykaa",
+                "skincareindia", "desibeauty"
+            ],
+            "TECH": [
+                "techreels", "techindia", "gadgets", "coding", "developer",
+                "python", "programmer", "softwareengineer", "techreview",
+                "artificialintelligence", "machinelearning"
+            ],
+            "MOTIVATION": [
+                "motivationreels", "successmindset", "hustle", "entrepreneurindia",
+                "startupindia", "businessindia", "motivationalquotes",
+                "growthmindset", "leadership", "dailyquotes"
+            ],
+            "DANCE": [
+                "dancereels", "indiandance", "bhangra", "garba", "classicaldance",
+                "bollywooddance", "dancecover", "choreography", "dancechallenge",
+                "hiphopindia"
+            ],
+            "CURRENT_AFFAIRS": [
+                "currentaffairs", "newsindia", "geopolitics", "upsc", "indiaexplained",
+                "indiannews", "politicsindia", "breakingnews", "stockmarketindia",
+                "financeindia", "economy"
+            ],
+            "SPORTS": [
+                "sportsreels", "cricketindia", "ipl", "viratkohli", "msdhoni",
+                "footballindia", "badminton", "kabaddi", "neerajchopra",
+                "indiancricket"
             ],
             "GLOBAL_DISCOVERY": [
                 "music", "trendingaudio", "trendingsong", "viralsong", "musictrend",
