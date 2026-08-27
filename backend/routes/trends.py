@@ -4,9 +4,9 @@ from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os, json, time, logging, traceback
 from api_globals import *
-from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key
+from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key, _resolve_user
 from schemas import *
-
+import niche_relevance_engine
 router = APIRouter()
 
 @router.get("/api/trends")
@@ -1030,4 +1030,49 @@ def detect_conversations(
         logger.exception(f"Error detecting conversations: {e}")
         raise HTTPException(status_code=500, detail="Failed to detect conversations")
 
-
+@router.get("/api/trends/niche/{niche_name}")
+@limiter.limit("60/minute")
+def get_niche_trends(
+    request: Request,
+    niche_name: str,
+    limit: int = 50,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Fetch trends combined from audio trends and content trends,
+    filtered and sorted by relevance to a specific creator niche.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+        
+    try:
+        # Fetch audio trends (status emerging or rising)
+        audio_res = supabase.table("trends") \
+            .select("*") \
+            .in_("status", ["emerging", "rising"]) \
+            .order("velocity_avg", desc=True) \
+            .limit(100) \
+            .execute()
+        audio_trends = audio_res.data or []
+        
+        # Fetch content trends (status emerging or rising)
+        content_res = supabase.table("content_trends") \
+            .select("*") \
+            .in_("status", ["emerging", "rising"]) \
+            .order("velocity_avg", desc=True) \
+            .limit(50) \
+            .execute()
+        content_trends = content_res.data or []
+        
+        # Combine
+        combined_trends = audio_trends + content_trends
+        
+        # Filter and score
+        enriched = niche_relevance_engine.enrich_trends_with_niche_relevance(combined_trends, top_n_niches=3)
+        niche_feed = niche_relevance_engine.filter_trends_for_niche(enriched, niche_name, min_relevance=0.15)
+        
+        return niche_feed[:limit]
+        
+    except Exception as e:
+        logger.exception(f"Error fetching niche trends: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")

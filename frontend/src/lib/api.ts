@@ -98,6 +98,7 @@ export interface ApiTrend {
   audio_original_release_year?: number;
   audio_genre?: string;
   audio_label?: string;
+  first_detected_at?: string | null;
 }
 
 export interface ApiCaptionKit {
@@ -298,6 +299,7 @@ export interface UiTrend {
   audioOriginalReleaseYear?: number;
   audioGenre?: string;
   audioLabel?: string;
+  firstDetectedAt?: string | null;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -401,6 +403,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     vibeTag: t.vibe_tag ?? "general",
     isVoiceover: !!t.is_voiceover,
     saturationCount: t.saturation_count ?? 0,
+    firstDetectedAt: t.first_detected_at ?? null,
   };
 }
 

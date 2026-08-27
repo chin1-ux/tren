@@ -101,6 +101,26 @@ function formatAudioUseCount(count: number): string {
   return count.toString();
 }
 
+/** Format a scraped-at ISO string into a human-readable "Aug 27, 06:21 AM" */
+function formatScrapedAt(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  try {
+    const d = new Date(iso);
+    if (isNaN(d.getTime())) return null;
+    return d.toLocaleString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+      hour: "2-digit",
+      minute: "2-digit",
+      hour12: true,
+      timeZone: "Asia/Kolkata",
+    });
+  } catch {
+    return null;
+  }
+}
+
 /** Saturation bar component (Global / India) */
 function SaturationBar({
   label,
@@ -572,6 +592,21 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       {/* Expand hint */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
+        {(() => {
+          const scraped = formatScrapedAt(trend.firstDetectedAt);
+          return scraped ? (
+            <span
+              title={`First scraped: ${scraped} IST`}
+              className="flex items-center gap-1 text-[9px] text-muted-foreground/50 font-mono tabular-nums"
+            >
+              <svg className="h-2.5 w-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <polyline points="12 6 12 12 16 14" />
+              </svg>
+              {scraped} IST
+            </span>
+          ) : null;
+        })()}
         {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
       </div>
 
