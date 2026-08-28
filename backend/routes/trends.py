@@ -77,9 +77,16 @@ def get_trends(
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
         # Server-side gating data delay filter
+        # CRITICAL: first_detected_at may be NULL for older trends (scraper didn't always write it).
+        # NULL <= timestamp is FALSE in Postgres, so a pure lte() filter would return 0 rows for free
+        # users when the column is unset. Use created_at as a fallback: if first_detected_at IS NULL,
+        # gate on created_at instead so free users always see something.
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
-            q = q.lte("first_detected_at", time_cutoff)
+            q = q.or_(
+                f"first_detected_at.lte.{time_cutoff},"
+                f"and(first_detected_at.is.null,created_at.lte.{time_cutoff})"
+            )
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)

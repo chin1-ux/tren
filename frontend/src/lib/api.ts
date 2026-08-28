@@ -328,10 +328,18 @@ export function adaptTrend(t: ApiTrend): UiTrend {
   const isVerified = VERIFIED_STATUSES.has(classificationStatus);
   const isUnverified = !isVerified;
 
+  // Sanitize internal compound keys — never expose original_audio::username to users
+  const rawSong = t.song || t.audio_title || "";
+  const rawArtist = t.artist || t.audio_artist || "";
+  const song = rawSong.toLowerCase().startsWith("original_audio::")
+    ? "Original Audio"
+    : (rawSong || "Unknown Song");
+  const artist = rawArtist || (rawSong.toLowerCase().startsWith("original_audio::") ? "Original Creator" : "Unknown Artist");
+
   return {
     id: String(t.id),
-    song: t.song || t.audio_title || "Unknown Song",
-    artist: t.artist || t.audio_artist || "Unknown Artist",
+    song,
+    artist,
     hoursLeft: Math.round(hours),
     expiresAt: Date.now() + hours * 3600 * 1000,
     viralMultiplier: Math.min(99.9, Math.round((Number(t.velocity_avg) || Number(t.velocity_score) || 0) / VIRAL_SCALE_FACTOR * VIRAL_DISPLAY_MULTIPLIER) / 10),

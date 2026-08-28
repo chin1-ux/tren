@@ -812,19 +812,28 @@ class TrendEngine:
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
 
                 # ── Original Audio quality gate ──────────────────────────────────────────
-                # Original-audio trends are created per-creator. A single viral creator
-                # (e.g. a Raksha Bandhan reel) has high velocity but is not a *trend*.
-                # Require >= 3 reels from >= 3 distinct creators before qualifying.
+                # Catch ALL original-audio forms:
+                #   1. Plain title "original audio" / "original sound"
+                #   2. Compound key format produced by _trend_group_key: "original_audio::username"
+                #   3. is_original_audio flag set by the scraper on the reel itself
+                # For an original-audio format to be a real *trend*, we require:
+                #   - >= 5 reels from >= 5 distinct creators (not one viral creator dominating)
+                #   - audio_use_count must NOT be the sentinel value 501034 (scraper fallback)
                 is_original_audio = (
                     title.lower() in ("original audio", "original sound", "")
+                    or title.lower().startswith("original_audio::")
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
                 if is_original_audio:
                     unique_creators = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
-                    if len(group_reels) < 3 or len(unique_creators) < 3:
+                    max_use_for_gate = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                    has_sentinel_only = max_use_for_gate == SENTINEL_USE_COUNT
+                    if len(group_reels) < 5 or len(unique_creators) < 5 or has_sentinel_only:
                         logging.debug(
                             f"Original-audio quality gate: skipping '{title}' | {artist} — "
-                            f"only {len(group_reels)} reels from {len(unique_creators)} creators (need >=3/>=3)"
+                            f"{len(group_reels)} reels, {len(unique_creators)} creators, "
+                            f"use_count={max_use_for_gate} (sentinel={has_sentinel_only}) "
+                            f"(need >=5 reels / >=5 creators / non-sentinel use_count)"
                         )
                         continue
                 # ────────────────────────────────────────────────────────────────────────
@@ -1063,8 +1072,13 @@ class TrendEngine:
                     if (max(posted_times) - min(posted_times)) > timedelta(hours=72):
                         continue
 
+                # Clean up original_audio compound key for display — store human-readable title
+                display_title = title
+                if title.lower().startswith("original_audio::"):
+                    display_title = "Original Audio"
+
                 confirmed.append({
-                    "audio_title": title,
+                    "audio_title": display_title,
                     "audio_artist": artist,
                     "reels": group_reels,
                     "avg_velocity": avg_velocity,
