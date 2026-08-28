@@ -190,11 +190,8 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
         return None
     if not title:
         return None
-    if title.lower() == "original audio":
-        creator = (reel.get("owner_username") or "").strip()
-        if not creator:
-            return None
-        return (f"original_audio::{creator.lower()}", "")
+    if title.lower() == "original audio" or "original audio" in title.lower():
+        return None
     if not artist:
         artist = "Unknown Artist"
     return (title, artist)
