@@ -742,7 +742,6 @@ class TrendEngine:
                 reels_res = self.supabase.table("reels") \
                     .select("*") \
                     .gt("velocity_score", 0.3) \
-                    .gte("created_at", time_threshold_48h) \
                     .or_("audio_backfill_status.is.null,audio_backfill_status.neq.unrecoverable") \
                     .order("created_at", desc=True) \
                     .range(offset, offset + _PAGE_SIZE - 1) \
