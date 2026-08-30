@@ -434,18 +434,11 @@ function TrendsFeed() {
           </div>
         )}
         {feedTab === "emerging" && (
-          <PlanGate
-            feature="Early Detection Feed"
-            requiredPlan="pro"
-            currentPlan={userPlan}
-            onUpgrade={() => window.location.href = '/pricing'}
-          >
-            <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
-              <p className="text-xs text-[#ff006e] font-semibold">
-                ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
-              </p>
-            </div>
-          </PlanGate>
+          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
+            <p className="text-xs text-[#ff006e] font-semibold">
+              ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
+            </p>
+          </div>
         )}
         {feedTab === "peaked" && (
           <div className="rounded-xl border border-amber-500/30 bg-[rgba(245,158,11,0.05)] p-3">
@@ -498,6 +491,24 @@ function TrendsFeed() {
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>
+        ) : feedTab === "emerging" ? (
+          <PlanGate
+            feature="Early Detection Feed"
+            requiredPlan="pro"
+            currentPlan={userPlan}
+            onUpgrade={() => window.location.href = '/pricing'}
+          >
+            <div className="flex flex-col gap-4">
+              {trends.map((t) => (
+                <TrendCard
+                  key={t.id}
+                  trend={withCountdown(t)}
+                  onDanceTap={setDanceTrend}
+                  selectedNiche={selectedNiche}
+                />
+              ))}
+            </div>
+          </PlanGate>
         ) : (
           trends.map((t) => (
             <TrendCard

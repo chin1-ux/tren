@@ -146,16 +146,6 @@ class TrendRefresher:
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
                 min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(15 * 24)))
-                if age_hours >= min_visible_hours or window_hours <= 0:
-                    self._update_status(trend_id, "expired", {
-                        "window_hours_remaining": 0,
-                        "reel_count": total_reels_count,
-                        "high_confidence": bool(trend.get("high_confidence", False)),
-                        "promotion_reason": trend.get("promotion_reason"),
-                    })
-                    logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
-                    local_summary["expired"] += 1
-                    return local_summary
 
                 live_velocity = self._calc_live_velocity(
                     trend.get("audio_title"), trend.get("audio_artist"), now
@@ -178,6 +168,17 @@ class TrendRefresher:
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
                 else:
                     new_window = max(0, window_hours - 3)
+
+                if age_hours >= min_visible_hours or new_window <= 0:
+                    self._update_status(trend_id, "expired", {
+                        "window_hours_remaining": 0,
+                        "reel_count": total_reels_count,
+                        "high_confidence": bool(trend.get("high_confidence", False)),
+                        "promotion_reason": trend.get("promotion_reason"),
+                    })
+                    logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
+                    local_summary["expired"] += 1
+                    return local_summary
 
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)

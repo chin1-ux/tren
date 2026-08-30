@@ -8,7 +8,7 @@ from supabase import create_client, Client
 # Importing individual signal detectors
 from format_trend_detector import FormatTrendDetector
 from news_client import NewsClient, evaluate_news_virality_batch
-from comment_clustering import detect_meme_patterns
+# from comment_clustering import detect_meme_patterns
 from niche_relevance_engine import compute_niche_relevance, generate_adaptation_brief
 from alert_system import AlertSystem
 
@@ -158,7 +158,7 @@ class UnifiedSignalProcessor:
     def process_meme_patterns(self, hours: int = 12) -> List[Dict]:
         logger.info(f"Processing meme patterns for last {hours} hours...")
         try:
-            meme_signals = detect_meme_patterns(hours=hours)
+            meme_signals = [] # detect_meme_patterns(hours=hours)
             signals = []
             for m in meme_signals:
                 signal = {

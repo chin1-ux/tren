@@ -257,13 +257,13 @@ def admin_update_user_plan(
         
         # Get admin user ID
         admin_email = admin_info["email"]
-        admin_res = supabase.table("users").select("id").eq("email", admin_email).single().execute()
-        admin_id = admin_res.data.get("id") if admin_res.data else None
+        admin_res = supabase.table("users").select("id").eq("email", admin_email).execute()
+        admin_id = admin_res.data[0].get("id") if admin_res.data else None
         
         # Calculate expiration date if provided
+        from datetime import datetime, timezone, timedelta
         expires_at = None
         if expires_in_days:
-            from datetime import datetime, timezone, timedelta
             expires_at = (datetime.now(timezone.utc) + timedelta(days=expires_in_days)).isoformat()
         
         # Insert or update plan override

@@ -473,7 +473,7 @@ export function getAuthToken(): string | null {
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const headers = new Headers(init?.headers);
-  if (token) {
+  if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
   const controller = new AbortController();

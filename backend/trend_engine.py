@@ -870,9 +870,13 @@ class TrendEngine:
                     new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
                     final_status = old_status if old_priority >= new_priority else new_detected_status
                     if final_status != old_status:
+                        update_payload = {"status": final_status}
+                        if final_status in ("emerging", "rising"):
+                            update_payload["window_hours_remaining"] = 48
+                            
                         try:
                             self.supabase.table("trends") \
-                                .update({"status": final_status}) \
+                                .update(update_payload) \
                                 .eq("id", existing_match["id"]) \
                                 .execute()
                             logging.info(
