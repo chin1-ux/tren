@@ -893,6 +893,23 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
+                # Re-fetch all reels for this audio to verify it truly has >=3 reels
+                # IMPORTANT: We must only count reels that were scraped RECENTLY (last 48h).
+                # Stale reels from weeks ago might have a frozen velocity_score > 0.3 but are actually dead.
+                all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).execute()
+                all_reels = all_reels_for_audio_res.data
+                high_velocity_reels = [
+                    r for r in all_reels 
+                    if r.get("velocity_score", 0) > 0.3 
+                    and r.get("scraped_at") 
+                    and r["scraped_at"] >= time_threshold_48h
+                ]
+                
+                # We need at least 3 recently scraped high-velocity reels to confirm a trend
+                if len(high_velocity_reels) < 3:
+                    logging.debug(f"Audio {title} failed 3-reel threshold check (found {len(high_velocity_reels)} recent high-velocity reels)")
+                    continue
+
                 recent_6h_velocities = []
                 recent_24h_velocities = []
                 recent_reels_6h = []
