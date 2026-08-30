@@ -207,6 +207,7 @@ def get_all_active_trends(
 def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
+    limit: int = 100,
     current_user: str = Depends(get_current_user)
 ):
     """
@@ -217,7 +218,7 @@ def get_peaked_trends(
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
         
     lang_key = language or "all"
-    cache_key = f"peaked:{lang_key}"
+    cache_key = f"peaked:{lang_key}:{limit}"
     
     # Check in-memory cache (5 minute TTL)
     now = datetime.now().timestamp()
@@ -233,7 +234,7 @@ def get_peaked_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(15)
+        q = q.limit(limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -253,6 +254,7 @@ def get_peaked_trends(
 def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
+    limit: int = 200,
     current_user: str = Depends(get_current_user),
 ):
     """
@@ -266,7 +268,7 @@ def get_expired_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(100)
+        q = q.limit(limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
