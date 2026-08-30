@@ -722,8 +722,8 @@ class TrendEngine:
             
             new_reels_scraped = new_reels_count_res.count or 0
             if new_reels_scraped < 1:
-                logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Skipping trend detection entirely.")
-                return []
+                logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Proceeding anyway for manual backfill.")
+                # return []
 
             # STEP 1: Load recent high-velocity reels (last 48h)
             # Note on filter semantics: PostgREST neq maps to SQL != which EXCLUDES NULLs.
@@ -742,6 +742,7 @@ class TrendEngine:
                 reels_res = self.supabase.table("reels") \
                     .select("*") \
                     .gt("velocity_score", 0.3) \
+                    .gte("scraped_at", time_threshold_48h) \
                     .or_("audio_backfill_status.is.null,audio_backfill_status.neq.unrecoverable") \
                     .order("created_at", desc=True) \
                     .range(offset, offset + _PAGE_SIZE - 1) \
