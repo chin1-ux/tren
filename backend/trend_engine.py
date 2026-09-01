@@ -893,7 +893,7 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
-                all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).execute()
+                all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).gte("created_at", time_threshold_48h).execute()
                 all_reels = all_reels_for_audio_res.data
                 high_velocity_reels = [r for r in all_reels if r.get("velocity_score", 0) > 0.3]
                 
@@ -1317,7 +1317,7 @@ class TrendEngine:
                     "camera_style": trend.get("camera_style"),
                     "window_hours_remaining": window_h,
                     "confidence": confidence,
-                    "status": trend.get("initial_status", "rising"),
+                    "status": trend_state.lifecycle.value,
                     "saturation_score": trend.get("saturation_score", 0.2),
                     "global_saturation_pct": global_sat,
                     "india_saturation_pct": india_sat,

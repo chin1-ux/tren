@@ -145,7 +145,7 @@ class TrendRefresher:
                 stored_reel_count = trend.get("reel_count") or 0
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
-                min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(15 * 24)))
+                min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(3 * 24)))
 
                 live_velocity = self._calc_live_velocity(
                     trend.get("audio_title"), trend.get("audio_artist"), now
