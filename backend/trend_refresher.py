@@ -199,25 +199,30 @@ class TrendRefresher:
                         trend.get("audio_title"), trend.get("audio_artist"), now
                     )
                     high_confidence = creator_count >= 5
-                    qualifies_by_creator = creator_count >= 3
-                    velocity_snapshot_ok, snapshot_reason = self._velocity_promotion_allowed(
-                        trend_id=trend_id,
-                        current_velocity=velocity_for_check,
-                        baseline=rising_baseline,
+
+                    # UNCALIBRATED — thresholds are educated guesses, not data-derived.
+                    # Re-tune after first real beta trajectory data exists.
+                    qualifies_by_creator = creator_count >= 2
+                    qualifies_by_volume = total_reels_count >= 3
+                    velocity_ok_simple = (
+                        rising_baseline > 0
+                        and velocity_for_check > rising_baseline * 1.2
                     )
-                    persisted_enough = age_hours >= 12
-                    velocity_only_persisted = age_hours >= 18
+
+                    persisted_enough = age_hours >= 6
+                    volume_enough = age_hours >= 8
                     should_rise = False
                     promotion_reason = trend.get("promotion_reason")
+
                     if persisted_enough and qualifies_by_creator:
                         should_rise = True
                         promotion_reason = "creator_adoption"
-                    elif velocity_only_persisted and creator_count < 3 and velocity_snapshot_ok:
+                    elif volume_enough and qualifies_by_volume:
+                        should_rise = True
+                        promotion_reason = "volume_signal"
+                    elif volume_enough and velocity_ok_simple:
                         should_rise = True
                         promotion_reason = "velocity_outlier"
-                    elif persisted_enough and qualifies_by_creator and velocity_snapshot_ok:
-                        should_rise = True
-                        promotion_reason = "both"
 
                     if should_rise:
                         self._update_status(trend_id, "rising", {
@@ -231,7 +236,7 @@ class TrendRefresher:
                         logger.info(
                             f"[RISEN] '{audio_title}' ({creator_count} creators, "
                             f"velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, "
-                            f"snapshot_check={snapshot_reason})"
+                            f"reason={promotion_reason})"
                         )
                         local_summary["risen"] += 1
                     else:
