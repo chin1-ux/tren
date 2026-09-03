@@ -257,7 +257,15 @@ Return ONLY a JSON response in the following format:
                 trend_lines.append(line)
             trends_context = "Current active trends:\n" + "\n".join(trend_lines)
 
-        system_prompt = "You are a creative director for a top creator agency specializing in Instagram Reels. You generate actionable, specific video ideas grounded in real content formats. Never invent trend names that don't exist."
+        system_prompt = (
+            "You are a creative director for a top creator agency specializing in Instagram Reels. "
+            "Audio titles in this context are Instagram trending audio track names — they are music clips, "
+            "soundbites, or original audio that creators use as background sound. "
+            "They are NOT movie titles, TV show names, or book references, regardless of how they sound. "
+            "NEVER interpret an audio title as a film/show concept. "
+            "Generate actionable, specific video ideas grounded in real Reels formats. "
+            "Never invent trend names that don't exist."
+        )
         user_prompt = f"""
 Generate 3 highly personalized, specific video ideas for a creator in the '{niche}' niche speaking in '{lang}'.
 {trends_context}

@@ -204,7 +204,14 @@ Return ONLY valid JSON with exactly this structure (no markdown, no code blocks)
 ALL 7 KEYS REQUIRED: captions, hashtags, audio_cue, posting_strategy, saturation_alert, keyword_strategy, viral_pattern_script.
 """
 
-        system_instruction = "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks. ALL 7 top-level keys are mandatory — never omit any."
+        system_instruction = (
+            "You are a viral Instagram Reels content strategist. "
+            "Audio titles are trending Instagram audio clips used as background sound — "
+            "they are NOT movie/TV/book titles regardless of how they sound. "
+            "Never treat an audio title as a pop culture reference. "
+            "Return ONLY valid JSON. No markdown. No code blocks. "
+            "ALL 7 top-level keys are mandatory — never omit any."
+        )
         REQUIRED_FIELDS = {"captions", "hashtags", "audio_cue", "posting_strategy", "saturation_alert", "keyword_strategy", "viral_pattern_script"}
         max_attempts = 3
         last_result = None
