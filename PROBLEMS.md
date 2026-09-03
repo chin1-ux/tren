@@ -54,11 +54,13 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 
 ### 1.3 Critical data pipeline problems
 
-#### P-PIPE-1: Pagination code exists but is dead in production [REOPENED — pagination never fires]
+#### P-PIPE-1: Pagination code exists but is dead in production [REOPENED — pagination never fires, verified on both accounts]
 **File:** `backend/instagram_scraper_browser.py:933-988`
-**Problem:** Pagination code follows `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` extra pages. But verified from GitHub Actions logs (run 32614282355, Aug 23): zero "Pagination page" log lines across the entire run. Every hashtag extracts 45-52 items from a single page load only.
-**Root cause:** `raw_data.get("more_info")` returns `{}` — Instagram's `api/v1/tags/web_info` response either doesn't include `max_id` in `more_info`, or the response structure changed since the code was written. The loop at line 938 breaks immediately (`if not next_max_id`).
-**Impact:** Single-page only: ~45-52 items per hashtag × 15 hashtags = ~700-780 reels per India run. Far below the 1,350-4,050 that pagination would provide.
+**Problem:** Pagination code follows `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` extra pages. But verified from GitHub Actions logs on BOTH accounts:
+- `ch1n-may/trendrop` run 32614282355 (Aug 23): zero pagination log lines,15 hashtags, 45-52 items each
+- `chin1-ux/tren` run 33744369473 (Sep 3): zero pagination log lines, 25 hashtags, 44-60 items each
+**Root cause:** `raw_data.get("more_info")` returns `{}` — Instagram's `api/v1/tags/web_info` response doesn't include `max_id` in `more_info`. The loop at line 938 breaks immediately (`if not next_max_id`).
+**Impact:** Single-page only. `ch1n-may`: ~700-780 reels/run. `chin1-ux`: ~1,100-1,500 reels/run. Far below what pagination would provide.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
 **Action needed:** Debug why `more_info.max_id` is missing from the API response. Add temporary logging of `raw_data.keys()` and `raw_data.get("more_info")` to confirm the response structure. May need to switch to Instagram's GraphQL pagination endpoint instead of the REST `web_info` endpoint.
 
