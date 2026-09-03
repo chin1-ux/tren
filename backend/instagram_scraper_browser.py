@@ -1196,33 +1196,6 @@ class InstagramScraper:
 
             raw_data = data.get("data", {})
 
-            # === TEMP DIAGNOSTIC: P-PIPE-1 raw response structure (REMOVE AFTER DIAGNOSIS) ===
-            if not hasattr(self, '_diag_count'):
-                self._diag_count = 0
-            self._diag_count += 1
-            if self._diag_count <= 3:
-                import json as _json
-                _rd_keys = list(raw_data.keys()) if isinstance(raw_data, dict) else type(raw_data).__name__
-                _more_info = raw_data.get("more_info") if isinstance(raw_data, dict) else None
-                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} raw_data keys: {_rd_keys}")
-                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} more_info type={type(_more_info).__name__}, value={_json.dumps(_more_info, default=str)[:500] if _more_info is not None else 'MISSING'}")
-                _pagination_keys = []
-                def _scan_for_pagination(obj, path=""):
-                    if isinstance(obj, dict):
-                        for k, v in obj.items():
-                            kl = k.lower()
-                            if any(p in kl for p in ("cursor", "pagination", "has_more", "end_cursor", "next_cursor", "page_info", "token")):
-                                _pagination_keys.append(f"{path}.{k}" if path else k)
-                            _scan_for_pagination(v, f"{path}.{k}" if path else k)
-                    elif isinstance(obj, list):
-                        for i, item in enumerate(obj[:3]):
-                            _scan_for_pagination(item, f"{path}[{i}]")
-                _scan_for_pagination(raw_data)
-                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} pagination-related keys found: {_pagination_keys if _pagination_keys else 'NONE'}")
-                _full_snapshot = {k: (raw_data[k] if k not in ("top", "recent") else f"<{type(raw_data[k]).__name__} len={len(raw_data[k]) if hasattr(raw_data[k], '__len__') else '?'}>") for k in raw_data.keys()} if isinstance(raw_data, dict) else raw_data
-                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} full snapshot: {_json.dumps(_full_snapshot, default=str)[:1000]}")
-            # === END TEMP DIAGNOSTIC ===
-
             top_sections = raw_data.get("top", {}).get("sections", [])
             recent_sections = raw_data.get("recent", {}).get("sections", [])
             
@@ -1288,52 +1261,8 @@ class InstagramScraper:
                 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
 
-            # Pagination: follow max_id cursor for one extra page
-            more_info = raw_data.get("more_info") or {}
-            next_max_id = more_info.get("max_id")
-            if next_max_id and len(items) < 100:
-                try:
-                    headers, cookies = self._load_instagram_cookie_headers()
-                    resp2 = requests.get(
-                        f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}&max_id={next_max_id}",
-                        headers=headers,
-                        cookies=cookies,
-                        timeout=10,
-                    )
-                    resp2.raise_for_status()
-                    data2 = resp2.json()
-                    raw2 = data2.get("data", {})
-                    for section in raw2.get("top", {}).get("sections", []) + raw2.get("recent", {}).get("sections", []):
-                        for m_wrapper in section.get("layout_content", {}).get("medias", []):
-                            media = m_wrapper.get("media")
-                            if not media or media.get("media_type") not in (2, 8):
-                                continue
-                            sc = media.get("code")
-                            if sc and not any(it.get("shortCode") == sc for it in items):
-                                owner = media.get("user") or {}
-                                cap = (media.get("caption") or {}).get("text", "")
-                                taken_at = media.get("taken_at", 0)
-                                ts = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
-                                vurl = media.get("video_url")
-                                if not vurl and media.get("video_versions"):
-                                    vurl = media["video_versions"][0].get("url")
-                                items.append({
-                                    "shortCode": sc,
-                                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
-                                    "likesCount": media.get("like_count") or 0,
-                                    "commentsCount": media.get("comment_count") or 0,
-                                    "ownerFollowersCount": owner.get("follower_count") or 0,
-                                    "timestamp": ts,
-                                    "ownerUsername": owner.get("username"),
-                                    "caption": cap[:500],
-                                    "videoUrl": vurl,
-                                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
-                                    "media_dict": media,
-                                    "pk": media.get("pk"),
-                                })
-                    logger.info(f"Pagination page 2: total items now {len(items)} for #{hashtag}")
-                except Exception as pag_err:
-                    logger.debug(f"Pagination failed for #{hashtag}: {pag_err}")
+            # P-PIPE-1: Instagram's REST web_info endpoint does not support pagination.
+            # The response has no more_info/max_id cursor. Single-page ceiling applies.
 
             return items
             
