@@ -378,7 +378,12 @@ def submit_feedback(request: Request, req: FeedbackRequest, current_user_email: 
 @limiter.limit("60/minute")
 def get_job_status(request: Request, job_id: str, current_user: str = Depends(require_auth)):
     try:
-        job = get_job_record(job_id)
+        if not job_id.isdigit():
+            raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not configured")
+        res = supabase.table("jobs").select("*").eq("id", int(job_id)).execute()
+        job = res.data[0] if res.data else None
         if not job or job.get("user_email") != current_user:
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
         return {
