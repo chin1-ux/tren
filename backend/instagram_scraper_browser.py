@@ -1697,7 +1697,9 @@ Return ONLY valid JSON, no markdown, no explanation:
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
                     + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
-                    + self.hashtag_groups.get("GLOBAL_NICHES", [])[:3]
+                    + self.hashtag_groups.get("FITNESS", [])[:1]
+                    + self.hashtag_groups.get("FOOD", [])[:1]
+                    + self.hashtag_groups.get("COMEDY", [])[:1]
                 )
             
             seen = set()
