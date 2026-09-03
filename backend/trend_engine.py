@@ -9,8 +9,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
+from language_detection import _detect_audio_language
+from audio_title_normalize import normalize_audio_title
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
 from dotenv import load_dotenv
+
+# Defensive guard: hashtag pool names are internal routing labels, not real niches.
+# If they leak into niche_tag, remap to "general" and log a warning.
+_POOL_NAMES = {"INDIA_VERNACULAR", "GLOBAL_DISCOVERY", "INDIA_TRENDING", "GLOBAL_NICHES"}
+
+def _sanitize_niche_tag(niche_tag: str) -> str:
+    if niche_tag in _POOL_NAMES:
+        logging.warning(f"Pool name '{niche_tag}' leaked to niche_tag — remapping to 'general'")
+        return "general"
+    return niche_tag
 from supabase import create_client, Client
 
 import sys
@@ -194,7 +206,10 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
         return None
     if not artist:
         artist = "Unknown Artist"
-    return (title, artist)
+    canonical_title = normalize_audio_title(title)
+    if not canonical_title:
+        return None
+    return (canonical_title, artist)
 
 
 def _aggregate_content_tone(reels: list[dict]) -> str:
@@ -416,31 +431,6 @@ _DANCE_WORDS = [
     "hookstep", "thumka", "giddha", "garba", "dandiya", "choreograph"
 ]
 
-# Fix #3: Script range map for South Indian language detection
-_SCRIPT_LANG_RANGES = [
-    ("hi", "\u0900", "\u097f"),  # Devanagari (Hindi, Marathi)
-    ("ta", "\u0b80", "\u0bff"),  # Tamil
-    ("te", "\u0c00", "\u0c7f"),  # Telugu
-    ("kn", "\u0c80", "\u0cff"),  # Kannada
-    ("ml", "\u0d00", "\u0d7f"),  # Malayalam
-    ("bn", "\u0980", "\u09ff"),  # Bengali
-    ("pa", "\u0a00", "\u0a7f"),  # Punjabi (Gurmukhi)
-]
-
-
-def _detect_language(captions: list[str]) -> str:
-    """Detect dominant script language from captions. Returns ISO 639-1 code."""
-    scores: dict[str, int] = {}
-    for c in captions:
-        for lang, lo, hi in _SCRIPT_LANG_RANGES:
-            count = sum(1 for ch in (c or "") if lo <= ch <= hi)
-            if count:
-                scores[lang] = scores.get(lang, 0) + count
-    if not scores:
-        return "en"
-    return max(scores, key=lambda k: scores[k])
-
-
 def classify_single_trend(trend):
     reels = trend["reels"]
     captions = [r.get("caption") for r in reels if r.get("caption")]
@@ -468,8 +458,10 @@ def classify_single_trend(trend):
     trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
     trend["text_overlay_template"] = None
 
-    # Fix #3: Multi-script language detection (Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Punjabi)
-    trend["language"] = _detect_language(captions)
+    # Language detection via shared module (replaces inline _detect_language)
+    _audio_text = f"{trend.get('audio_title', '')} {trend.get('audio_artist', '')}"
+    _dominant_caption = max(captions, key=len) if captions else ""
+    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption)
 
     trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
 
@@ -787,7 +779,7 @@ class TrendEngine:
                 .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()
             existing_named = {
-                (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())
+                (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip())
                 for t in (all_trends_res.data or [])
                 if t.get("audio_title")
                 and (t.get("audio_title") or "").strip().lower() != "original audio"
@@ -809,31 +801,21 @@ class TrendEngine:
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
 
-                # ── Original Audio quality gate ──────────────────────────────────────────
-                # Catch ALL original-audio forms:
-                #   1. Plain title "original audio" / "original sound"
-                #   2. Compound key format produced by _trend_group_key: "original_audio::username"
-                #   3. is_original_audio flag set by the scraper on the reel itself
-                # For an original-audio format to be a real *trend*, we require:
-                #   - >= 5 reels from >= 5 distinct creators (not one viral creator dominating)
-                #   - audio_use_count must NOT be the sentinel value 501034 (scraper fallback)
+                # ── Original Audio exclusion ──────────────────────────────────────────────
+                # Exclude ALL original-audio from trend detection entirely.
+                # Without fingerprinting, we can't match across posts reliably.
+                # Surface original audio via the format/pattern track (when built).
                 is_original_audio = (
                     title.lower() in ("original audio", "original sound", "")
                     or title.lower().startswith("original_audio::")
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
                 if is_original_audio:
-                    unique_creators = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
-                    max_use_for_gate = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
-                    has_sentinel_only = max_use_for_gate == SENTINEL_USE_COUNT
-                    if len(group_reels) < 5 or len(unique_creators) < 5 or has_sentinel_only:
-                        logging.debug(
-                            f"Original-audio quality gate: skipping '{title}' | {artist} — "
-                            f"{len(group_reels)} reels, {len(unique_creators)} creators, "
-                            f"use_count={max_use_for_gate} (sentinel={has_sentinel_only}) "
-                            f"(need >=5 reels / >=5 creators / non-sentinel use_count)"
-                        )
-                        continue
+                    logging.debug(
+                        f"Original-audio excluded from trend detection: '{title}' | {artist} — "
+                        f"{len(group_reels)} reels (will surface via format/pattern track instead)"
+                    )
+                    continue
                 # ────────────────────────────────────────────────────────────────────────
 
                 # ── Sentinel use-count gate ──────────────────────────────────────────────
@@ -853,9 +835,9 @@ class TrendEngine:
                 if representative_audio_id and representative_audio_id.strip() in existing_by_audio_id:
                     existing_match = existing_by_audio_id[representative_audio_id.strip()]
                 elif title.lower() != "original audio" and (title, artist) in existing_named:
-                    # Title+artist match without audio_id match — find by name
+                    # Title+artist match without audio_id match — find by normalized name
                     for t in (all_trends_res.data or []):
-                        if (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip()) == (title, artist):
+                        if (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip()) == (title, artist):
                             existing_match = t
                             break
 
@@ -1321,7 +1303,7 @@ class TrendEngine:
                     "saturation_score": trend.get("saturation_score", 0.2),
                     "global_saturation_pct": global_sat,
                     "india_saturation_pct": india_sat,
-                    "niche_tag": niche_tag,
+                    "niche_tag": _sanitize_niche_tag(niche_tag),
                     "hook_brief": hook_brief,
                     "format_patterns": format_patterns,
                     "trend_origin": trend_origin,
