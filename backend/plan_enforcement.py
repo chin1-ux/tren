@@ -51,17 +51,6 @@ CREATOR_TIERS = ('free', 'pro')
 BRAND_TIERS = ('brand_starter', 'brand_growth', 'brand_enterprise')  # NOT YET LIVE
 ALL_TIERS = CREATOR_TIERS + BRAND_TIERS
 
-# ── Daily rate limits per tier (trends per day) ────────────────────────────────
-# Only 'free' and 'pro' are enforced today. Brand limits are stubs for Phase 2.
-TIER_DAILY_LIMITS = {
-    'free': 5,
-    'pro': 999999,  # unlimited
-    # NOT YET LIVE — brand tiers below, not seeded in DB
-    'brand_starter': 100,
-    'brand_growth': 500,
-    'brand_enterprise': 999999,
-}
-
 # ── Credit costs per operation (legacy — kept for backward compatibility) ──────
 CREDIT_COSTS = {
     'ai_generation': 5,

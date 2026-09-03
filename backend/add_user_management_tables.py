@@ -149,6 +149,10 @@ def run_migration():
                 print(f"  [ERROR] Error: {e}")
             
             # 5. Insert default plan tiers
+            # NOTE: prices below are seeds only — live pricing is ₹499/mo (pro) set via Supabase.
+            # This migration already ran on production. Do NOT re-run; ON CONFLICT DO NOTHING prevents
+            # overwriting live prices, but the seed values here are stale (₹19) and should not be
+            # treated as source of truth.
             print("\n5. Inserting default plan tiers...")
             insert_plans = """
             INSERT INTO plan_features (plan_name, display_name, price_monthly, price_yearly, api_limit_per_day, trend_views_per_day, features) VALUES
