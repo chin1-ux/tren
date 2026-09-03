@@ -2,20 +2,19 @@ import { useNavigate } from "@tanstack/react-router";
 import {
   Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
-  Bookmark, BookmarkCheck, Sparkles, Film, HelpCircle,
-  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2, Lightbulb
+  Bookmark, BookmarkCheck, HelpCircle,
+  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTrendReels, analyzeContentForVirality, toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
+import { fetchTrendReels, toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { motion, AnimatePresence } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
-import { AlgorithmInsightsPanel } from "./AlgorithmInsightsPanel";
 import { TrendProofSection } from "./TrendProofSection";
 
 interface Props {
@@ -142,7 +141,7 @@ function SaturationBar({
       <div className="flex items-center justify-between text-[10px]">
         <span className="font-semibold text-muted-foreground">{label}</span>
         <div className="flex items-center gap-1.5">
-          {showOpportunity && pct < 30 && (
+          {showOpportunity && pct > 0 && pct < 30 && (
             <span className="inline-flex items-center gap-0.5 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-1.5 py-0.5 text-[9px] font-bold text-emerald-400">
               🇮🇳 Opportunity
             </span>
@@ -229,9 +228,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
   const [showReels, setShowReels] = useState(false);
-  const [showAlgorithmInsights, setShowAlgorithmInsights] = useState(false);
-  const [algorithmAnalysis, setAlgorithmAnalysis] = useState<any>(null);
-  const [loadingAnalysis, setLoadingAnalysis] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [targetLoading, setTargetLoading] = useState(false);
@@ -567,7 +563,12 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <div className="flex items-center justify-between text-xs">
           <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
           {velocityStrength > 0 ? (
-            <span className="font-bold text-primary">{velocityStrength.toFixed(1)}x normal</span>
+            <span className="font-bold text-primary">
+              {velocityStrength.toFixed(1)}x normal
+              {(trend.reelCount ?? 0) < 5 && (
+                <span className="ml-1 text-[9px] text-muted-foreground font-normal">(n={trend.reelCount})</span>
+              )}
+            </span>
           ) : (
             <span className="font-bold text-primary">Trend strength</span>
           )}
@@ -799,75 +800,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               )}
             </div>
 
-            {/* ── 8. Instagram Algorithm Insights Panel ── */}
-            <div className="mt-4">
-              <Button
-                onClick={() => setShowAlgorithmInsights(!showAlgorithmInsights)}
-                variant="outline"
-                size="sm"
-                className="w-full border-violet-500/30 text-violet-400 hover:bg-violet-500/10"
-              >
-                <Lightbulb className="h-4 w-4 mr-2" />
-                {showAlgorithmInsights ? "Hide" : "Show"} Algorithm Insights
-              </Button>
-              
-              <AnimatePresence>
-                {showAlgorithmInsights && (
-                  <motion.div
-                    initial={{ opacity: 0, height: 0 }}
-                    animate={{ opacity: 1, height: "auto" }}
-                    exit={{ opacity: 0, height: 0 }}
-                    className="mt-3"
-                  >
-                    <AlgorithmInsightsPanel 
-                      analysis={algorithmAnalysis}
-                      loading={loadingAnalysis}
-                      onAnalyze={async () => {
-                        setLoadingAnalysis(true);
-                        try {
-                          // Dynamic metrics calculations with unique variance based on trend parameters
-                          const baseMultiplier = 1 + ((trend.viralMultiplier || 10) / 100);
-                          const hookFactor = (trend.hookRetentionScore || 50) / 100;
-                          const fitFactor = (trend.creatorFitScore || 50) / 100;
-                          const oppFactor = (trend.opportunityScore || 50) / 100;
-
-                          const estimatedViews = Math.floor((trend.audioUseCount || 5000) * 0.08 * baseMultiplier) + 1200;
-                          
-                          // Varying engagement rates based on fit and hook scores so each card returns different values
-                          const likeRate = 0.02 + (hookFactor * 0.04) + (fitFactor * 0.02); // 2% to 8%
-                          const commentRate = 0.005 + (fitFactor * 0.015);                  // 0.5% to 2%
-                          const shareRate = 0.002 + (oppFactor * 0.012);                    // 0.2% to 1.4%
-                          const saveRate = 0.001 + (hookFactor * 0.009);                    // 0.1% to 1%
-
-                          const estimatedLikes = Math.floor(estimatedViews * likeRate);
-                          const estimatedComments = Math.floor(estimatedViews * commentRate);
-                          const estimatedShares = Math.floor(estimatedViews * shareRate);
-                          const estimatedSaves = Math.floor(estimatedViews * saveRate);
-                          
-                          const analysis = await analyzeContentForVirality({
-                            views: estimatedViews,
-                            likes: estimatedLikes,
-                            comments: estimatedComments,
-                            shares: estimatedShares,
-                            saves: estimatedSaves,
-                            duration: Math.max(10, Math.min(60, 15 + Math.floor(fitFactor * 30))),
-                            niche: trend.nicheTag || "general",
-                            uses_trending_audio: true
-                          });
-                          setAlgorithmAnalysis(analysis);
-                        } catch (error) {
-                          toast.error("Failed to analyze content");
-                        } finally {
-                          setLoadingAnalysis(false);
-                        }
-                      }}
-                    />
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-
-            {/* ── 9. Save Audio deep-link button ── */}
+            {/* ── 8. Save Audio deep-link button ── */}
             <a
               href={audioUrl}
               target="_blank"
@@ -914,23 +847,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                 </Button>
               )}
 
-              <div className={`grid gap-2 ${FEATURES.GENERATE_ENABLED ? "grid-cols-2" : "grid-cols-1"}`}>
-                {FEATURES.GENERATE_ENABLED && (
-                  <Button
-                    onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
-                    className="h-11 bg-teal font-bold uppercase tracking-wide text-white hover:bg-teal/90"
-                  >
-                    <Sparkles className="h-3.5 w-3.5" /> Faceless
-                  </Button>
-                )}
-
-                <Button
-                  onClick={(e) => { e.stopPropagation(); onDanceTap(trend); }}
-                  className="h-11 bg-amber font-bold uppercase tracking-wide text-white hover:bg-amber/90"
-                >
-                  <Film className="h-3.5 w-3.5" /> How To Film
-                </Button>
-              </div>
             </div>
           </motion.div>
         )}
