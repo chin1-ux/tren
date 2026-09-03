@@ -37,6 +37,18 @@ except ImportError:
     create_client = None
     Client = None
 
+from language_detection import _detect_audio_language
+from audio_title_normalize import normalize_audio_title
+
+# Defensive guard: hashtag pool names are internal routing labels, not real niches.
+_POOL_NAMES = {"INDIA_VERNACULAR", "GLOBAL_DISCOVERY", "INDIA_TRENDING", "GLOBAL_NICHES"}
+
+def _sanitize_niche_tag(niche_tag: str) -> str:
+    if niche_tag in _POOL_NAMES:
+        logger.warning(f"Pool name '{niche_tag}' leaked to niche_tag — remapping to 'general'")
+        return "general"
+    return niche_tag
+
 # Configuration
 VELOCITY_MULTIPLIER = 12.0
 MIN_CREATORS = 1
@@ -127,41 +139,6 @@ def _classify_trend_type(audio_title: str, captions: List[str] = None) -> str:
             return trend_type
 
     return "audio"
-
-
-def _detect_language(text: str) -> str:
-    """Detect language from text using Unicode script ranges."""
-    if not text:
-        return "en"
-
-    devanagari = sum(1 for c in text if '\u0900' <= c <= '\u097F')
-    tamil = sum(1 for c in text if '\u0B80' <= c <= '\u0BFF')
-    telugu = sum(1 for c in text if '\u0C00' <= c <= '\u0C7F')
-    bengali = sum(1 for c in text if '\u0980' <= c <= '\u09FF')
-    arabic = sum(1 for c in text if '\u0600' <= c <= '\u06FF')
-    cjk = sum(1 for c in text if '\u4E00' <= c <= '\u9FFF')
-    hangul = sum(1 for c in text if '\uAC00' <= c <= '\uD7AF')
-
-    total = len(text)
-    if total == 0:
-        return "en"
-
-    if devanagari / total > 0.3:
-        return "hi"
-    if tamil / total > 0.3:
-        return "ta"
-    if telugu / total > 0.3:
-        return "te"
-    if bengali / total > 0.3:
-        return "bn"
-    if arabic / total > 0.3:
-        return "ar"
-    if cjk / total > 0.3:
-        return "zh"
-    if hangul / total > 0.3:
-        return "ko"
-
-    return "en"
 
 
 def _calculate_saturation(reel_count: int, audio_use_count: int, creator_count: int) -> float:
@@ -271,7 +248,7 @@ def detect_emerging_trends(supabase: Client = None) -> List[Dict]:
             t.get("audio_id"): t for t in existing_trends if t.get("audio_id")
         }
         existing_titles = {
-            (t.get("title", "").lower(), t.get("artist", "").lower()): t
+            (normalize_audio_title(t.get("title", "")).lower(), t.get("artist", "").lower()): t
             for t in existing_trends if t.get("title")
         }
     except Exception as e:
@@ -342,7 +319,7 @@ def _evaluate_group(
         if existing.get("status") in ("emerging", "rising", "peaked"):
             return None
 
-    title_lower = audio_title.lower().strip()
+    title_lower = normalize_audio_title(audio_title).lower()
     artist_lower = audio_artist.lower().strip()
     if (title_lower, artist_lower) in existing_titles:
         existing = existing_titles[(title_lower, artist_lower)]
@@ -384,7 +361,7 @@ def _evaluate_group(
     captions = [r.get("caption", "") for r in group_reels if r.get("caption")]
     niche = _classify_niche(audio_title, audio_artist, captions)
     trend_type = _classify_trend_type(audio_title, captions)
-    language = _detect_language(audio_title + " " + " ".join(captions[:3]))
+    language = _detect_audio_language(audio_title, " ".join(captions[:3]))
     saturation = _calculate_saturation(len(group_reels), audio_use_count, len(creators))
     window_hours = _estimate_window_hours(saturation, avg_velocity)
     confidence = _calculate_confidence(
@@ -395,8 +372,26 @@ def _evaluate_group(
     if confidence < CONFIDENCE_THRESHOLD:
         return None
 
-    origin = "IN"
-    if language == "pt":
+    origin = "unknown"
+    if language == "hi":
+        origin = "IN"
+    elif language == "ta":
+        origin = "IN"
+    elif language == "te":
+        origin = "IN"
+    elif language == "bn":
+        origin = "IN"
+    elif language == "mr":
+        origin = "IN"
+    elif language == "kn":
+        origin = "IN"
+    elif language == "gu":
+        origin = "IN"
+    elif language == "ml":
+        origin = "IN"
+    elif language == "pa":
+        origin = "IN"
+    elif language == "pt":
         origin = "BR"
     elif language == "es":
         origin = "MX"
@@ -484,7 +479,7 @@ def _save_trend(trend: Dict, supabase: Client):
         "platform": "instagram",
         "trend_type": "trend",
         "status": "emerging",
-        "niche_tag": trend["niche_tag"],
+        "niche_tag": _sanitize_niche_tag(trend["niche_tag"]),
         "content_type": trend["trend_type"],
         "language": trend["language"],
         "trend_origin": trend["trend_origin"],
@@ -522,7 +517,7 @@ def get_trends_by_status(
         return []
 
     try:
-        query = supabase.table("trends").select("*").eq("status", status)
+        query = supabase.table("trends").select("*").eq("status", status).eq("is_seed_data", False)
         if niche:
             query = query.eq("niche_tag", niche)
         query = query.order("confidence", desc=True).limit(limit)

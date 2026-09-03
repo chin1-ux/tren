@@ -174,7 +174,7 @@ def _select_trend_origin(reels: list[dict]) -> str:
         if (r.get("trend_origin") or "").strip()
     ]
     if not origins:
-        return "IN"  # Default to IN for Indian scraping context
+        return "unknown"
 
     counts: dict[str, int] = {}
     for origin in origins:
@@ -183,14 +183,12 @@ def _select_trend_origin(reels: list[dict]) -> str:
         counts[origin] = counts.get(origin, 0) + 1
 
     if not counts:
-        return "IN"  # If all are UNKNOWN/empty, default to IN
+        return "unknown"
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     top_origin, top_count = ranked[0]
     if len(ranked) > 1 and ranked[1][1] == top_count:
-        if "IN" in counts:
-            return "IN"
-        return "IN"
+        return "unknown"
     return top_origin
 
 
