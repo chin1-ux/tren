@@ -1,6 +1,7 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { CreatorAnalyticsDashboard } from "@/components/CreatorAnalyticsDashboard";
 import { AIContentGenerator } from "@/components/AIContentGenerator";
+import { PlanGate } from "@/components/PlanGate";
 import { IndiaFeaturesDashboard } from "@/components/IndiaFeaturesDashboard";
 import { EarlyDetectionPanel } from "@/components/EarlyDetectionPanel";
 import { VideoAnalysisPanel } from "@/components/VideoAnalysisPanel";
@@ -46,6 +47,7 @@ function Dashboard() {
   const { isOpen, startOnboarding, closeOnboarding } = useOnboarding();
   const userEmail = useUserStore((s) => s.email) ?? "";
   const userNiche = useUserStore((s) => s.niche) || "all";
+  const userPlan = useUserStore((s) => s.plan) || "free";
 
   // Current affairs creators get a special "Breaking News" tab as their default
   const isCurrentAffairsCreator = userNiche === "current_affairs";
@@ -141,7 +143,9 @@ function Dashboard() {
           </TabsContent>
 
           <TabsContent value="ai" className="mt-6">
-            <AIContentGenerator />
+            <PlanGate feature="AI Content Generator" requiredPlan="pro" currentPlan={userPlan}>
+              <AIContentGenerator />
+            </PlanGate>
           </TabsContent>
 
           {!isCurrentAffairsCreator && (

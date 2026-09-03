@@ -1,12 +1,12 @@
 """
 Plan Enforcement Middleware
 
-Subscription-based pricing with 4 creator tiers + 3 brand tiers:
-  Creator:  free | early_bird (₹999) | pro (₹2,999)
-  Brand:    brand_starter (₹4,999) | brand_growth (₹14,999) | brand_enterprise (₹49,999)
+Subscription-based pricing with 2 live tiers:
+  Creator:  free (₹0) | pro (₹499/month)
+  Brand:    NOT YET LIVE — will be added in Phase 2.
 
-Marketplace commission: 10% on brand-creator deals (separate from subscriptions).
-Credits are deprecated — subscriptions + hard rate limits are the model.
+Credits system: ai_generation=5, video_analysis=10, export=2 per call.
+Trend browsing and search cost 0 credits — they are the core product.
 """
 import os
 import logging
@@ -44,17 +44,19 @@ supabase: Client = create_client(SUPABASE_URL, SUPABASE_KEY)
 
 # ── Tier definitions (creator plans) ───────────────────────────────────────────
 # These are the valid plan values stored in users.plan column.
-# Current DB supports 'free' | 'pro'. Early bird and brand tiers
-# will be added when the DB schema is migrated to 4-tier subscriptions.
-CREATOR_TIERS = ('free', 'early_bird', 'pro')
-BRAND_TIERS = ('brand_starter', 'brand_growth', 'brand_enterprise')
+# Only 'free' and 'pro' are live in the DB today (migrate_credits_system.sql).
+CREATOR_TIERS = ('free', 'pro')
+# Brand tiers — NOT YET LIVE. Kept as stubs for Phase 2 build-out.
+# When Brand ships, add these to CREATOR_TIERS/ALL_TIERS and seed subscription_tiers.
+BRAND_TIERS = ('brand_starter', 'brand_growth', 'brand_enterprise')  # NOT YET LIVE
 ALL_TIERS = CREATOR_TIERS + BRAND_TIERS
 
 # ── Daily rate limits per tier (trends per day) ────────────────────────────────
+# Only 'free' and 'pro' are enforced today. Brand limits are stubs for Phase 2.
 TIER_DAILY_LIMITS = {
     'free': 5,
-    'early_bird': 50,
     'pro': 999999,  # unlimited
+    # NOT YET LIVE — brand tiers below, not seeded in DB
     'brand_starter': 100,
     'brand_growth': 500,
     'brand_enterprise': 999999,
@@ -75,32 +77,31 @@ class PlanEnforcement:
     """
     Subscription-based plan enforcement.
 
-    Creator plans: free | early_bird | pro
-    Brand plans: brand_starter | brand_growth | brand_enterprise
+    Live creator plans: free | pro (₹499/month)
+    Brand plans: NOT YET LIVE (Phase 2)
 
-    The DB currently stores 'free' or 'pro' in users.plan.
-    Early bird and brand tiers are defined here for when the DB migrates.
+    The DB stores 'free' or 'pro' in users.plan.
     """
 
     PAID_FEATURES = {
-        'early_detection': ['early_bird', 'pro'],
+        'early_detection': ['pro'],
         'unlimited_trends': ['pro'],
-        'ai_generation': ['early_bird', 'pro'],
-        'advanced_analytics': ['early_bird', 'pro'],
-        'india_features': ['early_bird', 'pro'],
+        'ai_generation': ['pro'],
+        'advanced_analytics': ['pro'],
+        'india_features': ['pro'],
         'video_analysis': ['pro'],
         'team_features': ['pro'],
         'api_access': ['pro'],
         'priority_support': ['pro'],
-        'marketplace_access': ['free', 'early_bird', 'pro'],  # free for all creators
-        'brand_matching': ['early_bird', 'pro'],
+        'marketplace_access': ['free', 'pro'],  # free for all creators
+        'brand_matching': ['pro'],
         'campaign_analytics': ['pro'],
     }
 
     BRAND_DEALS_CONFIG = {
         'free': {'delay_hours': 48, 'max_deals': 5},
-        'early_bird': {'delay_hours': 24, 'max_deals': 20},
         'pro':  {'delay_hours': 0,  'max_deals': None},
+        # NOT YET LIVE — brand tiers below, not seeded in DB
         'brand_starter': {'delay_hours': 0, 'max_deals': 10},
         'brand_growth': {'delay_hours': 0, 'max_deals': 50},
         'brand_enterprise': {'delay_hours': 0, 'max_deals': None},
@@ -225,7 +226,7 @@ class PlanEnforcement:
             return 999_999
 
         user_res = supabase.table('users') \
-            .select('id, credits_remaining') \
+            .select('id, credits_remaining, credits_used_this_month') \
             .eq('email', user_email).single().execute()
         if not user_res.data:
             raise HTTPException(status_code=429, detail={
@@ -237,6 +238,7 @@ class PlanEnforcement:
 
         user_id = user_res.data['id']
         old_balance = user_res.data.get('credits_remaining', 0) or 0
+        old_used = user_res.data.get('credits_used_this_month', 0) or 0
 
         if old_balance < cost:
             raise HTTPException(status_code=429, detail={
@@ -250,7 +252,7 @@ class PlanEnforcement:
         new_balance = old_balance - cost
         supabase.table('users').update({
             'credits_remaining': new_balance,
-            'credits_used_this_month': cost,
+            'credits_used_this_month': old_used + cost,
         }).eq('id', user_id).execute()
 
         supabase.table('credit_transactions').insert({

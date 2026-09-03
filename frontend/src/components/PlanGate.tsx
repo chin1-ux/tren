@@ -43,7 +43,7 @@ export function PlanGate({
           </h3>
 
           <p className="text-gray-300 mb-4 text-sm">
-            Unlock this feature and more with a Pro subscription — ₹999/month
+            Unlock this feature and more with a Pro subscription — ₹499/month
           </p>
 
           <div className="flex items-center justify-center gap-2 mb-4">

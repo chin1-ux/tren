@@ -10,7 +10,7 @@ export const Route = createFileRoute("/pricing")({
 
 function PricingPage() {
   const userPlan = useUserStore((s) => s.plan) || "free";
-  const isPro = userPlan === "pro" || userPlan === "agency";
+  const isPro = userPlan === "pro";
   const { user } = useAuth();
   const navigate = useNavigate();
 
@@ -106,7 +106,7 @@ function PricingPage() {
               <Zap className="h-5 w-5 text-primary" /> Pro
             </h3>
             <div className="text-3xl font-black text-foreground">
-              ₹999<span className="text-sm font-normal text-muted-foreground"> / month</span>
+              ₹499<span className="text-sm font-normal text-muted-foreground"> / month</span>
             </div>
           </div>
           <ul className="space-y-4 mb-8 flex-1">
