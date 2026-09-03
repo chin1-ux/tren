@@ -1195,6 +1195,34 @@ class InstagramScraper:
                 return []
 
             raw_data = data.get("data", {})
+
+            # === TEMP DIAGNOSTIC: P-PIPE-1 raw response structure (REMOVE AFTER DIAGNOSIS) ===
+            if not hasattr(self, '_diag_count'):
+                self._diag_count = 0
+            self._diag_count += 1
+            if self._diag_count <= 3:
+                import json as _json
+                _rd_keys = list(raw_data.keys()) if isinstance(raw_data, dict) else type(raw_data).__name__
+                _more_info = raw_data.get("more_info") if isinstance(raw_data, dict) else None
+                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} raw_data keys: {_rd_keys}")
+                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} more_info type={type(_more_info).__name__}, value={_json.dumps(_more_info, default=str)[:500] if _more_info is not None else 'MISSING'}")
+                _pagination_keys = []
+                def _scan_for_pagination(obj, path=""):
+                    if isinstance(obj, dict):
+                        for k, v in obj.items():
+                            kl = k.lower()
+                            if any(p in kl for p in ("cursor", "pagination", "has_more", "end_cursor", "next_cursor", "page_info", "token")):
+                                _pagination_keys.append(f"{path}.{k}" if path else k)
+                            _scan_for_pagination(v, f"{path}.{k}" if path else k)
+                    elif isinstance(obj, list):
+                        for i, item in enumerate(obj[:3]):
+                            _scan_for_pagination(item, f"{path}[{i}]")
+                _scan_for_pagination(raw_data)
+                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} pagination-related keys found: {_pagination_keys if _pagination_keys else 'NONE'}")
+                _full_snapshot = {k: (raw_data[k] if k not in ("top", "recent") else f"<{type(raw_data[k]).__name__} len={len(raw_data[k]) if hasattr(raw_data[k], '__len__') else '?'}>") for k in raw_data.keys()} if isinstance(raw_data, dict) else raw_data
+                logger.info(f"[P-PIPE-1-DIAG] #{hashtag} full snapshot: {_json.dumps(_full_snapshot, default=str)[:1000]}")
+            # === END TEMP DIAGNOSTIC ===
+
             top_sections = raw_data.get("top", {}).get("sections", [])
             recent_sections = raw_data.get("recent", {}).get("sections", [])
             
