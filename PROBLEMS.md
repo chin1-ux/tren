@@ -54,15 +54,17 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 
 ### 1.3 Critical data pipeline problems
 
-#### P-PIPE-1: Pagination code exists but is dead in production [REOPENED — pagination never fires, verified on both accounts]
+#### P-PIPE-1: Pagination impossible on Instagram's REST web_info endpoint [CONFIRMED — dead code, no fix on this endpoint]
 **File:** `backend/instagram_scraper_browser.py:933-988`
-**Problem:** Pagination code follows `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` extra pages. But verified from GitHub Actions logs on BOTH accounts:
-- `ch1n-may/trendrop` run 32614282355 (Aug 23): zero pagination log lines,15 hashtags, 45-52 items each
-- `chin1-ux/tren` run 33744369473 (Sep 3): zero pagination log lines, 25 hashtags, 44-60 items each
-**Root cause:** `raw_data.get("more_info")` returns `{}` — Instagram's `api/v1/tags/web_info` response doesn't include `max_id` in `more_info`. The loop at line 938 breaks immediately (`if not next_max_id`).
-**Impact:** Single-page only. `ch1n-may`: ~700-780 reels/run. `chin1-ux`: ~1,100-1,500 reels/run. Far below what pagination would provide.
+**Root cause (confirmed Sep 3 via live diagnostic on chin1-ux/tren, run 33767268158):**
+Instagram's `api/v1/tags/web_info` response does NOT include `more_info` or any pagination cursor. The `raw_data` top-level keys are: `id, name, media_count, allow_muting_story, subtitle, follow_button_text, show_follow_drop_down, formatted_media_count, is_trending, hide_use_hashtag_button, top, recent, content_advisory, warning_message, profile_pic_url`. No `more_info`, no `max_id`, no `next_cursor`, no `has_more`. The pagination code at lines 933-988 was dead on arrival — the API never returned the cursor it depends on.
+**Tokens found** (`mezql_token`, `organic_tracking_token`, `logging_info_token`) are per-media metadata, not pagination cursors.
+**Impact:** Single-page ceiling: ~45-60 items per hashtag. Current volume: ~2,000 reels/run (chin1-ux, 40 hashtags). "15,000+ reels daily" claim is not achievable from this endpoint.
+**Options for real pagination (not yet decided):**
+1. **GraphQL endpoint** — Instagram's GraphQL API supports cursor-based pagination via `edge_hashtag_to_media` query. Would require rewriting the scraper to use GraphQL instead of REST. Higher complexity, but proven approach.
+2. **Scroll/XHR interception** — scroll the browser page, intercept additional XHR responses. Lighter on API changes but slower (browser must render each scroll) and costs more GitHub Actions minutes.
+3. **Accept the ceiling** — ~2,000 reels/run is sufficient for trend detection at current scale. Pagination becomes relevant only when hashtag count grows or detection needs deeper historical data.
 **Does IMPLEMENTATION_PLAN.md fix this?** No.
-**Action needed:** Debug why `more_info.max_id` is missing from the API response. Add temporary logging of `raw_data.keys()` and `raw_data.get("more_info")` to confirm the response structure. May need to switch to Instagram's GraphQL pagination endpoint instead of the REST `web_info` endpoint.
 
 #### P-PIPE-2: N+1 DB query problem — 10-18 queries per reel, no batching — FIXED (Aug 18)
 **File:** `backend/instagram_scraper_browser.py:1212-1583` (new `_process_hashtag_batch` method)
