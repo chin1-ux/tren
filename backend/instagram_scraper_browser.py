@@ -1763,7 +1763,9 @@ Return ONLY valid JSON, no markdown, no explanation:
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
             # Global wall-clock guard: abort scrape if pipeline runs too long
-            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(30 * 60)))
+            # Default 15 min — scraper stage typically finishes in ~6 min for 15 hashtags.
+            # Configurable via SCRAPER_GLOBAL_TIMEOUT if hashtag count grows.
+            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(15 * 60)))
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):

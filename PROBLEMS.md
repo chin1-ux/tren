@@ -54,13 +54,13 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 
 ### 1.3 Critical data pipeline problems
 
-#### P-PIPE-1: No pagination — single page load per hashtag [PARTIALLY RESOLVED — API pagination exists, needs live verification]
+#### P-PIPE-1: Pagination code exists but is dead in production [REOPENED — pagination never fires]
 **File:** `backend/instagram_scraper_browser.py:933-988`
-**Problem:** The scraper navigates to `instagram.com/explore/tags/{hashtag}/` and captures whatever the `api/v1/tags/web_info` XHR returns in one response. No scrolling, no pagination.
-**Current state (re-verified Sep 2026):** Pagination was added after the original audit. The scraper now follows Instagram's `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` (env var, default 2) extra pages via direct HTTP requests. Stops at 300 items per hashtag. This is API-based pagination (not scroll-based), which is lighter on runtime and GitHub Actions minutes.
-**Remaining concern:** The pagination code exists but hasn't been verified against live Instagram responses. Instagram may have changed their `max_id` behavior or rate-limited paginated requests. Need to check GitHub Actions logs for "Pagination page" entries to confirm it's working.
-**Impact:** If working: ~90-270 reels per hashtag (3 pages × 30-90 items) = 1,350-4,050 reels per run. If not working: still limited to single-page 30-90 items per hashtag.
-**Action needed:** Verify from production logs that pagination pages are actually being fetched and returning items. If not, diagnose why (rate limiting? changed API? missing `max_id`?).
+**Problem:** Pagination code follows `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` extra pages. But verified from GitHub Actions logs (run 32614282355, Aug 23): zero "Pagination page" log lines across the entire run. Every hashtag extracts 45-52 items from a single page load only.
+**Root cause:** `raw_data.get("more_info")` returns `{}` — Instagram's `api/v1/tags/web_info` response either doesn't include `max_id` in `more_info`, or the response structure changed since the code was written. The loop at line 938 breaks immediately (`if not next_max_id`).
+**Impact:** Single-page only: ~45-52 items per hashtag × 15 hashtags = ~700-780 reels per India run. Far below the 1,350-4,050 that pagination would provide.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Action needed:** Debug why `more_info.max_id` is missing from the API response. Add temporary logging of `raw_data.keys()` and `raw_data.get("more_info")` to confirm the response structure. May need to switch to Instagram's GraphQL pagination endpoint instead of the REST `web_info` endpoint.
 
 #### P-PIPE-2: N+1 DB query problem — 10-18 queries per reel, no batching — FIXED (Aug 18)
 **File:** `backend/instagram_scraper_browser.py:1212-1583` (new `_process_hashtag_batch` method)
@@ -101,15 +101,12 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 
 All paths return real data or zero — no fabricated values. The saturation thresholds (P-PIPE-3) are still miscalibrated but that's deferred until P-PIPE-1 increases data volume.
 
-#### P-PIPE-5: 15-minute global timeout frequently cuts off later hashtags [FIXED — timeouts increased + made configurable]
+#### P-PIPE-5: 15-minute global timeout frequently cuts off later hashtags [RESOLVED — timeout not the bottleneck]
 **File:** `backend/instagram_scraper_browser.py:1766-1792`
-**Problem:** Global timeout was 900 seconds (15 min). Each hashtag takes 15-25s of browser time. 15 hashtags × 20s = 5 minutes of browser time. But per-reel DB processing added 6-18 minutes. Total: 7-23 minutes. Later hashtags were frequently skipped.
-**Impact:** Inconsistent data coverage. Some runs get all 15 hashtags, others get 5-8. The data is not equally fresh across all hashtag groups.
-**Does IMPLEMENTATION_PLAN.md fix this?** No.
-**Fix (Sep 2026):**
-- Global timeout: 15 min → 30 min (configurable via `SCRAPER_GLOBAL_TIMEOUT` env var)
-- Per-hashtag timeout: 90s → 120s (configurable via `SCRAPER_HASHTAG_TIMEOUT` env var)
-- With P-PIPE-2's batched processing, DB time dropped from 6-18 min to ~1 min. Browser time (~5 min for 15 hashtags) + DB (~1 min) = ~6 min total, well within 30-min window. All 17 hashtags should now complete consistently.
+**Problem:** Global timeout was 900 seconds (15 min). Fear was that later hashtags would be skipped.
+**Verified from logs (run 32614282355, Aug 23):** Scraper stage finishes in ~6 minutes for15 hashtags (03:02:52 → 03:08:41). All15 hashtags completed. The 15-min global timeout was never hit.
+**Why runs take 30+ min:** The bottleneck is downstream of scraping — backfill, detection, alerts, and audio count check consume25+ minutes. Recent run durations: 34m54s, 36m52s. These are workflow-level durations, not scraper-level.
+**Fix (Sep 2026):** Global timeout made configurable via `SCRAPER_GLOBAL_TIMEOUT` env var (default stays 15 min — sufficient). Per-hashtag timeout increased 90s→120s, configurable via `SCRAPER_HASHTAG_TIMEOUT`. Both are safety valves, not active bottlenecks.
 
 #### P-PIPE-6: External trend discovery is dead code [RESOLVED — code deleted]
 **Re-verified Aug 22, 2026:** `backend/external_trend_discovery.py` was never committed to git (absent from `git log --all`) and is now absent from disk. Its sibling `backend/external_trend_pipeline.py` was explicitly deleted by commit `d63d2ab0`. Grep confirms zero remaining production imports of either module.
