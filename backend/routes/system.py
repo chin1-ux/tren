@@ -18,7 +18,7 @@ def get_proof_data(request: Request):
         res = supabase.table("trends").select(
             "id, audio_title, audio_artist, status, first_detected_at, "
             "velocity_avg, niche_tag, language"
-        ).in_("status", ["rising", "peaked", "expired"]).not_.is_(
+        ).eq("is_seed_data", False).in_("status", ["rising", "peaked", "expired"]).not_.is_(
             "first_detected_at", "null"
         ).order("first_detected_at", desc=True).limit(20).execute()
         trends = res.data or []
@@ -66,7 +66,7 @@ def health_check():
             supabase.table("trends").select("id").limit(1).execute()
             db_status = "healthy"
         except Exception as e:
-            db_status = f"unhealthy: {str(e)}"
+            db_status = "unhealthy"
             
     # Check Disk space
     try:
@@ -379,7 +379,7 @@ def submit_feedback(request: Request, req: FeedbackRequest, current_user_email: 
 def get_job_status(request: Request, job_id: str, current_user: str = Depends(require_auth)):
     try:
         job = get_job_record(job_id)
-        if not job:
+        if not job or job.get("user_email") != current_user:
             raise HTTPException(status_code=404, detail=f"Job {job_id} not found")
         return {
             "status": job.get("status"),
@@ -390,7 +390,8 @@ def get_job_status(request: Request, job_id: str, current_user: str = Depends(re
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error getting job status: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/reel-status/{job_id}")
@@ -616,6 +617,7 @@ def predict_trend_viral_potential(
         # Get trend data
         res = supabase.table('trends') \
             .select('*') \
+            .eq('is_seed_data', False) \
             .eq('id', trend_id) \
             .single() \
             .execute()
@@ -654,6 +656,7 @@ def predict_content_virality(
         # Get trend data
         res = supabase.table('trends') \
             .select('*') \
+            .eq('is_seed_data', False) \
             .eq('id', trend_id) \
             .single() \
             .execute()
@@ -691,6 +694,7 @@ def get_virality_improvements(
         # Get trend data
         res = supabase.table('trends') \
             .select('*') \
+            .eq('is_seed_data', False) \
             .eq('id', trend_id) \
             .single() \
             .execute()
