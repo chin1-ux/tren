@@ -97,7 +97,7 @@ export function AIContentGenerator() {
                 </Select>
               </div>
               <Button onClick={handleGenerateCaption} disabled={loading || !selectedTrendId} className="w-full">
-                {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Wand2 className="h-4 w-4 mr-2" />}
+                {loading ? <RefreshCw className="h-4 w-4 mr-2 animate-spin" /> : <Sparkles className="h-4 w-4 mr-2" />}
                 Generate Caption Kit
               </Button>
 
