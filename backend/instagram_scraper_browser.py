@@ -1197,10 +1197,18 @@ Return ONLY valid JSON, no markdown, no explanation:
             posted = datetime.fromisoformat(timestamp)
             hours_live = max((now_utc - posted).total_seconds() / 3600.0, 0.5)
 
-            engagement = (view * 1.0) + (likes * 3.0) + (comments * 5.0)
-            effective_followers = followers if followers > 0 else 2500
-            normalized_followers = math.log(effective_followers + 10)
+            engagement = (view * 1.0) + (likes * 3.0) + (comments * 3.0)
+            if followers <= 0:
+                scrape_stats["unknown_followers_skipped"] += 1
+                continue
+            normalized_followers = math.log(followers + 10)
             velocity = (engagement / hours_live / normalized_followers) * 100
+
+            # Exponential decay: 24-hour half-life
+            # Reels lose ~50% of attention weight every 24 hours
+            decay_half_life_hours = 24.0
+            decay_factor = 0.5 ** (hours_live / decay_half_life_hours)
+            velocity *= decay_factor
 
             # Outlier-relative check
             baseline = creator_baselines.get(owner) if owner else None
@@ -1673,6 +1681,7 @@ Return ONLY valid JSON, no markdown, no explanation:
             "missing_timestamp": 0,
             "low_engagement": 0,
             "velocity_failed": 0,
+            "unknown_followers_skipped": 0,
             "duplicate": 0,
             "insert_attempts": 0,
             "insert_saved": 0,
