@@ -40,13 +40,12 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     """
     cron_secret = os.getenv("CRON_SECRET")
     auth_header = request.headers.get("Authorization")
-    secret_param = request.query_params.get("secret")
     
     if not cron_secret:
         logger.error("CRON_SECRET not configured - cron access blocked")
         raise HTTPException(status_code=500, detail="Cron configuration error")
         
-    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
+    if auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     from cron_job import run_full_pipeline
@@ -63,13 +62,12 @@ async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTa
     """
     cron_secret = os.getenv("CRON_SECRET")
     auth_header = request.headers.get("Authorization")
-    secret_param = request.query_params.get("secret")
 
     if not cron_secret:
         logger.error("CRON_SECRET not configured - cron access blocked")
         raise HTTPException(status_code=500, detail="Cron configuration error")
 
-    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
+    if auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     def _run_refresh():
@@ -320,29 +318,92 @@ app.add_middleware(
 MAX_FILE_SIZE = 50 * 1024 * 1024  # 50MB
 MAX_JSON_SIZE = 10 * 1024 * 1024  # 10MB
 
+# Paths that need IP-based rate limiting at the middleware level.
+# This runs BEFORE FastAPI resolves Depends(), so it catches unauthenticated requests.
+# Format: (path_prefix, limit, window_seconds)
+#
+# Item 4 (original): /api/users/, /api/content-trends, /api/cron/, etc.
+# Item 8 (compute-risk): guest-accessible endpoints that instantiate engines/run analysis.
+_RATE_LIMITED_PATHS = [
+    # --- Item 4: auth/cron/users (original scope) ---
+    ("/api/users/", 30, 60),
+    ("/api/content-trends", 30, 60),
+    ("/api/daily-ideas/", 10, 60),
+    ("/api/generate-calendar/", 10, 60),
+    ("/api/collab-matches/", 10, 60),
+    ("/api/cron/", 5, 60),
+    ("/api/deals/", 10, 60),
+    ("/api/proof", 30, 60),
+    # --- Item 8: guest-accessible compute-risk endpoints ---
+    # Hashtag computation
+    ("/api/hashtags/", 10, 60),
+    # Event monitoring (compute, not just DB reads)
+    ("/api/events/", 10, 60),
+    # India features — 4 guest-accessible compute endpoints (hashtag-strategy,
+    # creator-patterns, cultural-events/{name}, cultural-events/{name}/optimal-timing)
+    # The other 7 /api/india/* endpoints are gated by require_feature or require_credits
+    ("/api/india/", 10, 60),
+    # AI/LLM generation (require_credits gates guests, but middleware adds IP layer)
+    ("/api/generate-hooks", 10, 60),
+    ("/api/generate-narrative", 5, 60),
+    ("/api/generate-reel", 5, 60),
+    # Video analysis
+    ("/api/video/", 10, 60),
+]
+
+# In-memory sliding-window rate limiter for middleware (works without Redis too)
+import collections
+_mw_rate_buckets: dict[str, collections.deque] = {}
+
+def _mw_check_rate(key: str, limit: int, window: int) -> bool:
+    """Returns True if allowed, False if rate limit exceeded."""
+    now = time.time()
+    bucket = _mw_rate_buckets.setdefault(key, collections.deque())
+    # Prune entries outside the window
+    while bucket and bucket[0] <= now - window:
+        bucket.popleft()
+    if len(bucket) >= limit:
+        return False
+    bucket.append(now)
+    return True
+
 @app.middleware("http")
 async def security_headers_and_limits_middleware(request: Request, call_next):
     # Add Request ID
     req_id = str(uuid.uuid4())
     request.state.request_id = req_id
-    
+
     # Enforce request size limits
     content_length = request.headers.get("content-length")
     if content_length:
         content_length = int(content_length)
-        if request.url.path in ["/api/generate-reel", "/api/generate-narrative", "/api/repurpose"]:
+        if request.url.path in ["/api/generate-reel", "/api/generate-narrative"]:
             if content_length > MAX_FILE_SIZE:
                 return JSONResponse(
-                    status_code=413, 
+                    status_code=413,
                     content={"error": "File upload exceeds maximum limit of 50MB", "request_id": req_id, "timestamp": str(time.time())}
                 )
         else:
             if content_length > MAX_JSON_SIZE:
                 return JSONResponse(
-                    status_code=413, 
+                    status_code=413,
                     content={"error": "Request body exceeds maximum limit of 10MB", "request_id": req_id, "timestamp": str(time.time())}
                 )
-                
+
+    # IP-based rate limiting at middleware level (before auth dependencies resolve)
+    path = request.url.path
+    for prefix, limit, window in _RATE_LIMITED_PATHS:
+        if path.startswith(prefix) or path == prefix.rstrip("/"):
+            ip = _get_client_ip(request)
+            key = f"mw:{prefix}:{ip}"
+            if not _mw_check_rate(key, limit, window):
+                return JSONResponse(
+                    status_code=429,
+                    content={"detail": "Rate limit exceeded. Try again later."},
+                    headers={"Retry-After": str(window)},
+                )
+            break
+
     response = await call_next(request)
     
     # Security Headers
@@ -752,22 +813,7 @@ def run_job_simulation(job_id: str, job_type: str, trend_id: str, files: List[st
         output_url = f"/outputs/{job_id}.mp4"
         output_path = os.path.join(outputs_path, f"{job_id}.mp4")
         
-        if job_type == "repurpose" and files and len(files) > 0:
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            shutil.copy2(files[0], output_path)
-            update_job_record(job_id, {"progress": 85})
-        elif job_type == "faceless_generation":
-            update_job_record(job_id, {"progress": 50})
-            time.sleep(1.0)
-            os.makedirs(os.path.dirname(output_path), exist_ok=True)
-            extra = extra_params or {}
-            niche = extra.get("niche", "general")
-            desc = extra.get("content_description", "")
-            placeholder_text = f"[Faceless content: {niche}] {desc}" if desc else f"[Faceless content: {niche}]"
-            with open(output_path, "wb") as f:
-                f.write(f"PLACEHOLDER_OUTPUT:{placeholder_text}".encode())
-            update_job_record(job_id, {"progress": 85})
-        elif files and len(files) > 0 and job_type in ["reel_generation", "narrative_generation"]:
+        if files and len(files) > 0 and job_type in ["reel_generation", "narrative_generation"]:
             audio_path = None
             if audio_url:
                 try:
@@ -1054,145 +1100,6 @@ async def generate_narrative_endpoint(
         raise
     except Exception as e:
         logger.error(f"generate-narrative error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@app.post("/api/generate-faceless")
-@limiter.limit("10/hour")
-async def generate_faceless_endpoint(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    trend_id: str = Form(...),
-    user_email: str = Form(...),
-    niche: str = Form(...),
-    content_description: str = Form(...),
-    current_user_email: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
-    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
-):
-    if user_email != current_user_email:
-        raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
-        
-    # Validate trend_id exists in database
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
-    try:
-        trend_check = supabase.table("trends").select("id").eq("id", int(trend_id)).execute()
-        if not trend_check.data:
-            raise HTTPException(status_code=400, detail=f"Invalid trend_id: trend {trend_id} does not exist")
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=400, detail="Invalid trend_id format")
-
-    try:
-        job_id = create_job_record("faceless_generation", user_email, {
-            "trend_id": trend_id,
-            "niche": niche,
-            "content_description": content_description
-        })
-        
-        # Queue background task using rq or fallback
-        q = get_job_queue(user_email)
-        if q:
-            # pyrefly: ignore [missing-import]
-            from worker import run_video_generation_job
-            q.enqueue_call(
-                func=run_video_generation_job,
-                args=(job_id, "faceless_generation", trend_id, None, {
-                    "niche": niche,
-                    "content_description": content_description
-                }),
-                timeout=900, # faceless / dance generation max 15 minutes
-                retry=3
-            )
-        else:
-            background_tasks.add_task(run_job_simulation, job_id, "faceless_generation", trend_id, None, {
-                "niche": niche,
-                "content_description": content_description
-            })
-        return {"job_id": job_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"generate-faceless error: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-@app.post("/api/repurpose")
-@limiter.limit("10/hour")
-async def repurpose_endpoint(
-    request: Request,
-    background_tasks: BackgroundTasks,
-    file: UploadFile = File(...),
-    trend_id: str = Form(...),
-    user_email: str = Form(...),
-    current_user_email: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation'])),
-    _usage_log: str = Depends(log_endpoint_usage("ai_generation"))
-):
-    if user_email != current_user_email:
-        raise HTTPException(status_code=403, detail="Forbidden: user_email does not match authenticated user")
-        
-    # Validate trend_id exists in database
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
-    try:
-        trend_check = supabase.table("trends").select("id").eq("id", int(trend_id)).execute()
-        if not trend_check.data:
-            raise HTTPException(status_code=400, detail=f"Invalid trend_id: trend {trend_id} does not exist")
-    except Exception as e:
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=400, detail="Invalid trend_id format")
-
-    try:
-        content = await file.read()
-        mime = file.content_type
-        if mime != "video/mp4":
-            raise HTTPException(status_code=400, detail="Unsupported file type: only video/mp4 is allowed for repurpose")
-        if not validate_video_file(content):
-            raise HTTPException(status_code=400, detail="Invalid video content: magic bytes mismatch")
-        if not moderation_check(content, file.filename):
-            raise HTTPException(status_code=400, detail="This content cannot be processed. Please upload appropriate content only.")
-            
-        job_id = create_job_record("repurpose", user_email, {
-            "trend_id": trend_id,
-            "filename": file.filename
-        })
-        job_dir = os.path.join(uploads_path, job_id)
-        os.makedirs(job_dir, exist_ok=True)
-        filename = os.path.basename(file.filename)
-        fpath = os.path.join(job_dir, filename)
-        with open(fpath, "wb") as f:
-            f.write(content)
-
-        # Upload to Supabase Storage uploads bucket
-        storage_path = f"{current_user_email}/{job_id}/{filename}"
-        try:
-            supabase.storage.from_("uploads").upload(
-                file=content,
-                path=storage_path,
-                file_options={"content-type": "video/mp4"}
-            )
-        except Exception as se:
-            logger.error(f"Failed to upload repurpose source file to storage: {se}")
-
-        # Queue background task using rq or fallback
-        q = get_job_queue(user_email)
-        if q:
-            from worker import run_video_generation_job
-            q.enqueue_call(
-                func=run_video_generation_job,
-                args=(job_id, "repurpose", trend_id, [storage_path]),
-                timeout=300, # 5 minutes
-                retry=3
-            )
-        else:
-            background_tasks.add_task(run_job_simulation, job_id, "repurpose", trend_id, [fpath])
-        return {"job_id": job_id}
-    except HTTPException:
-        raise
-    except Exception as e:
-        logger.error(f"repurpose error: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 

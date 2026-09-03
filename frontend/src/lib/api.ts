@@ -102,6 +102,10 @@ export interface ApiTrend {
 }
 
 export interface ApiCaptionKit {
+  is_fallback?: boolean;
+  fallback_reason?: string;
+  is_partial?: boolean;
+  missing_fields?: string[];
   captions: Array<{ vibe: string; text: string }>;
   hashtags: string[];
   audio_cue: string;
@@ -162,7 +166,9 @@ type TrendCategory =
   | "Faceless"
   | "Regional"
   | "Global"
-  | "Viral";
+  | "Viral"
+  | "Tech"
+  | "Romance";
 
 const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }> = {
   dance:          { emoji: "💃", category: "Dance" },
@@ -177,6 +183,8 @@ const CATEGORY_EMOJI: Record<string, { emoji: string; category: TrendCategory }>
   fitness:        { emoji: "🏋️", category: "Fitness" },
   study:          { emoji: "📚", category: "Study" },
   narrative_edit: { emoji: "🎞️", category: "Narrative" },
+  tech:           { emoji: "💻", category: "Tech" },
+  romance_relationship: { emoji: "💕", category: "Romance" },
   text_overlay:   { emoji: "✏️", category: "Text Overlay" },
   faceless:       { emoji: "🎭", category: "Faceless" },
   faceless_video: { emoji: "🎭", category: "Faceless" },
@@ -751,61 +759,6 @@ export async function getTrendingHashtags(hoursWindow: number = 24, minVelocity:
   return http(`/api/hashtags/trending?${params}`);
 }
 
-// ── Topic Clustering API ─────────────────────────────────────────────────────
-
-export interface TopicCluster {
-  topic_id: string;
-  topic_name: string;
-  topic_keywords: string[];
-  topic_category: string;
-  content_samples: string[];
-  creator_count: number;
-  total_engagement: number;
-  avg_velocity: number;
-  viral_potential: number;
-  trending_since: string;
-  estimated_lifespan_hours: number;
-  related_topics: string[];
-  target_audiences: string[];
-  content_opportunities: string[];
-}
-
-export async function getTopicClusters(hoursWindow: number = 48, minClusterSize: number = 5): Promise<{
-  topic_clusters: TopicCluster[];
-  total_clusters: number;
-  query_params: { hours_window: number; min_cluster_size: number };
-}> {
-  const params = new URLSearchParams();
-  params.set('hours_window', hoursWindow.toString());
-  params.set('min_cluster_size', minClusterSize.toString());
-  return http(`/api/topics/clusters?${params}`);
-}
-
-export interface Conversation {
-  conversation_id: string;
-  conversation_name: string;
-  conversation_type: string;
-  template_structure: string;
-  participation_count: number;
-  velocity_score: number;
-  engagement_rate: number;
-  viral_potential: number;
-  platform_performance: Record<string, number>;
-  optimal_content_types: string[];
-  example_captions: string[];
-  creator_opportunities: string[];
-}
-
-export async function detectConversations(hoursWindow: number = 48): Promise<{
-  conversations: Conversation[];
-  total_conversations: number;
-  hours_window: number;
-}> {
-  const params = new URLSearchParams();
-  params.set('hours_window', hoursWindow.toString());
-  return http(`/api/conversations/detect?${params}`);
-}
-
 // ── Creator Analytics API ─────────────────────────────────────────────────────
 
 export interface CreatorMetrics {
@@ -898,102 +851,17 @@ export interface GeneratedCaption {
   emoji_usage: string;
 }
 
-export async function generateCaption(trendName: string, tone: string = "casual", niche: string = "general"): Promise<GeneratedCaption> {
+export async function generateCaption(trendId: number): Promise<ApiCaptionKit> {
   const params = new URLSearchParams();
-  params.set('trend_name', trendName);
-  params.set('tone', tone);
-  params.set('niche', niche);
-  return http(`/api/ai/generate-caption?${params}`);
+  params.set('trend_id', trendId.toString());
+  return http<ApiCaptionKit>(`/api/ai/generate-caption?${params}`);
 }
 
-export interface ContentIdea {
-  title: string;
-  description: string;
-  content_type: string;
-  niche: string;
-  difficulty: string;
-  estimated_engagement: string;
-  required_resources: string[];
-  script_outline: string[];
-  suggested_hashtags: string[];
-}
-
-export async function generateContentIdeas(niche: string = "general", count: number = 5): Promise<{
-  content_ideas: ContentIdea[];
-  total_ideas: number;
-}> {
-  const params = new URLSearchParams();
-  params.set('niche', niche);
-  params.set('count', count.toString());
-  return http(`/api/ai/content-ideas?${params}`);
-}
-
-export interface HookSuggestion {
-  hook_text: string;
-  hook_type: string;
-  estimated_retention: number;
-  best_for_content: string[];
-}
-
-export async function generateAIHooks(topic: string, count: number = 5): Promise<{
-  hooks: HookSuggestion[];
-  total_hooks: number;
-}> {
-  const params = new URLSearchParams();
-  params.set('topic', topic);
-  params.set('count', count.toString());
-  return http(`/api/ai/generate-hooks?${params}`);
-}
-
-export async function generateScriptOutline(contentType: string = "reel", topic: string = "general", durationSeconds: number = 30): Promise<{
-  script_outline: string[];
-  content_type: string;
-  topic: string;
-  duration_seconds: number;
-}> {
-  const params = new URLSearchParams();
-  params.set('content_type', contentType);
-  params.set('topic', topic);
-  params.set('duration_seconds', durationSeconds.toString());
-  return http(`/api/ai/script-outline?${params}`);
+export async function jobStatus(jobId: string): Promise<StatusResponse> {
+  return http<StatusResponse>(`/api/job-status/${encodeURIComponent(jobId)}`);
 }
 
 // ── India-Specific Features API ───────────────────────────────────────────
-
-export interface RegionalTrend {
-  region: string;
-  city: string;
-  language: string;
-  trend_name: string;
-  viral_score: number;
-  cultural_context: string;
-  peak_hours: number[];
-  hashtags: string[];
-  content_themes: string[];
-}
-
-export async function getRegionalTrends(region?: string): Promise<{
-  regional_trends: RegionalTrend[];
-  total_trends: number;
-}> {
-  const params = new URLSearchParams();
-  if (region) params.set('region', region);
-  return http(`/api/india/regional-trends?${params}`);
-}
-
-export async function getRegionalTimingOptimization(region: string = "north"): Promise<{
-  region: string;
-  city: string;
-  peak_hours: number[];
-  secondary_hours: number[];
-  best_days: string[];
-  timezone_offset: string;
-  cultural_considerations: string[];
-}> {
-  const params = new URLSearchParams();
-  params.set('region', region);
-  return http(`/api/india/regional-timing?${params}`);
-}
 
 export interface CulturalEvent {
   event_name: string;
@@ -1009,55 +877,6 @@ export async function getCulturalEventAutomation(daysAhead: number = 30): Promis
   const params = new URLSearchParams();
   params.set('days_ahead', daysAhead.toString());
   return http(`/api/india/cultural-events?${params}`);
-}
-
-export async function detectLanguageCrossover(content: string): Promise<{
-  detected_languages: Record<string, number>;
-  content: string;
-}> {
-  return http('/api/india/detect-language', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ content }),
-  });
-}
-
-export async function getRegionalHashtagStrategy(region: string = "north", contentType: string = "general"): Promise<{
-  regional: string[];
-  city_specific: string[];
-  language_specific: string[];
-  cultural: string[];
-}> {
-  const params = new URLSearchParams();
-  params.set('region', region);
-  params.set('content_type', contentType);
-  return http(`/api/india/hashtag-strategy?${params}`);
-}
-
-export async function getCreatorPatternAnalysis(creatorRegion: string = "north"): Promise<{
-  region: string;
-  peak_content_hours: number[];
-  popular_languages: string[];
-  cultural_themes: string[];
-  content_preferences: {
-    video_length: string;
-    music_preference: string;
-    caption_style: string;
-    posting_frequency: string;
-  };
-  audience_insights: {
-    primary_age_group: string;
-    gender_distribution: string;
-    engagement_pattern: string;
-    content_type_preference: string;
-  };
-  success_factors: string[];
-}> {
-  const params = new URLSearchParams();
-  params.set('creator_region', creatorRegion);
-  return http(`/api/india/creator-patterns?${params}`);
 }
 
 export async function fetchAllActiveTrends(): Promise<UiTrend[]> {
@@ -1140,36 +959,6 @@ export async function generateNarrative(args: {
   return http<GenerateResponse>("/api/generate-narrative", { method: "POST", body: fd });
 }
 
-export async function generateFaceless(args: {
-  trendId: string;
-  userEmail: string;
-  niche: string;
-  contentDescription: string;
-}): Promise<GenerateResponse> {
-  const fd = new FormData();
-  fd.append("trend_id", args.trendId);
-  fd.append("user_email", args.userEmail);
-  fd.append("niche", args.niche);
-  fd.append("content_description", args.contentDescription);
-  return http<GenerateResponse>("/api/generate-faceless", { method: "POST", body: fd });
-}
-
-export async function repurposeVideo(args: {
-  file: File;
-  trendId: string;
-  userEmail: string;
-}): Promise<GenerateResponse> {
-  const fd = new FormData();
-  fd.append("file", args.file);
-  fd.append("trend_id", args.trendId);
-  fd.append("user_email", args.userEmail);
-  return http<GenerateResponse>("/api/repurpose", { method: "POST", body: fd });
-}
-
-export async function jobStatus(jobId: string): Promise<StatusResponse> {
-  return http<StatusResponse>(`/api/job-status/${encodeURIComponent(jobId)}`);
-}
-
 export async function reelStatus(jobId: string): Promise<StatusResponse> {
   return jobStatus(jobId);
 }
@@ -1187,6 +976,8 @@ export interface ApiDailyIdea {
   audio_suggestion: string;
   posting_time: string;
   difficulty: "Easy" | "Medium" | "Hard" | string;
+  is_fallback?: boolean;
+  fallback_reason?: string;
 }
 
 export interface ScoreReelResponse {
@@ -1198,6 +989,8 @@ export interface ScoreReelResponse {
   hashtag_score: number;
   timing_score: number;
   top_fixes: string[];
+  is_fallback?: boolean;
+  fallback_reason?: string;
 }
 
 export interface GeneratedHook {
@@ -1247,8 +1040,8 @@ export async function generateHooks(args: {
   });
 }
 
-export async function generateCalendar(userEmail: string): Promise<{ calendar: CalendarDay[] }> {
-  return http<{ calendar: CalendarDay[] }>(`/api/generate-calendar/${encodeURIComponent(userEmail)}`);
+export async function generateCalendar(userEmail: string): Promise<{ calendar: CalendarDay[]; is_fallback?: boolean; fallback_reason?: string }> {
+  return http<{ calendar: CalendarDay[]; is_fallback?: boolean; fallback_reason?: string }>(`/api/generate-calendar/${encodeURIComponent(userEmail)}`);
 }
 
 // ── User ───────────────────────────────────────────────────────────────────────

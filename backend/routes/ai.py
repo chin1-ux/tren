@@ -80,7 +80,9 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
                 "overall_score": 75,
                 "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
                 "fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
-                "estimated_reach_multiplier": "1.2x"
+                "estimated_reach_multiplier": "1.2x",
+                "is_fallback": True,
+                "fallback_reason": "LLM unavailable — showing generic score"
             }
 
         overall = res.get("overall_score", 75)
@@ -116,7 +118,9 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
             "caption_score": breakdown.get("seo_and_caption", 70),
             "hashtag_score": breakdown.get("hashtags", 70),
             "timing_score": breakdown.get("timing", 70),
-            "top_fixes": res.get("fixes", [])
+            "top_fixes": res.get("fixes", []),
+            "is_fallback": res.get("is_fallback", False),
+            "fallback_reason": res.get("fallback_reason"),
         }
     except Exception as e:
         logger.error(f"Error in /api/score-reel: {e}", exc_info=True)
@@ -129,14 +133,16 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
             "caption_score": 70,
             "hashtag_score": 70,
             "timing_score": 70,
-            "top_fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."]
+            "top_fixes": ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
+            "is_fallback": True,
+            "fallback_reason": "LLM unavailable — showing generic score"
         }
 
 
 @router.get("/api/daily-ideas/{user_email}")
 @limiter.limit("10/minute")
 def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(require_auth)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
+    if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access daily ideas of another user")
 
     # 2.2 CACHING: ideas:{user_email}:{date}
@@ -159,9 +165,9 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
         logger.warning(f"LLM daily ideas failed, using fallback: {e}")
         # Fallback ideas
         ideas = [
-            {"title": "The Ultimate Lifestyle Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM"},
-            {"title": "Day in the Life", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM"},
-            {"title": "My Biggest Mistake", "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM"}
+            {"title": "The Ultimate Lifestyle Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"},
+            {"title": "Day in the Life", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"},
+            {"title": "My Biggest Mistake", "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"}
         ]
 
     difficulties = ["Easy", "Medium", "Hard"]
@@ -182,7 +188,7 @@ def get_daily_ideas_by_email(user_email: str, request: Request, current_user_ema
 @router.get("/api/generate-calendar/{user_email}")
 @limiter.limit("5/minute")
 def generate_calendar_for_user(user_email: str, request: Request, current_user_email: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
+    if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot generate a calendar for another user")
     try:
         niche = "lifestyle"
@@ -209,6 +215,8 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
             logger.warning(f"LLM calendar generation failed, using fallback: {e}")
             # Fallback calendar
             res = {
+                "is_fallback": True,
+                "fallback_reason": "LLM unavailable — showing generic calendar template",
                 "calendar": [
                     {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": [f"#{niche}"], "posting_time": "6:00 PM"}
                     for i in range(1, 31)
@@ -233,6 +241,8 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
         logger.error(f"Error in /api/generate-calendar/{user_email}: {e}", exc_info=True)
         # Return fallback calendar instead of error
         return {
+            "is_fallback": True,
+            "fallback_reason": "Server error — showing generic calendar template",
             "calendar": [
                 {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": ["#lifestyle"], "posting_time": "6:00 PM"}
                 for i in range(1, 31)
@@ -356,108 +366,6 @@ def generate_caption(
     except Exception as e:
         logger.exception(f"Error generating caption kit: {e}")
         raise HTTPException(status_code=500, detail="Failed to generate caption kit")
-
-
-@router.get("/api/ai/content-ideas")
-@limiter.limit("20/minute")
-def generate_content_ideas(
-    request: Request,
-    niche: str = "general",
-    count: int = 5,
-    current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
-):
-    """Generate AI content ideas for a specific niche."""
-    if not AIContentGenerator:
-        raise HTTPException(status_code=500, detail="AI content generator not configured.")
-    
-    try:
-        generator = AIContentGenerator()
-        ideas = generator.generate_content_ideas(niche, count=count)
-        
-        return {
-            'content_ideas': [
-                {
-                    'title': idea.title,
-                    'description': idea.description,
-                    'content_type': idea.content_type,
-                    'niche': idea.niche,
-                    'difficulty': idea.difficulty,
-                    'estimated_engagement': idea.estimated_engagement,
-                    'required_resources': idea.required_resources,
-                    'script_outline': idea.script_outline,
-                    'suggested_hashtags': idea.suggested_hashtags
-                }
-                for idea in ideas
-            ],
-            'total_ideas': len(ideas)
-        }
-    except Exception as e:
-        logger.exception(f"Error generating content ideas: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate content ideas")
-
-
-@router.get("/api/ai/generate-hooks")
-@limiter.limit("20/minute")
-def generate_hooks(
-    request: Request,
-    topic: str,
-    count: int = 5,
-    current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
-):
-    """Generate AI hook suggestions for a specific topic."""
-    if not AIContentGenerator:
-        raise HTTPException(status_code=500, detail="AI content generator not configured.")
-    
-    try:
-        generator = AIContentGenerator()
-        hooks = generator.generate_hooks(topic, count=count)
-        
-        return {
-            'hooks': [
-                {
-                    'hook_text': hook.hook_text,
-                    'hook_type': hook.hook_type,
-                    'estimated_retention': hook.estimated_retention,
-                    'best_for_content': hook.best_for_content
-                }
-                for hook in hooks
-            ],
-            'total_hooks': len(hooks)
-        }
-    except Exception as e:
-        logger.exception(f"Error generating hooks: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate hooks")
-
-
-@router.get("/api/ai/script-outline")
-@limiter.limit("20/minute")
-def generate_script_outline(
-    request: Request,
-    content_type: str = "reel",
-    topic: str = "general",
-    duration_seconds: int = 30,
-    current_user: str = Depends(get_current_user),
-    _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
-):
-    """Generate an AI script outline for content."""
-    if not AIContentGenerator:
-        raise HTTPException(status_code=500, detail="AI content generator not configured.")
-    
-    try:
-        generator = AIContentGenerator()
-        script = generator.generate_script_outline(content_type, topic, duration_seconds)
-        
-        return {
-            'script_outline': script,
-            'content_type': content_type,
-            'topic': topic,
-            'duration_seconds': duration_seconds
-        }
-    except Exception as e:
-        logger.exception(f"Error generating script outline: {e}")
-        raise HTTPException(status_code=500, detail="Failed to generate script outline")
 
 
 @router.post("/api/video/analyze-metadata")

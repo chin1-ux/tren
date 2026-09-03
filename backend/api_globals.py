@@ -225,12 +225,6 @@ except Exception as e:
     HashtagVelocityTracker = None
 
 try:
-    from topic_clustering import TopicClusteringEngine
-except Exception as e:
-    logger.warning(f"TopicClusteringEngine import failed: {e}")
-    TopicClusteringEngine = None
-
-try:
     from creator_analytics import CreatorAnalyticsEngine
 except Exception as e:
     logger.warning(f"CreatorAnalyticsEngine import failed: {e}")
@@ -271,12 +265,6 @@ try:
 except Exception as e:
     logger.warning(f"UserManager import failed: {e}")
     UserManager = None
-
-try:
-    from india_features import IndiaFeaturesEngine
-except Exception as e:
-    logger.warning(f"IndiaFeaturesEngine import failed: {e}")
-    IndiaFeaturesEngine = None
 
 try:
     from early_trend_detection import EarlyTrendDetector
@@ -477,14 +465,9 @@ outputs_path = os.path.join(base_dir, "outputs")
 os.makedirs(uploads_path, exist_ok=True)
 os.makedirs(outputs_path, exist_ok=True)
 
-# Rate limiter - use Redis if available, otherwise fall back to in-memory
-if REDIS_RATE_LIMITER_AVAILABLE:
-    # Custom Redis-backed rate limiting
-    limiter = Limiter(key_func=get_remote_address, enabled=False)  # Disable slowapi when using Redis
-    redis_limiter = get_rate_limiter()
-else:
-    limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
-    redis_limiter = None
+# Rate limiter — slowapi always enabled; Redis limiter available for future middleware use
+limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
+redis_limiter = get_rate_limiter() if REDIS_RATE_LIMITER_AVAILABLE else None
 
 from fastapi.middleware.gzip import GZipMiddleware
 try:
@@ -528,14 +511,14 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 # Normalize content_type variants → canonical keys so the frontend filter works
 CONTENT_TYPE_NORMALIZE = {
-    "faceless_video": "faceless",
-    "face_less":      "faceless",
     "narrative_edit": "narrative_edit",
     "text_overlay":   "text_overlay",
     "regional":       "regional",
     "motivation":     "motivation",
     "fitness":        "fitness",
     "study":          "study",
+    "news/political": "current_affairs",
+    "romance/relationship": "romance_relationship",
 }
 
 def _normalize_trends(trends: list) -> list:
@@ -543,18 +526,21 @@ def _normalize_trends(trends: list) -> list:
     if not trends:
         return trends
 
-    # Batch query reels for all trend titles in a single DB round-trip
-    titles = list(set(t.get("audio_title") for t in trends if t.get("audio_title")))
+    from audio_title_normalize import normalize_audio_title
+
+    # Batch query reels for all trend artists in a single DB round-trip
+    artists = list(set(t.get("audio_artist") for t in trends if t.get("audio_artist")))
     reels_lookup = {}
-    if titles and supabase:
+    if artists and supabase:
         try:
             res_reels = supabase.table("reels") \
                 .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score") \
-                .in_("audio_title", titles) \
+                .in_("audio_artist", artists) \
                 .execute()
             
             for r in (res_reels.data or []):
-                key = (r.get("audio_title"), r.get("audio_artist"))
+                norm_title = normalize_audio_title(r.get("audio_title", "") or "")
+                key = (norm_title, r.get("audio_artist"))
                 velocity = float(r.get("velocity_score") or 0.0)
                 existing = reels_lookup.get(key)
                 if not existing or velocity > float(existing.get("velocity_score") or 0.0):
@@ -568,8 +554,9 @@ def _normalize_trends(trends: list) -> list:
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         
-        # Inject matching reel details from lookup
-        key = (t.get("audio_title"), t.get("audio_artist"))
+        # Inject matching reel details from lookup using normalized title
+        norm_title = normalize_audio_title(t.get("audio_title", "") or "")
+        key = (norm_title, t.get("audio_artist"))
         match = reels_lookup.get(key)
         if match:
             t["reel_id"] = match.get("reel_id")

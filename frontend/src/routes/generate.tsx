@@ -2,12 +2,12 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { 
   Upload, X, Download, Share2, Flame, AlertTriangle, Play, Pause, Volume2, 
-  VolumeX, Sparkles, Film, AlignLeft, Layers, RefreshCw, Star, Info, ChevronRight, Check
+  VolumeX, Sparkles, AlignLeft, Layers, RefreshCw, Star, Info, ChevronRight, Check
 } from "lucide-react";
 import { z } from "zod";
 import { useQuery } from "@tanstack/react-query";
 import { 
-  fetchTrends, generateReel, generateNarrative, generateFaceless, repurposeVideo, jobStatus, 
+  fetchTrends, generateReel, generateNarrative, jobStatus, 
   resolveOutputUrl, scoreReel, type UiTrend 
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -23,14 +23,14 @@ export const Route = createFileRoute("/generate")({
   head: () => ({
     meta: [
       { title: "Generate your viral short — Trendrop" },
-      { name: "description", content: "AI-powered reel, narrative and faceless video creator." },
+      { name: "description", content: "AI-powered reel and narrative video creator." },
     ],
   }),
   component: GeneratePage,
   errorComponent: RouteErrorBoundary,
 });
 
-type Tab = "photos" | "narrative" | "faceless" | "repurpose";
+type Tab = "photos" | "narrative";
 type Stage = "upload" | "progress" | "result" | "error";
 
 interface PhotoItem {
@@ -61,14 +61,6 @@ const NARRATIVE_PRESETS = {
     defaultOverlays: ["3", "2", "1", "Reveal!"],
   },
 };
-
-const NICHES = [
-  { id: "motivation", label: "Motivation", emoji: "💪", hook: "This 1 rule will change your life..." },
-  { id: "finance", label: "Finance", emoji: "💰", hook: "How I saved ₹10,000 using this simple hack..." },
-  { id: "tech", label: "Tech & AI", emoji: "🤖", hook: "Stop scrolling! This AI is going viral right now..." },
-  { id: "fitness", label: "Fitness", emoji: "🏋️", hook: "Do this for 30 seconds every morning..." },
-  { id: "travel", label: "Travel Hacks", emoji: "✈️", hook: "Indian budget hacks they don't want you to know..." },
-];
 
 function GeneratePage() {
   const { trendId } = Route.useSearch();
@@ -110,27 +102,10 @@ function GeneratePage() {
   const [narrativeOverlays, setNarrativeOverlays] = useState<string[]>(NARRATIVE_PRESETS.before_after.defaultOverlays);
   const narrativeInputRef = useRef<HTMLInputElement>(null);
 
-  // Tab 3: Faceless state
-  const [niche, setNiche] = useState("motivation");
-  const [contentDescription, setContentDescription] = useState("");
-
-  // Tab 4: Repurpose state
-  const [repurposeVideoFile, setRepurposeVideoFile] = useState<File | null>(null);
-  const [repurposeVideoUrl, setRepurposeVideoUrl] = useState<string | null>(null);
-  const [selectedRepurposeTrendId, setSelectedRepurposeTrendId] = useState("");
-  const repurposeInputRef = useRef<HTMLInputElement>(null);
-
   // Update narrative overlays when type changes
   useEffect(() => {
     setNarrativeOverlays(NARRATIVE_PRESETS[narrativeType].defaultOverlays);
   }, [narrativeType]);
-
-  // Set default repurpose trend
-  useEffect(() => {
-    if (activeTrend) {
-      setSelectedRepurposeTrendId(activeTrend.id);
-    }
-  }, [activeTrend]);
 
   // Draggable image uploads
   const handlePhotos = (files: FileList | null, isNarrative = false) => {
@@ -158,27 +133,16 @@ function GeneratePage() {
   // Cleanup blob URLs on unmount
   const photosRef = useRef<PhotoItem[]>([]);
   const narrativePhotosRef = useRef<PhotoItem[]>([]);
-  const repurposeVideoUrlRef = useRef<string | null>(null);
   
   useEffect(() => { photosRef.current = photos; }, [photos]);
   useEffect(() => { narrativePhotosRef.current = narrativePhotos; }, [narrativePhotos]);
-  useEffect(() => { repurposeVideoUrlRef.current = repurposeVideoUrl; }, [repurposeVideoUrl]);
   
   useEffect(() => {
     return () => {
       photosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
       narrativePhotosRef.current.forEach((p) => URL.revokeObjectURL(p.url));
-      if (repurposeVideoUrlRef.current) URL.revokeObjectURL(repurposeVideoUrlRef.current);
     };
   }, []);
-
-  const handleRepurposeFile = (files: FileList | null) => {
-    if (!files || files.length === 0) return;
-    const file = files[0];
-    if (repurposeVideoUrl) URL.revokeObjectURL(repurposeVideoUrl);
-    setRepurposeVideoFile(file);
-    setRepurposeVideoUrl(URL.createObjectURL(file));
-  };
 
   // Polling logic
   const pollTimerRef = useRef<NodeJS.Timeout | null>(null);
@@ -274,45 +238,9 @@ function GeneratePage() {
     }
   };
 
-  const handleCreateFaceless = async () => {
-    if (!contentDescription.trim() || !activeTrend) return;
-    try {
-      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
-      const { job_id } = await generateFaceless({
-        trendId: activeTrend.id,
-        userEmail: email,
-        niche,
-        contentDescription,
-      });
-      startPolling(job_id);
-    } catch {
-      setErrorMsg("Failed to submit faceless generation request.");
-      setStage("error");
-    }
-  };
-
-  const handleRepurpose = async () => {
-    if (!repurposeVideoFile) return;
-    try {
-      const email = localStorage.getItem("trendrop_user_email") || "anonymous@trendrop.app";
-      const { job_id } = await repurposeVideo({
-        file: repurposeVideoFile,
-        trendId: selectedRepurposeTrendId,
-        userEmail: email,
-      });
-      startPolling(job_id);
-    } catch {
-      setErrorMsg("Failed to submit video repurposing request.");
-      setStage("error");
-    }
-  };
-
   const resetAll = () => {
     setPhotos([]);
     setNarrativePhotos([]);
-    setRepurposeVideoFile(null);
-    setRepurposeVideoUrl(null);
-    setContentDescription("");
     setStage("upload");
     setOutputUrl(null);
     setErrorMsg(null);
@@ -364,7 +292,7 @@ function GeneratePage() {
 
           {/* Tab Header */}
           <div className="bg-surface border border-border rounded-xl p-1 flex gap-1">
-            {(["photos", "narrative", "faceless", "repurpose"] as Tab[]).map((tab) => (
+            {(["photos", "narrative"] as Tab[]).map((tab) => (
               <button
                 key={tab}
                 onClick={() => setActiveTab(tab)}
@@ -595,171 +523,7 @@ function GeneratePage() {
             </div>
           )}
 
-          {/* TAB CONTENT: FACELESS */}
-          {activeTab === "faceless" && (
-            <div className="space-y-6">
-              {/* Niche Selector */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">1. Select Creator Niche</label>
-                <div className="flex flex-wrap gap-2">
-                  {NICHES.map((n) => (
-                    <button
-                      key={n.id}
-                      onClick={() => setNiche(n.id)}
-                      title={`Choose ${n.label}`}
-                      className={`flex items-center gap-1.5 px-3 py-2 rounded-full border text-xs font-bold transition-all ${
-                        niche === n.id 
-                          ? "border-violet-500 bg-violet-600/10 text-violet-600 dark:text-violet-300" 
-                          : "border-border bg-surface text-text-muted hover:text-text"
-                      }`}
-                    >
-                      <span>{n.emoji}</span>
-                      <span>{n.label}</span>
-                    </button>
-                  ))}
-                </div>
-              </div>
 
-              {/* Description */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">2. Prompt Description</label>
-                <textarea
-                  value={contentDescription}
-                  onChange={(e) => setContentDescription(e.target.value)}
-                  placeholder="Describe your video topic... (e.g. '3 lessons from Elon Musk regarding time management')"
-                  rows={4}
-                  className="w-full bg-surface border border-border rounded-xl px-4 py-3 text-sm text-text placeholder:text-text-muted focus:outline-none focus:border-violet-500 focus:ring-1 focus:ring-violet-500 transition-all resize-none"
-                />
-              </div>
-
-              {/* Preview Card */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-text-muted">3. Script Preview</label>
-                <div className="rounded-xl border border-border bg-surface p-4 relative overflow-hidden group">
-                  <div className="absolute top-0 right-0 p-2 bg-primary/10 border-l border-b border-border rounded-bl-xl text-[9px] font-bold text-primary flex items-center gap-1">
-                    <Sparkles className="h-3 w-3" /> Template
-                  </div>
-
-                  <div className="space-y-3 mt-2">
-                    <div>
-                      <span className="text-[10px] font-bold text-text-muted uppercase">Sample Hook</span>
-                      <p className="text-sm font-semibold text-text italic mt-0.5">
-                        "{contentDescription.trim() 
-                          ? `Why everyone is wrong about ${contentDescription.slice(0, 30)}...` 
-                          : NICHES.find(x => x.id === niche)?.hook}"
-                      </p>
-                    </div>
-
-                    <div>
-                      <span className="text-[10px] font-bold text-text-muted uppercase">Scene 1 Visuals</span>
-                      <p className="text-xs text-text-muted mt-0.5">
-                        Fast cut between stylized B-roll animations in dark theme matching {niche} aesthetic.
-                      </p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-
-              {/* Generate Button */}
-              <Button
-                onClick={handleCreateFaceless}
-                disabled={stage === "progress" || !contentDescription.trim()}
-                className="w-full h-12 bg-gradient-to-r from-violet-500 to-pink-500 hover:from-violet-600 hover:to-pink-600 text-white font-bold uppercase tracking-wider rounded-xl disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                {stage === "progress" ? (
-                  <span className="flex items-center gap-2">
-                    <RefreshCw className="h-4 w-4 animate-spin" />
-                    Generating...
-                  </span>
-                ) : (
-                  <span className="flex items-center gap-2">
-                    <Sparkles className="h-4 w-4" />
-                    Generate Faceless Video
-                  </span>
-                )}
-              </Button>
-            </div>
-          )}
-
-          {/* TAB CONTENT: REPURPOSE */}
-          {activeTab === "repurpose" && (
-            <div className="space-y-6">
-              {/* Video uploader */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">1. Upload Original Clip</label>
-                <input 
-                  ref={repurposeInputRef} 
-                  type="file" 
-                  accept="video/mp4,video/quicktime" 
-                  hidden 
-                  onChange={(e) => handleRepurposeFile(e.target.files)} 
-                />
-
-                {repurposeVideoUrl ? (
-                  <div className="relative aspect-[9/16] w-full max-h-60 rounded-xl overflow-hidden bg-black border border-white/15">
-                    <video src={repurposeVideoUrl} controls className="h-full w-full object-contain" />
-                    <button
-                      onClick={() => {
-                        setRepurposeVideoFile(null);
-                        setRepurposeVideoUrl(null);
-                      }}
-                      title="Remove selected video"
-                      aria-label="Remove selected video"
-                      className="absolute right-3 top-3 grid h-8 w-8 place-items-center rounded-xl bg-black/75 border border-white/10 text-slate-300 hover:text-white"
-                    >
-                      <X className="h-4 w-4" />
-                    </button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => repurposeInputRef.current?.click()}
-                    title="Select video clip"
-                    aria-label="Select video clip"
-                    className="flex w-full flex-col items-center justify-center gap-3 rounded-2xl border-2 border-dashed border-white/10 bg-slate-950 px-6 py-12 transition-colors hover:border-violet-500/40 hover:bg-slate-900/30 group"
-                  >
-                    <div className="grid h-12 w-12 place-items-center rounded-xl bg-white/5 text-slate-400 group-hover:text-violet-400 group-hover:bg-violet-500/10 transition-all">
-                      <Film className="h-5 w-5" />
-                    </div>
-                    <div className="text-center">
-                      <p className="font-semibold text-slate-200">Select Video Clip</p>
-                      <p className="text-xs text-slate-400 mt-1">Supports MP4, MOV up to 60 seconds</p>
-                    </div>
-                  </button>
-                )}
-              </div>
-
-              {/* Select active trend */}
-              <div className="space-y-2">
-                <label className="text-xs font-bold uppercase tracking-wider text-slate-400">2. Select Target Trend Sound</label>
-                <div className="relative">
-                    <select
-                      value={selectedRepurposeTrendId}
-                      onChange={(e) => setSelectedRepurposeTrendId(e.target.value)}
-                      aria-label="Select target trend sound"
-                      title="Select target trend sound"
-                    className="w-full bg-slate-950 border border-white/10 rounded-xl px-4 py-3 text-sm text-slate-200 focus:outline-none focus:border-violet-500 appearance-none"
-                  >
-                    {trends && Array.isArray(trends) && trends.map((t) => (
-                      <option key={t.id} value={t.id} className="bg-slate-900 text-slate-100">
-                        🎵 {t.song} — {t.artist}
-                      </option>
-                    ))}
-                  </select>
-                  <div className="pointer-events-none absolute right-4 top-1/2 -translate-y-1/2 text-slate-400">
-                    ▼
-                  </div>
-                </div>
-              </div>
-
-              <Button
-                onClick={handleRepurpose}
-                disabled={!repurposeVideoFile}
-                className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white tracking-wider rounded-xl shadow-lg shadow-violet-500/20 disabled:opacity-50"
-              >
-                Repurpose with Beat Sync
-              </Button>
-            </div>
-          )}
         </div>
       )}
 
@@ -887,7 +651,7 @@ function GeneratePage() {
                   audio,
                   caption: `Trending reel using ${audio}`,
                   posting_time: postingTime,
-                  niche: niche || "general",
+                  niche: "general",
                 });
                 setScoreDetails({
                   overall: Math.round(res.overall_score),
@@ -899,6 +663,9 @@ function GeneratePage() {
                     : `Grade ${res.grade} — Audio sync and hook strength are the key drivers.`,
                 });
                 setShowScoreCard(true);
+                if (res.is_fallback) {
+                  import("sonner").then(({ toast }) => toast.warning(res.fallback_reason || "Showing fallback score — LLM unavailable"));
+                }
               } catch {
                 import("sonner").then(({ toast }) => toast.error("Score API unavailable — try again shortly."));
               } finally {

@@ -14,7 +14,10 @@ Every claim has a file:line citation. Every status change made in this pass has 
 5. [Frontend Design Problems](#5-frontend-design-problems)
 6. [Database & Data Quality Problems](#6-database--data-quality-problems)
 7. [Workflow & DevOps Problems](#7-workflow--devops-problems)
-8. [Cross-cutting Truth Problems](#8-cross-cutting-truth-problems)
+8. [Trust & Fake-Feature Problems](#8-trust--fake-feature-problems)
+9. [Payment & Subscription Problems (continued)](#9-payment--subscription-problems-continued)
+10. [Cross-cutting Truth Problems](#10-cross-cutting-truth-problems)
+11. [Strategic & Fundraising Problems](#11-strategic--fundraising-problems)
 
 ---
 
@@ -645,6 +648,36 @@ Each page uses different card styles, input styles, button styles, and color tok
 **Action required:** Code-level join in `instagram_scraper_browser.py` to pull `owner_follower_count` from `creator_baselines` at scrape time. After that ships, existing rows won't self-heal — the backfill script (`backend/backfill_follower_counts.py`, commit `3cfa1eea`) must be re-run periodically as new baselines accumulate.
 **Status (Aug 2026):** Backfill script written and run. 4% of rows backfilled (303/7,467). 95% of rows still on the 2,500 fallback. Velocity is still functionally unnormalized for the vast majority of live data. Severity stays HIGH until the code-level join ships and backfill is re-run to cover more rows.
 
+### P-SCRAPER-3: `GLOBAL_NICHES` hashtag group referenced but doesn't exist — silently drops hashtag slots [UNVERIFIED — needs confirmation against current code before fix]
+**File:** `backend/instagram_scraper_browser.py:1752`
+**Problem:** The priority selection logic references `GLOBAL_NICHES` as a hashtag group, but this group is not defined in the hashtag groups dictionary. When the code reaches line 1752, the lookup fails silently — the 5 hashtag slots allocated to `GLOBAL_NICHES` are dropped with no error, warning, or fallback. The scraper runs with fewer hashtags than intended.
+**Impact:** Reduced hashtag coverage. The scraper was designed to use 15 hashtags per run but effectively uses fewer because the GLOBAL_NICHES group doesn't exist. This silently reduces data diversity and coverage, particularly for non-India content.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+### P-SCRAPER-4: 154 hashtags defined but only 17 used by default — 12 of 14 groups are India-specific, GLOBAL_DISCOVERY never used [UNVERIFIED — needs confirmation against current code before fix]
+**File:** `backend/instagram_scraper_browser.py` (hashtag groups definition + default mode selection)
+**Problem:** The scraper defines ~154 hashtags across 14 groups, but default mode only selects:
+- 6 from INDIA_TRENDING
+- 6 from INDIA_VERNACULAR
+- 5 from EVENT_HASHTAGS
+- 0 from GLOBAL_NICHES (dead reference, see P-SCRAPER-3)
+
+This means 12 of 14 hashtag groups are India-specific, and the GLOBAL_DISCOVERY group (14 hashtags) is never used in default mode. Non-India content is structurally underrepresented in the scraped dataset.
+**Impact:** The scraper produces an India-heavy dataset by design, but the product markets itself as supporting global trending audio. Users outside India (or looking for global trends) see limited data. The 154-hashtag definition creates an illusion of breadth that doesn't exist in practice.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+### P-SCRAPER-5: `trend_refresher.py:117-119` hard-exits for peaked/expired trends — no velocity recalculation or re-promotion [UNVERIFIED — needs confirmation against current code before fix]
+**File:** `backend/trend_refresher.py:117-119`
+**Problem:** The trend refresher has a hard exit for any trend not in `['emerging', 'rising']` status:
+```python
+if current_status not in ["emerging", "rising"]:
+    return local_summary  # HARD EXIT
+```
+Once a trend reaches `peaked` or `expired` status, the refresher immediately returns without recalculating velocity, checking for resurgence, or attempting re-promotion. Peaked/expired trends are terminal — they sit in the DB indefinitely with stale metrics.
+**Impact:** Trends that experience a second wave of virality (common with music — a song can trend, peak, then trend again when used in a new context) are never re-detected unless the scraper happens to find them again through a full re-detection cycle. With only 17 hashtags scraped (P-SCRAPER-4), re-detection is unlikely for most audios.
+**Note:** This is the same root cause as the three-track redesign scoping mentioned in the audit. Link to that work — do not spin up a second parallel fix.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
 ---
 
 ## 7. WORKFLOW & DEVOPS PROBLEMS
@@ -716,7 +749,100 @@ Each page uses different card styles, input styles, button styles, and color tok
 
 ---
 
-## 8. CROSS-CUTTING TRUTH PROBLEMS
+## 8. TRUST & FAKE-FEATURE PROBLEMS
+
+### P-TRUST-1: Faceless feature is end-to-end broken — no LLM, no text-to-video, writes placeholder file [VERIFIED — DELETED]
+**Files:** `frontend/src/routes/generate.tsx:602-685` (faceless tab UI), `backend/reel_generator.py` (worker)
+**Problem:** The faceless feature presents a functional UI (niche selection, description input, hardcoded template preview) but the backend path is completely non-functional:
+- Frontend sends `niche` and `description` to the API
+- Backend `ReelGenerator.generate_reel()` requires a `files` parameter (images) which is `None` from this path → crashes
+- Fallback handler writes a text file: `PLACEHOLDER_OUTPUT:[Faceless content: {niche}]...` saved as `{job_id}.mp4`
+- No LLM call exists anywhere in the path — no script generation, no voiceover, no text-to-video API
+- The "preview" shown to users is a hardcoded template, not generated content
+**Impact:** Users are shown a feature that looks functional but produces a text file named `.mp4`. If anyone actually tries to use this, trust in the entire app is destroyed. The Sparkles icon and polished UI create a false expectation of AI capability.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Deleted entire faceless feature end-to-end: frontend tab content + state + handlers + NICHES constant, backend `/api/generate-faceless` endpoint, `faceless_generation` handler in `run_job_simulation`, `generateFaceless` API function, `faceless_video`/`face_less` content type normalizers. `reel_generator.py` left as-is (marked deprecated, not imported by production).
+
+### P-TRUST-2: AIContentGenerator — 3 of 4 "AI" tabs are static templates with no LLM call [VERIFIED — 3 fake tabs DELETED, only Caption kept]
+**File:** `frontend/src/components/AIContentGenerator.tsx`
+**Problem:** The AIContentGenerator had 4 tabs, all styled with Sparkles icons suggesting AI capability:
+1. **Caption** — ACTUALLY calls LLM (`/api/ai/generate-caption`) ✅
+2. **Content Ideas** — Dictionary lookup from hardcoded `CONTENT_IDEAS` dict. `CONTENT_IDEAS[niche][Math.floor(Math.random() * ideas.length)]` — no API call, no LLM. ❌
+3. **Hooks** — `hash(topic) % templates.length` — deterministic hash-based template selection, no API call. ❌
+4. **Script Outline** — Hardcoded time segments (0-3s hook, 3-15s body, 15-25s climax, 25-30s CTA). No API call. ❌
+**Impact:** 75% of the "AI Content Generator" is static content with an AI-branded UI. Users who try Content Ideas, Hooks, or Script Outline are getting dictionary lookups and hash selections — something a static list could do without the AI pretense. This is deceptive UX.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Deleted 3 fake tabs (Content Ideas, Hooks, Script Outline) from frontend `AIContentGenerator.tsx` — removed tab triggers, tab content, state variables, handler functions, unused imports (`Lightbulb`, `Wand2`, `Clock`). Removed corresponding API functions (`generateContentIdeas`, `generateAIHooks`, `generateScriptOutline`) and `ContentIdea`/`HookSuggestion` interfaces from `api.ts`. Removed backend endpoints (`/api/ai/content-ideas`, `/api/ai/generate-hooks`, `/api/ai/script-outline`) from `routes/ai.py`. Only Caption tab remains with real LLM-backed generation. Note: POST `/api/generate-hooks` (used by studio.tsx) calls `creator_tools.generate_hooks` which uses Gemini LLM — this is a real endpoint and was NOT removed.
+
+### P-TRUST-3: Repurpose feature is just `shutil.copy2(input, output)` — no processing [VERIFIED — DELETED]
+**File:** Backend repurpose endpoint (reported, needs file:line confirmation)
+**Problem:** The repurpose feature copies the input file to the output path with no transformation. No format conversion, no resizing, no caption overlay, no platform-specific adaptation. The user expects "repurpose this Reel for TikTok/YouTube Shorts" and gets an identical file.
+**Impact:** Feature is functionally a file copy disguised as a content repurposing tool. Any user who tries it will feel deceived.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Deleted entire repurpose feature: frontend tab content + state + handlers + `repurposeInputRef` + cleanup refs, backend `/api/repurpose` endpoint, `repurpose` handler in `run_job_simulation` (shutil.copy2 path), `repurposeVideo` API function, `/api/repurpose` from rate limiting config and upload size check.
+
+### P-TRUST-4: `video_virality_scorer.py` has unreachable dead code after return statement [VERIFIED — DELETED]
+**File:** `backend/video_virality_scorer.py:~152`
+**Problem:** A `return` statement at approximately line 152 was followed by ~60 lines of unreachable duplicate code. The dead code was a copy-paste of the function's logic that was never cleaned up after the return was added.
+**Impact:** Dead code increases maintenance burden and confusion. Developers may edit the unreachable code thinking it's active, or the return may have been added accidentally (in which case the function is missing its intended second half).
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Deleted the unreachable duplicate block (lines 162-221) after the `return` statement at line 152. The `get_improvement_suggestions` method that follows is now directly after the `score_video` return.
+
+---
+
+## 9. PAYMENT & SUBSCRIPTION PROBLEMS (continued)
+
+### P-PAY-10: 4 conflicting plan-naming schemes and 5 conflicting Pro prices across files [VERIFIED — phantom tiers cleaned, commit d709a2c]
+**Files:** `backend/plan_enforcement.py`, `backend/migrate_plans_consolidation.py`, `backend/migrate_credits_system.sql`, `backend/add_user_management_tables.py`, `backend/setup_accounts.py`, `frontend/src/components/PlanGate.tsx`, `frontend/src/routes/pricing.tsx`
+**Problem:** At least 4 different naming conventions coexist for plan tiers:
+- `free` / `pro` — plan_enforcement.py, migrate_credits_system.sql
+- `free` / `early_bird` / `pro` — plan_enforcement.py CREATOR_TIERS
+- `free` / `creator` / `agency` — migrate_plans_consolidation.py, setup_accounts.py
+- `free` / `pro` / `business` — add_user_management_tables.py
+
+Additionally, 5 different prices appear for the "Pro" tier across files: ₹19 (add_user_management_tables.py), ₹499 (migrate_credits_system.sql), ₹999 (pricing.tsx frontend), ₹2,999 (plan_enforcement.py docstring), ₹999/month (PlanGate.tsx CTA).
+**Impact:** Any new developer or contributor will be confused about which naming is canonical. Migration scripts may create conflicting data. The pricing page shows one price while backend config may enforce a different one.
+**Link:** This finding is related to a separate direct re-verification task queued for this codebase — do not duplicate that work. This PROBLEMS.md entry documents the audit-pass observation; the verification task will confirm current state.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Phantom `early_bird` and `agency` tiers removed from `CREATOR_TIERS` in `plan_enforcement.py`. Only `free` and `pro` remain. All 17 code-level checks pass. Browser verification: `free` user sees gate, `pro` user sees full dashboard with AI Generator tab (no gate). Screenshot evidence: `ppay_pro_dashboard.png`, `ppay_free_dashboard.png`, `ppay_pro_ai_generator.png`. Deployed via CLI (`npx vercel deploy --prod --yes --force`). Bundle `index-DQD3VWUG.js` confirmed loading in production browser.
+
+### P-PAY-11: PlanGate.tsx only checks `currentPlan === 'pro'` — locks out other tier names [VERIFIED — dead tier references cleaned + prices fixed, commit d709a2c]
+**File:** `frontend/src/components/PlanGate.tsx:21`
+**Problem:** The access check is `const canAccess = currentPlan === 'pro'`. Users with plan values `'agency'`, `'business'`, or `'early_bird'` (all defined in various backend files) would be incorrectly denied access to paid features. The gate is a strict string equality check against a single value, not a membership check against a set of paid tiers.
+**Impact:** If any user has a plan name other than exactly `'pro'`, they are treated as free-tier regardless of what they paid. This is a revenue leak for any tier beyond the single hardcoded value.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Removed dead `'agency'` from `isPro` helper (if it existed). Phantom tiers `early_bird` and `agency` removed from backend `CREATOR_TIERS`. CTA price fixed from ₹999 → ₹499/month in `PlanGate.tsx:46`. Pricing page price fixed from ₹999 → ₹499 in `pricing.tsx:109`. Browser verification: pro user sees full dashboard, free user sees gate with "₹499/month" price.
+
+### P-PAY-12: AIContentGenerator is fully ungated for free users despite pricing page stating Pro-only [VERIFIED — PlanGate wrapper added, commit d709a2c]
+**Files:** `frontend/src/components/AIContentGenerator.tsx`, `frontend/src/routes/pricing.tsx`
+**Problem:** The pricing page lists AI content generation as a Pro feature. However, the AIContentGenerator component has no `PlanGate` wrapper or `require_feature` check — any authenticated user (including free-tier) can access all 4 AI tabs (Caption, Content Ideas, Hooks, Script Outline) without restriction.
+**Impact:** Free users get Pro features without paying. The pricing page's feature comparison is inaccurate. Revenue leakage — users who would upgrade for AI tools don't need to.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Wrapped `AIContentGenerator` in `<PlanGate requiredPlan="pro">` at `dashboard.tsx:146-148`. Free user browser test: gate renders "AI Content Generator requires a Pro plan" with "Upgrade to Pro →" CTA. Pro user browser test: AI Generator tab visible, no gate text, Caption Kit renders with "Generate" button and trend input. Bundle proof: `index-DQD3VWUG.js` (contains `requiredPlan` and `499`) confirmed loading in production via Playwright network tab.
+
+### P-PAY-13: `credits_used_this_month` set to single-operation cost instead of accumulated — plus read+write race condition [VERIFIED — accumulation fixed, commit d709a2c]
+**File:** `backend/plan_enforcement.py` (reported location)
+**Problem:** Two bugs in the credits tracking:
+1. `credits_used_this_month` is set to the cost of the current operation rather than accumulating the running total. A user who uses 3 operations at 5 credits each would see `credits_used_this_month = 5` instead of `15`.
+2. The read-modify-write cycle for credit deduction is not atomic. Two concurrent requests could both read the same balance, both pass the insufficient-credits check, and both deduct — resulting in a negative balance or double-spend.
+**Impact:** Credit balances are inaccurate. Users may exceed their plan limits without detection. Under concurrency, credits can be overspent.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Aug 22, 2026):** Changed `credits_used_this_month = cost` → `credits_used_this_month = old_used + cost` in `_deduct_credits()` (plan_enforcement.py). DB accumulation test confirmed: 3×5-credit ops → `credits_used_this_month = 15` (correct). 500-credit deduction from 300 balance → 403 "credit_limit_exceeded" (correct). Concurrency race condition not addressed (pre-revenue, low traffic — acceptable risk).
+
+### P-PAY-14: Dead/broken references — TIER_DAILY_LIMITS, normalize_plan_name, to_display_plan_name, require_quota, contradictory test files [UNVERIFIED — needs confirmation against current code before fix]
+**Files:** `backend/plan_enforcement.py`, test files
+**Problem:** Multiple dead code references exist:
+- `TIER_DAILY_LIMITS` — defined in plan_enforcement.py but never enforced anywhere. Appears to be a leftover from a daily-limit-based quota system that was replaced by credits.
+- `normalize_plan_name` — referenced in test files but function does not exist in production code. Tests that reference it would fail if executed.
+- `to_display_plan_name` — same as above — referenced but not defined.
+- `require_quota` — imported in some files but the function does not exist. Calls to it would raise `ImportError` or `NameError`.
+- Two separate `test_plan_normalization.py` files exist with contradictory test expectations.
+**Impact:** Dead code creates confusion for developers. Missing functions would cause runtime errors if the code paths that reference them are ever reached. Contradictory tests mean the test suite cannot be trusted as a source of truth.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+
+---
+
+## 10. CROSS-CUTTING TRUTH PROBLEMS
 
 These are claims made in the codebase or marketing that are not supported by the actual code.
 
@@ -827,7 +953,7 @@ These are claims made in the codebase or marketing that are not supported by the
 
 ---
 
-## 9. STRATEGIC & FUNDRAISING PROBLEMS
+## 11. STRATEGIC & FUNDRAISING PROBLEMS
 
 ### P-FUND-1: Payment flow is dead — no revenue, no fundraising
 **Files:** `backend/.env` (missing `RAZORPAY_KEY_ID`/`RAZORPAY_KEY_SECRET`), `backend/api.py:6884` (webhook fails without keys)
