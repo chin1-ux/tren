@@ -126,7 +126,7 @@ Return ONLY a JSON response in the following format:
         result = self._call_gemini(system_prompt, user_prompt)
         if not result:
             # Fallback — LLM call failed, returning estimated defaults.
-            # is_simulated: True so the frontend can show a clear warning.
+            # is_fallback + is_simulated so the frontend can show a clear warning.
             result = {
                 "overall_score": 75,
                 "breakdown": {"hook_strength": 70, "audio_match": 80, "seo_and_caption": 70, "hashtags": 80, "timing": 80},
@@ -136,6 +136,8 @@ Return ONLY a JSON response in the following format:
                     "Align your voiceover and on-screen text with the same primary keyword."
                 ],
                 "estimated_reach_multiplier": "1.2x",
+                "is_fallback": True,
+                "fallback_reason": "LLM unavailable — showing generic score",
                 "is_simulated": True
             }
         else:
@@ -235,10 +237,25 @@ Return ONLY a JSON response in the following format:
             lang = user_res.data[0].get("language_preference", "en")
 
         # Fetch recent trends in this language/niche to contextualize
-        trends_res = self.supabase.table("trends").select("*").eq("language", lang).order("velocity_avg", desc=True).limit(3).execute()
+        trends_res = self.supabase.table("trends").select("*").eq("is_seed_data", False).eq("language", lang).order("velocity_avg", desc=True).limit(3).execute()
         trends_context = ""
         if trends_res.data:
-            trends_context = "Current active trends: " + ", ".join([f"'{t['audio_title']}' ({t['content_type']})" for t in trends_res.data])
+            trend_lines = []
+            for t in trends_res.data:
+                artist = t.get("audio_artist", "Unknown")
+                niche = t.get("niche_tag", "general")
+                hook = t.get("hook_brief", "")
+                ideal = t.get("ideal_content_description", "")
+                sample_caps = t.get("sample_captions", "")
+                line = f"- Audio: '{t['audio_title']}' by {artist} | Niche: {niche}"
+                if hook:
+                    line += f" | Hook insight: {hook}"
+                if ideal:
+                    line += f" | What works: {ideal}"
+                if sample_caps:
+                    line += f" | Top captions: {sample_caps[:200]}"
+                trend_lines.append(line)
+            trends_context = "Current active trends:\n" + "\n".join(trend_lines)
 
         system_prompt = "You are a creative director for a top creator agency specializing in Instagram Reels. You generate actionable, specific video ideas grounded in real content formats. Never invent trend names that don't exist."
         user_prompt = f"""
@@ -278,9 +295,9 @@ Return ONLY a JSON response in the following format:
 
         if not isinstance(result, list):
             result = [
-                {"title": f"The Ultimate {niche} Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM"},
-                {"title": "Day in the Life of a Creator", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM"},
-                {"title": "My Biggest Mistake in " + niche, "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM"}
+                {"title": f"The Ultimate {niche} Hack", "description": "Show a 15-second hack of something in your niche.", "hook": "Stop doing it the hard way!", "audio_suggestion": "Upbeat trending pop", "posting_time": "6:30 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"},
+                {"title": "Day in the Life of a Creator", "description": "B-roll of your daily routine with text overlay.", "hook": "What my typical day actually looks like...", "audio_suggestion": "Chill Lofi", "posting_time": "8:00 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"},
+                {"title": "My Biggest Mistake in " + niche, "description": "Share a relatable mistake and how you solved it.", "hook": "Don't make this mistake I made...", "audio_suggestion": "Dramatic build-up", "posting_time": "7:15 PM", "is_fallback": True, "fallback_reason": "LLM unavailable — showing template ideas"}
             ]
         return result
 
@@ -321,6 +338,8 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
         if not result or "calendar" not in result:
             # Fallback
             result = {
+                "is_fallback": True,
+                "fallback_reason": "LLM unavailable — showing generic calendar template",
                 "calendar": [
                     {"day": i, "topic": f"Day {i} challenge/tip", "hook": f"Here is tip #{i}...", "audio_style": "Trending audio", "hashtags": [f"#{niche}"], "posting_time": "6:00 PM"}
                     for i in range(1, 31)
@@ -358,7 +377,7 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
                     })
             
             # Match top 3 flops against trending audio
-            trends_res = self.supabase.table("trends").select("*").order("velocity_avg", desc=True).limit(3).execute()
+            trends_res = self.supabase.table("trends").select("*").eq("is_seed_data", False).order("velocity_avg", desc=True).limit(3).execute()
             trends = trends_res.data or []
             
             diagnostics = {

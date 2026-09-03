@@ -98,6 +98,28 @@ class CaptionEngine:
         velocity_avg = trend.get("velocity_avg", 5.0)
         window_hours = trend.get("window_hours_remaining", 24)
         cultural_context = trend.get("cultural_context", "everyday")
+        hook_brief = trend.get("hook_brief", "")
+        sample_caps = trend.get("sample_captions", "")
+
+        # Fetch top 5 real reel captions for this audio to ground the LLM
+        real_captions = ""
+        try:
+            audio_id = trend.get("audio_id")
+            if audio_id and self.supabase:
+                reels_res = self.supabase.table("reels").select("caption, like_count, comment_count") \
+                    .eq("audio_id", str(audio_id)) \
+                    .order("like_count", desc=True) \
+                    .limit(5).execute()
+                if reels_res.data:
+                    caps = []
+                    for r in reels_res.data:
+                        c = (r.get("caption") or "")[:150]
+                        likes = r.get("like_count", 0)
+                        if c:
+                            caps.append(f'"{c}" ({likes} likes)')
+                    real_captions = "\n".join(caps)
+        except Exception as e:
+            logger.debug(f"Could not fetch reel captions: {e}")
 
         lang_instruction = {
             "hi": "Write captions in Hindi (Devanagari script) naturally mixed with English (Hinglish style).",
@@ -119,10 +141,16 @@ Trend details:
 - Ideal content: {ideal_desc}
 - Edit style: {edit_style}
 - Cultural context: {cultural_context}
+- Hook insight: {hook_brief or 'Not yet analyzed'}
 - Viral multiplier: {velocity_avg:.1f}x above normal
 - Hours remaining in trend window: {window_hours}h
 
-Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON only):
+Top-performing captions using this audio (learn from what works):
+{real_captions or sample_caps or '(No real captions available yet — generate based on the audio and context above)'}
+
+CRITICAL: You MUST return ALL 7 top-level keys. Do not omit any. If you are unsure about a field, provide your best guess. Partial responses are not acceptable.
+
+Return ONLY valid JSON with exactly this structure (no markdown, no code blocks):
 {{
   "captions": [
     {{
@@ -172,23 +200,45 @@ Generate a JSON caption kit with EXACTLY this structure (no markdown, raw JSON o
     }}
   }}
 }}
+
+ALL 7 KEYS REQUIRED: captions, hashtags, audio_cue, posting_strategy, saturation_alert, keyword_strategy, viral_pattern_script.
 """
 
-        system_instruction = "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks."
+        system_instruction = "You are a viral content strategist. Return ONLY valid JSON. No markdown. No code blocks. ALL 7 top-level keys are mandatory — never omit any."
+        REQUIRED_FIELDS = {"captions", "hashtags", "audio_cue", "posting_strategy", "saturation_alert", "keyword_strategy", "viral_pattern_script"}
         max_attempts = 3
+        last_result = None
         for attempt in range(1, max_attempts + 1):
             try:
                 kit = call_llm(system_instruction, prompt, timeout=30)
-                logger.info(f"Caption kit generated for '{audio_title}'")
-                return kit
+                last_result = kit
+                if isinstance(kit, dict):
+                    missing = REQUIRED_FIELDS - set(kit.keys())
+                    if not missing:
+                        logger.info(f"Caption kit generated for '{audio_title}' (all {len(REQUIRED_FIELDS)} fields)")
+                        return kit
+                    logger.warning(f"Attempt {attempt}: LLM returned {len(missing)} missing fields: {missing}")
+                else:
+                    logger.warning(f"Attempt {attempt}: LLM returned non-dict type {type(kit)}")
             except Exception as e:
                 logger.warning(f"Attempt {attempt} failed: {e}")
-                if attempt < max_attempts:
-                    time.sleep(attempt * 3)
+            if attempt < max_attempts:
+                time.sleep(attempt * 3)
+
+        # All attempts done — return what we have with disclosure about missing fields
+        if last_result and isinstance(last_result, dict):
+            missing = sorted(REQUIRED_FIELDS - set(last_result.keys()))
+            if missing:
+                last_result["is_partial"] = True
+                last_result["missing_fields"] = missing
+                logger.warning(f"Caption kit for '{audio_title}' partial — missing: {missing}")
+            return last_result
 
         # Fallback kit if Gemini fails
         logger.error(f"All attempts failed for caption kit of '{audio_title}'. Returning fallback.")
         return {
+            "is_fallback": True,
+            "fallback_reason": "LLM unavailable after retries — showing template captions",
             "captions": [
                 {"vibe": "emotional", "text": f"This song hits different 🎵✨ '{audio_title}' — save this for later 🙏"},
                 {"vibe": "funny", "text": f"Me scrolling at 2AM and hearing '{audio_title}' 😭💀 #relatable"},
