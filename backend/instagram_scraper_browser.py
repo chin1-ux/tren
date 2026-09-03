@@ -14,6 +14,17 @@ from classification_rules import build_source_hashtag_pool, classify_content_ton
 from event_monitor import EventMonitor
 import requests
 
+try:
+    from llm import call_llm
+except ImportError:
+    try:
+        from backend.llm import call_llm
+    except ImportError:
+        try:
+            from .llm import call_llm
+        except ImportError:
+            call_llm = None
+
 # Camoufox stealth browser (install with: pip install 'camoufox[geoip]' && python -m camoufox fetch)
 try:
     from camoufox.async_api import AsyncCamoufox as CamoufoxBrowser
@@ -51,176 +62,12 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
         return 24
     return 4
 
-# Maps language keywords (in audio title / caption / hashtags) → ISO 639-1 code
-LANG_KEYWORD_MAP: dict[str, str] = {
-    # -- Bollywood / Hindi --
-    "arijit": "hi", "alka": "hi", "pritam": "hi", "rahman": "hi", "sachin": "hi", "amit": "hi", "neha": "hi", "vishal": "hi",
-    "shreya": "hi", "armaan": "hi", "badshah": "hi", "dhvani": "hi", "jubin": "hi", "anu malik": "hi", "hema sardesai": "hi", 
-    "shaarib toshi": "hi", "kumaar": "hi", "tanishk": "hi", "bagchi": "hi", "shreya ghoshal": "hi", "sonu nigam": "hi", 
-    "sunidhi": "hi", "shankar": "hi", "ehsaan": "hi", "loy": "hi", "udit narayan": "hi", "kumar sanu": "hi", "lata": "hi", 
-    "asha bhosle": "hi", "kishore": "hi", "rafi": "hi", "malik": "hi", "sardesai": "hi", "bollywood": "hi", "hindi song": "hi", 
-    "hindi music": "hi", "bhojpuri": "hi", "pawan singh": "hi", "khesari": "hi", "shilpi raj": "hi", "manoj tiger": "hi",
-    "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi",
-    "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
-    "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
-    "asees kaur": "hi", "anuv jain": "hi", "des rangila": "hi", "chak de india": "hi", 
-    "o sanam": "hi", "jhalak dikhla ja": "hi",
-    "khatam nahi hoga": "hi", "ghar se bhaag": "hi",
-
-    # -- Tamil --
-    "anirudh": "ta", "sai abhyankkar": "ta", "gana muthu": "ta", "vishnu edavan": "ta", "edavan": "ta", "kollywood": "ta", 
-    "tamil song": "ta", "thalapathy": "ta", "thalaiva": "ta", "a.r. rahman": "ta", "yuvan": "ta", "g.v. prakash": "ta", 
-    "vijay": "ta", "suriya": "ta", "dhanush": "ta", "rajinikanth": "ta", "kamal haasan": "ta", "harris jayaraj": "ta",
-    "imman": "ta", "vidyasagar": "ta", "ilayaraja": "ta", "santhosh narayanan": "ta", "karthik": "ta", "sid sriram": "ta",
-    "tamilsong": "ta", "tamilreels": "ta", "tamil": "ta",
-    
-    # -- Telugu --
-    "tollywood": "te", "telugu song": "te", "allu arjun": "te", "mahesh babu": "te", "ram charan": "te", "thaman": "te", 
-    "dsp": "te", "devi sri prasad": "te", "ntr": "te", "prabhas": "te", "pawan kalyan": "te", "chiranjeevi": "te", 
-    "mm keeravani": "te", "keeravani": "te", "mani sharma": "te", "anantha sreeram": "te", "chandrabose": "te", 
-    "s.p. balu": "te", "spb": "te", "ramajogayya": "te",
-    "telugusong": "te", "telugureels": "te", "telugu": "te",
-    
-    # -- Punjabi --
-    "diljit": "pa", "ap dhillon": "pa", "punjabi song": "pa", "punjabi music": "pa", "sidhu moose wala": "pa", 
-    "karan aujla": "pa", "harrdy sandhu": "pa", "ammy virk": "pa", "guru randhawa": "pa", "b praak": "pa", "jaani": "pa", 
-    "parmish verma": "pa", "jass manak": "pa", "honey singh": "pa", "mankirt": "pa", "shubh": "pa", "sukhe": "pa", 
-    "gurinder gill": "pa", "brown munde": "pa",
-    "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa",
-    "satinder sartaaj": "pa", "daler mehndi": "pa", "harsh nussi": "pa", "babbu maan": "pa",
-    
-    # -- Bhojpuri --
-    "bhojpuri": "bho", "pawan singh": "bho", "khesari": "bho", "shilpi raj": "bho", "manoj tiger": "bho",
-    "tuntun yadav": "bho", "neelkamal singh": "bho", "khushi kakkar": "bho", "bhojpurisong": "bho", "bhojpurireel": "bho",
-
-    # -- Haryanvi --
-    "masoom sharma": "hne", "renuka panwar": "hne", "sapna choudhary": "hne", "pranjal dahiya": "hne",
-    "haryanvisong": "hne", "haryanvireel": "hne", "desi chore": "hne",
-
-    # -- Malayalam --
-    "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
-    "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
-    "malayalamsong": "ml", "malayalam": "ml",
-    
-    # -- Kannada --
-    "sandalwood": "kn", "kannada song": "kn", "yash": "kn", "kiccha": "kn", "sudeep": "kn", "darshan": "kn", 
-    "puneeth": "kn", "ravi basrur": "kn", "v. harikrishna": "kn", "arjun janya": "kn", "sanjith hegde": "kn", 
-    "vijay prakash": "kn", "hemanth": "kn",
-    "kannadareels": "kn", "kannada": "kn",
-    
-    # -- Marathi --
-    "ajay atul": "mr", "marathi song": "mr", "avdhoot gupte": "mr", "swapnil bandodkar": "mr", "bela shende": "mr",
-    " आदर्श shinde": "mr", "anand shinde": "mr",
-    "marathisong": "mr", "marathireels": "mr", "marathi": "mr",
-    
-    # -- Bengali --
-    "bengali song": "bn", "arijit singh": "bn", "anupam roy": "bn",
-    "bengalisong": "bn", "bengalireels": "bn", "bengali": "bn",
-    
-    # -- Other --
-    "english": "en"
-}
-
-# Maps specific hashtags used as pool seeds → guaranteed language code (highest priority)
-VERNACULAR_HASHTAG_LANG: dict[str, str] = {
-    "hindireels": "hi",
-    "punjabisongs": "pa",
-    "tamilreels": "ta",
-    "telugureels": "te",
-    "kannadareels": "kn",
-    "marathireels": "mr",
-    "bengalireels": "bn",
-    "bhojpurireel": "bho",
-    "haryanvireel": "hne",
-    "tirangayatra": "hi",
-}
-
-_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn", "bho", "hne"}
-
-
-def _normalize_text(t: str) -> str:
-    if not t:
-        return ""
-    t = t.lower()
-    t = re.sub(r'[^a-z0-9]', ' ', t)
-    t = re.sub(r'\s+', ' ', t).strip()
-    return t
-
-_SCRIPT_RANGES = {
-    "hi": ("\u0900", "\u097F"), # Devanagari
-    "bn": ("\u0980", "\u09FF"), # Bengali
-    "pa": ("\u0A00", "\u0A7F"), # Gurmukhi
-    "te": ("\u0C00", "\u0C7F"), # Telugu
-    "kn": ("\u0C80", "\u0CFF"), # Kannada
-    "ml": ("\u0D00", "\u0D7F"), # Malayalam
-    "ta": ("\u0B80", "\u0BFF"), # Tamil
-}
-
-def _detect_audio_language(
-    audio_text: str,
-    caption_text: str,
-    hashtags: list[str] | None = None,
-    source_hashtag_pool: str | None = None,
-) -> str:
-    """
-    Detect audio language with a reliable priority chain:
-    1. Vernacular hashtag (e.g. #tamilreels → ta) — most reliable
-    2. Individual hashtag keyword match
-    3. Keyword match in title/artist/caption using normalized text and word boundaries
-    4. Native script detection in caption/title → corresponding language
-    5. Default → en
-    """
-    # Priority 1: vernacular pool hashtag (100% reliable)
-    for tag in (hashtags or []):
-        clean = tag.lower().lstrip("#").replace(" ", "")
-        if clean in VERNACULAR_HASHTAG_LANG:
-            return VERNACULAR_HASHTAG_LANG[clean]
-
-    # Priority 2: hashtag keyword → language map
-    for tag in (hashtags or []):
-        clean = tag.lower().lstrip("#")
-        if clean in LANG_KEYWORD_MAP:
-            return LANG_KEYWORD_MAP[clean]
-
-    # Priority 3: keyword match in normalized audio + caption text
-    full_text_raw = f"{audio_text or ''} {caption_text or ''}"
-    full_text_norm = _normalize_text(full_text_raw)
-    # Pre-pad with spaces to simulate word boundaries
-    padded_text = f" {full_text_norm} "
-
-    # Check for keyword matches
-    for keyword, lang_code in LANG_KEYWORD_MAP.items():
-        norm_keyword = _normalize_text(keyword)
-        if norm_keyword and f" {norm_keyword} " in padded_text:
-            return lang_code
-
-    # Priority 4: Native script detection
-    for lang_code, (start, end) in _SCRIPT_RANGES.items():
-        if any(start <= ch <= end for ch in full_text_raw):
-            return lang_code
-
-    # Default
-    return "en"
-
-
-def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
-    full_text_raw = f"{title or ''} {artist or ''} {caption or ''}"
-    full_text_norm = _normalize_text(full_text_raw)
-    padded_text = f" {full_text_norm} "
-    
-    # Check against LANG_KEYWORD_MAP keys that map to Indian languages
-    for keyword, lang_code in LANG_KEYWORD_MAP.items():
-        if lang_code in _INDIAN_LANG_CODES:
-            norm_keyword = _normalize_text(keyword)
-            if norm_keyword and f" {norm_keyword} " in padded_text:
-                return True
-                
-    # Also check scripts
-    for lang_code, (start, end) in _SCRIPT_RANGES.items():
-        if lang_code in _INDIAN_LANG_CODES and any(start <= ch <= end for ch in full_text_raw):
-            return True
-            
-    return False
+# Language detection — imported from shared module (language_detection.py)
+from language_detection import (
+    LANG_KEYWORD_MAP, VERNACULAR_HASHTAG_LANG, _INDIAN_LANG_CODES,
+    _normalize_text, _SCRIPT_RANGES, _detect_audio_language, _looks_indian_audio,
+)
+from audio_title_normalize import normalize_audio_title
 
 
 def _normalize_trend_origin(meta: dict, reel: dict) -> dict:
@@ -1249,7 +1096,7 @@ Return ONLY valid JSON, no markdown, no explanation:
   "niche_tags": ["fitness", "food", "comedy", "fashion", "business", "travel", "beauty", "other"]
 }}"""
         
-        return {
+        fallback = {
             "dominant_hook_type": "text_overlay" if any("pov" in (r.get("caption") or "").lower() for r in reels_batch) else "broll",
             "hook_opening_patterns": ["start with the beat", "use a fast hook", "keep captions short"],
             "optimal_length_seconds": 20,
@@ -1257,6 +1104,24 @@ Return ONLY valid JSON, no markdown, no explanation:
             "hook_brief_one_line": "Open with the strongest visual immediately.",
             "niche_tags": [classify_niche(reels_batch[0].get("caption") or "", reels_batch[0].get("hashtags") or [], self._source_hashtag_pool_for_hashtags(reels_batch[0].get("hashtags") or []))] if reels_batch else ["general"],
         }
+
+        if call_llm is None:
+            logger.warning("call_llm not available — returning fallback hook analysis")
+            return fallback
+
+        try:
+            system_instruction = (
+                "You are an expert Instagram Reels analyst. "
+                "Return ONLY valid JSON matching the requested schema."
+            )
+            result = call_llm(system_instruction, hook_prompt, timeout=30)
+            if isinstance(result, dict) and result.get("dominant_hook_type"):
+                return result
+            logger.warning("LLM returned invalid hook analysis shape — using fallback")
+            return fallback
+        except Exception as e:
+            logger.warning(f"LLM hook analysis failed, using fallback: {e}")
+            return fallback
 
     def _persist_hook_analysis(self, audio_title: str, audio_artist: str, hook_data: dict) -> None:
         if not hook_data:
@@ -1292,10 +1157,11 @@ Return ONLY valid JSON, no markdown, no explanation:
         if not audio_title:
             return
         try:
-            existing = self.supabase.table("trend_lifecycle").select("*").eq("trend_id", audio_title).execute()
+            norm_title = normalize_audio_title(audio_title)
+            existing = self.supabase.table("trend_lifecycle").select("*").eq("trend_id", norm_title).execute()
             if not existing.data:
                 self.supabase.table("trend_lifecycle").insert({
-                    "trend_id": audio_title,
+                    "trend_id": norm_title,
                     "first_seen_country": creator_country,
                     "first_seen_at": scraped_at,
                     "spread_timeline": [{"country": creator_country, "at": scraped_at}],
@@ -1313,7 +1179,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                     "spread_timeline": timeline,
                     "saturation_by_region": saturation,
                     "updated_at": datetime.now(timezone.utc).isoformat()
-                }).eq("trend_id", audio_title).execute()
+                }).eq("trend_id", norm_title).execute()
         except Exception as e:
             logger.error(f"Error updating trend lifecycle: {e}", exc_info=True)
 
@@ -1896,8 +1762,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.info(f"Scraping {len(selected)} hashtags: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
-            # Global wall-clock guard: abort scrape if pipeline runs >15 minutes total
-            _SCRAPE_TIMEOUT_S = 15 * 60
+            # Global wall-clock guard: abort scrape if pipeline runs too long
+            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(30 * 60)))
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
@@ -1919,9 +1785,9 @@ Return ONLY valid JSON, no markdown, no explanation:
                 # Only available on Linux (GitHub Actions ubuntu-latest). Safe to skip on Windows.
                 _has_sigalrm = hasattr(signal, "SIGALRM")
                 if _has_sigalrm:
-                    hashtag_timeout = int(os.getenv("SCRAPER_HASHTAG_TIMEOUT", "90"))
+                    hashtag_timeout = int(os.getenv("SCRAPER_HASHTAG_TIMEOUT", "120"))
                     def _hashtag_timeout(signum, frame):
-                        raise TimeoutError(f"#{tag} scrape timed out after {hashtag_timeout}s — Playwright driver likely crashed")
+                        raise TimeoutError(f"#{tag} scrape timed out after {hashtag_timeout}s (SCRAPER_HASHTAG_TIMEOUT)")
                     signal.signal(signal.SIGALRM, _hashtag_timeout)
                     signal.alarm(hashtag_timeout)
 

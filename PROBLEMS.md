@@ -89,22 +89,26 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 - **Decision:** Do NOT fix formulas until pagination is resolved and data volume increases. Both threshold sets are guesses at a proxy for "Instagram has moved on" — neither answers the product question of what "saturated" actually means.
 **Status:** Logged, de-prioritized. Revisit after P-PIPE-1 (pagination) increases data volume.
 
-#### P-PIPE-4: Proxy audio_use_count uses made-up formula
-**File:** `backend/instagram_scraper_browser.py:819-822`
-**Problem:** When Instagram doesn't provide `audio_use_count`, the scraper calculates:
-```python
-base_count = unique_creators * 800 + total_reels * 400
-growth_multiplier = 1.5 if recent_creators > 2 else 1.0
-estimated_count = int(base_count * growth_multiplier)
-```
-**Impact:** This is a fabricated number. 1 creator + 1 reel = 1,200 estimated uses. 5 creators + 10 reels = 8,000 estimated uses. These numbers don't correlate with Instagram's actual audio usage counts. Any trend detection based on these proxy values is unreliable.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. This is an unaddressed data quality issue.
+#### P-PIPE-4: Proxy audio_use_count uses made-up formula [RESOLVED — fabricated formula already replaced]
+**File:** `backend/instagram_scraper_browser.py:659-736` (`_extract_audio_use_count`)
+**Problem:** When Instagram doesn't provide `audio_use_count`, the scraper used to calculate a fabricated number using `unique_creators * 800 + total_reels * 400`.
+**Current state (re-verified Sep 2026):** The fabricated formula no longer exists. `_extract_audio_use_count` now returns data from honest sources in priority order:
+1. Instagram API response (`clips_metadata.music_info.music_consumption_info.use_count`)
+2. `audio_official_counts` table (previously scraped official counts)
+3. Average of recent official counts from the same table
+4. `0` if no data available
 
-#### P-PIPE-5: 15-minute global timeout frequently cuts off later hashtags
-**File:** `backend/instagram_scraper_browser.py:1249-1256`
-**Problem:** Global timeout is 900 seconds (15 min). Each hashtag takes 15-25s of browser time. 15 hashtags × 20s = 5 minutes of browser time. But per-reel DB processing adds 6-18 minutes. Total: 7-23 minutes. Later hashtags are frequently skipped.
+All paths return real data or zero — no fabricated values. The saturation thresholds (P-PIPE-3) are still miscalibrated but that's deferred until P-PIPE-1 increases data volume.
+
+#### P-PIPE-5: 15-minute global timeout frequently cuts off later hashtags [FIXED — timeouts increased + made configurable]
+**File:** `backend/instagram_scraper_browser.py:1766-1792`
+**Problem:** Global timeout was 900 seconds (15 min). Each hashtag takes 15-25s of browser time. 15 hashtags × 20s = 5 minutes of browser time. But per-reel DB processing added 6-18 minutes. Total: 7-23 minutes. Later hashtags were frequently skipped.
 **Impact:** Inconsistent data coverage. Some runs get all 15 hashtags, others get 5-8. The data is not equally fresh across all hashtag groups.
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan mentions scraper tightening (item 3.6) but doesn't address the timeout architecture.
+**Does IMPLEMENTATION_PLAN.md fix this?** No.
+**Fix (Sep 2026):**
+- Global timeout: 15 min → 30 min (configurable via `SCRAPER_GLOBAL_TIMEOUT` env var)
+- Per-hashtag timeout: 90s → 120s (configurable via `SCRAPER_HASHTAG_TIMEOUT` env var)
+- With P-PIPE-2's batched processing, DB time dropped from 6-18 min to ~1 min. Browser time (~5 min for 15 hashtags) + DB (~1 min) = ~6 min total, well within 30-min window. All 17 hashtags should now complete consistently.
 
 #### P-PIPE-6: External trend discovery is dead code [RESOLVED — code deleted]
 **Re-verified Aug 22, 2026:** `backend/external_trend_discovery.py` was never committed to git (absent from `git log --all`) and is now absent from disk. Its sibling `backend/external_trend_pipeline.py` was explicitly deleted by commit `d63d2ab0`. Grep confirms zero remaining production imports of either module.
