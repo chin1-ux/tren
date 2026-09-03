@@ -54,12 +54,13 @@ GitHub Actions cron → instagram_scraper_browser.py → Supabase DB → trend_e
 
 ### 1.3 Critical data pipeline problems
 
-#### P-PIPE-1: No pagination — single page load per hashtag
-**File:** `backend/instagram_scraper_browser.py:907-914`
+#### P-PIPE-1: No pagination — single page load per hashtag [PARTIALLY RESOLVED — API pagination exists, needs live verification]
+**File:** `backend/instagram_scraper_browser.py:933-988`
 **Problem:** The scraper navigates to `instagram.com/explore/tags/{hashtag}/` and captures whatever the `api/v1/tags/web_info` XHR returns in one response. No scrolling, no pagination.
-**Impact:** Instagram's tag page typically returns 30-90 items. With 15 hashtags, max ~450-1,350 reels per run. The "15,000+ reels daily" claim is **not achievable from this code.**
-**Real daily count:** ~500-2,000 reels per day (2-4 runs × 15 hashtags × 30-90 reels × 40-60% survival).
-**Does IMPLEMENTATION_PLAN.md fix this?** No. The plan doesn't address scraper pagination. This is an architecture limitation.
+**Current state (re-verified Sep 2026):** Pagination was added after the original audit. The scraper now follows Instagram's `max_id` cursor for up to `SCRAPER_PAGINATION_PAGES` (env var, default 2) extra pages via direct HTTP requests. Stops at 300 items per hashtag. This is API-based pagination (not scroll-based), which is lighter on runtime and GitHub Actions minutes.
+**Remaining concern:** The pagination code exists but hasn't been verified against live Instagram responses. Instagram may have changed their `max_id` behavior or rate-limited paginated requests. Need to check GitHub Actions logs for "Pagination page" entries to confirm it's working.
+**Impact:** If working: ~90-270 reels per hashtag (3 pages × 30-90 items) = 1,350-4,050 reels per run. If not working: still limited to single-page 30-90 items per hashtag.
+**Action needed:** Verify from production logs that pagination pages are actually being fetched and returning items. If not, diagnose why (rate limiting? changed API? missing `max_id`?).
 
 #### P-PIPE-2: N+1 DB query problem — 10-18 queries per reel, no batching — FIXED (Aug 18)
 **File:** `backend/instagram_scraper_browser.py:1212-1583` (new `_process_hashtag_batch` method)
