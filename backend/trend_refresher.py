@@ -198,6 +198,8 @@ class TrendRefresher:
 
                 # Peaked→emerging recovery: if velocity climbed back above baseline
                 # AND new reels appeared recently, treat as renewed momentum.
+                # UNCALIBRATED — thresholds are educated guesses, not data-derived.
+                # Re-tune after real peaked→emerging trajectory data exists.
                 if current_status == "peaked" and velocity_for_check > 0 and rising_baseline > 0:
                     if velocity_for_check >= rising_baseline and new_reels_count > 0:
                         self._update_status(trend_id, "emerging", {
