@@ -185,9 +185,12 @@ class InstagramScraper:
                 "growthmindset", "leadership", "dailyquotes"
             ],
             "DANCE": [
+                # Cross-regional tags first so DANCE[:2] always includes them.
+                # India-specific tags (bhangra, garba, bollywooddance) fall past the
+                # slice cut but remain available for full-pool or CUSTOM runs.
+                "dancechallenge", "choreography",
                 "dancereels", "indiandance", "bhangra", "garba", "classicaldance",
-                "bollywooddance", "dancecover", "choreography", "dancechallenge",
-                "hiphopindia"
+                "bollywooddance", "dancecover", "hiphopindia"
             ],
             "CURRENT_AFFAIRS": [
                 "currentaffairs", "newsindia", "geopolitics", "upsc", "indiaexplained",
@@ -200,9 +203,10 @@ class InstagramScraper:
                 "indiancricket"
             ],
             "GLOBAL_DISCOVERY": [
-                "music", "trendingaudio", "trendingsong", "viralsong", "musictrend",
-                "viralmusic", "reelsound", "dancechallenge", "popmusic", "hiphopreels",
-                "edmmusic", "kpopreels", "viral", "trending"
+                # Broad organic viral tags lead so GLOBAL_DISCOVERY[:5] captures organic hits (fyp, reels)
+                "fyp", "viral", "trending", "reels", "reelsviral", "tiktok", "music",
+                "trendingaudio", "dancechallenge", "trendingsong", "viralsong", "musictrend",
+                "viralmusic", "reelsound", "popmusic", "hiphopreels", "edmmusic", "kpopreels"
             ]
         }
 
@@ -270,31 +274,34 @@ class InstagramScraper:
             await ctx.add_cookies(formatted_cookies)
             page = await ctx.new_page()
 
+            # Warm up session with home page so cookies register and avoid login modal
+            try:
+                await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=15000)
+                await page.wait_for_timeout(2000)
+            except Exception as warm_err:
+                logger.warning(f"Warm-up navigation failed (non-fatal): {warm_err}")
+
             url = f"https://www.instagram.com/reels/audio/{audio_id}/"
             logger.info(f"Navigating to audio page: {url}")
-            await page.goto(url, wait_until="networkidle", timeout=20000)
+            await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(3000)
 
             try:
-                await page.wait_for_selector("span", timeout=5000)
+                body_text = await page.inner_text("body", timeout=10000)
             except Exception:
-                pass
+                body_text = ""
 
+            count, precision_bucket = self._parse_reels_count_text(body_text)
+            if count is not None and count > 0:
+                logger.info(f"Extracted count for audio_id {audio_id}: {count} ({precision_bucket})")
+                return count
+
+            # Fallback to page content search with _parse_reels_count_text if inner_text didn't match
             content = await page.content()
-            match = re.search(r'([\d,.\w]+)\s*(?:reels|posts|videos)', content, re.IGNORECASE)
-            if match:
-                raw_count = match.group(1).lower()
-                multiplier = 1
-                if 'k' in raw_count:
-                    multiplier = 1000
-                    raw_count = raw_count.replace('k', '')
-                elif 'm' in raw_count:
-                    multiplier = 1000000
-                    raw_count = raw_count.replace('m', '')
-                
-                raw_count = raw_count.replace(',', '').strip()
-                val = int(float(raw_count) * multiplier)
-                logger.info(f"Extracted count for audio_id {audio_id}: {val}")
-                return val
+            count_fb, _ = self._parse_reels_count_text(content)
+            if count_fb is not None and count_fb > 0:
+                logger.info(f"Extracted count (from HTML content) for audio_id {audio_id}: {count_fb}")
+                return count_fb
 
             logger.warning(f"Could not extract reels count from audio page {audio_id}")
             return None
@@ -401,6 +408,84 @@ class InstagramScraper:
                     await ctx.close()
                 except Exception:
                     pass
+
+    VERIFIED_CREATOR_WATCHLIST = [
+        "chopdaily",
+        "worldofdance",
+        "kylehanagami",
+        "mattsteffanina",
+        "shirlenequigley",
+        "teamnaach",
+        "awez_darbar",
+    ]
+
+    async def scrape_creator_watchlist_async(self) -> tuple[list[dict], int]:
+        """Scrape recent posts/reels for the verified creator watchlist (Track 3).
+        Returns a tuple of (extracted_reels, profiles_checked_count)."""
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("Failed to initialize browser session for creator watchlist scrape.")
+                return [], 0
+
+        extracted_reels = []
+        profiles_checked = 0
+
+        for username in self.VERIFIED_CREATOR_WATCHLIST:
+            profiles_checked += 1
+            try:
+                res_data = await self._scrape_creator_profile_playwright_async(username)
+                if not res_data or not res_data.get("profile"):
+                    continue
+
+                profile_payload = res_data["profile"]
+                user_data = profile_payload.get("data", {}).get("user")
+                if not user_data:
+                    continue
+
+                reels_edges = user_data.get("edge_felix_video_timeline", {}).get("edges", [])
+                posts_edges = user_data.get("edge_owner_to_timeline_media", {}).get("edges", [])
+
+                seen = set()
+                for edge in reels_edges + posts_edges:
+                    node = edge.get("node", {})
+                    nid = node.get("id") or node.get("shortcode")
+                    if not nid or nid in seen:
+                        continue
+                    seen.add(nid)
+
+                    caps = node.get("edge_media_to_caption", {}).get("edges", [])
+                    caption = caps[0].get("node", {}).get("text", "") if caps else ""
+
+                    clips = node.get("clips_metadata", {}) or {}
+                    audio_info = clips.get("audio_ranking_info", {}) or clips.get("music_info", {}) or {}
+                    music_c = clips.get("music_info", {}).get("music_asset_info", {}) or {}
+
+                    audio_title = music_c.get("title") or audio_info.get("audio_title") or node.get("title") or "Original Audio"
+                    audio_artist = music_c.get("display_artist") or audio_info.get("display_artist") or ""
+                    audio_id = str(music_c.get("audio_cluster_id") or music_c.get("id") or audio_info.get("audio_asset_id") or "")
+
+                    view_count = node.get("video_view_count") or node.get("play_count") or 0
+                    like_count = node.get("edge_media_preview_like", {}).get("count") or node.get("like_count") or 0
+                    comment_count = node.get("edge_media_to_comment", {}).get("count") or 0
+
+                    extracted_reels.append({
+                        "reel_id": str(nid),
+                        "owner_username": username,
+                        "caption": caption,
+                        "audio_title": audio_title,
+                        "audio_artist": audio_artist,
+                        "audio_id": audio_id or None,
+                        "view_count": view_count,
+                        "like_count": like_count,
+                        "comment_count": comment_count,
+                        "shortcode": node.get("shortcode"),
+                    })
+            except Exception as e:
+                logger.warning(f"Error checking creator @{username} in watchlist: {e}")
+
+        logger.info(f"Track 3 creator watchlist complete: checked={profiles_checked}, reels_found={len(extracted_reels)}")
+        return extracted_reels, profiles_checked
 
     async def scrape_creator_baseline(self, username: str) -> dict | None:
         """Fetch a creator's profile page and extract their last 12 reels,
@@ -1199,8 +1284,9 @@ Return ONLY valid JSON, no markdown, no explanation:
 
             engagement = (view * 1.0) + (likes * 3.0) + (comments * 3.0)
             if followers <= 0:
-                scrape_stats["unknown_followers_skipped"] += 1
-                continue
+                # Fallback to 2500 for micro-creators / new accounts without baselines
+                # to prevent discarding early trend adopters
+                followers = 2500
             normalized_followers = math.log(followers + 10)
             velocity = (engagement / hours_live / normalized_followers) * 100
 
@@ -1702,6 +1788,13 @@ Return ONLY valid JSON, no markdown, no explanation:
             elif scrape_mode == "global":
                 priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             else:
+                # Blended default pool: India-focused base + dance (cross-regional) +
+                # GLOBAL_DISCOVERY slice (top audio-signal tags).
+                # Dance-challenge trends are not India-specific; excluding the DANCE
+                # group caused globally viral dance trends to go entirely unscraped.
+                # GLOBAL_DISCOVERY[:5] ensures audio-driven global trends appear on
+                # every cycle instead of only on alternating odd-numbered runs.
+                # Dedup loop below (line 1714+) removes any cross-group duplicates.
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
@@ -1709,6 +1802,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                     + self.hashtag_groups.get("FITNESS", [])[:1]
                     + self.hashtag_groups.get("FOOD", [])[:1]
                     + self.hashtag_groups.get("COMEDY", [])[:1]
+                    + self.hashtag_groups.get("DANCE", [])[:2]          # dancereels, indiandance
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:5]  # music, trendingaudio, trendingsong, viralsong, musictrend
                 )
             
             seen = set()
@@ -2070,9 +2165,15 @@ Return ONLY valid JSON, no markdown, no explanation:
         return results
 
     def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:
-        match = re.search(r'([\d,.]+)([KMB]?)\s*reels?', text, re.IGNORECASE)
+        # Pattern 1: Modern Instagram Audio page layout ("Audio\n57.9K")
+        match = re.search(r'Audio\s*\n?\s*([\d,.]+)\s*([KMB]?)', text, re.IGNORECASE)
+        if not match:
+            # Pattern 2: Traditional layout ("57.9K reels" / "1.2M posts")
+            match = re.search(r'([\d,.]+)\s*([KMB]?)\s*(?:reels?|posts?|videos?)', text, re.IGNORECASE)
+
         if not match:
             return None, None
+
         val_str, suffix = match.groups()
         val_str = val_str.replace(',', '')
         try:
@@ -2128,6 +2229,15 @@ Return ONLY valid JSON, no markdown, no explanation:
                     except Exception as ve:
                         logger.warning(f"Error parsing checked_at for velocity check: {ve}")
             
+            # 0. Ensure audio_id exists in tracked_audio to satisfy FK constraint
+            try:
+                self.supabase.table("tracked_audio").upsert(
+                    {"audio_id": audio_id, "first_seen_at": now.isoformat()},
+                    on_conflict="audio_id"
+                ).execute()
+            except Exception as _ta_err:
+                logger.warning(f"Could not upsert into tracked_audio for {audio_id}: {_ta_err}")
+
             # 2. Append new row to audio_official_counts
             insert_data = {
                 "audio_id": audio_id,

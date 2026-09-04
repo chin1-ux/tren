@@ -182,6 +182,18 @@ class TrendRefresher:
                 else:
                     new_window = max(0, window_hours - 3)
 
+                # 14-day ceiling for peaked trends (force to expired)
+                if current_status == "peaked" and age_hours >= (14 * 24.0):
+                    self._update_status(trend_id, "expired", {
+                        "window_hours_remaining": 0,
+                        "reel_count": total_reels_count,
+                        "high_confidence": bool(trend.get("high_confidence", False)),
+                        "promotion_reason": "peaked_14d_age_out",
+                    })
+                    logger.info(f"[EXPIRED_PEAKED_14D] '{audio_title}' aged out of peaked after {age_hours:.1f}h")
+                    local_summary["expired"] += 1
+                    return local_summary
+
                 if age_hours >= min_visible_hours or new_window <= 0:
                     self._update_status(trend_id, "expired", {
                         "window_hours_remaining": 0,

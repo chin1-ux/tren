@@ -808,10 +808,21 @@ class TrendEngine:
                     or title.lower().startswith("original_audio::")
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
-                if is_original_audio:
+
+                # Check for TikTok migration breakout footprint:
+                # 1. High use_count (>= 50)
+                # 2. Or high view-to-follower ratio on the audio artist (> 15x with 50k+ views)
+                max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                artist_followers = max((r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
+                max_views = max((r.get("view_count") or 0 for r in group_reels), default=0)
+
+                ratio = (max_views / max(artist_followers, 100)) if artist_followers > 0 else 0.0
+                is_crossplatform_breakout = (ratio >= 15.0 and max_views >= 50000) or (max_use_cnt >= 50)
+
+                if is_original_audio and not is_crossplatform_breakout:
                     logging.debug(
-                        f"Original-audio excluded from trend detection: '{title}' | {artist} — "
-                        f"{len(group_reels)} reels (will surface via format/pattern track instead)"
+                        f"Original-audio excluded from trend detection (no breakout signal): '{title}' | {artist} — "
+                        f"{len(group_reels)} reels"
                     )
                     continue
                 # ────────────────────────────────────────────────────────────────────────
