@@ -68,8 +68,14 @@ def get_trends(
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
 
+        # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
+        rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        q = q.or_(
+            f"first_detected_at.gte.{rising_cutoff},"
+            f"and(first_detected_at.is.null,created_at.gte.{rising_cutoff})"
+        )
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -160,7 +166,15 @@ def get_emerging_trends(
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        
+        # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
+        emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+        q = q.or_(
+            f"first_detected_at.gte.{emerging_cutoff},"
+            f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff})"
+        )
+
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
@@ -177,7 +191,7 @@ def get_emerging_trends(
         return trends
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/all-active")
@@ -193,7 +207,7 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).limit(100).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).limit(100).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
@@ -230,11 +244,19 @@ def get_peaked_trends(
             return JSONResponse(content=entry['data'], headers=headers)
             
     try:
-        q = supabase.table("trends").select("*").eq("status", "peaked").in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        
+        # 14-day retention gate for Peaked tab (max 14 days post-peak)
+        peaked_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+        q = q.or_(
+            f"first_detected_at.gte.{peaked_cutoff},"
+            f"and(first_detected_at.is.null,created_at.gte.{peaked_cutoff})"
+        )
+
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(limit)
+        q = q.limit(min(limit, 50))
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -246,7 +268,7 @@ def get_peaked_trends(
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/expired")
@@ -264,18 +286,26 @@ def get_expired_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "expired").in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        
+        # 30-day retention gate for Expired tab (max 30 days historical archive)
+        expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        q = q.or_(
+            f"first_detected_at.gte.{expired_cutoff},"
+            f"and(first_detected_at.is.null,created_at.gte.{expired_cutoff})"
+        )
+
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(limit)
+        q = q.limit(min(limit, 50))
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/audio-scores")
@@ -334,6 +364,7 @@ def get_trends_by_language(
         res = supabase.table("trends") \
             .select("*") \
             .in_("status", ["emerging", "rising"]) \
+            .eq("is_seed_data", False) \
             .in_("llm_classification_status", ["completed", "not_needed"]) \
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
@@ -370,6 +401,7 @@ def get_peaking_trends(
         trends_res = supabase.table('trends') \
             .select('*') \
             .in_('status', ['emerging', 'rising']) \
+            .eq('is_seed_data', False) \
             .gte('first_detected_at', time_threshold) \
             .order('velocity_avg', desc=True) \
             .limit(limit * 2) \
@@ -407,7 +439,8 @@ def get_peaking_trends(
         peaking_trends.sort(key=lambda x: x['peaking_score'], reverse=True)
         return peaking_trends[:limit]
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.exception(f"Error getting peaking trends: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/{trend_id}/timeline")
@@ -489,7 +522,8 @@ def get_trend_timeline(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Internal Server Error: {str(e)}")
+        logger.exception(f"Error fetching trend timeline: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/targeted")
@@ -609,11 +643,15 @@ def get_trend_caption(request: Request, trend_id: int, current_user: str = Depen
     Includes: 3 caption variants, 15 hashtags, audio cue, posting strategy.
     Results are cached in trend_captions table.
     """
+    if not CaptionEngine:
+        raise HTTPException(status_code=503, detail="Caption generation service unavailable")
     try:
-        # Caption generation is not implemented yet. Return a valid but empty
-        # kit so clients can render a truthful "not ready" state instead of
-        # misreading this as a populated kit or crashing on missing fields.
-        return {"captions": [], "hashtags": []}
+        engine = CaptionEngine()
+        caption_kit = engine.get_caption_kit(trend_id)
+        return caption_kit
+    except ValueError as ve:
+        logger.warning(f"Validation error in caption generation for trend {trend_id}: {ve}")
+        raise HTTPException(status_code=400, detail=str(ve))
     except Exception as e:
         logger.exception(f"Error generating caption for trend {trend_id}: {e}")
         raise HTTPException(status_code=500, detail="Caption generation failed")
@@ -754,7 +792,7 @@ def get_similar_trends(
         t = trend_res.data[0]
         content_type = t.get("content_type")
         language = t.get("language")
-        q = supabase.table("trends").select("*").neq("id", trend_id)
+        q = supabase.table("trends").select("*").eq("is_seed_data", False).neq("id", trend_id)
         if content_type:
             q = q.eq("content_type", content_type)
         if language:
@@ -839,7 +877,8 @@ def get_trend_decision(
     except HTTPException:
         raise
     except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        logger.exception(f"Error getting trend decision: {e}")
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/trends/{trend_id}/memory")
@@ -979,90 +1018,6 @@ def get_trending_hashtags(
         raise HTTPException(status_code=500, detail="Failed to get trending hashtags")
 
 
-@router.get("/api/topics/clusters")
-@limiter.limit("30/minute")
-def get_topic_clusters(
-    request: Request,
-    hours_window: int = 48,
-    min_cluster_size: int = 5,
-    current_user: str = Depends(get_current_user)
-):
-    """Get topic clusters from recent content analysis."""
-    if not TopicClusteringEngine:
-        raise HTTPException(status_code=500, detail="Topic clustering engine not configured.")
-    
-    try:
-        engine = TopicClusteringEngine()
-        clusters = engine.cluster_topics(hours_window=hours_window, min_cluster_size=min_cluster_size)
-        
-        return {
-            'topic_clusters': [
-                {
-                    'topic_id': cluster.topic_id,
-                    'topic_name': cluster.topic_name,
-                    'topic_keywords': cluster.topic_keywords,
-                    'topic_category': cluster.topic_category,
-                    'content_samples': cluster.content_samples,
-                    'creator_count': cluster.creator_count,
-                    'total_engagement': cluster.total_engagement,
-                    'avg_velocity': cluster.avg_velocity,
-                    'viral_potential': cluster.viral_potential,
-                    'trending_since': cluster.trending_since.isoformat(),
-                    'estimated_lifespan_hours': cluster.estimated_lifespan_hours,
-                    'related_topics': cluster.related_topics,
-                    'target_audiences': cluster.target_audiences,
-                    'content_opportunities': cluster.content_opportunities
-                }
-                for cluster in clusters
-            ],
-            'total_clusters': len(clusters),
-            'query_params': {'hours_window': hours_window, 'min_cluster_size': min_cluster_size}
-        }
-    except Exception as e:
-        logger.exception(f"Error getting topic clusters: {e}")
-        raise HTTPException(status_code=500, detail="Failed to get topic clusters")
-
-
-@router.get("/api/conversations/detect")
-@limiter.limit("30/minute")
-def detect_conversations(
-    request: Request,
-    hours_window: int = 48,
-    current_user: str = Depends(get_current_user)
-):
-    """Detect trending conversation formats and meme structures."""
-    if not TopicClusteringEngine:
-        raise HTTPException(status_code=500, detail="Topic clustering engine not configured.")
-    
-    try:
-        engine = TopicClusteringEngine()
-        conversations = engine.detect_conversations(hours_window=hours_window)
-        
-        return {
-            'conversations': [
-                {
-                    'conversation_id': conv.conversation_id,
-                    'conversation_name': conv.conversation_name,
-                    'conversation_type': conv.conversation_type,
-                    'template_structure': conv.template_structure,
-                    'participation_count': conv.participation_count,
-                    'velocity_score': conv.velocity_score,
-                    'engagement_rate': conv.engagement_rate,
-                    'viral_potential': conv.viral_potential,
-                    'platform_performance': conv.platform_performance,
-                    'optimal_content_types': conv.optimal_content_types,
-                    'example_captions': conv.example_captions,
-                    'creator_opportunities': conv.creator_opportunities
-                }
-                for conv in conversations
-            ],
-            'total_conversations': len(conversations),
-            'hours_window': hours_window
-        }
-    except Exception as e:
-        logger.exception(f"Error detecting conversations: {e}")
-        raise HTTPException(status_code=500, detail="Failed to detect conversations")
-
 @router.get("/api/trends/niche/{niche_name}")
 @limiter.limit("60/minute")
 def get_niche_trends(
@@ -1083,6 +1038,7 @@ def get_niche_trends(
         audio_res = supabase.table("trends") \
             .select("*") \
             .in_("status", ["emerging", "rising"]) \
+            .eq("is_seed_data", False) \
             .order("velocity_avg", desc=True) \
             .limit(100) \
             .execute()

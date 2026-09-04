@@ -53,6 +53,10 @@ const NICHES = [
   { id: "business", label: "💼 Business" },
   { id: "travel",   label: "✈️ Travel" },
   { id: "beauty",   label: "💄 Beauty" },
+  { id: "devotional", label: "🙏 Devotional" },
+  { id: "tech",     label: "💻 Tech" },
+  { id: "narrative_edit", label: "🎞️ Creative Edit" },
+  { id: "romance_relationship", label: "💕 Romance" },
 ];
 
 type FeedTab = "rising" | "emerging" | "peaked" | "expired" | "workspace";
@@ -111,8 +115,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", language],
     queryFn: () => fetchEmergingTrends(language),
-    staleTime: 3 * 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
+    refetchInterval: 2 * 60_000, // 2 min polling
     enabled: userPlan === "pro",
   });
 
@@ -124,8 +128,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-peaked", language],
     queryFn: () => fetchPeakedTrends(language),
-    staleTime: 3 * 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 15 * 60_000, // 15 min stale time for peaked trends
+    refetchInterval: 30 * 60_000, // 30 min polling
   });
 
   const {
@@ -136,8 +140,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-expired", language],
     queryFn: () => fetchExpiredTrends(language),
-    staleTime: 3 * 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
+    refetchInterval: 60 * 60_000, // 60 min polling
   });
 
   const {
