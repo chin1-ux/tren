@@ -103,7 +103,7 @@ def get_trends(
         else:
             q = q.order("velocity_avg", desc=True)
 
-        q = q.limit(100)
+        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         
@@ -179,7 +179,7 @@ def get_emerging_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
-        q = q.limit(100)
+        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)

@@ -560,14 +560,14 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
   const qs = params.toString() ? `?${params}` : "";
   const data = await http<ApiTrend[] | { trends: ApiTrend[] }>(`/api/trends${qs}`);
   const list = Array.isArray(data) ? data : (data as { trends: ApiTrend[] }).trends ?? [];
-  return list.map(adaptTrend);
+  return list.slice(0, 50).map(adaptTrend);
 }
 
 export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]> {
   const qs = language && language !== "all" ? `?language=${language}` : "";
   try {
     const data = await http<ApiTrend[]>(`/api/trends/emerging${qs}`);
-    return data.map(adaptTrend);
+    return data.slice(0, 50).map(adaptTrend);
   } catch (e: any) {
     // 401 / 403 = auth/plan restriction — return empty array so UI shows upgrade modal
     const msg = String(e?.message || "");
@@ -582,7 +582,7 @@ export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
   const qs = language && language !== "all" ? `?language=${language}` : "";
   try {
     const data = await http<ApiTrend[]>(`/api/trends/peaked${qs}`);
-    return data.map(adaptTrend);
+    return data.slice(0, 50).map(adaptTrend);
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("401") || msg.startsWith("403")) return [];
@@ -594,7 +594,7 @@ export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> 
   const qs = language && language !== "all" ? `?language=${language}` : "";
   try {
     const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
-    return data.map(adaptTrend);
+    return data.slice(0, 50).map(adaptTrend);
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("401") || msg.startsWith("403")) return [];
