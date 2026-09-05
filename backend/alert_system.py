@@ -65,11 +65,12 @@ class AlertSystem:
             return 0
 
         try:
-            users_res = self.supabase.table("users").select("*").execute()
-            users = users_res.data or []
-            logging.info(f"Loaded {len(users)} users from Supabase.")
+            # Load user preferences instead of just users table
+            prefs_res = self.supabase.table("user_preferences").select("*").execute()
+            user_prefs = prefs_res.data or []
+            logging.info(f"Loaded {len(user_prefs)} user preferences from Supabase.")
         except Exception as e:
-            logging.error(f"Failed to fetch users: {e}", exc_info=True)
+            logging.error(f"Failed to fetch user_preferences: {e}", exc_info=True)
             return
 
         total_emails_sent = 0
@@ -78,18 +79,27 @@ class AlertSystem:
             try:
                 trend_res = self.supabase.table("trends").select("*").eq("id", trend_id).execute()
                 if not trend_res.data:
-                    logging.warning(f"Trend {trend_id} not found. Skipping.")
-                    continue
-                trend = trend_res.data[0]
+                    # Maybe it's a content_trend
+                    ct_res = self.supabase.table("content_trends").select("*").eq("id", trend_id).execute()
+                    if not ct_res.data:
+                        logging.warning(f"Trend {trend_id} not found in trends or content_trends. Skipping.")
+                        continue
+                    trend = ct_res.data[0]
+                else:
+                    trend = trend_res.data[0]
 
-                audio_title = trend.get("audio_title", "Unknown Title")
-                audio_artist = trend.get("audio_artist", "Unknown Artist")
+                trend_type = trend.get("trend_type", "audio")
+                audio_title = trend.get("trend_name") or trend.get("audio_title") or "Unknown Title"
+                audio_artist = trend.get("audio_artist", "")
                 is_dance = trend.get("is_dance", False)
                 window_hours = trend.get("window_hours_remaining", 24)
                 velocity_avg = trend.get("velocity_avg", 1.0)
-                content_type = trend.get("content_type") or "trend"
                 status = trend.get("status", "rising")
                 saturation_score = trend.get("saturation_score", 0.0)
+                niche_relevance = trend.get("niche_relevance", {})
+                
+                # Niche-specific trigger logic variables
+                viral_potential = trend.get("confidence", 0) if trend_type != "audio" else 0
 
                 # Fetch cached caption kit if available
                 caption_kit = None
@@ -103,36 +113,63 @@ class AlertSystem:
                 except Exception as ce:
                     logging.warning(f"Could not fetch caption kit for trend {trend_id}: {ce}")
 
-                # Build urgency tier for subject
-                if window_hours <= 4 or status == "emerging":
-                    urgency_prefix = "🚨 BREAKING"
-                elif window_hours <= 12:
-                    urgency_prefix = "⚡ HOT NOW"
-                else:
-                    urgency_prefix = "🔥 Trending"
-
-                if is_dance:
-                    subject = f"{urgency_prefix}: Dance Trend — {audio_title} ({window_hours}h left)"
-                else:
-                    subject = f"{urgency_prefix}: {audio_title} — Generate your reel now!"
-
-                # Match users
+                # Match users based on D1 triggers
                 matching_users = []
-                for user in users:
-                    user_niche = (user.get("niche") or "").strip().lower()
-                    user_lang = (user.get("language_preference") or "").strip().lower()
-                    trend_lang = (trend.get("language") or "").strip().lower()
-                    match_niche = (user_niche == content_type.lower()) or (user_niche in ["all", ""])
-                    match_lang = trend_lang and (user_lang == trend_lang)
-                    if match_niche or match_lang:
-                        matching_users.append(user)
+                for pref in user_prefs:
+                    user_niches = pref.get("niches", [])
+                    user_state = pref.get("state", "").lower()
+                    
+                    if not user_niches:
+                        user_niches = ["all"]
+                        
+                    is_match = False
+                    urgency_prefix = "🔥 Trending"
+                    
+                    for niche in user_niches:
+                        # 1. Audio < 15% saturation in user's niche
+                        if trend_type == "audio" and saturation_score < 0.15:
+                            # If audio is relevant to niche or they accept all
+                            if niche == "all" or niche_relevance.get(niche, 0) > 0.2:
+                                is_match = True
+                                urgency_prefix = "🚨 EARLY SIGNAL"
+                                break
+                                
+                        # 2. News event viral_potential > 70 for user's niche
+                        if trend_type == "news_event" and viral_potential > 70:
+                            if niche == "all" or niche_relevance.get(niche, 0) > 0.4:
+                                is_match = True
+                                urgency_prefix = "🚨 BREAKING NEWS"
+                                break
+                                
+                        # 3. Cultural event 3 days out in user's state/region
+                        if trend_type == "predictable_event":
+                            # We check window_hours_remaining roughly ~72 hours (3 days)
+                            if window_hours <= 72 and window_hours > 0:
+                                # For regional logic we assume trend text or niche relevance targets it
+                                if niche == "all" or niche_relevance.get(niche, 0) > 0.3:
+                                    is_match = True
+                                    urgency_prefix = "📅 UPCOMING FESTIVAL"
+                                    break
+                                    
+                        # 4. Format trend spreading into user's niche
+                        if trend_type == "format" and niche_relevance.get(niche, 0) > 0.6:
+                            is_match = True
+                            urgency_prefix = "⚡ EARLY MOVER FORMAT"
+                            break
+
+                    if is_match:
+                        matching_users.append({"email": pref.get("email"), "urgency": urgency_prefix})
 
                 logging.info(f"Trend '{audio_title}' matched {len(matching_users)} users")
 
                 for user in matching_users:
                     user_email = user.get("email")
+                    urgency_prefix = user.get("urgency")
                     if not user_email:
                         continue
+                        
+                    subject = f"{urgency_prefix}: {audio_title} — Generate your reel now!"
+
                     html_body = self._build_email_html(
                         trend, is_dance, trend_id, caption_kit, urgency_prefix, saturation_score
                     )
