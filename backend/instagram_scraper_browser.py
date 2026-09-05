@@ -300,21 +300,18 @@ class InstagramScraper:
                 "travelreels", "beautyreels", "artreels"
             ],
             "GLOBAL_DISCOVERY": [
-                "kpopreels", "kbangreels", "jpopreels", "animeedit",
-                "latamreels", "brazilreels", "reggaeton", "afrobeats",
-                "ukdrill", "ukgrime", "spanishreels", "frenchreels",
-                "arabicmusic", "turkishreels", "russianreels",
-                "tiktoktrending", "viralaudio", "trendingsound",
-            ],
-            "INDIA_MICRO_NICHES": [
-                "outfittransition", "dancechallenge", "comedyreels",
-                "foodreels", "fitnessreels", "fashionreels",
-                "beautyreels", "travelreels", "artreels",
-                "relatablememe", "funnyreels", "viralchallenge",
-                "trendingdance", "indiandance", "southdance",
-                "streetfood", "foodrecipe", "homecooking",
-                "fashionhacks", "styletips", "outfitideas",
-                "sareestyle", "budgetfashion", "indianfashion"
+                # Global Dance & Challenge Seeds
+                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
+                "hiphopdance", "dancecover", "dancevideo",
+                # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
+                "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
+                "soundalert", "trendingsound", "viralmusic", "reelsound",
+                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Dance Trends)
+                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
+                "speedupphonk", "driftphonk", "phonkdance", "reelsbrasil",
+                # Broad Viral & Music Seeds
+                "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
+                "hiphopreels", "edmmusic", "kpopreels"
             ]
         }
 
@@ -419,204 +416,6 @@ class InstagramScraper:
                 await page.close()
             if ctx:
                 await ctx.close()
-
-    async def _scrape_trending_audios_async(self) -> list[dict]:
-        """Scrape Instagram's audio discovery page to find trending audio IDs.
-        Returns list of dicts with audio_id, audio_title, audio_artist, use_count."""
-        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
-            await self._close_browser_async()
-            if not await self._init_browser_async():
-                return []
-
-        ctx = None
-        page = None
-        try:
-            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-            if not os.path.exists(cookies_path):
-                return []
-            with open(cookies_path, "r") as f:
-                cookies = json.load(f)
-            formatted_cookies = [
-                {"name": c["name"], "value": c["value"],
-                 "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
-                for c in cookies
-            ]
-
-            ctx = await self._camoufox_browser.new_context(no_viewport=True)
-            await ctx.add_cookies(formatted_cookies)
-            await ctx.set_extra_http_headers({
-                "X-IG-App-ID": "936619743392459",
-                "Accept-Language": "en-US,en;q=0.9",
-            })
-
-            captured_json = [None]
-            def handle_response(response):
-                if "api/v1/audio" in response.url and "web_info" in response.url:
-                    try:
-                        captured_json[0] = response.json()
-                    except Exception:
-                        pass
-
-            page = await ctx.new_page()
-            page.on("response", handle_response)
-
-            # Navigate to Instagram audio explore page
-            try:
-                await page.goto("https://www.instagram.com/explore/audio/", wait_until="domcontentloaded", timeout=15000)
-                await page.wait_for_timeout(2000)
-            except Exception as e:
-                logger.warning(f"Navigation to audio explore page: {e}")
-            finally:
-                try:
-                    page.remove_listener("response", handle_response)
-                except Exception:
-                    pass
-
-            # If XHR not captured, try direct API
-            if not captured_json[0]:
-                try:
-                    headers, cookies_dict = self._load_instagram_cookie_headers()
-                    resp = requests.get(
-                        "https://www.instagram.com/api/v1/clips/audio/",
-                        headers=headers, cookies=cookies_dict, timeout=20
-                    )
-                    if resp.ok:
-                        captured_json[0] = resp.json()
-                except Exception as e:
-                    logger.warning(f"Direct audio API fetch failed: {e}")
-
-            if not captured_json[0]:
-                logger.warning("No audio data captured from explore page")
-                return []
-
-            # Parse audio data
-            data = captured_json[0]
-            audios = []
-            items = data.get("items", []) or data.get("audio_items", [])
-            for item in items[:20]:
-                audio_info = item.get("audio", {}) or item.get("audio_info", {})
-                audio_id = audio_info.get("id") or audio_info.get("audio_cluster_id")
-                title = audio_info.get("title", "")
-                artist = audio_info.get("artist", "") or audio_info.get("display_artist", "")
-                use_count = audio_info.get("use_count", 0) or audio_info.get("reel_count", 0)
-                if audio_id:
-                    audios.append({
-                        "audio_id": str(audio_id),
-                        "audio_title": title,
-                        "audio_artist": artist,
-                        "use_count": use_count,
-                    })
-
-            logger.info(f"Found {len(audios)} trending audios from explore page")
-            return audios
-
-        except Exception as e:
-            logger.error(f"Error scraping trending audios: {e}")
-            return []
-        finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if ctx:
-                try:
-                    await ctx.close()
-                except Exception:
-                    pass
-
-    async def _scrape_audio_page_reels_async(self, audio_id: str) -> list[dict]:
-        """Scrape the top reels for a specific audio ID from its audio page."""
-        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
-            await self._close_browser_async()
-            if not await self._init_browser_async():
-                return []
-
-        ctx = None
-        page = None
-        try:
-            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-            if not os.path.exists(cookies_path):
-                return []
-            with open(cookies_path, "r") as f:
-                cookies = json.load(f)
-            formatted_cookies = [
-                {"name": c["name"], "value": c["value"],
-                 "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
-                for c in cookies
-            ]
-
-            ctx = await self._camoufox_browser.new_context(no_viewport=True)
-            await ctx.add_cookies(formatted_cookies)
-            await ctx.set_extra_http_headers({
-                "X-IG-App-ID": "936619743392459",
-                "Accept-Language": "en-US,en;q=0.9",
-            })
-
-            captured_json = [None]
-            def handle_response(response):
-                if "clips" in response.url and ("media" in response.url or "audio" in response.url):
-                    try:
-                        captured_json[0] = response.json()
-                    except Exception:
-                        pass
-
-            page = await ctx.new_page()
-            page.on("response", handle_response)
-
-            url = f"https://www.instagram.com/reels/audio/{audio_id}/"
-            try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=15000)
-                await page.wait_for_timeout(2000)
-            except Exception as e:
-                logger.warning(f"Navigation to audio page {audio_id}: {e}")
-            finally:
-                try:
-                    page.remove_listener("response", handle_response)
-                except Exception:
-                    pass
-
-            # Try direct API if XHR not captured
-            if not captured_json[0]:
-                try:
-                    headers, cookies_dict = self._load_instagram_cookie_headers()
-                    resp = requests.get(
-                        f"https://www.instagram.com/api/v1/clips/{audio_id}/",
-                        headers=headers, cookies=cookies_dict, timeout=20
-                    )
-                    if resp.ok:
-                        captured_json[0] = resp.json()
-                except Exception:
-                    pass
-
-            if not captured_json[0]:
-                return []
-
-            # Extract media items
-            data = captured_json[0]
-            medias = []
-            items = data.get("items", []) or data.get("media", []) or data.get("clips", [])
-            for item in items[:15]:
-                media = item.get("media", {}) or item
-                if media.get("is_video") or media.get("media_type") == 2:
-                    medias.append(media)
-
-            return medias
-
-        except Exception as e:
-            logger.error(f"Error scraping audio page reels for {audio_id}: {e}")
-            return []
-        finally:
-            if page:
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if ctx:
-                try:
-                    await ctx.close()
-                except Exception:
-                    pass
 
     async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
         """Helper to navigate to creator profile using Playwright and intercept XHR response."""
@@ -1024,44 +823,24 @@ class InstagramScraper:
         if official_count > 0:
             return official_count
 
-        # Proxy Calculation fallback:
+        # Reference-based estimate fallback:
+        # Use average of recent official counts as a honest estimate instead of
+        # a fabricated formula. Returns 0 if no reference data exists.
         if audio_id:
             try:
-                res = self.supabase.table("reels") \
-                    .select("owner_username, scraped_at, velocity_score") \
-                    .eq("audio_id", audio_id) \
+                res = self.supabase.table("audio_official_counts") \
+                    .select("official_use_count") \
+                    .order("checked_at", desc=True) \
+                    .limit(100) \
                     .execute()
-                reels_list = res.data or []
-                if reels_list:
-                    import math
-                    from datetime import datetime, timezone
-                    unique_creators = len({r.get("owner_username") for r in reels_list if r.get("owner_username")})
-                    total_reels = len(reels_list)
-                    avg_vel = sum(r.get("velocity_score", 0.0) or 0.0 for r in reels_list) / total_reels
-                    
-                    now = datetime.now(timezone.utc)
-                    reels_last_12h = 0
-                    for r in reels_list:
-                        scraped_str = r.get("scraped_at")
-                        if scraped_str:
-                            try:
-                                if scraped_str.endswith("Z"):
-                                    scraped_str = scraped_str[:-1] + "+00:00"
-                                scraped_dt = datetime.fromisoformat(scraped_str)
-                                if scraped_dt.tzinfo is None:
-                                    scraped_dt = scraped_dt.replace(tzinfo=timezone.utc)
-                                age_h = (now - scraped_dt).total_seconds() / 3600.0
-                                if age_h <= 12:
-                                    reels_last_12h += 1
-                            except Exception:
-                                pass
-                    
-                    base_count = unique_creators * 800 + total_reels * 400
-                    growth_ratio = reels_last_12h / total_reels
-                    growth_mult = 1.0 + (growth_ratio * 2.5) * (1.0 + math.log1p(avg_vel / 1000.0))
-                    return max(100, int(base_count * growth_mult))
+                if res.data:
+                    counts = [int(r["official_use_count"]) for r in res.data
+                              if r.get("official_use_count") and int(r["official_use_count"]) > 0]
+                    if counts:
+                        avg_count = int(sum(counts) / len(counts))
+                        return max(100, avg_count)
             except Exception as e:
-                logger.warning(f"Error calculating proxy audio_use_count for {audio_id}: {e}")
+                logger.warning(f"Error calculating reference audio_use_count: {e}")
 
         return 0
 
@@ -1260,10 +1039,13 @@ class InstagramScraper:
                 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
 
-            # Pagination: follow max_id cursor for one extra page
+            # Pagination: follow max_id cursor for up to 2 extra pages
             more_info = raw_data.get("more_info") or {}
             next_max_id = more_info.get("max_id")
-            if next_max_id and len(items) < 100:
+            max_pages = int(os.getenv("SCRAPER_PAGINATION_PAGES", "2"))
+            for page_num in range(2, max_pages + 2):
+                if not next_max_id or len(items) >= 300:
+                    break
                 try:
                     headers, cookies = self._load_instagram_cookie_headers()
                     resp2 = requests.get(
@@ -1275,6 +1057,7 @@ class InstagramScraper:
                     resp2.raise_for_status()
                     data2 = resp2.json()
                     raw2 = data2.get("data", {})
+                    new_count = 0
                     for section in raw2.get("top", {}).get("sections", []) + raw2.get("recent", {}).get("sections", []):
                         for m_wrapper in section.get("layout_content", {}).get("medias", []):
                             media = m_wrapper.get("media")
@@ -1303,9 +1086,15 @@ class InstagramScraper:
                                     "media_dict": media,
                                     "pk": media.get("pk"),
                                 })
-                    logger.info(f"Pagination page 2: total items now {len(items)} for #{hashtag}")
+                                new_count += 1
+                    logger.info(f"Pagination page {page_num}: +{new_count} items (total {len(items)}) for #{hashtag}")
+                    more_info = raw2.get("more_info") or {}
+                    next_max_id = more_info.get("max_id")
+                    if new_count == 0:
+                        break
                 except Exception as pag_err:
-                    logger.debug(f"Pagination failed for #{hashtag}: {pag_err}")
+                    logger.debug(f"Pagination page {page_num} failed for #{hashtag}: {pag_err}")
+                    break
 
             return items
             
@@ -1723,6 +1512,20 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "audio_backfill_attempts": 0,
             }
 
+            # Ad/sponsored detection
+            try:
+                from ad_detector import detect_sponsored
+                ad_result = detect_sponsored(c["caption"], c["item"])
+                reel["is_sponsored"] = ad_result["is_sponsored"]
+                reel["ad_confidence"] = ad_result["confidence"]
+                reel["ad_signals"] = ad_result["signals"]
+                if ad_result["is_sponsored"]:
+                    logger.info(f"Sponsored reel detected: {reel['reel_id']} by @{owner} (confidence={ad_result['confidence']:.2f})")
+            except Exception:
+                reel["is_sponsored"] = False
+                reel["ad_confidence"] = 0.0
+                reel["ad_signals"] = []
+
             # Metadata tagging
             meta = self.detect_reel_metadata(reel, source_hashtag_pool=source_hashtag_pool)
             source_hashtag_pool = meta.get("source_hashtag_pool", source_hashtag_pool)
@@ -1780,8 +1583,8 @@ Return ONLY valid JSON, no markdown, no explanation:
 
             inserted_reels.append(reel)
 
-            # Group for hook analysis
-            if audio_title:
+            # Group for hook analysis (exclude sponsored reels from trend signals)
+            if audio_title and not reel.get("is_sponsored"):
                 key = (audio_title.strip(), (audio_artist or "").strip())
                 audio_groups_entries.append((key, reel))
 
@@ -1847,55 +1650,130 @@ Return ONLY valid JSON, no markdown, no explanation:
             except Exception as e:
                 logger.warning(f"Bulk snapshot insert failed: {e}")
 
-        # Post-insert: tracked_audio + trend_lifecycle (individual operations, lower volume)
+        # Post-insert: tracked_audio + trend_lifecycle (batched)
+        # Collect non-contaminant reels with audio_id
+        eligible_reels = []
         for reel in inserted_reels:
             audio_id = reel.get("audio_id")
-            audio_title = reel.get("audio_title")
-            audio_artist = reel.get("audio_artist")
-            creator_country = reel.get("creator_country", "unknown")
             is_original_audio = reel.get("is_original_audio", False)
             owner = reel.get("owner_username")
-
-            # Unique creators check for contaminant detection
             unique_creators_count = 1
             if audio_id:
                 owners_for_audio = audio_owner_map.get(audio_id, set())
                 unique_creators_count = len(owners_for_audio | {owner})
-            elif audio_title:
-                # Fallback: use audio_owner_map built from reels with audio_id
-                # For audio_title-only, we don't have bulk data — skip the query for batch perf
-                unique_creators_count = 1  # conservative default
-
             is_contaminant = is_original_audio and unique_creators_count == 1
             is_unrecoverable = reel.get("audio_backfill_status") == "unrecoverable"
+            if not is_contaminant and not is_unrecoverable and audio_id:
+                eligible_reels.append(reel)
 
-            if is_contaminant or is_unrecoverable:
-                continue
+        if eligible_reels:
+            unique_audio_ids = list({r["audio_id"] for r in eligible_reels if r.get("audio_id")})
 
-            # tracked_audio check
-            if audio_id:
+            # Bulk check existing tracked_audio (1 query)
+            existing_tracked = set()
+            try:
+                for i in range(0, len(unique_audio_ids), CHUNK):
+                    chunk = unique_audio_ids[i:i + CHUNK]
+                    res = self.supabase.table("tracked_audio").select("audio_id").in_("audio_id", chunk).execute()
+                    existing_tracked.update(r["audio_id"] for r in (res.data or []))
+            except Exception as e:
+                logger.warning(f"Bulk tracked_audio check failed: {e}")
+
+            # Bulk count reels for untracked audios (1 query per chunk)
+            new_tracked = []
+            audio_reel_counts = {}
+            untracked_ids = [aid for aid in unique_audio_ids if aid not in existing_tracked]
+            try:
+                for i in range(0, len(untracked_ids), CHUNK):
+                    chunk = untracked_ids[i:i + CHUNK]
+                    res = self.supabase.table("reels").select("audio_id", count="exact").in_("audio_id", chunk).execute()
+                    for row in (res.data or []):
+                        aid = row.get("audio_id")
+                        if aid:
+                            audio_reel_counts[aid] = audio_reel_counts.get(aid, 0) + 1
+            except Exception as e:
+                logger.warning(f"Bulk reel count for untracked failed: {e}")
+
+            # Build new tracked_audio entries
+            seen_new = set()
+            for reel in eligible_reels:
+                aid = reel.get("audio_id")
+                if aid and aid not in existing_tracked and aid not in seen_new:
+                    if audio_reel_counts.get(aid, 0) >= 2:
+                        new_tracked.append({
+                            "audio_id": aid,
+                            "audio_title": reel.get("audio_title"),
+                            "audio_artist": reel.get("audio_artist"),
+                            "first_seen_at": now_utc.isoformat(),
+                        })
+                        seen_new.add(aid)
+
+            # Bulk insert new tracked_audio (1 query)
+            if new_tracked:
                 try:
-                    exist = self.supabase.table("tracked_audio").select("audio_id").eq("audio_id", audio_id).execute()
-                    if not exist.data:
-                        reels_res = self.supabase.table("reels").select("reel_id", count="exact").eq("audio_id", audio_id).execute()
-                        reel_count = reels_res.count or 0
-                        if reel_count >= 2:
-                            self.supabase.table("tracked_audio").insert({
-                                "audio_id": audio_id,
-                                "audio_title": audio_title,
-                                "audio_artist": audio_artist,
-                                "first_seen_at": now_utc.isoformat(),
-                            }).execute()
-                            logger.info(f"Added audio_id {audio_id} ('{audio_title}') to tracked_audio (signal count: {reel_count})")
-                except Exception as tae:
-                    logger.error(f"Failed to insert tracked_audio for {audio_id}: {tae}")
+                    self.supabase.table("tracked_audio").insert(new_tracked).execute()
+                    logger.info(f"Bulk inserted {len(new_tracked)} new tracked_audio entries")
+                except Exception as e:
+                    logger.warning(f"Bulk tracked_audio insert failed: {e}")
 
-            # Trend lifecycle
-            self._update_trend_lifecycle(
-                audio_title=audio_title or "unknown_trend",
-                creator_country=creator_country,
-                scraped_at=scraped_at,
-            )
+            # Trend lifecycle: collect unique titles, bulk check, then bulk upsert
+            lifecycle_reels = [(r.get("audio_title") or "unknown_trend", r.get("creator_country", "unknown"))
+                               for r in eligible_reels]
+            unique_titles = list({t for t, _ in lifecycle_reels})
+            if unique_titles:
+                existing_lifecycle = set()
+                try:
+                    for i in range(0, len(unique_titles), CHUNK):
+                        chunk = unique_titles[i:i + CHUNK]
+                        res = self.supabase.table("trend_lifecycle").select("trend_id").in_("trend_id", chunk).execute()
+                        existing_lifecycle.update(r["trend_id"] for r in (res.data or []))
+                except Exception as e:
+                    logger.warning(f"Bulk lifecycle check failed: {e}")
+
+                # Update existing lifecycle entries in bulk
+                lifecycle_updates = {}
+                for title, country in lifecycle_reels:
+                    if title in existing_lifecycle:
+                        if title not in lifecycle_updates:
+                            lifecycle_updates[title] = {"countries": [], "timeline": []}
+                        lifecycle_updates[title]["countries"].append(country)
+                        lifecycle_updates[title]["timeline"].append({"country": country, "at": scraped_at})
+
+                for title, data in lifecycle_updates.items():
+                    try:
+                        existing = self.supabase.table("trend_lifecycle").select("spread_timeline, saturation_by_region").eq("trend_id", title).execute()
+                        if existing.data:
+                            row = existing.data[0]
+                            timeline = row.get("spread_timeline") or []
+                            saturation = row.get("saturation_by_region") or {}
+                            timeline.extend(data["timeline"])
+                            for c in data["countries"]:
+                                saturation[c] = saturation.get(c, 0) + 1
+                            self.supabase.table("trend_lifecycle").update({
+                                "spread_timeline": timeline,
+                                "saturation_by_region": saturation,
+                                "updated_at": datetime.now(timezone.utc).isoformat()
+                            }).eq("trend_id", title).execute()
+                    except Exception as e:
+                        logger.warning(f"Lifecycle update failed for {title}: {e}")
+
+                # Insert new lifecycle entries
+                new_lifecycle = []
+                for title, country in lifecycle_reels:
+                    if title not in existing_lifecycle and title not in [l["trend_id"] for l in new_lifecycle]:
+                        new_lifecycle.append({
+                            "trend_id": title,
+                            "first_seen_country": country,
+                            "first_seen_at": scraped_at,
+                            "spread_timeline": [{"country": country, "at": scraped_at}],
+                            "saturation_by_region": {country: 1}
+                        })
+                if new_lifecycle:
+                    try:
+                        self.supabase.table("trend_lifecycle").insert(new_lifecycle).execute()
+                        logger.info(f"Bulk inserted {len(new_lifecycle)} new lifecycle entries")
+                    except Exception as e:
+                        logger.warning(f"Bulk lifecycle insert failed: {e}")
 
         return inserted_reels, audio_groups_entries
 
@@ -1932,52 +1810,11 @@ Return ONLY valid JSON, no markdown, no explanation:
             if "CUSTOM" in self.hashtag_groups:
                 priority_pool = self.hashtag_groups["CUSTOM"]
             elif scrape_mode == "global":
-                # Audio-first discovery for Global mode: scrape trending audio pages
-                # instead of hashtags, to get concentrated data on popular audio
-                try:
-                    trending_audios = await self._scrape_trending_audios_async()
-                    if trending_audios:
-                        logger.info(f"Global mode: found {len(trending_audios)} trending audios. Scraping top reels for each...")
-                        for audio_info in trending_audios:
-                            if time.monotonic() - _scrape_start > _SCRAPE_TIMEOUT_S:
-                                logger.error("Global timeout reached during audio-first discovery.")
-                                break
-                            audio_id = audio_info.get("audio_id")
-                            audio_title = audio_info.get("audio_title", "")
-                            audio_artist = audio_info.get("audio_artist", "")
-                            use_count = audio_info.get("use_count", 0)
-                            logger.info(f"  Audio: {audio_title} by {audio_artist} (id={audio_id}, uses={use_count})")
-                            # Scrape the audio page to get top reels
-                            try:
-                                audio_items = await self._scrape_audio_page_reels_async(audio_id)
-                                if audio_items:
-                                    total_scraped += len(audio_items)
-                                    # Process through normal batched path
-                                    try:
-                                        inserted, groups = self._process_hashtag_batch(
-                                            items=audio_items,
-                                            tag=f"audio:{audio_title}",
-                                            scraped_at=scraped_at,
-                                            scrape_stats=scrape_stats,
-                                            audio_groups=audio_groups,
-                                        )
-                                        scrape_stats["inserted"] += inserted
-                                    except Exception as batch_err:
-                                        logger.warning(f"Error processing audio batch for {audio_title}: {batch_err}")
-                            except Exception as audio_err:
-                                logger.warning(f"Error scraping audio page for {audio_title}: {audio_err}")
-                            time.sleep(1)
-                    else:
-                        logger.warning("Global mode: no trending audios found. Falling back to hashtags.")
-                        priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
-                except Exception as trending_err:
-                    logger.warning(f"Global mode: trending audio discovery failed ({trending_err}). Falling back to hashtags.")
-                    priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
+                priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             else:
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
-                    + self.hashtag_groups.get("INDIA_MICRO_NICHES", [])[:8]
                     + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
                     + self.hashtag_groups.get("GLOBAL_NICHES", [])[:3]
                 )
@@ -1992,8 +1829,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             logger.info(f"Scraping {len(selected)} hashtags: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
-            # Global wall-clock guard: abort scrape if pipeline runs >25 minutes total
-            _SCRAPE_TIMEOUT_S = 25 * 60
+            # Global wall-clock guard: abort scrape if pipeline runs >15 minutes total
+            _SCRAPE_TIMEOUT_S = 15 * 60
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
@@ -2015,10 +1852,11 @@ Return ONLY valid JSON, no markdown, no explanation:
                 # Only available on Linux (GitHub Actions ubuntu-latest). Safe to skip on Windows.
                 _has_sigalrm = hasattr(signal, "SIGALRM")
                 if _has_sigalrm:
+                    hashtag_timeout = int(os.getenv("SCRAPER_HASHTAG_TIMEOUT", "90"))
                     def _hashtag_timeout(signum, frame):
-                        raise TimeoutError(f"#{tag} scrape timed out after 60s â€” Playwright driver likely crashed")
+                        raise TimeoutError(f"#{tag} scrape timed out after {hashtag_timeout}s — Playwright driver likely crashed")
                     signal.signal(signal.SIGALRM, _hashtag_timeout)
-                    signal.alarm(60)  # 60 second wall-clock hard limit per hashtag
+                    signal.alarm(hashtag_timeout)
 
                 try:
                     items = await self._scrape_hashtag_page_async(tag)

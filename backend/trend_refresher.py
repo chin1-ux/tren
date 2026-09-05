@@ -176,10 +176,7 @@ class TrendRefresher:
 
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
-                # Only peak if we have positive live velocity AND it dropped >40% from peak.
-                # If live_velocity is 0 (no recent reels), use current_velocity as fallback.
-                # Do NOT peak a trend just because the scraper hasn't found new reels recently.
-                if velocity_for_check > 0 and velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
+                if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     self._update_status(trend_id, "peaked", {
                         "window_hours_remaining": new_window,
                         "velocity_avg": velocity_for_check,

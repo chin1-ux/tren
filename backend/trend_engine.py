@@ -10,7 +10,6 @@ from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
-from format_detector import detect_dominant_format, is_format_trend, get_format_trend_score
 from dotenv import load_dotenv
 from supabase import create_client, Client
 
@@ -818,44 +817,27 @@ class TrendEngine:
                             break
 
                 if existing_match:
+                    # Update-in-place: never-downgrade status on re-detection.
+                    # Only status is updated here — velocity/metrics are owned by
+                    # trend_refresher.py via snapshot logic. No last_detected_at
+                    # column exists; consider adding via migration for staleness tracking.
                     old_status = existing_match.get("status", "emerging")
-                    
-                    # Only refresh active trends (emerging/rising). Never resurrect peaked/expired.
-                    if old_status not in ("emerging", "rising"):
-                        continue
-                    
-                    # Re-detect: update velocity, window, reel_count from fresh scrape data
-                    _vels = [r.get("velocity_score", 0.0) for r in group_reels]
-                    _new_avg_vel = sum(_vels) / len(_vels) if _vels else 0.0
-                    _new_max_vel = max(_vels) if _vels else 0.0
-                    _new_creator_count = len({r.get("owner_username") for r in group_reels if r.get("owner_username")})
-                    _new_reel_count = len(group_reels)
-
-                    # Extend window if new reels found (same logic as refresher)
-                    _old_window = existing_match.get("window_hours_remaining") or 0
-                    if _new_reel_count > 0 and _old_window < 48:
-                        _new_window = min(48, _old_window + 12)
-                    else:
-                        _new_window = max(0, _old_window - 3)
-
-                    update_data = {
-                        "velocity_avg": _new_avg_vel,
-                        "peak_velocity": max(_new_max_vel, existing_match.get("peak_velocity") or 0),
-                        "reel_count": _new_reel_count,
-                        "window_hours_remaining": _new_window,
-                    }
-
-                    try:
-                        self.supabase.table("trends") \
-                            .update(update_data) \
-                            .eq("id", existing_match["id"]) \
-                            .execute()
-                        logging.info(
-                            f"Refreshed active trend '{title}' (id={existing_match['id']}): "
-                            f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window}"
-                        )
-                    except Exception as update_err:
-                        logging.warning(f"Failed to refresh active trend '{title}': {update_err}")
+                    new_detected_status = "emerging"
+                    old_priority = STATUS_PRIORITY.get(old_status, 0)
+                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if final_status != old_status:
+                        try:
+                            self.supabase.table("trends") \
+                                .update({"status": final_status}) \
+                                .eq("id", existing_match["id"]) \
+                                .execute()
+                            logging.info(
+                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
+                                f"status {old_status} -> {final_status}"
+                            )
+                        except Exception as update_err:
+                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
@@ -864,9 +846,7 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
-                recent_3h_velocities = []
                 recent_6h_velocities = []
-                recent_3_6h_velocities = []
                 recent_24h_velocities = []
                 recent_reels_6h = []
                 oldest_age_hours = 0.0
@@ -882,28 +862,16 @@ class TrendEngine:
                             created_dt = created_dt.replace(tzinfo=timezone.utc)
                         age_hours = (datetime.now(timezone.utc) - created_dt).total_seconds() / 3600
                         oldest_age_hours = max(oldest_age_hours, age_hours)
-                        vel = r.get("velocity_score", 0.0)
-                        if age_hours <= 3:
-                            recent_3h_velocities.append(vel)
-                        elif age_hours <= 6:
-                            recent_3_6h_velocities.append(vel)
                         if age_hours <= 6:
-                            recent_6h_velocities.append(vel)
+                            recent_6h_velocities.append(r.get("velocity_score", 0.0))
                             recent_reels_6h.append(r)
                         if age_hours <= 24:
-                            recent_24h_velocities.append(vel)
+                            recent_24h_velocities.append(r.get("velocity_score", 0.0))
                     except Exception as _dt_err:
                         logging.debug(f"detect_trends: could not parse reel created_at '{created_str}': {_dt_err}")
 
-                recent_3h_avg = sum(recent_3h_velocities) / len(recent_3h_velocities) if recent_3h_velocities else 0.0
-                recent_3_6h_avg = sum(recent_3_6h_velocities) / len(recent_3_6h_velocities) if recent_3_6h_velocities else 0.0
                 recent_6h_avg = sum(recent_6h_velocities) / len(recent_6h_velocities) if recent_6h_velocities else 0.0
                 recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
-
-                # Velocity acceleration: positive = speeding up, negative = slowing down
-                velocity_acceleration = recent_3h_avg - recent_3_6h_avg if recent_3_6h_velocities else 0.0
-                acceleration_bonus = max(0.0, min(0.4, velocity_acceleration / (avg_velocity + 1) * 0.5))
-
                 recency_bonus = max(0.5, 1.5 - (oldest_age_hours / 48)) if oldest_age_hours else 1.0
                 creator_bonus = 1.0 + min(0.6, creator_count * 0.08)
                 
@@ -911,20 +879,7 @@ class TrendEngine:
                 outlier_count = sum(1 for r in group_reels if r.get("is_creator_outlier") is True)
                 outlier_boost = min(1.5, 1.0 + (outlier_count * 0.20))
                 
-                # Format Trend Boost: detected by format_detector.py
-                format_analysis = detect_dominant_format(group_reels)
-                fmt_is_trend = is_format_trend(format_analysis)
-                fmt_score = get_format_trend_score(format_analysis) if fmt_is_trend else 0.0
-                format_boost = 1.0 + min(0.35, fmt_score / 100 * 0.35) if fmt_is_trend else 1.0
-
-                # Enhanced velocity formula: weighted with acceleration and format signals
-                trend_score = (
-                    (avg_velocity * 0.40)
-                    + (max_velocity * 0.15)
-                    + (recent_3h_avg * 0.25)
-                    + (recent_6h_avg * 0.10)
-                    + (recent_24h_avg * 0.10)
-                ) * creator_bonus * recency_bonus * outlier_boost * format_boost * (1.0 + acceleration_bonus)
+                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus * outlier_boost
 
                 # Creator fit looks at what the trend is actually good for, not just raw momentum.
                 # Fix #10: niche_tag and vibe_tag are derived from classify_single_trend() later;
@@ -965,10 +920,9 @@ class TrendEngine:
                 )
 
                 composite_score = (
-                    (trend_score * 0.35)
+                    (trend_score * 0.40)
                     + (creator_fit_score * 3.0)
                     + (hook_retention_score * 2.0)
-                    + (fmt_score * 0.15 if fmt_is_trend else 0)
                     - (saturation_penalty * 1.8)
                 )
 
@@ -1046,11 +1000,6 @@ class TrendEngine:
                 elif creator_count >= 2 and len(group_reels) >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "creator_count_emerging"
-                elif creator_count >= 1 and len(group_reels) >= 3:
-                    # Relaxed threshold for global content: 1 creator with 3+ reels
-                    # Global audio is naturally more fragmented, so allow single-creator detection
-                    initial_status = "emerging"
-                    promotion_trigger = "global_single_creator_reels"
 
                 if not initial_status:
                     continue
@@ -1086,9 +1035,6 @@ class TrendEngine:
                     "usernames": list(usernames),
                     "initial_status": initial_status,
                     "promotion_trigger": promotion_trigger,
-                    "velocity_acceleration": velocity_acceleration,
-                    "is_format_trend": fmt_is_trend,
-                    "format_trend_score": fmt_score,
                     "discovery_source": _trend_discovery_source({
                         "is_cross_cultural": any(r.get("is_cross_cultural") for r in group_reels),
                         "trend_origin": max(
@@ -1270,11 +1216,6 @@ class TrendEngine:
 
                 # Regional crossover detection
                 crossover_info = _detect_regional_crossover(trend.get("language") or "en", group_reels)
-
-                # ── Format trend detection (metadata-level) ──────────────────────
-                format_analysis = detect_dominant_format(group_reels)
-                format_trend = is_format_trend(format_analysis)
-                format_trend_score = get_format_trend_score(format_analysis) if format_trend else 0.0
                 
                 # Trend classification for display differentiation
                 trend_classification = _classify_trend_type(
@@ -1356,57 +1297,37 @@ class TrendEngine:
                     "vibe_tag": trend.get("vibe_tag", "general"),
                     "is_voiceover": trend.get("is_voiceover", False),
                     "saturation_count": trend.get("saturation_count", 0),
-                    # Format trend detection (metadata-level)
-                    "dominant_format": format_analysis.get("dominant_format", "unknown"),
-                    "format_replication_rate": format_analysis.get("format_replication_rate", 0.0),
-                    "format_concepts": format_analysis.get("format_concepts", []),
-                    "creator_diversity": format_analysis.get("creator_diversity", 0.0),
-                    "is_format_trend": format_trend,
-                    "format_trend_score": format_trend_score,
                     # Fix #5: sample_captions written at detection time for nightly LLM batch context
                     "sample_captions": trend.get("sample_captions", ""),
                 }
 
                 try:
                     res = self.supabase.table("trends").insert(trend_data).execute()
-                except Exception as e:
-                    # If insert fails due to missing columns (migration not run), retry without format fields
-                    if "column" in str(e).lower() and "does not exist" in str(e).lower():
-                        logging.warning(f"Format columns missing (migration needed). Retrying without format fields.")
-                        for fmt_key in ["dominant_format", "format_replication_rate", "format_concepts",
-                                        "creator_diversity", "is_format_trend", "format_trend_score"]:
-                            trend_data.pop(fmt_key, None)
-                        try:
-                            res = self.supabase.table("trends").insert(trend_data).execute()
-                        except Exception as e2:
-                            logging.error(f"Failed to save '{trend['audio_title']}': {e2}", exc_info=True)
-                            continue
-                    else:
-                        logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
-                        continue
-                
-                if res.data:
-                    tid = res.data[0].get("id")
-                    new_trend_ids.append(tid)
-                    logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
-                    
-                    # Try to calculate initial peaking score if we have snapshot data
-                    # This is for existing trends that might already have snapshots
-                    try:
-                        initial_snapshots_res = self.supabase.table('trend_snapshots') \
-                            .select('velocity_avg, captured_at') \
-                            .eq('trend_id', tid) \
-                            .order('captured_at', desc=True) \
-                            .limit(10) \
-                            .execute()
+                    if res.data:
+                        tid = res.data[0].get("id")
+                        new_trend_ids.append(tid)
+                        logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
                         
-                        initial_snapshots = initial_snapshots_res.data or []
-                        if initial_snapshots and calculate_realistic_peaking_score:
-                            initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
-                            self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
-                            logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
-                    except Exception as peaking_err:
-                        logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
+                        # Try to calculate initial peaking score if we have snapshot data
+                        # This is for existing trends that might already have snapshots
+                        try:
+                            initial_snapshots_res = self.supabase.table('trend_snapshots') \
+                                .select('velocity_avg, captured_at') \
+                                .eq('trend_id', tid) \
+                                .order('captured_at', desc=True) \
+                                .limit(10) \
+                                .execute()
+                            
+                            initial_snapshots = initial_snapshots_res.data or []
+                            if initial_snapshots and calculate_realistic_peaking_score:
+                                initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
+                                self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
+                                logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
+                        except Exception as peaking_err:
+                            logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
+                            
+                except Exception as e:
+                    logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
 
             # Calculate and save audio-level trend scores
             self.calculate_audio_trend_scores()
