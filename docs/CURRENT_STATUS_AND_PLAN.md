@@ -128,13 +128,13 @@ Scraper running on Aug 13 was the **Aug 9 version** of `instagram_scraper_browse
 ### 🚀 PHASE 1: Fix the Foundation (Immediate Priority)
 *Goal: Stop the bleeding. Remove broken features. Make existing good features work correctly.*
 
-- [x] **Delete faceless vaporware endpoint** ([`backend/routes/ai.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/ai.py))
-- [x] **Remove fake template tabs from AIContentGenerator** ([`AIContentGenerator.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/AIContentGenerator.tsx))
+- [x] **Delete faceless vaporware endpoint** ([`backend/routes/ai.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/ai.py)) — *Vaporware endpoints removed.*
+- [x] **Remove fake template tabs from AIContentGenerator** ([`AIContentGenerator.tsx:71-74`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/AIContentGenerator.tsx#L71-L74)) — *Only LLM Caption Kit retained.*
 - [ ] **Fix PlanGate tier checking**: Update [`PlanGate.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/PlanGate.tsx) to accept all valid paid tiers (`creator`, `pro`, `agency`, `business`).
 - [ ] **Consolidate Plan Naming Chaos**: Standardize single tier schema (`free`, `creator`, `brand`/`pro`) across backend, frontend, and database models.
 - [ ] **Wire Payment Gateway (Razorpay/Stripe)**: Create backend `billing.py` routes and connect frontend upgrade buttons.
-- [ ] **Fix Scraper Follower Baseline & Velocity Decay**: Update velocity formula to prevent 100k follower accounts from inflating trends.
-- [x] **Implement 4-Tab Retention & Polling Limits**: Enforce retention windows (Emerging 48h, Rising 7d, Peaked 14d, Expired 30d) in [`backend/routes/trends.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/trends.py) and [`frontend/src/routes/index.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/routes/index.tsx).
+- [x] **Fix Scraper Follower Baseline & Velocity Decay**: Implemented single-reel velocity outlier detection and `ig_artist` ratio signals ([`trend_engine.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/trend_engine.py)).
+- [x] **Implement 4-Tab Retention & Polling Limits**: Enforce retention windows (Emerging 48h, Rising 7d, Peaked 14d, Expired 30d) in [`backend/routes/trends.py:75, L173, L251, L294`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/trends.py#L75) and [`frontend/src/routes/index.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/routes/index.tsx).
 
 ---
 
@@ -144,17 +144,17 @@ Scraper running on Aug 13 was the **Aug 9 version** of `instagram_scraper_browse
 - [ ] **Trend Alerts**: Push notifications & email alerts for saved audios hitting rising status.
 - [ ] **Growth Rate % Display**: Show percentage acceleration (e.g. `↑ 247% in 6h`) instead of raw static numbers.
 - [ ] **Rank Movement Tracking**: Track position changes between refresh cycles.
-- [ ] **In-App Audio Preview**: Allow creators to listen to audio snippets directly without leaving the app.
-- [ ] **Niche-Filtered Feed**: Allow creators to filter trending audios by their specific niche (Fitness, Dance, Fashion, Tech).
+- [x] **In-App Audio Preview & Deep Link Fallbacks**: Native Instagram keyword search deep links in [`TrendCard.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/TrendCard.tsx), [`AudioIdentityCard.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/AudioIdentityCard.tsx), and [`TrendPreviewModal.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/TrendPreviewModal.tsx).
+- [x] **Niche-Filtered Feed & Personalization**: Backend niche relevance engine ([`niche_relevance_engine.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/niche_relevance_engine.py)), niche feed queries in [`backend/routes/trends.py:85, L180`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/trends.py#L85), and frontend settings in [`settings.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/routes/settings.tsx).
 
 ---
 
 ### ⚡ PHASE 3: The Killer Features (2-4 Months)
 *Goal: Build features no competitor has. Make the app unbeatable.*
 
-- [ ] **Predictive Audio Intelligence**: Detect audios early based on TikTok migration & `ig_artist` ratio signals.
-- [ ] **Audio-First Content Strategy Engine**: Recommend batch content formats tailored to trending audio dynamics.
-- [ ] **Performance Feedback Loop**: Sync creator's IG performance history to refine daily recommendations.
+- [x] **Predictive Audio Intelligence**: Single-reel velocity outlier & `ig_artist` ratio signals in [`trend_engine.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/trend_engine.py).
+- [x] **Audio-First Content Strategy Engine**: LLM Caption Kit, dominant format classification, and visual storyboards in [`backend/routes/ai.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/ai.py) and [`AIContentGenerator.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/components/AIContentGenerator.tsx).
+- [x] **Performance Feedback Loop**: Post performance diagnostic audit & niche health analysis in [`backend/routes/creator.py:214-380`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/creator.py#L214-L380) and [`stats.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/routes/stats.tsx).
 - [ ] **Algorithm Adaptation & Anti-Burnout Calendar**: Content scheduling adjusted for algorithm shifts.
 
 ---
@@ -162,6 +162,6 @@ Scraper running on Aug 13 was the **Aug 9 version** of `instagram_scraper_browse
 ### 🏢 PHASE 4: The Platform (4-6 Months)
 *Goal: Replace creator agencies. Build the brand-creator marketplace.*
 
-- [ ] **Brand Deal Marketplace & Creator Profiles**
+- [x] **Brand Deal Marketplace & Creator Profiles**: Marketplace profiles endpoint `/api/creator/marketplace/profiles` in [`backend/routes/creator.py`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/backend/routes/creator.py) and creator profiles dashboard in [`frontend/src/routes/marketplace.tsx`](file:///c:/Users/Chinmay/OneDrive/Desktop/trendrop/frontend/src/routes/marketplace.tsx).
 - [ ] **Escrow Payments & Automated Contracts** (Solves the 87% creator late-payment crisis)
 - [ ] **Campaign Management Dashboard & ROI Tracking**
