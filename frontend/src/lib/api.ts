@@ -473,7 +473,22 @@ export function setAuthToken(token: string | null) {
 
 export function getAuthToken(): string | null {
   if (!inMemoryToken && typeof window !== "undefined") {
-    inMemoryToken = localStorage.getItem("trendrop_session_token");
+    inMemoryToken = localStorage.getItem("trendrop_session_token") || localStorage.getItem("trendrop_token");
+    if (!inMemoryToken) {
+      // Also check Supabase local storage keys if present
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
+          try {
+            const parsed = JSON.parse(localStorage.getItem(key) || "");
+            if (parsed?.access_token) {
+              inMemoryToken = parsed.access_token;
+              break;
+            }
+          } catch (e) {}
+        }
+      }
+    }
   }
   return inMemoryToken;
 }
