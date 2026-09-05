@@ -1038,14 +1038,17 @@ class TrendEngine:
                 initial_status = None
                 promotion_trigger = None
 
-                if max_use_count >= RISING_USE_THRESHOLD:
+                # 10/10 Rising Logic: High use_count must ALSO have positive velocity / active momentum
+                # so that static high-count tracks from weeks ago don't jump directly into Rising feed.
+                if max_use_count >= RISING_USE_THRESHOLD and (creator_velocity > 0 or has_strong_official_velocity):
                     initial_status = "rising"
                     promotion_trigger = "audio_use_count_rising"
                 elif creator_count >= 3 and creator_velocity > 0:
-                    # TODO: Investigate why creator_count_rising fired 0 times in backtests.
-                    # Verify if condition is too strict or if creator velocity metrics need tuning.
                     initial_status = "rising"
                     promotion_trigger = "creator_count_rising"
+                elif max_use_count >= RISING_USE_THRESHOLD:
+                    initial_status = "emerging"
+                    promotion_trigger = "audio_use_count_emerging"
                 elif max_use_count >= EMERGING_USE_THRESHOLD:
                     initial_status = "emerging"
                     promotion_trigger = "audio_use_count_emerging"

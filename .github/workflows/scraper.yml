@@ -1,9 +1,9 @@
-name: Scraper
+name: Scraper (Main Account - 6h Fallback)
 
 on:
   schedule:
-    # Run every 6 hours (00:00, 06:00, 12:00, 18:00 UTC) to capture early/baby-state trends
-    - cron: '0 */6 * * *'
+    # Main Account: Run every 6 hours at :45 (01:45, 07:45, 13:45, 19:45 UTC) — staggered by 1.5h from dedicated 3h scraper
+    - cron: '45 1,7,13,19 * * *'
   workflow_dispatch:
     inputs:
       mode:
