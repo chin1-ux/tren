@@ -1,10 +1,14 @@
 import os
 import sys
 import logging
+
+# Ensure backend directory is in sys.path before any local imports
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 import api_globals
 from datetime import datetime, timezone, timedelta
-
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
 # Load .env BEFORE any module-level os.getenv() calls (e.g. SCRAPER_BACKEND below).
 # Must come first — moving it below any env read means standalone runs silently
