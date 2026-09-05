@@ -209,6 +209,9 @@ class InstagramScraper:
                 # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
                 "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
                 "soundalert", "trendingsound", "viralmusic", "reelsound",
+                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Dance Trends)
+                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
+                "speedupphonk", "driftphonk", "phonkdance", "reelsbrasil",
                 # Broad Viral & Music Seeds
                 "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
                 "hiphopreels", "edmmusic", "kpopreels"

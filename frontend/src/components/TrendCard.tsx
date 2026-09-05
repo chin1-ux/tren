@@ -218,7 +218,7 @@ function TrialReelBadge({
 function buildAudioUrl(audioId?: string | null, audioName?: string): string {
   if (audioId) return `https://www.instagram.com/reels/audio/${audioId}/`;
   const q = encodeURIComponent(audioName || "");
-  return `https://www.instagram.com/explore/tags/${q}/`;
+  return `https://www.instagram.com/explore/search/keyword/?q=${q}`;
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────
@@ -553,7 +553,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             +{remainingCount} more
           </Chip>
         )}
-        {trend.reelCount !== undefined && (
+        {trend.reelCount != null && trend.reelCount > 0 && (
           <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount.toLocaleString()} reels</Chip>
         )}
       </div>

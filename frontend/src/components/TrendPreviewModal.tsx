@@ -35,7 +35,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
 
   const audioUrl = trend.audioId
     ? `https://www.instagram.com/reels/audio/${trend.audioId}/`
-    : `https://www.instagram.com/explore/tags/${encodeURIComponent(trend.song || "")}/`;
+    : `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(trend.song || "")}`;
 
   const globalPct = trend.globalSaturationPct ?? 0;
   const indiaPct = trend.indiaSaturationPct ?? 0;

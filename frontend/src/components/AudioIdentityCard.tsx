@@ -39,7 +39,7 @@ export const AudioIdentityCard = ({
   const instagramUrl = audioId
     ? `https://www.instagram.com/reels/audio/${audioId}/`
     : audioTitle
-    ? `https://www.instagram.com/explore/tags/${encodeURIComponent(audioTitle)}/`
+    ? `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(audioTitle)}`
     : null;
 
   const formatReelCount = (num?: number | null) => {

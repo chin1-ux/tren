@@ -373,7 +373,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     bestPlatformFirst: t.best_platform_first ?? "instagram",
     whyThisWorks: t.why_this_works,
     audioCueSecond: t.audio_cue_second,
-    reelCount: t.reel_count,
+    reelCount: t.reel_count != null ? Number(t.reel_count) : undefined,
     isEmerging: t.status === "emerging",
     formatTransferable: t.format_transferable,
     transferInstructions: t.transfer_instructions,
