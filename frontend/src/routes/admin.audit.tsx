@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
-import { getAdminAuditLog } from "@/lib/api";
+import { getAdminAuditLog, API_URL } from "@/lib/api";
 import { Shield, ArrowLeft, Search, Calendar, User, Activity, Download, Filter } from "lucide-react";
 import { motion } from "framer-motion";
 
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/admin/audit")({
       throw redirect({ to: "/admin/login" });
     }
     try {
-      const response = await fetch("/api/admin/validate-token", {
+      const response = await fetch(`${API_URL}/api/admin/validate-token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

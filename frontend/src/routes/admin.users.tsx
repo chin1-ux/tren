@@ -5,7 +5,8 @@ import {
   getAdminUserDetails, 
   updateAdminUserPlan, 
   lockAdminUserAccount, 
-  unlockAdminUserAccount 
+  unlockAdminUserAccount,
+  API_URL 
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
@@ -25,7 +26,7 @@ export const Route = createFileRoute("/admin/users")({
     
     // Validate token with backend
     try {
-      const response = await fetch("/api/admin/validate-token", {
+      const response = await fetch(`${API_URL}/api/admin/validate-token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, redirect } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
-import { getAdminAnalyticsSummary } from "@/lib/api";
+import { getAdminAnalyticsSummary, API_URL } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { BarChart2, RefreshCw, ShieldAlert, ArrowLeft, Activity } from "lucide-react";
@@ -16,7 +16,7 @@ export const Route = createFileRoute("/admin/analytics")({
       throw redirect({ to: "/admin/login" });
     }
     try {
-      const response = await fetch("/api/admin/validate-token", {
+      const response = await fetch(`${API_URL}/api/admin/validate-token`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
