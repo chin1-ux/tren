@@ -9,9 +9,20 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
+from language_detection import _detect_audio_language
+from audio_title_normalize import normalize_audio_title
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
-from format_detector import detect_dominant_format, is_format_trend, get_format_trend_score
 from dotenv import load_dotenv
+
+# Defensive guard: hashtag pool names are internal routing labels, not real niches.
+# If they leak into niche_tag, remap to "general" and log a warning.
+_POOL_NAMES = {"INDIA_VERNACULAR", "GLOBAL_DISCOVERY", "INDIA_TRENDING", "GLOBAL_NICHES"}
+
+def _sanitize_niche_tag(niche_tag: str) -> str:
+    if niche_tag in _POOL_NAMES:
+        logging.warning(f"Pool name '{niche_tag}' leaked to niche_tag — remapping to 'general'")
+        return "general"
+    return niche_tag
 from supabase import create_client, Client
 
 import sys
@@ -163,7 +174,7 @@ def _select_trend_origin(reels: list[dict]) -> str:
         if (r.get("trend_origin") or "").strip()
     ]
     if not origins:
-        return "IN"  # Default to IN for Indian scraping context
+        return "unknown"
 
     counts: dict[str, int] = {}
     for origin in origins:
@@ -172,14 +183,12 @@ def _select_trend_origin(reels: list[dict]) -> str:
         counts[origin] = counts.get(origin, 0) + 1
 
     if not counts:
-        return "IN"  # If all are UNKNOWN/empty, default to IN
+        return "unknown"
 
     ranked = sorted(counts.items(), key=lambda item: (-item[1], item[0]))
     top_origin, top_count = ranked[0]
     if len(ranked) > 1 and ranked[1][1] == top_count:
-        if "IN" in counts:
-            return "IN"
-        return "IN"
+        return "unknown"
     return top_origin
 
 
@@ -191,10 +200,14 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
     if not title:
         return None
     if title.lower() == "original audio" or "original audio" in title.lower():
+        # Completely ignore original audio for now, per user request.
         return None
     if not artist:
         artist = "Unknown Artist"
-    return (title, artist)
+    canonical_title = normalize_audio_title(title)
+    if not canonical_title:
+        return None
+    return (canonical_title, artist)
 
 
 def _aggregate_content_tone(reels: list[dict]) -> str:
@@ -416,31 +429,6 @@ _DANCE_WORDS = [
     "hookstep", "thumka", "giddha", "garba", "dandiya", "choreograph"
 ]
 
-# Fix #3: Script range map for South Indian language detection
-_SCRIPT_LANG_RANGES = [
-    ("hi", "\u0900", "\u097f"),  # Devanagari (Hindi, Marathi)
-    ("ta", "\u0b80", "\u0bff"),  # Tamil
-    ("te", "\u0c00", "\u0c7f"),  # Telugu
-    ("kn", "\u0c80", "\u0cff"),  # Kannada
-    ("ml", "\u0d00", "\u0d7f"),  # Malayalam
-    ("bn", "\u0980", "\u09ff"),  # Bengali
-    ("pa", "\u0a00", "\u0a7f"),  # Punjabi (Gurmukhi)
-]
-
-
-def _detect_language(captions: list[str]) -> str:
-    """Detect dominant script language from captions. Returns ISO 639-1 code."""
-    scores: dict[str, int] = {}
-    for c in captions:
-        for lang, lo, hi in _SCRIPT_LANG_RANGES:
-            count = sum(1 for ch in (c or "") if lo <= ch <= hi)
-            if count:
-                scores[lang] = scores.get(lang, 0) + count
-    if not scores:
-        return "en"
-    return max(scores, key=lambda k: scores[k])
-
-
 def classify_single_trend(trend):
     reels = trend["reels"]
     captions = [r.get("caption") for r in reels if r.get("caption")]
@@ -468,8 +456,10 @@ def classify_single_trend(trend):
     trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
     trend["text_overlay_template"] = None
 
-    # Fix #3: Multi-script language detection (Hindi, Tamil, Telugu, Kannada, Malayalam, Bengali, Punjabi)
-    trend["language"] = _detect_language(captions)
+    # Language detection via shared module (replaces inline _detect_language)
+    _audio_text = f"{trend.get('audio_title', '')} {trend.get('audio_artist', '')}"
+    _dominant_caption = max(captions, key=len) if captions else ""
+    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption)
 
     trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
 
@@ -722,8 +712,8 @@ class TrendEngine:
             
             new_reels_scraped = new_reels_count_res.count or 0
             if new_reels_scraped < 1:
-                logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Skipping trend detection entirely.")
-                return []
+                logging.warning(f"Possible scraper outage detected (0 reels scraped in the last 6h). Proceeding anyway for manual backfill.")
+                # return []
 
             # STEP 1: Load recent high-velocity reels (last 48h)
             # Note on filter semantics: PostgREST neq maps to SQL != which EXCLUDES NULLs.
@@ -787,7 +777,7 @@ class TrendEngine:
                 .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()
             existing_named = {
-                (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip())
+                (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip())
                 for t in (all_trends_res.data or [])
                 if t.get("audio_title")
                 and (t.get("audio_title") or "").strip().lower() != "original audio"
@@ -800,59 +790,92 @@ class TrendEngine:
 
             # STEP 4: Evaluate each audio group
             confirmed = []
+
+            # Quality gate constants
+            # 501034 is a known sentinel/fallback value used by the scraper when the
+            # real audio_use_count is unavailable. It must NOT be treated as a real signal.
+            SENTINEL_USE_COUNT = 501034
+
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
+
+                # ── Original Audio exclusion ──────────────────────────────────────────────
+                # Exclude ALL original-audio from trend detection entirely.
+                # Without fingerprinting, we can't match across posts reliably.
+                # Surface original audio via the format/pattern track (when built).
+                is_original_audio = (
+                    title.lower() in ("original audio", "original sound", "")
+                    or title.lower().startswith("original_audio::")
+                    or any(r.get("is_original_audio") is True for r in group_reels)
+                )
+
+                # Check for TikTok migration breakout footprint:
+                # 1. High use_count (>= 50)
+                # 2. Or high view-to-follower ratio on the audio artist (> 15x with 50k+ views)
+                max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                artist_followers = max((r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
+                max_views = max((r.get("view_count") or 0 for r in group_reels), default=0)
+
+                ratio = (max_views / max(artist_followers, 100)) if artist_followers > 0 else 0.0
+                is_crossplatform_breakout = (ratio >= 15.0 and max_views >= 50000) or (max_use_cnt >= 50)
+
+                if is_original_audio and not is_crossplatform_breakout:
+                    logging.debug(
+                        f"Original-audio excluded from trend detection (no breakout signal): '{title}' | {artist} — "
+                        f"{len(group_reels)} reels"
+                    )
+                    continue
+                # ────────────────────────────────────────────────────────────────────────
+
+                # ── Sentinel use-count gate ──────────────────────────────────────────────
+                # Scraper emits 501034 when real use_count is unavailable. Groups that
+                # only have the sentinel value and fewer than 5 reels are too weak to trust.
+                max_raw_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                if max_raw_use_count == SENTINEL_USE_COUNT and len(group_reels) < 5:
+                    logging.debug(
+                        f"Sentinel use-count gate: skipping '{title}' | {artist} — "
+                        f"use_count={max_raw_use_count} (sentinel) with only {len(group_reels)} reels"
+                    )
+                    continue
+                # ────────────────────────────────────────────────────────────────────────
 
                 # Check for existing trend by audio_id (primary) or title+artist (fallback)
                 existing_match = None
                 if representative_audio_id and representative_audio_id.strip() in existing_by_audio_id:
                     existing_match = existing_by_audio_id[representative_audio_id.strip()]
                 elif title.lower() != "original audio" and (title, artist) in existing_named:
-                    # Title+artist match without audio_id match — find by name
+                    # Title+artist match without audio_id match — find by normalized name
                     for t in (all_trends_res.data or []):
-                        if (t.get("audio_title", "").strip(), t.get("audio_artist", "").strip()) == (title, artist):
+                        if (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip()) == (title, artist):
                             existing_match = t
                             break
 
                 if existing_match:
+                    # Update-in-place: never-downgrade status on re-detection.
+                    # Only status is updated here — velocity/metrics are owned by
+                    # trend_refresher.py via snapshot logic. No last_detected_at
+                    # column exists; consider adding via migration for staleness tracking.
                     old_status = existing_match.get("status", "emerging")
-                    
-                    # Only refresh active trends (emerging/rising). Never resurrect peaked/expired.
-                    if old_status not in ("emerging", "rising"):
-                        continue
-                    
-                    # Re-detect: update velocity, window, reel_count from fresh scrape data
-                    _vels = [r.get("velocity_score", 0.0) for r in group_reels]
-                    _new_avg_vel = sum(_vels) / len(_vels) if _vels else 0.0
-                    _new_max_vel = max(_vels) if _vels else 0.0
-                    _new_creator_count = len({r.get("owner_username") for r in group_reels if r.get("owner_username")})
-                    _new_reel_count = len(group_reels)
-
-                    # Extend window if new reels found (same logic as refresher)
-                    _old_window = existing_match.get("window_hours_remaining") or 0
-                    if _new_reel_count > 0 and _old_window < 48:
-                        _new_window = min(48, _old_window + 12)
-                    else:
-                        _new_window = max(0, _old_window - 3)
-
-                    update_data = {
-                        "velocity_avg": _new_avg_vel,
-                        "peak_velocity": max(_new_max_vel, existing_match.get("peak_velocity") or 0),
-                        "reel_count": _new_reel_count,
-                        "window_hours_remaining": _new_window,
-                    }
-
-                    try:
-                        self.supabase.table("trends") \
-                            .update(update_data) \
-                            .eq("id", existing_match["id"]) \
-                            .execute()
-                        logging.info(
-                            f"Refreshed active trend '{title}' (id={existing_match['id']}): "
-                            f"vel={_new_avg_vel:.0f} reels={_new_reel_count} window={_new_window}"
-                        )
-                    except Exception as update_err:
-                        logging.warning(f"Failed to refresh active trend '{title}': {update_err}")
+                    new_detected_status = "emerging"
+                    old_priority = STATUS_PRIORITY.get(old_status, 0)
+                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if final_status != old_status:
+                        update_payload = {"status": final_status}
+                        if final_status in ("emerging", "rising"):
+                            update_payload["window_hours_remaining"] = 48
+                            
+                        try:
+                            self.supabase.table("trends") \
+                                .update(update_payload) \
+                                .eq("id", existing_match["id"]) \
+                                .execute()
+                            logging.info(
+                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
+                                f"status {old_status} -> {final_status}"
+                            )
+                        except Exception as update_err:
+                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
@@ -861,9 +884,16 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
-                recent_3h_velocities = []
+                all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).gte("created_at", time_threshold_48h).execute()
+                all_reels = all_reels_for_audio_res.data
+                high_velocity_reels = [r for r in all_reels if r.get("velocity_score", 0) > 0.3]
+                
+                # We need at least 3 recently scraped high-velocity reels to confirm a trend
+                if len(high_velocity_reels) < 3:
+                    logging.debug(f"Audio {title} failed 3-reel threshold check (found {len(high_velocity_reels)} recent high-velocity reels)")
+                    continue
+
                 recent_6h_velocities = []
-                recent_3_6h_velocities = []
                 recent_24h_velocities = []
                 recent_reels_6h = []
                 oldest_age_hours = 0.0
@@ -879,28 +909,16 @@ class TrendEngine:
                             created_dt = created_dt.replace(tzinfo=timezone.utc)
                         age_hours = (datetime.now(timezone.utc) - created_dt).total_seconds() / 3600
                         oldest_age_hours = max(oldest_age_hours, age_hours)
-                        vel = r.get("velocity_score", 0.0)
-                        if age_hours <= 3:
-                            recent_3h_velocities.append(vel)
-                        elif age_hours <= 6:
-                            recent_3_6h_velocities.append(vel)
                         if age_hours <= 6:
-                            recent_6h_velocities.append(vel)
+                            recent_6h_velocities.append(r.get("velocity_score", 0.0))
                             recent_reels_6h.append(r)
                         if age_hours <= 24:
-                            recent_24h_velocities.append(vel)
+                            recent_24h_velocities.append(r.get("velocity_score", 0.0))
                     except Exception as _dt_err:
                         logging.debug(f"detect_trends: could not parse reel created_at '{created_str}': {_dt_err}")
 
-                recent_3h_avg = sum(recent_3h_velocities) / len(recent_3h_velocities) if recent_3h_velocities else 0.0
-                recent_3_6h_avg = sum(recent_3_6h_velocities) / len(recent_3_6h_velocities) if recent_3_6h_velocities else 0.0
                 recent_6h_avg = sum(recent_6h_velocities) / len(recent_6h_velocities) if recent_6h_velocities else 0.0
                 recent_24h_avg = sum(recent_24h_velocities) / len(recent_24h_velocities) if recent_24h_velocities else avg_velocity
-
-                # Velocity acceleration: positive = speeding up, negative = slowing down
-                velocity_acceleration = recent_3h_avg - recent_3_6h_avg if recent_3_6h_velocities else 0.0
-                acceleration_bonus = max(0.0, min(0.4, velocity_acceleration / (avg_velocity + 1) * 0.5))
-
                 recency_bonus = max(0.5, 1.5 - (oldest_age_hours / 48)) if oldest_age_hours else 1.0
                 creator_bonus = 1.0 + min(0.6, creator_count * 0.08)
                 
@@ -908,20 +926,7 @@ class TrendEngine:
                 outlier_count = sum(1 for r in group_reels if r.get("is_creator_outlier") is True)
                 outlier_boost = min(1.5, 1.0 + (outlier_count * 0.20))
                 
-                # Format Trend Boost: detected by format_detector.py
-                format_analysis = detect_dominant_format(group_reels)
-                fmt_is_trend = is_format_trend(format_analysis)
-                fmt_score = get_format_trend_score(format_analysis) if fmt_is_trend else 0.0
-                format_boost = 1.0 + min(0.35, fmt_score / 100 * 0.35) if fmt_is_trend else 1.0
-
-                # Enhanced velocity formula: weighted with acceleration and format signals
-                trend_score = (
-                    (avg_velocity * 0.40)
-                    + (max_velocity * 0.15)
-                    + (recent_3h_avg * 0.25)
-                    + (recent_6h_avg * 0.10)
-                    + (recent_24h_avg * 0.10)
-                ) * creator_bonus * recency_bonus * outlier_boost * format_boost * (1.0 + acceleration_bonus)
+                trend_score = ((avg_velocity * 0.45) + (max_velocity * 0.2) + (recent_6h_avg * 0.25) + (recent_24h_avg * 0.1)) * creator_bonus * recency_bonus * outlier_boost
 
                 # Creator fit looks at what the trend is actually good for, not just raw momentum.
                 # Fix #10: niche_tag and vibe_tag are derived from classify_single_trend() later;
@@ -962,10 +967,9 @@ class TrendEngine:
                 )
 
                 composite_score = (
-                    (trend_score * 0.35)
+                    (trend_score * 0.40)
                     + (creator_fit_score * 3.0)
                     + (hook_retention_score * 2.0)
-                    + (fmt_score * 0.15 if fmt_is_trend else 0)
                     - (saturation_penalty * 1.8)
                 )
 
@@ -999,9 +1003,10 @@ class TrendEngine:
 
                 # Determine initial status using grounded Option B triggers
                 # Grounded thresholds calibrated on 2026-07-29 against N=108 distinct audio_id values (p50 = 153k, p75 = 798k).
-                # Re-audit these thresholds if scrape distribution changes significantly.
+                # RISING_USE_THRESHOLD lowered from 800k to 500k on 2026-08-27 so trends actually graduate
+                # from emerging → rising. The 800k bar was so high almost no Indian audio trends crossed it.
                 EMERGING_USE_THRESHOLD = 150000
-                RISING_USE_THRESHOLD = 800000
+                RISING_USE_THRESHOLD = 500000
 
                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
@@ -1043,14 +1048,15 @@ class TrendEngine:
                 elif creator_count >= 2 and len(group_reels) >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "creator_count_emerging"
-                elif creator_count >= 1 and len(group_reels) >= 3:
-                    # Relaxed threshold for global content: 1 creator with 3+ reels
-                    # Global audio is naturally more fragmented, so allow single-creator detection
-                    initial_status = "emerging"
-                    promotion_trigger = "global_single_creator_reels"
 
                 if not initial_status:
                     continue
+
+                # Removed Hard minimum 2-reel gate to fix the chicken-and-egg bug.
+                # If an audio has massive use_count (e.g. 50,000+) but we only scraped 1 reel using it,
+                # we MUST track it so the scraper knows to look for it. Blocking it here creates
+                # a loop where we never track it because we don't have enough reels, and we don't 
+                # get more reels because we aren't tracking it.
 
                 # Validate time window: all reels within 48h of each other
                 posted_times = []
@@ -1068,8 +1074,13 @@ class TrendEngine:
                     if (max(posted_times) - min(posted_times)) > timedelta(hours=72):
                         continue
 
+                # Clean up original_audio compound key for display — store human-readable title
+                display_title = title
+                if title.lower().startswith("original_audio::"):
+                    display_title = "Original Audio"
+
                 confirmed.append({
-                    "audio_title": title,
+                    "audio_title": display_title,
                     "audio_artist": artist,
                     "reels": group_reels,
                     "avg_velocity": avg_velocity,
@@ -1083,9 +1094,6 @@ class TrendEngine:
                     "usernames": list(usernames),
                     "initial_status": initial_status,
                     "promotion_trigger": promotion_trigger,
-                    "velocity_acceleration": velocity_acceleration,
-                    "is_format_trend": fmt_is_trend,
-                    "format_trend_score": fmt_score,
                     "discovery_source": _trend_discovery_source({
                         "is_cross_cultural": any(r.get("is_cross_cultural") for r in group_reels),
                         "trend_origin": max(
@@ -1267,11 +1275,6 @@ class TrendEngine:
 
                 # Regional crossover detection
                 crossover_info = _detect_regional_crossover(trend.get("language") or "en", group_reels)
-
-                # ── Format trend detection (metadata-level) ──────────────────────
-                format_analysis = detect_dominant_format(group_reels)
-                format_trend = is_format_trend(format_analysis)
-                format_trend_score = get_format_trend_score(format_analysis) if format_trend else 0.0
                 
                 # Trend classification for display differentiation
                 trend_classification = _classify_trend_type(
@@ -1305,11 +1308,11 @@ class TrendEngine:
                     "camera_style": trend.get("camera_style"),
                     "window_hours_remaining": window_h,
                     "confidence": confidence,
-                    "status": trend.get("initial_status", "rising"),
+                    "status": trend_state.lifecycle.value,
                     "saturation_score": trend.get("saturation_score", 0.2),
                     "global_saturation_pct": global_sat,
                     "india_saturation_pct": india_sat,
-                    "niche_tag": niche_tag,
+                    "niche_tag": _sanitize_niche_tag(niche_tag),
                     "hook_brief": hook_brief,
                     "format_patterns": format_patterns,
                     "trend_origin": trend_origin,
@@ -1353,57 +1356,37 @@ class TrendEngine:
                     "vibe_tag": trend.get("vibe_tag", "general"),
                     "is_voiceover": trend.get("is_voiceover", False),
                     "saturation_count": trend.get("saturation_count", 0),
-                    # Format trend detection (metadata-level)
-                    "dominant_format": format_analysis.get("dominant_format", "unknown"),
-                    "format_replication_rate": format_analysis.get("format_replication_rate", 0.0),
-                    "format_concepts": format_analysis.get("format_concepts", []),
-                    "creator_diversity": format_analysis.get("creator_diversity", 0.0),
-                    "is_format_trend": format_trend,
-                    "format_trend_score": format_trend_score,
                     # Fix #5: sample_captions written at detection time for nightly LLM batch context
                     "sample_captions": trend.get("sample_captions", ""),
                 }
 
                 try:
                     res = self.supabase.table("trends").insert(trend_data).execute()
-                except Exception as e:
-                    # If insert fails due to missing columns (migration not run), retry without format fields
-                    if "column" in str(e).lower() and "does not exist" in str(e).lower():
-                        logging.warning(f"Format columns missing (migration needed). Retrying without format fields.")
-                        for fmt_key in ["dominant_format", "format_replication_rate", "format_concepts",
-                                        "creator_diversity", "is_format_trend", "format_trend_score"]:
-                            trend_data.pop(fmt_key, None)
-                        try:
-                            res = self.supabase.table("trends").insert(trend_data).execute()
-                        except Exception as e2:
-                            logging.error(f"Failed to save '{trend['audio_title']}': {e2}", exc_info=True)
-                            continue
-                    else:
-                        logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
-                        continue
-                
-                if res.data:
-                    tid = res.data[0].get("id")
-                    new_trend_ids.append(tid)
-                    logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
-                    
-                    # Try to calculate initial peaking score if we have snapshot data
-                    # This is for existing trends that might already have snapshots
-                    try:
-                        initial_snapshots_res = self.supabase.table('trend_snapshots') \
-                            .select('velocity_avg, captured_at') \
-                            .eq('trend_id', tid) \
-                            .order('captured_at', desc=True) \
-                            .limit(10) \
-                            .execute()
+                    if res.data:
+                        tid = res.data[0].get("id")
+                        new_trend_ids.append(tid)
+                        logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
                         
-                        initial_snapshots = initial_snapshots_res.data or []
-                        if initial_snapshots and calculate_realistic_peaking_score:
-                            initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
-                            self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
-                            logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
-                    except Exception as peaking_err:
-                        logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
+                        # Try to calculate initial peaking score if we have snapshot data
+                        # This is for existing trends that might already have snapshots
+                        try:
+                            initial_snapshots_res = self.supabase.table('trend_snapshots') \
+                                .select('velocity_avg, captured_at') \
+                                .eq('trend_id', tid) \
+                                .order('captured_at', desc=True) \
+                                .limit(10) \
+                                .execute()
+                            
+                            initial_snapshots = initial_snapshots_res.data or []
+                            if initial_snapshots and calculate_realistic_peaking_score:
+                                initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
+                                self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
+                                logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
+                        except Exception as peaking_err:
+                            logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
+                            
+                except Exception as e:
+                    logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
 
             # Calculate and save audio-level trend scores
             self.calculate_audio_trend_scores()
