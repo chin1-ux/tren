@@ -332,14 +332,14 @@ function TrendsFeed() {
             onClick={() => setFeedTab("rising")}
             icon={<TrendingUp className="h-3.5 w-3.5" />}
             label="Rising"
-            count={deduplicatedTrends.rising.length}
+            count={Math.min(50, deduplicatedTrends.rising.length)}
           />
           <TabButton
             active={feedTab === "emerging"}
             onClick={() => setFeedTab("emerging")}
             icon={<Zap className="h-3.5 w-3.5" />}
             label="Emerging"
-            count={deduplicatedTrends.emerging.length}
+            count={Math.min(50, deduplicatedTrends.emerging.length)}
             urgent
           />
           <TabButton
@@ -354,14 +354,14 @@ function TrendsFeed() {
             onClick={() => setFeedTab("peaked")}
             icon={<Clock className="h-3.5 w-3.5" />}
             label="Peaked"
-            count={deduplicatedTrends.peaked.length}
+            count={Math.min(50, deduplicatedTrends.peaked.length)}
           />
           <TabButton
             active={feedTab === "expired"}
             onClick={() => setFeedTab("expired")}
             icon={<AlertCircle className="h-3.5 w-3.5" />}
             label="Expired"
-            count={deduplicatedTrends.expired.length}
+            count={Math.min(50, deduplicatedTrends.expired.length)}
           />
         </div>
 
