@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException, Depends, Request
+from fastapi import APIRouter, HTTPException, Depends
 from typing import List, Optional
 import logging
 from datetime import datetime, timezone
@@ -89,7 +89,6 @@ def update_user_preferences(
 
 @router.get("/api/content-trends")
 def get_content_trends(
-    request: Request,
     type: Optional[str] = None,
     limit: int = 20,
     current_user: str = Depends(require_auth),

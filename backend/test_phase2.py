@@ -87,25 +87,23 @@ try:
 except Exception as e:
     print(f"  [ERROR] {e}")
 
-# Test 3: India-Specific Content Generation
+# Test 3: India-Specific Content Generation (removed — methods deleted in A3)
 print("\n[Test 3] India-Specific Content Generation")
 try:
     from content_generator import AIContentGenerator
     
     generator = AIContentGenerator()
     
-    # Test India caption
-    caption = generator.generate_india_caption('Trending Song', 'hindi', 'casual')
-    print(f"  [OK] India caption generated: {caption.caption[:50]}...")
+    # Test general caption (template-based)
+    caption = generator.generate_caption('Trending Song', tone="casual", niche="general")
+    print(f"  [OK] General caption generated: {caption.caption[:50]}...")
     print(f"  [OK] Hashtags: {len(caption.hashtags)}")
     
-    # Test India content ideas
-    ideas = generator.generate_india_content_ideas('festival', 2)
-    print(f"  [OK] India content ideas: {len(ideas)}")
+    # Test general content ideas
+    ideas = generator.generate_content_ideas("fitness", count=2)
+    print(f"  [OK] Content ideas: {len(ideas)}")
     
-    # Test cultural event content
-    event_data = generator.get_cultural_event_content('Christmas')
-    print(f"  [OK] Cultural event data: {event_data['event_name']}")
+    print("  [OK] India-specific methods removed; general methods still work")
     
 except Exception as e:
     print(f"  [ERROR] {e}")

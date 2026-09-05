@@ -13,6 +13,9 @@ const NICHES = [
   { id: "motivation", emoji: "💪", label: "Motivation" },
   { id: "devotional", emoji: "🙏", label: "Devotional" },
   { id: "fitness",    emoji: "🏋️", label: "Fitness" },
+  { id: "tech",       emoji: "💻", label: "Tech" },
+  { id: "narrative_edit", emoji: "🎞️", label: "Creative Edit" },
+  { id: "romance_relationship", emoji: "💕", label: "Romance & Relationships" },
   { id: "study",      emoji: "📚", label: "Study" },
   { id: "scenic",     emoji: "🎬", label: "Cinematic" },
 ];

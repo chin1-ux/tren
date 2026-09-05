@@ -1,6 +1,11 @@
 import os
 import sys
 import argparse
+
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 from datetime import datetime
 from dotenv import load_dotenv
 from supabase import create_client
@@ -17,7 +22,7 @@ sb = create_client(url, key)
 
 def get_counts():
     reels_res = sb.table('reels').select('id', count='exact').execute()
-    trends_res = sb.table('trends').select('id', count='exact').execute()
+    trends_res = sb.table('trends').select('id', count='exact').eq('is_seed_data', False).execute()
     reels_cnt = reels_res.count if hasattr(reels_res, 'count') else len(reels_res.data)
     trends_cnt = trends_res.count if hasattr(trends_res, 'count') else len(trends_res.data)
     return reels_cnt, trends_cnt

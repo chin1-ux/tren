@@ -125,7 +125,9 @@ function IdeasPage() {
     try {
       const data = await fetchDailyIdeas(email);
       setIdeas(data);
-      setUsingFallbackIdeas(false);
+      // Detect server-side fallback: any idea with is_fallback means LLM failed
+      const isServerFallback = Array.isArray(data) && data.length > 0 && data.some(i => i.is_fallback);
+      setUsingFallbackIdeas(isServerFallback);
     } catch (err) {
       console.error("Failed to load daily ideas", err);
       toast.error("Could not load personalized ideas. Check your connection.");
@@ -179,7 +181,11 @@ function IdeasPage() {
         niche: scoreNiche
       });
       setScoringResult(result);
-      toast.success("Reel scored successfully!");
+      if (result.is_fallback) {
+        toast.warning(result.fallback_reason || "Showing fallback score — LLM unavailable");
+      } else {
+        toast.success("Reel scored successfully!");
+      }
     } catch (err) {
       console.error("Failed to score reel", err);
       toast.error("Failed to score your reel. Using fallback score.");
@@ -192,7 +198,9 @@ function IdeasPage() {
         caption_score: 70,
         hashtag_score: 70,
         timing_score: 70,
-        top_fixes: ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."]
+        top_fixes: ["Keep the first 3 seconds extremely fast-paced.", "Optimize the caption with target keywords."],
+        is_fallback: true,
+        fallback_reason: "Server error — showing generic score"
       });
     } finally {
       setLoadingScore(false);
@@ -235,7 +243,11 @@ function IdeasPage() {
       const res = await generateCalendar(userEmail);
       setCalendar(res.calendar);
       localStorage.setItem(`trendrop_calendar_${userEmail}`, JSON.stringify(res.calendar));
-      toast.success("Your 30-Day starter template is ready!");
+      if (res.is_fallback) {
+        toast.warning(res.fallback_reason || "Showing generic calendar — LLM unavailable");
+      } else {
+        toast.success("Your 30-Day starter template is ready!");
+      }
     } catch (err) {
       console.error("Failed to generate calendar", err);
       toast.error("Failed to generate your 30-Day calendar. Using fallback calendar.");
@@ -586,6 +598,12 @@ function IdeasPage() {
                   animate={{ opacity: 1, scale: 1 }}
                   className="glass-card p-6 border border-border rounded-2xl bg-surface-2 space-y-6 shadow-2xl relative overflow-hidden"
                 >
+                  {scoringResult.is_fallback && (
+                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2 text-amber-400 text-sm font-medium">
+                      {scoringResult.fallback_reason || "Showing fallback score — LLM unavailable"}
+                    </div>
+                  )}
+
                   {/* Glowing background decor */}
                   <div className="absolute -top-16 -right-16 w-32 h-32 bg-primary/10 rounded-full blur-3xl" />
 

@@ -57,6 +57,9 @@ const NICHES = [
   { id: "food", label: "Food", emoji: "🍳" },
   { id: "tech", label: "Tech", emoji: "💻" },
   { id: "education", label: "Education", emoji: "📚" },
+  { id: "devotional", label: "Devotional", emoji: "🙏" },
+  { id: "narrative_edit", label: "Creative Edit", emoji: "🎞️" },
+  { id: "romance_relationship", label: "Romance", emoji: "💕" },
 ];
 
 export const Route = createFileRoute("/marketplace")({

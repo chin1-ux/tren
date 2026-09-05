@@ -53,7 +53,7 @@ try:
     from supabase import create_client
     from collections import Counter
     sb = create_client(os.getenv('SUPABASE_URL'), os.getenv('SUPABASE_KEY'))
-    result = sb.table('trends').select('status').execute()
+    result = sb.table('trends').select('status').eq('is_seed_data', False).execute()
     counts = Counter(r['status'] for r in result.data)
     print(f"  Total trends: {len(result.data)}")
     print(f"  Status breakdown: {dict(counts)}")

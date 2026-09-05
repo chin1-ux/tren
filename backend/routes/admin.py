@@ -30,7 +30,7 @@ def get_analytics_summary(
         return {"success": True, "event_counts": summary, "total_events": len(events), "days": days}
     except Exception as e:
         logger.error(f"Error getting analytics summary: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/admin/login")

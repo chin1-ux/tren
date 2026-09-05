@@ -209,7 +209,7 @@ def create_creator_deal(
         return deal
     except Exception as e:
         logger.exception(f"Error creating creator brand deal: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/deals")
@@ -232,7 +232,7 @@ def get_creator_deals(
         return deals
     except Exception as e:
         logger.exception(f"Error getting creator brand deals: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/deals/{deal_id}/download")
@@ -272,7 +272,7 @@ def download_deal_contract(
         raise
     except Exception as e:
         logger.exception(f"Error downloading deal contract: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/deals/{deal_id}/pay-milestone/{milestone_id}")
@@ -299,7 +299,7 @@ def pay_deal_milestone(
         raise
     except Exception as e:
         logger.exception(f"Error marking milestone as paid: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/deals/run-reminders")
@@ -310,8 +310,7 @@ def run_milestone_reminders_manual(request: Request):
         logger.error("CRON_SECRET not configured - run-reminders blocked")
         raise HTTPException(status_code=500, detail="Cron configuration error")
     auth_header = request.headers.get("Authorization")
-    secret_param = request.query_params.get("secret")
-    if auth_header != f"Bearer {cron_secret}" and secret_param != cron_secret:
+    if auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=403, detail="Forbidden")
     try:
         from cron_job import check_and_send_milestone_reminders
@@ -319,7 +318,7 @@ def run_milestone_reminders_manual(request: Request):
         return {"success": True, "emails_sent": emails_sent}
     except Exception as e:
         logger.error(f"Error running reminders manual job: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/brand-deals/{user_email}")
@@ -469,7 +468,7 @@ def get_brand_deals_marketplace(
 @router.get("/api/collab-matches/{user_email}")
 @limiter.limit("30/minute")
 def get_collab_matches(user_email: str, request: Request, current_user_email: str = Depends(require_auth)):
-    if current_user_email != "guest@trendrop.app" and user_email != current_user_email and user_email != "anonymous@trendrop.app":
+    if user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot access another user's collab matches")
     try:
         # Get user's profile to match niche
@@ -560,7 +559,7 @@ def submit_creator_feedback(
         return {"success": True}
     except Exception as e:
         logger.error(f"Error submitting creator feedback: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/creator/metrics")

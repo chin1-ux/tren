@@ -16,6 +16,10 @@ const NICHES = [
   { id: "motivation", label: "Motivation" },
   { id: "fitness", label: "Fitness" },
   { id: "current_affairs", label: "Current Affairs" },
+  { id: "devotional", label: "Devotional" },
+  { id: "tech", label: "Tech" },
+  { id: "narrative_edit", label: "Creative Edit" },
+  { id: "romance_relationship", label: "Romance & Relationships" },
   { id: "all", label: "All" },
 ];
 

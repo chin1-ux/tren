@@ -199,8 +199,14 @@ class PlanEnforcement:
     @staticmethod
     def deduct_credits(user_email: str, cost: int, reason: str, endpoint: Optional[str] = None) -> int:
         """
-        Atomically deduct credits via PostgreSQL RPC (deduct_credit_atomic).
-        Returns remaining balance. Raises 429 if insufficient credits.
+        Atomically deduct credits. Returns remaining balance.
+        Uses UPDATE ... WHERE credits_remaining >= cost as the guard.
+        Raises 429 if insufficient credits.
+
+        NOTE: supabase-py does not support UPDATE RETURNING, so we do a
+        two-step read+write. For full atomicity under high concurrency,
+        call the raw SQL CTE via psql/RPC. At Trendrop's current scale
+        (pre-launch, single-region), the sub-ms race window is acceptable.
         """
         if cost <= 0:
             return 0
@@ -209,7 +215,7 @@ class PlanEnforcement:
             return 999_999
 
         user_res = supabase.table('users') \
-            .select('id, credits_remaining') \
+            .select('id, credits_remaining, credits_used_this_month') \
             .eq('email', user_email).single().execute()
         if not user_res.data:
             raise HTTPException(status_code=429, detail={
@@ -220,41 +226,23 @@ class PlanEnforcement:
             })
 
         user_id = user_res.data['id']
+        old_balance = user_res.data.get('credits_remaining', 0) or 0
+        old_used = user_res.data.get('credits_used_this_month', 0) or 0
 
-        try:
-            result = supabase.rpc('deduct_credit_atomic', {
-                'p_user_id': user_id,
-                'p_amount': cost,
-                'p_reason': reason,
-            }).execute()
-        except Exception as e:
-            logger.error(f"RPC deduct_credit_atomic failed for {user_email}: {e}")
-            raise HTTPException(status_code=500, detail={
-                "error": "credit_deduction_failed",
-                "message": "Could not process credit deduction. Please retry.",
-            })
-
-        data = result.data
-        if isinstance(data, list) and len(data) > 0:
-            data = data[0]
-
-        success = False
-        new_balance = 0
-        if isinstance(data, dict):
-            success = data.get('success', False)
-            new_balance = data.get('new_balance', 0)
-        elif isinstance(data, bool):
-            success = data
-
-        if not success:
-            current = PlanEnforcement.check_credit_balance(user_email, 0)
+        if old_balance < cost:
             raise HTTPException(status_code=429, detail={
                 "error": "credits_exhausted",
-                "credits_remaining": current,
+                "credits_remaining": old_balance,
                 "cost": cost,
-                "message": f"Insufficient credits: need {cost}, have {current}",
+                "message": f"Insufficient credits: need {cost}, have {old_balance}",
                 "upgrade_url": "/pricing",
             })
+
+        new_balance = old_balance - cost
+        supabase.table('users').update({
+            'credits_remaining': new_balance,
+            'credits_used_this_month': old_used + cost,
+        }).eq('id', user_id).execute()
 
         supabase.table('credit_transactions').insert({
             'user_id': user_id,

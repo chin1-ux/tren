@@ -6,7 +6,7 @@ This is a REAL anti-abuse measure that actually works on web
 import os
 import sys
 import logging
-import random
+import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Optional
 from dotenv import load_dotenv
@@ -54,15 +54,50 @@ class PhoneVerification:
     Phone verification system using Twilio SMS
     """
     
+    # In-memory brute-force protection: {phone: {"count": int, "locked_until": datetime}}
+    _otp_attempts: dict = {}
+    MAX_OTP_ATTEMPTS = 5
+    OTP_LOCKOUT_MINUTES = 15
+
     @staticmethod
     def generate_verification_code() -> str:
         """
-        Generate a 6-digit verification code
+        Generate a 6-digit verification code using cryptographic RNG.
         
         Returns:
             6-digit verification code
         """
-        return str(random.randint(100000, 999999))
+        return str(secrets.randbelow(900000) + 100000)
+
+    @staticmethod
+    def _check_otp_locked(phone_number: str) -> Optional[Dict]:
+        """Check if OTP attempts are locked out. Returns error dict if locked, None if OK."""
+        attempts = PhoneVerification._otp_attempts.get(phone_number)
+        if not attempts:
+            return None
+        locked_until = attempts.get("locked_until")
+        if locked_until and datetime.now(timezone.utc) < locked_until:
+            remaining = (locked_until - datetime.now(timezone.utc)).seconds // 60 + 1
+            return {
+                'success': False,
+                'error': f'Too many failed attempts. Try again in {remaining} minute(s).'
+            }
+        return None
+
+    @staticmethod
+    def _record_otp_failure(phone_number: str):
+        """Record a failed OTP attempt. Locks out after MAX_OTP_ATTEMPTS."""
+        attempts = PhoneVerification._otp_attempts.get(phone_number, {"count": 0, "locked_until": None})
+        attempts["count"] = attempts.get("count", 0) + 1
+        if attempts["count"] >= PhoneVerification.MAX_OTP_ATTEMPTS:
+            attempts["locked_until"] = datetime.now(timezone.utc) + timedelta(minutes=PhoneVerification.OTP_LOCKOUT_MINUTES)
+            attempts["count"] = 0
+        PhoneVerification._otp_attempts[phone_number] = attempts
+
+    @staticmethod
+    def _reset_otp_attempts(phone_number: str):
+        """Reset OTP attempt counter on successful verification."""
+        PhoneVerification._otp_attempts.pop(phone_number, None)
     
     @staticmethod
     def send_verification_code(phone_number: str) -> Dict:
@@ -147,6 +182,11 @@ class PhoneVerification:
                 'success': False,
                 'error': 'Supabase not configured'
             }
+
+        # Check brute-force lockout
+        lockout = PhoneVerification._check_otp_locked(phone_number)
+        if lockout:
+            return lockout
         
         try:
             # Get verification record
@@ -159,6 +199,7 @@ class PhoneVerification:
                 .execute()
             
             if not res.data:
+                PhoneVerification._record_otp_failure(phone_number)
                 return {
                     'success': False,
                     'error': 'Invalid or expired verification code'
@@ -183,6 +224,7 @@ class PhoneVerification:
                 .eq('phone_number', phone_number) \
                 .execute()
             
+            PhoneVerification._reset_otp_attempts(phone_number)
             logger.info(f"Phone number {phone_number} verified successfully")
             
             return {
@@ -191,15 +233,15 @@ class PhoneVerification:
             }
             
         except Exception as e:
-            # If it's an APIError (like PGRST116 from single()), return a clean message
             error_msg = str(e)
             if "PGRST116" in error_msg or "Cannot coerce the result to a single JSON object" in error_msg:
                 error_msg = "Invalid verification code"
+                PhoneVerification._record_otp_failure(phone_number)
                 
             logger.error(f"Failed to verify code: {error_msg}")
             return {
                 'success': False,
-                'error': error_msg
+                'error': 'Verification failed'
             }
     
     @staticmethod

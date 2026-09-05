@@ -36,7 +36,7 @@ endpoints.sort(key=lambda x: x['start'])
 # Group endpoints
 groups = {
     'auth': ['/api/auth', '/api/phone', '/api/instagram'],
-    'trends': ['/api/trends', '/api/algorithm', '/api/hashtags', '/api/topics', '/api/conversations'],
+    'trends': ['/api/trends', '/api/algorithm', '/api/hashtags'],
     'ai': ['/api/ai', '/api/generate', '/api/repurpose', '/api/seo-caption', '/api/video', '/api/prepost-score', '/api/score-reel', '/api/calendar', '/api/daily-ideas'],
     'creator': ['/api/creator', '/api/marketplace', '/api/deals', '/api/brand-deals', '/api/collab-matches', '/api/user'],
     'admin': ['/api/admin', '/api/business', '/api/case-studies', '/api/pitch-deck'],

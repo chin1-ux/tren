@@ -200,6 +200,7 @@ class EarlyTrendDetector:
             res = supabase.table('trends') \
                 .select('*') \
                 .in_('status', ['emerging', 'rising']) \
+                .eq('is_seed_data', False) \
                 .gte('first_detected_at', time_threshold) \
                 .order('velocity_avg', desc=True) \
                 .limit(limit * 2) \

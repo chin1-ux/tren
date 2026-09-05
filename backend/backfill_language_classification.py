@@ -7,7 +7,7 @@ from supabase import create_client
 
 # Add backend directory to path
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
-from instagram_scraper_browser import _detect_audio_language
+from language_detection import _detect_audio_language
 
 STATE_FILE = os.path.join(os.path.dirname(__file__), '..', 'scratch', 'backfill_lang_state.txt')
 
