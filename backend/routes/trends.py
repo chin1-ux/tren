@@ -258,6 +258,7 @@ def get_peaked_trends(
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
         q = q.limit(min(limit, 50))
+        res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         trends = trends[:50]

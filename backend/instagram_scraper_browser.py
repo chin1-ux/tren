@@ -203,10 +203,15 @@ class InstagramScraper:
                 "indiancricket"
             ],
             "GLOBAL_DISCOVERY": [
-                # Broad organic viral tags lead so GLOBAL_DISCOVERY[:5] captures organic hits (fyp, reels)
-                "fyp", "viral", "trending", "reels", "reelsviral", "tiktok", "music",
-                "trendingaudio", "dancechallenge", "trendingsong", "viralsong", "musictrend",
-                "viralmusic", "reelsound", "popmusic", "hiphopreels", "edmmusic", "kpopreels"
+                # Global Dance & Challenge Seeds
+                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
+                "hiphopdance", "dancecover", "dancevideo",
+                # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
+                "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
+                "soundalert", "trendingsound", "viralmusic", "reelsound",
+                # Broad Viral & Music Seeds
+                "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
+                "hiphopreels", "edmmusic", "kpopreels"
             ]
         }
 
@@ -877,7 +882,7 @@ class InstagramScraper:
             ]
 
             logger.info(f"Creating a fresh browser context for #{hashtag}...")
-            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            ctx = await self._camoufox_browser.new_context(no_viewport=True, locale="en-US")
             await ctx.add_cookies(formatted_cookies)
             await ctx.set_extra_http_headers({
                 "X-IG-App-ID": "936619743392459",
