@@ -78,6 +78,7 @@ NICHE_KEYWORDS = {
     "narrative_edit": ["edit", "capcut", "alightmotion", "cinematic", "aesthetic", "pov", "vibe", "status", "shayari", "quotes", "lyrics"],
     "travel": ["travel", "trip", "vlog", "explore", "wanderlust", "mountains", "beach", "nature", "roadtrip", "trek", "safar", "safarnama"],
     "beauty": ["beauty", "makeup", "skincare", "hair", "salon", "glow", "lipstick", "cosmetics"],
+    "motivation": ["motivation", "inspire", "success", "mindset", "goals", "hustle", "grind", "positive", "growth", "motivational", "daily routine", "self improvement"],
     "general": ["aesthetic", "vlog", "lifestyle", "reels", "viral", "trending"],
 }
 
