@@ -106,7 +106,7 @@ jobs:
           INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
           INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
         run: |
-          PYTHONPATH=backend python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
+          PYTHONPATH=backend PYTHONPATH=backend python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Run pipeline (Global mode)
@@ -133,7 +133,7 @@ jobs:
           INSTAGRAM_USERNAME: ${{ secrets.INSTAGRAM_USERNAME }}
           INSTAGRAM_PASSWORD: ${{ secrets.INSTAGRAM_PASSWORD }}
         run: |
-          PYTHONPATH=backend python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
+          PYTHONPATH=backend PYTHONPATH=backend python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,alerts
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Verify scraper run
