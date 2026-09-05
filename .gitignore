@@ -1,23 +1,163 @@
-__pycache__/
-*.pyc
-*.pyo
+# Environments
 .env
 .env.*
-cookies.json
-instagram_cookies.json
-*.egg-info/
-dist/
-build/
-.venv/
+backend/.env
+
+# Python
+**/__pycache__/
+**/*.pyc
+**/*.pyo
 venv/
-node_modules/
-.DS_Store
+.venv/
+backend/venv/
+backend/.venv/
+
+# Logs
 *.log
-test_screenshots/
-session_*
-empirical_audit_results.txt
-trend_delete_list.csv
-SIMULATED_ENDPOINTS_CHECKLIST.md
-alert_system.log
+backend/*.log
+backend/*.log
+**/*.log
+
+# Media / Uploads / Outputs
+uploads/
+outputs/
+backend/uploads/
+backend/outputs/
+
+# Large generated data files
+health_check.json
+trends_output.json
 api.log
-pipeline.log
+
+# Vercel build artifacts
+.vercel/
+
+# IDE
+.vscode/
+.idea/
+
+# macOS
+.DS_Store
+
+.vercel
+
+# Sessions & Auth (Private)
+*cookies.json
+*cookies.tsv
+*cookies_base64.txt
+*session_*
+login_instagram.py
+login_cli.py
+import_session.py
+test_ig_api.py
+check_db.py
+
+# Credential files (prevent accidental commits)
+push_env.py
+*.key
+*.pem
+credentials.json
+
+
+# Diagnostic scratch scripts (not for production)
+scratch/
+
+# Artifacts
+artifacts/
+artifacts/scratch/
+
+# Build Output
+dist/
+.env*
+
+# Vercel build output (large binary files)
+.vercel_build_output/
+
+# Large database and binary files
+*.mmdb
+*.exe
+*.dll
+ffmpeg*
+
+# OmniRoute (large node_modules)
+OmniRoute/
+
+# Local secrets / tokens (audit 2026-08-23: never committed, keep it that way)
+.test_tokens
+tokens.json
+test_h8_tokens.json
+_tmp_*.json
+.git-rewrite/
+
+# Diagnostic / debug scripts (root level — one-off scripts not for production)
+/test_*.py
+/check_*.py
+/debug_*.py
+/get_*.py
+/set_*.py
+/find_*.py
+/clear_*.py
+/run_*.py
+/ensure_*.py
+/add_*.py
+/reset_*.py
+/clickthrough.py
+/clickthrough_output/
+/_*.py
+/_*.txt
+/_*.tmp
+*.bat
+
+# Backend diagnostic scripts
+/backend/test_*.py
+/backend/test[0-9]*.py
+/backend/check_*.py
+/backend/fix_*.py
+/backend/verify_*.py
+/backend/investigate_*.py
+/backend/analyze_*.py
+/backend/inspect_*.py
+/backend/audit_*.py
+/backend/quick_*.py
+/backend/revalidate_*.py
+/backend/rising_*.py
+/backend/supabase_migration*.sql
+/backend/final_*.py
+/backend/preview_*.py
+/backend/revert_*.py
+/backend/monitor_*.py
+/backend/migrate_*.py
+/backend/create_*.py
+/backend/ensure_*.py
+/backend/reset_*.py
+/backend/add_*.py
+/backend/set_*.py
+/backend/empirical_*.txt
+/backend/external_discovery_*.py
+/backend/trend_delete_list.csv
+
+# Audit / deployment markdown reports
+/*_SUMMARY.md
+/*_REPORT.md
+/*_SETUP.md
+/*_FIX.md
+/*_COMPLETE.md
+/*_IMPLEMENTATION*.md
+/*_STATUS.md
+/*_REMINDER.md
+FRONTEND_AUDIT*.md
+VERIFICATION_*.md
+PRE_DEPLOYMENT*.md
+CHANGES_*.md
+CHICKEN_*.md
+QUEUE_*.md
+RE_AUDIT*.md
+ADD_GITHUB_SECRETS.md
+DYNAMIC_THRESHOLD_DEPLOYMENT.md
+
+# Temp files
+*.tmp
+*.png
+!frontend/**/*.png
+add_github_secrets.sh
+frontend/audit_script.js

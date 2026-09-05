@@ -1,9 +1,10 @@
-name: Trend Refresh
+name: Trend Refresh (Main Account - 8h)
 
 on:
   schedule:
-    - cron: '30 0,6,12,18 * * *'
-  workflow_dispatch:
+    # Main Account: Run trend refresh every 8 hours (04:00, 12:00, 20:00 UTC)
+    - cron: '0 4,12,20 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 concurrency:
   group: trend-refresh-${{ github.ref }}

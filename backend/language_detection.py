@@ -19,7 +19,7 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi",
     "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
     "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
-    "tum": "hi", "ho": "hi", "deva": "hi", "maula": "hi", "mere": "hi",
+    "deva": "hi", "maula": "hi", "mere": "hi", "bhajan": "hi", "mata": "hi", "chalisa": "hi", "kirtan": "hi",
     "asees kaur": "hi", "anuv jain": "hi", "des rangila": "hi", "chak de india": "hi",
     "o sanam": "hi", "jhalak dikhla ja": "hi",
     "khatam nahi hoga": "hi", "ghar se bhaag": "hi",

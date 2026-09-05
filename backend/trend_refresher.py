@@ -214,34 +214,33 @@ class TrendRefresher:
                 # Re-tune after real peaked→emerging trajectory data exists.
                 if current_status == "peaked" and velocity_for_check > 0 and rising_baseline > 0:
                     if velocity_for_check >= rising_baseline and new_reels_count > 0:
-                        self._update_status(trend_id, "emerging", {
+                        self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
                             "promotion_reason": "recovery",
                         })
-                        logger.info(f"[RECOVERED] '{audio_title}' peaked→emerging (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count})")
+                        logger.info(f"[RECOVERED] '{audio_title}' peaked→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count})")
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
 
-                # Expired→emerging recovery: same logic as peaked, but with an age cap.
+                # Expired→rising recovery: same logic as peaked, but with an age cap.
                 # Expired trends can be arbitrarily old (weeks/months), so we only allow
                 # recovery if first_detected_at is within the last 30 days.
                 # Uses first_detected_at because no status_changed_at field exists.
-                # UNCALIBRATED — 30-day cutoff and thresholds are guesses, not data-derived.
                 EXPIRED_RECOVERY_MAX_AGE_DAYS = 30
                 if current_status == "expired" and velocity_for_check > 0 and rising_baseline > 0:
                     age_days = age_hours / 24.0
                     if age_days <= EXPIRED_RECOVERY_MAX_AGE_DAYS and velocity_for_check >= rising_baseline and new_reels_count > 0:
-                        self._update_status(trend_id, "emerging", {
+                        self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
                             "promotion_reason": "recovery",
                         })
-                        logger.info(f"[RECOVERED] '{audio_title}' expired→emerging (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count}, age={age_days:.1f}d)")
+                        logger.info(f"[RECOVERED] '{audio_title}' expired→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count}, age={age_days:.1f}d)")
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
 

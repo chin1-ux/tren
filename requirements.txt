@@ -17,6 +17,7 @@ redis
 rq
 bcrypt
 pyjwt[crypto]
+cryptography
 # NOTE: numpy/google-generativeai/apify-client are intentionally omitted
 # from the Vercel serverless build because they are only required by
 # local worker or browser-scraper pipelines and would exceed the 500MB limit.

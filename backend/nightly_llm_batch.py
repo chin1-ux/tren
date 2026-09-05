@@ -2,6 +2,9 @@ import json
 import logging
 import os
 import sys
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 import time
 from datetime import datetime, timezone
 
@@ -82,7 +85,8 @@ def run_nightly_batch(limit: int | None = None) -> dict:
     rows = (
         sb.table("trends")
         .select("id,audio_title,audio_artist,niche_tag,content_tone,vibe_tag,language,sample_captions,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions")
-        .in_("llm_classification_status", ["pending", "llm_unavailable"])
+        .eq("is_seed_data", False)
+        .in_("llm_classification_status", ["pending", "llm_unavailable", "skipped_local_fallback"])
         .order("first_detected_at", desc=False)
         .limit(max_calls)
         .execute()

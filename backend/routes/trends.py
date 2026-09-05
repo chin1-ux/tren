@@ -103,7 +103,7 @@ def get_trends(
         else:
             q = q.order("velocity_avg", desc=True)
 
-        q = q.limit(100)
+        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         
@@ -179,7 +179,7 @@ def get_emerging_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("velocity_avg", desc=True)
-        q = q.limit(100)
+        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
@@ -261,6 +261,7 @@ def get_peaked_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
+        trends = trends[:50]
         
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
@@ -277,7 +278,7 @@ def get_peaked_trends(
 def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
-    limit: int = 50,
+    limit: Optional[int] = 50,
     current_user: str = Depends(get_current_user),
 ):
     """
@@ -299,11 +300,12 @@ def get_expired_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(min(limit, 50))
+        fetch_limit = min(limit if limit is not None else 50, 50)
+        q = q.limit(fetch_limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
-        return trends
+        return trends[:50]
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

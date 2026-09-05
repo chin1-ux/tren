@@ -2,8 +2,9 @@ name: LLM Classification Batch
 
 on:
   schedule:
-    - cron: '0 2,14 * * *'
-  workflow_dispatch:
+    # EMERGENCY POSTURE: 2x/day (was 4x) — revert to 4x post-Sept 1 reset
+    - cron: '0 0,12 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 concurrency:
   group: llm-classification-${{ github.ref }}
@@ -40,9 +41,9 @@ jobs:
           GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          NIGHTLY_LLM_BASE_DELAY_SECONDS: '5.0'
-          NIGHTLY_LLM_MAX_CALLS_PER_RUN: '50'
-          SUPABASE_CONNECT_TIMEOUT: '30'
-          SUPABASE_READ_TIMEOUT: '60'
+          NIGHTLY_LLM_BASE_DELAY_SECONDS: 5.0
+          NIGHTLY_LLM_MAX_CALLS_PER_RUN: 50
+          SUPABASE_CONNECT_TIMEOUT: 30
+          SUPABASE_READ_TIMEOUT: 60
         run: |
           python backend/nightly_llm_batch.py

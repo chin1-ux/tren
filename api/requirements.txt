@@ -1,0 +1,35 @@
+# Core API deps — keep lightweight for Vercel serverless
+fastapi==0.137.1
+uvicorn
+mangum
+requests
+python-dotenv
+supabase
+slowapi
+pydantic
+email-validator
+python-multipart
+schedule
+resend
+psycopg2-binary==2.9.12
+razorpay
+redis
+rq
+bcrypt
+pyjwt
+# NOTE: numpy/google-generativeai/apify-client are intentionally omitted
+# from the Vercel serverless build because they are only required by
+# local worker or browser-scraper pipelines and would exceed the 500MB limit.
+# NOTE: librosa/scipy/moviepy/soundfile are also not listed here — they are
+# only used by local workers (beat_detector, reel_generator) and would
+# pull in numba which fails to build on Python 3.12+.
+# browser scraping dependencies are intentionally omitted from the
+# production server bundle to keep Vercel function size under 500 MB.
+# NOTE: numpy/google-generativeai/apify-client are intentionally omitted
+# from the Vercel serverless build because they are only required by
+# local worker or browser-scraper pipelines and would exceed the 500MB limit.
+# NOTE: librosa/scipy/moviepy/soundfile are also not listed here — they are
+# only used by local workers (beat_detector, reel_generator) and would
+# pull in numba which fails to build on Python 3.12+.
+# browser scraping dependencies are intentionally omitted from the
+# production server bundle to keep Vercel function size under 500 MB.

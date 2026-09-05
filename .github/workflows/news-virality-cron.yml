@@ -1,9 +1,11 @@
-name: News Virality Check
+name: Run News Virality Predictor
 
 on:
   schedule:
+    # EMERGENCY POSTURE: 1x/day (was 2x) — revert to 12h post-Sept 1 reset
+    # NOTE: also broken — Groq API returns 404, see PROBLEMS.md
     - cron: '0 0 * * *'
-  workflow_dispatch:
+  workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
   run-news-virality:

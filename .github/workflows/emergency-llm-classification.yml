@@ -1,9 +1,10 @@
 name: Emergency LLM Classification
 
 on:
-  workflow_dispatch:
+  workflow_dispatch: # Manual trigger
   schedule:
-    - cron: '0 8,20 * * *'
+    # EMERGENCY POSTURE: 4x/day (was 12x) — revert to 2h post-Sept 1 reset
+    - cron: '0 0,6,12,18 * * *'
 
 jobs:
   check-and-classify:
@@ -34,7 +35,7 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python backend/check_pending_count.py
-
+          
       - name: Run emergency classification if needed
         if: steps.check_pending.outputs.needs_classification == 'true'
         env:
@@ -47,9 +48,14 @@ jobs:
           GROQ_API_KEY_3: ${{ secrets.GROQ_API_KEY_3 }}
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
-          NIGHTLY_LLM_BASE_DELAY_SECONDS: '3.0'
-          NIGHTLY_LLM_MAX_CALLS_PER_RUN: '100'
-          SUPABASE_CONNECT_TIMEOUT: '30'
-          SUPABASE_READ_TIMEOUT: '60'
+          NIGHTLY_LLM_BASE_DELAY_SECONDS: 3.0
+          NIGHTLY_LLM_MAX_CALLS_PER_RUN: 100
+          SUPABASE_CONNECT_TIMEOUT: 30
+          SUPABASE_READ_TIMEOUT: 60
         run: |
           python backend/nightly_llm_batch.py
+
+      - name: Notify if high pending detected
+        if: steps.check_pending.outputs.high_pending == 'true'
+        run: |
+          echo "::warning::High pending trend count detected. Emergency classification triggered."

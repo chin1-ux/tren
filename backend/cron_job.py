@@ -185,16 +185,10 @@ def run_full_pipeline(stages: list = None):
         run_count = 0
 
     if not os.environ.get("SCRAPER_MODE"):
-        # Always default to "india" — the default pool now permanently includes a
-        # DANCE slice and a GLOBAL_DISCOVERY[:5] slice on every run, so there is
-        # no longer any reason to alternate modes.  The old run_count % 2 alternation
-        # gave global trends only a coin-flip chance of being caught per cycle; a
-        # newly viral global dance trend (e.g. "Addiction" by Ryan Leslie) could go
-        # entirely unscraped on india-only runs.  Now every cycle covers both.
-        # To force a pure global scan, set SCRAPER_MODE=global in the environment.
-        scrape_mode = "india"
+        # Alternate between "india" and "global" on consecutive cron runs
+        scrape_mode = "global" if (run_count % 2 == 1) else "india"
         os.environ["SCRAPER_MODE"] = scrape_mode
-        logging.info(f"Selected scraper mode for this run: {scrape_mode} (blended pool — DANCE + GLOBAL_DISCOVERY included every run)")
+        logging.info(f"Selected scraper mode for run #{run_count}: {scrape_mode}")
     else:
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")

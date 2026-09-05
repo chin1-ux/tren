@@ -1,0 +1,39 @@
+name: Cron Heartbeat Watchdog
+
+on:
+  schedule:
+    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
+    - cron: '15 0,8,16 * * *'
+  workflow_dispatch:
+
+jobs:
+  check-heartbeat:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Compile heartbeat backend modules
+        run: |
+          python -m py_compile backend/api.py backend/heartbeat_monitor.py
+
+      - name: Check cron heartbeat freshness
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          CRON_HEARTBEAT_WEBHOOK_URL: ${{ secrets.CRON_HEARTBEAT_WEBHOOK_URL }}
+        run: |
+          python -m backend.heartbeat_monitor
