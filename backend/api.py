@@ -1,3 +1,6 @@
+import sys, os
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+
 from api_globals import *
 from api_globals import _rate_limit_exceeded_handler, _enforce_rate_limit, _get_client_ip
 

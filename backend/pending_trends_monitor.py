@@ -5,7 +5,10 @@ Alerts if pending trends are growing without corresponding drops
 indicating the nightly LLM batch isn't processing them
 """
 
-import os
+import os, sys
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 from dotenv import load_dotenv
 from supabase import create_client
 from datetime import datetime, timezone, timedelta
@@ -27,20 +30,20 @@ print("=" * 80)
 
 try:
     # Get current pending trends count
-    pending_res = sb.table("trends").select("id", count="exact").eq("llm_classification_status", "pending").execute()
+    pending_res = sb.table("trends").select("id", count="exact").eq("is_seed_data", False).eq("llm_classification_status", "pending").execute()
     current_pending_count = pending_res.count or 0
     
     # Get pending trends by status (Emerging specifically for monitoring)
-    emerging_pending_res = sb.table("trends").select("id", count="exact").eq("llm_classification_status", "pending").eq("status", "emerging").execute()
+    emerging_pending_res = sb.table("trends").select("id", count="exact").eq("is_seed_data", False).eq("llm_classification_status", "pending").eq("status", "emerging").execute()
     emerging_pending_count = emerging_pending_res.count or 0
     
     # Get completed trends count in last 24 hours
     twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
-    completed_res = sb.table("trends").select("id", count="exact").eq("llm_classification_status", "completed").gte("llm_classified_at", twenty_four_hours_ago.isoformat()).execute()
+    completed_res = sb.table("trends").select("id", count="exact").eq("is_seed_data", False).eq("llm_classification_status", "completed").gte("llm_classified_at", twenty_four_hours_ago.isoformat()).execute()
     completed_last_24h = completed_res.count or 0
     
     # Get not_needed trends count
-    not_needed_res = sb.table("trends").select("id", count="exact").eq("llm_classification_status", "not_needed").execute()
+    not_needed_res = sb.table("trends").select("id", count="exact").eq("is_seed_data", False).eq("llm_classification_status", "not_needed").execute()
     not_needed_count = not_needed_res.count or 0
     
     print(f"\nCurrent pending trends: {current_pending_count}")

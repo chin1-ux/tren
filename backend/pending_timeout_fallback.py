@@ -5,7 +5,10 @@ Promotes trends stuck in 'pending' status for >24h to 'not_needed'
 This ensures graceful degradation if the nightly batch fails silently
 """
 
-import os
+import os, sys
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
 from dotenv import load_dotenv
 from supabase import create_client
 from datetime import datetime, timezone, timedelta
@@ -29,7 +32,7 @@ print("=" * 80)
 twenty_four_hours_ago = datetime.now(timezone.utc) - timedelta(hours=24)
 
 try:
-    pending_trends = sb.table("trends").select("*").eq("llm_classification_status", "pending").execute()
+    pending_trends = sb.table("trends").select("*").eq("is_seed_data", False).eq("llm_classification_status", "pending").execute()
     
     if not pending_trends.data:
         print("\nNo pending trends found.")
