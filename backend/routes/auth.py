@@ -181,7 +181,7 @@ def signup(request: Request, req: SignupRequest):
         logger.error(f"Signup failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/auth/verify-phone")
@@ -232,7 +232,7 @@ def verify_phone(request: Request, req: VerifyPhoneRequest):
         logger.error(f"Phone verification failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):
             raise
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.post("/api/auth/send-otp")
@@ -335,23 +335,34 @@ def logout(request: Request, req: LogoutRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@router.post("/api/auth/verify")
+@router.api_route("/api/auth/verify", methods=["GET", "POST"])
 @limiter.limit("30/hour")
-def verify(request: Request, req: VerifyRequest):
+def verify(request: Request, req: Optional[VerifyRequest] = None):
     """Verify session token and enforce active session limits"""
     try:
         email = None
         user = None
         
+        # Extract token from body or Authorization Bearer header
+        session_token = None
+        if req and req.session_token:
+            session_token = req.session_token
+        else:
+            auth_header = request.headers.get("Authorization")
+            if auth_header and auth_header.startswith("Bearer "):
+                session_token = auth_header.split("Bearer ")[1].strip()
+
+        if not session_token:
+            return {"success": False, "valid": False, "error": "No session token provided"}
+
         # 1. Try resolving session token in users database table first
-        db_user_res = supabase.table("users").select("*").eq("auth_token", req.session_token).limit(1).execute()
+        db_user_res = supabase.table("users").select("*").eq("auth_token", session_token).limit(1).execute()
         if db_user_res.data:
             user = db_user_res.data[0]
             email = user["email"]
         else:
-            # 2. Try validating via Supabase JWT (signed with the project's
-            #    asymmetric keys; verified locally against JWKS)
-            email = _email_from_supabase_jwt(req.session_token)
+            # 2. Try validating via Supabase JWT
+            email = _email_from_supabase_jwt(session_token)
             if email:
                 db_user_res2 = supabase.table("users").select("*").eq("email", email).limit(1).execute()
                 if db_user_res2.data:

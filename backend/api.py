@@ -1341,22 +1341,8 @@ def get_user_supabase_client(authorization: Optional[str] = Header(None)) -> Cli
 
 # ── Trend Detection Engine ────────────────────────────────────────────────
 
-@app.get("/api/trends/rising")
-@limiter.limit("30/minute")
-async def get_rising_trends_endpoint(
-    request: Request,
-    niche: Optional[str] = None,
-    limit: int = 20,
-    current_user: str = Depends(get_current_user),
-):
-    """Get rising trends."""
-    try:
-        from trend_detector import get_trends_by_status
-        trends = get_trends_by_status(status="rising", niche=niche, limit=min(limit, 50))
-        return {"trends": trends, "count": len(trends), "status": "rising"}
-    except Exception as e:
-        logger.exception(f"Error fetching rising trends: {e}")
-        raise HTTPException(status_code=500, detail="Failed to fetch rising trends")
+# Note: /api/trends/rising, /api/trends/emerging, /api/trends/peaked, and /api/trends/expired are handled by routes.trends router
+
 
 @app.get("/api/trends/peak")
 @limiter.limit("30/minute")

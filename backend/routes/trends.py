@@ -10,6 +10,7 @@ import niche_relevance_engine
 router = APIRouter()
 
 @router.get("/api/trends")
+@router.get("/api/trends/rising")
 @limiter.limit("60/minute")
 def get_trends(
     request: Request,
@@ -276,7 +277,7 @@ def get_peaked_trends(
 def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
-    limit: int = 200,
+    limit: int = 50,
     current_user: str = Depends(get_current_user),
 ):
     """

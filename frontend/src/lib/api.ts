@@ -554,9 +554,9 @@ export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]>
     const data = await http<ApiTrend[]>(`/api/trends/emerging${qs}`);
     return data.map(adaptTrend);
   } catch (e: any) {
-    // 403 = plan restriction (early_detection requires Pro) — return empty
-    // array so the UI can show an upgrade prompt instead of crashing.
-    if (String(e?.message || "").startsWith("403")) {
+    // 401 / 403 = auth/plan restriction — return empty array so UI shows upgrade modal
+    const msg = String(e?.message || "");
+    if (msg.startsWith("401") || msg.startsWith("403")) {
       return [];
     }
     throw e;
@@ -569,7 +569,8 @@ export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
     const data = await http<ApiTrend[]>(`/api/trends/peaked${qs}`);
     return data.map(adaptTrend);
   } catch (e: any) {
-    if (String(e?.message || "").startsWith("403")) return [];
+    const msg = String(e?.message || "");
+    if (msg.startsWith("401") || msg.startsWith("403")) return [];
     throw e;
   }
 }
@@ -580,7 +581,8 @@ export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> 
     const data = await http<ApiTrend[]>(`/api/trends/expired${qs}`);
     return data.map(adaptTrend);
   } catch (e: any) {
-    if (String(e?.message || "").startsWith("403")) return [];
+    const msg = String(e?.message || "");
+    if (msg.startsWith("401") || msg.startsWith("403")) return [];
     throw e;
   }
 }

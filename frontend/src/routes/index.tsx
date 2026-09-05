@@ -177,7 +177,7 @@ function TrendsFeed() {
 
     // Collect all trends and assign priority
     [...(risingData || []), ...(emergingData || []), ...(peakedData || []), ...(expiredData || [])].forEach(t => {
-      const audioId = t.audioId || `${t.song}-${t.artist}`;
+      const audioId = (t.audioId && t.audioId !== "null") ? t.audioId : (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song" ? `${t.song}-${t.artist}` : `trend-${t.id}`);
       const priority = statusPriority[t.status || "rising"] || 0;
       const existing = audioToTrend.get(audioId);
 
