@@ -46,3 +46,16 @@ for stmt in new_columns:
 - Don't accept an explanation for unexpected/suspicious results (e.g. "0 successes because X") without evidence — treat unverified explanations the same as unverified fixes.
 - Before reporting anything as "done," confirm against actual current session state — don't re-report already-closed items as outstanding, and don't assume a prior claim was accepted without checking.
 - Test/seed scripts must target a non-prod environment, or if none exists, must use an obviously-tagged, auto-cleaned dataset and confirm cleanup as part of the same task — not as a follow-up once caught.
+
+## Scraper Freeze & Breakage Protection Rule (Golden Checkpoint v1.0)
+
+**Tag**: `golden-scraper-v1.0` (Commit: `1632591` in `trendrop`, `631a7fb` in `trendrop_tren`)
+
+**Rule**:
+- **NO UNAPPROVED MODIFICATIONS TO SCRAPER CORE**: Agents must NEVER modify `backend/instagram_scraper_browser.py`, `backend/trend_engine.py`, or `backend/spotify_fetcher.py` without explicitly notifying Chinmay first.
+- **WARNING REQUIRED BEFORE ANY SCRAPER CHANGE**: Before proposing or executing any edit to scraper logic, the agent MUST present an explicit warning note detailing:
+  1. What exact lines/functions are proposed to change.
+  2. Why the change is requested.
+  3. The potential risks/breakages to the current high-confidence data ingestion pipeline.
+  4. Ask Chinmay for explicit approval before touching any scraper code.
+- **REVERT PROTOCOL**: If any future change introduces regressions, Chinmay or the agent can instantly restore the golden working state via: `git checkout golden-scraper-v1.0 -- backend/instagram_scraper_browser.py backend/trend_engine.py backend/spotify_fetcher.py`.
