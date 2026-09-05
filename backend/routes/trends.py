@@ -258,9 +258,9 @@ def get_peaked_trends(
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
         q = q.limit(min(limit, 50))
-        res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
+        trends = trends[:50]
         
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
@@ -304,7 +304,7 @@ def get_expired_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
-        return trends
+        return trends[:50]
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
