@@ -201,10 +201,10 @@ function TrendsFeed() {
     });
 
     return {
-      rising: deduplicatedRising,
-      emerging: deduplicatedEmerging,
-      peaked: deduplicatedPeaked,
-      expired: deduplicatedExpired,
+      rising: deduplicatedRising.slice(0, 50),
+      emerging: deduplicatedEmerging.slice(0, 50),
+      peaked: deduplicatedPeaked.slice(0, 50),
+      expired: deduplicatedExpired.slice(0, 50),
     };
   }, [risingData, emergingData, peakedData, expiredData]);
 
