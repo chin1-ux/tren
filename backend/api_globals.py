@@ -395,7 +395,7 @@ except Exception as e:
     logger.error(f"Failed to create Supabase client: {e}")
     supabase = None
 
-creator_tools = CreatorTools()
+creator_tools = CreatorTools() if CreatorTools is not None else None
 MOCK_JOBS = {}
 
 import time
