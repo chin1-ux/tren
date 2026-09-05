@@ -1,4 +1,10 @@
 import os
+import sys
+
+backend_dir = os.path.dirname(os.path.abspath(__file__))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+
 import re
 import uuid
 import json
@@ -389,7 +395,7 @@ except Exception as e:
     logger.error(f"Failed to create Supabase client: {e}")
     supabase = None
 
-creator_tools = CreatorTools()
+creator_tools = CreatorTools() if CreatorTools is not None else None
 MOCK_JOBS = {}
 
 import time
