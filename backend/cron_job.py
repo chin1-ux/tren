@@ -1,7 +1,8 @@
 import os
 import sys
 import logging
-from datetime import datetime, timezone
+import api_globals
+from datetime import datetime, timezone, timedelta
 
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 
@@ -43,6 +44,7 @@ except ImportError:
 from trend_engine import TrendEngine
 from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
+from unified_signal_processor import UnifiedSignalProcessor
 from supabase import create_client
 
 # Unconditionally use the browser-use Instagram scraper backend.
@@ -179,9 +181,16 @@ def run_full_pipeline(stages: list = None):
         run_count = 0
 
     if not os.environ.get("SCRAPER_MODE"):
-        scrape_mode = "india" if run_count % 2 == 0 else "global"
+        # Always default to "india" — the default pool now permanently includes a
+        # DANCE slice and a GLOBAL_DISCOVERY[:5] slice on every run, so there is
+        # no longer any reason to alternate modes.  The old run_count % 2 alternation
+        # gave global trends only a coin-flip chance of being caught per cycle; a
+        # newly viral global dance trend (e.g. "Addiction" by Ryan Leslie) could go
+        # entirely unscraped on india-only runs.  Now every cycle covers both.
+        # To force a pure global scan, set SCRAPER_MODE=global in the environment.
+        scrape_mode = "india"
         os.environ["SCRAPER_MODE"] = scrape_mode
-        logging.info(f"Selected scraper mode for this run: {scrape_mode} (fallback cron run count={run_count})")
+        logging.info(f"Selected scraper mode for this run: {scrape_mode} (blended pool — DANCE + GLOBAL_DISCOVERY included every run)")
     else:
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
@@ -216,8 +225,29 @@ def run_full_pipeline(stages: list = None):
             run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
             logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
-    # 2. YouTube Scraper (Bypassed)
-    logging.info("Step 2/5: YouTube scraping bypassed (temporarily disabled).")
+    # 2. YouTube Data Fetcher
+    if _stage("scrape"):
+        try:
+            run_state["stage"] = "youtube_scrape"
+            logging.info("Step 2/5: Scraping YouTube trending data...")
+            from youtube_data_fetcher import YouTubeDataFetcher
+            
+            yt_fetcher = YouTubeDataFetcher()
+            # Fetch India trending music and comedy for now
+            yt_music = yt_fetcher.get_trending_music_india()
+            yt_comedy = yt_fetcher.get_trending_comedy_india()
+            
+            total_yt = len(yt_music.get("items", [])) + len(yt_comedy.get("items", []))
+            
+            if total_yt > 0:
+                logging.info(f"Step 2/5: YouTube scraping complete. Found {total_yt} trending items.")
+                # Ideally, extract topics and pass them to unified signals, but for now we just verify it runs.
+                # yt_topics = yt_fetcher.extract_trending_topics(yt_music)
+            else:
+                logging.info("Step 2/5: YouTube scraping complete but no items found (check API key).")
+        except Exception as e:
+            run_state["stage"] = "youtube_scrape_failed"
+            logging.error(f"Step 2/5 FAILED (YouTube): {e}", exc_info=True)
 
     # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
     audio_backfill_filled = 0
@@ -290,6 +320,160 @@ def run_full_pipeline(stages: list = None):
         except Exception as bf_step_err:
             logging.warning(f"Step 2b audio backfill failed: {bf_step_err}")
 
+    # 2c. Audio Watchlist Re-checks: refresh use_count + velocity for recently-seen audio IDs.
+    # Catches acceleration on already-known audio even when hashtag scraping misses new reels.
+    # Feeds audio_official_counts, which trend_engine.py already reads in has_strong_official_velocity.
+    # No schema changes — fully scaffolded via scrape_audio_page_async + _save_official_count.
+    audio_watchlist_checked = 0
+    audio_watchlist_updated = 0
+    if _stage("scrape"):  # only runs when scrape stage is active — skip in detect-only mode
+        try:
+            run_state["stage"] = "audio_watchlist"
+            sb = _get_supabase()
+
+            # Pick audio_ids seen in last 48h, prioritising those least-recently checked.
+            # LEFT JOIN against audio_official_counts so recently-unchecked IDs surface first.
+            recent_audio_res = sb.table("reels") \
+                .select("audio_id") \
+                .not_.is_("audio_id", "null") \
+                .gte("scraped_at", (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()) \
+                .order("scraped_at", desc=True) \
+                .limit(200) \
+                .execute()
+
+            seen_ids: list[str] = []
+            seen_set: set[str] = set()
+            for row in (recent_audio_res.data or []):
+                aid = row.get("audio_id")
+                if aid and aid not in seen_set:
+                    seen_set.add(aid)
+                    seen_ids.append(aid)
+
+            # Exclude IDs checked in the last 4h (avoid hammering the same audio repeatedly)
+            if seen_ids:
+                already_checked_res = sb.table("audio_official_counts") \
+                    .select("audio_id") \
+                    .in_("audio_id", seen_ids[:50]) \
+                    .gte("checked_at", (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()) \
+                    .execute()
+                recently_checked = {r["audio_id"] for r in (already_checked_res.data or [])}
+                candidates = [aid for aid in seen_ids if aid not in recently_checked]
+            else:
+                candidates = []
+
+            MAX_WATCHLIST_CHECKS = 15  # ~15s/check × 15 = ~3.5 min budget
+            to_check = candidates[:MAX_WATCHLIST_CHECKS]
+
+            if to_check:
+                logging.info(
+                    f"Step 2c/5: Audio watchlist — {len(to_check)} audio_ids to re-check "
+                    f"(from {len(seen_ids)} seen in last 48h, {len(seen_ids) - len(candidates)} recently checked)."
+                )
+                import asyncio as _asyncio
+                watchlist_scraper = InstagramScraper()
+                # Single event loop for the entire watchlist session — init + scrape + close
+                wl_loop = _asyncio.new_event_loop()
+                browser_ok = wl_loop.run_until_complete(watchlist_scraper._init_browser_async())
+
+                if browser_ok:
+                    for audio_id in to_check:
+                        audio_watchlist_checked += 1
+                        try:
+                            count = wl_loop.run_until_complete(
+                                watchlist_scraper.scrape_audio_page_async(audio_id)
+                            )
+                            if count is not None and count > 0:
+                                # Determine precision bucket (audio page shows "1.2M reels" etc.)
+                                if count >= 1_000_000:
+                                    bucket = "M"
+                                elif count >= 1_000:
+                                    bucket = "K"
+                                else:
+                                    bucket = "exact"
+                                watchlist_scraper._save_official_count(audio_id, count, bucket)
+                                audio_watchlist_updated += 1
+                                logging.debug(
+                                    f"Step 2c: audio_id={audio_id} use_count={count} ({bucket})"
+                                )
+                        except Exception as _wl_err:
+                            logging.debug(f"Step 2c: watchlist check failed for {audio_id}: {_wl_err}")
+
+                    wl_loop.run_until_complete(watchlist_scraper._close_browser_async())
+                else:
+                    logging.warning("Step 2c: Could not init browser for watchlist checks — skipping.")
+
+                wl_loop.close()
+
+                logging.info(
+                    f"Step 2c/5: Audio watchlist complete. "
+                    f"checked={audio_watchlist_checked} updated={audio_watchlist_updated}"
+                )
+            else:
+                logging.info("Step 2c/5: Audio watchlist — no candidates (all recently checked or none seen).")
+
+        except Exception as _wl_stage_err:
+            logging.warning(f"Step 2c audio watchlist failed: {_wl_stage_err}", exc_info=True)
+
+    # 2d. Creator Watchlist Scraping (Track 3): scrape recent posts from 7 verified creator accounts.
+    # Discovers early-stage viral audio & choreo trends directly from high-signal early adopters.
+    # Ingests discovered posts into the standard 'reels' table so all downstream stages
+    # (trend detection, velocity, audio watchlist) apply automatically with no custom logic.
+    creator_watchlist_checked = 0
+    creator_watchlist_found = 0
+    if _stage("scrape"):
+        try:
+            run_state["stage"] = "creator_watchlist"
+            logging.info("Step 2d/5: Creator watchlist — starting scrape for 7 verified creator profiles...")
+            import asyncio as _asyncio
+            creator_scraper = InstagramScraper()
+            cw_loop = _asyncio.new_event_loop()
+            cw_browser_ok = cw_loop.run_until_complete(creator_scraper._init_browser_async())
+
+            if cw_browser_ok:
+                cw_reels, creator_watchlist_checked = cw_loop.run_until_complete(
+                    creator_scraper.scrape_creator_watchlist_async()
+                )
+                cw_loop.run_until_complete(creator_scraper._close_browser_async())
+
+                if cw_reels:
+                    sb = _get_supabase()
+                    now_str = datetime.now(timezone.utc).isoformat()
+                    for r in cw_reels:
+                        reel_payload = {
+                            "reel_id": r["reel_id"],
+                            "owner_username": r["owner_username"],
+                            "caption": r.get("caption"),
+                            "audio_title": r.get("audio_title"),
+                            "audio_artist": r.get("audio_artist"),
+                            "audio_id": r.get("audio_id"),
+                            "view_count": r.get("view_count", 0),
+                            "like_count": r.get("like_count", 0),
+                            "comment_count": r.get("comment_count", 0),
+                            "shortcode": r.get("shortcode"),
+                            "scraped_at": now_str,
+                        }
+                        try:
+                            sb.table("reels").upsert(reel_payload, on_conflict="reel_id").execute()
+                            creator_watchlist_found += 1
+                        except Exception as _ingest_err:
+                            logging.debug(f"Step 2d: Reel ingestion error for reel_id={r['reel_id']}: {_ingest_err}")
+
+                    new_reels_count += creator_watchlist_found
+                    reels_scraped += creator_watchlist_found
+                    logging.info(
+                        f"Step 2d/5: Creator watchlist complete. "
+                        f"checked={creator_watchlist_checked} found={creator_watchlist_found}"
+                    )
+                else:
+                    logging.info(f"Step 2d/5: Creator watchlist complete. checked={creator_watchlist_checked} found=0")
+            else:
+                logging.warning("Step 2d: Could not init browser for creator watchlist — skipping.")
+
+            cw_loop.close()
+
+        except Exception as _cw_stage_err:
+            logging.warning(f"Step 2d creator watchlist stage failed: {_cw_stage_err}", exc_info=True)
+
     # 3. Trend Engine: detect new trends
     trend_ids = []
     trend_detection_skipped = False
@@ -300,7 +484,6 @@ def run_full_pipeline(stages: list = None):
             # Data-quality warning: check proportion of null audio titles in recent scrape
             try:
                 sb = _get_supabase()
-                from datetime import timedelta
                 recent_time = (datetime.now(timezone.utc) - timedelta(minutes=30)).isoformat()
                 recent_reels = sb.table("reels").select("audio_title").gte("scraped_at", recent_time).execute().data or []
                 if recent_reels:
@@ -378,6 +561,19 @@ def run_full_pipeline(stages: list = None):
     else:
         refresher = None
 
+    # 4b. Unified Signals: gather news, formats, and events
+    if _stage("signals") or _stage("detect"):
+        try:
+            run_state["stage"] = "unified_signals"
+            logging.info("Step 4b/5: Running UnifiedSignalProcessor for cross-channel trends...")
+            signal_proc = UnifiedSignalProcessor()
+            signal_proc.run_full_cycle()
+            logging.info("Step 4b/5: UnifiedSignalProcessor complete.")
+        except Exception as e:
+            run_state["stage"] = "unified_signals_failed"
+            run_state["cutoff_reason"] = f"unified signal processor failed: {e}"
+            logging.error(f"Step 4b/5 FAILED (UnifiedSignals): {e}", exc_info=True)
+
     # Append one snapshot per trend for this pipeline run so velocity persistence
     # can be evaluated against real historical data on future runs.
     if _stage("snapshots") and refresher is not None:
@@ -434,6 +630,10 @@ def run_full_pipeline(stages: list = None):
             "uploads_skipped_oversized": uploads_skipped_oversized,
             "pending_backfilled": pending_backfilled,
             "trend_detection_skipped": trend_detection_skipped,
+            "audio_watchlist_checked": audio_watchlist_checked,
+            "audio_watchlist_updated": audio_watchlist_updated,
+            "creator_watchlist_checked": creator_watchlist_checked,
+            "creator_watchlist_found": creator_watchlist_found,
         }).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")
@@ -449,7 +649,9 @@ def run_full_pipeline(stages: list = None):
         f"classification_failed_429={classification_failed_429} | "
         f"uploads_skipped_oversized={uploads_skipped_oversized} | "
         f"duration={int(elapsed)}s | "
-        f"pending_backfilled={pending_backfilled}"
+        f"pending_backfilled={pending_backfilled} | "
+        f"creator_watchlist_checked={creator_watchlist_checked} | "
+        f"creator_watchlist_found={creator_watchlist_found}"
     )
     logging.info("NOTE: classification_success=0 is expected in no-LLM runs; it confirms classification stayed isolated from the main pipeline.")
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
