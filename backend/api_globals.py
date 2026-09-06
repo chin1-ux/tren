@@ -570,6 +570,13 @@ def _normalize_trends(trends: list) -> list:
             t["commercial_song_alias"] = "Rompe - Daddy Yankee"
             t["is_transition_trend"] = True
             t["display_title"] = "Rompe (via nikkiseey • Original Audio)"
+
+        if t.get("display_title"):
+            t["song"] = t["display_title"]
+        elif t.get("commercial_song_alias"):
+            t["song"] = f"{t['commercial_song_alias']} (via {t.get('audio_title')})"
+        else:
+            t["song"] = t.get("audio_title")
             
         # Inject matching reel details from lookup using normalized title
         norm_title = normalize_audio_title(t.get("audio_title", "") or "")
