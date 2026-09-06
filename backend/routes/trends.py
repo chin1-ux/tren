@@ -309,8 +309,8 @@ def get_expired_trends(
     try:
         q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
         
-        # 30-day retention gate for Expired tab (max 30 days historical archive)
-        expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+        # 7-day retention gate for Expired tab (max 7 days historical archive)
+        expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         q = q.or_(
             f"first_detected_at.gte.{expired_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{expired_cutoff})"
