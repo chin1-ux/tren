@@ -40,6 +40,8 @@ for stmt in new_columns:
 - Never accept "done"/"fixed"/"verified" without actual pasted evidence — curl responses, raw SQL query results, raw logs. Summaries alone get pushed back on.
 - Never DROP or TRUNCATE a database table under any justification.
 - Never change hosting/deployment/auth architecture without flagging Chinmay first and getting explicit approval — this includes things that look like "small" internal refactors (e.g. swapping how a client/session object is instantiated) if they touch shared state or auth flow.
+- **Hosting Architecture Rule**: Railway and Render are NOT used. Do not assume or reference active Railway/Render background worker hosting.
+- **Scraper Account Rule**: Exactly 1 Instagram account / cookie set is used (`INSTAGRAM_COOKIES_B64` or `backend/cookies.json`). Do not assume or require secondary Instagram accounts (`INSTAGRAM_COOKIES_B64_2`).
 - Never connect directly to any raw DB credential (SUPABASE_DB_URL, psycopg2, direct Postgres connection) without explicit per-instance permission — regardless of justification, including "just to unblock a test." All schema changes come as a .sql migration file for Chinmay to review and apply himself via the Supabase UI.
 - Absence of errors in a log is NOT proof something works correctly — push for verification that the actual outcome (data, security behavior) is correct, not just that nothing crashed.
 - One or two fix items at a time, with check-ins — not giant unsupervised batches, and no self-approving into the next task before Chinmay responds.
