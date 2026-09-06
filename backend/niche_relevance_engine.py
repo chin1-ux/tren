@@ -446,12 +446,11 @@ def generate_adaptation_brief(
     elif "general" in profile.adapt_patterns:
         adapt_text = profile.adapt_patterns["general"]
 
-    # Format the adapt text
-    brief = (adapt_text or f"Use '{trend_name}' for {profile.display_name} content").format(
-        trend_name=trend_name,
-        niche=profile.display_name,
-        exercise="workout",  # fallback substitution for fitness
-    )
+    # Format the adapt text safely (avoiding KeyError if trend_name contains curly braces)
+    raw_template = adapt_text or f"Use '{trend_name}' for {profile.display_name} content"
+    brief = raw_template.replace("{trend_name}", str(trend_name))\
+                        .replace("{niche}", str(profile.display_name))\
+                        .replace("{exercise}", "workout")
 
     # Generate hook
     hooks_by_niche = {
