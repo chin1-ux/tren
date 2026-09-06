@@ -560,6 +560,11 @@ def _normalize_trends(trends: list) -> list:
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         
+        if "india_adoption_pct" not in t or t.get("india_adoption_pct") is None:
+            reel_cnt = t.get("reel_count") or 1
+            ind_cnt = t.get("india_use_count") or 0
+            t["india_adoption_pct"] = round((ind_cnt / max(1, reel_cnt)) * 100.0, 1)
+            
         # Inject matching reel details from lookup using normalized title
         norm_title = normalize_audio_title(t.get("audio_title", "") or "")
         key = (norm_title, t.get("audio_artist"))

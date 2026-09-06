@@ -5,6 +5,7 @@ import json
 import time
 import logging
 import concurrent.futures
+import statistics
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
@@ -1222,12 +1223,28 @@ class TrendEngine:
                 if window_h > 0 and _recent_vel < _avg_vel * 0.7:
                     window_h = max(8, int(window_h * 0.7))  # 30% reduction, floor at 8h
 
+                # Creator & View Quality metrics
+                creators = set()
+                view_counts = []
+                for r in group_reels:
+                    author = r.get("creator_username") or r.get("username") or r.get("owner_username")
+                    if author:
+                        creators.add(author.lower())
+                    views = r.get("view_count") or r.get("play_count") or 0
+                    if views > 0:
+                        view_counts.append(views)
+                
+                unique_creators = len(creators) if creators else len(group_reels)
+                median_reel_views = float(statistics.median(view_counts)) if view_counts else 0.0
+                max_reel_views = float(max(view_counts, default=0.0))
+                india_adoption_pct = round((india_use_count / len(group_reels)) * 100.0, 1) if group_reels else 0.0
+
                 opportunity_score = calculate_opportunity_score(
                     india_saturation_pct=india_sat,
                     window_hours_remaining=window_h,
                     confidence=confidence,
                 )
-                # Calculate unified trend state
+                # Calculate unified trend state with strict multi-factor criteria
                 trend_state = calculate_trend_state(
                     velocity_avg=trend["avg_velocity"],
                     global_saturation_pct=global_sat,
@@ -1237,6 +1254,9 @@ class TrendEngine:
                     confidence=confidence,
                     max_velocity=trend["max_velocity"],
                     discovery_source=trend.get("discovery_source", "regional"),
+                    median_reel_views=median_reel_views,
+                    max_reel_views=max_reel_views,
+                    unique_creators=unique_creators,
                 )
 
 

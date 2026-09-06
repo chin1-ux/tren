@@ -47,6 +47,7 @@ class TrendLifecycle(Enum):
     RISING = "rising"
     PEAKED = "peaked"
     EXPIRED = "expired"
+    UNQUALIFIED = "unqualified"
 
 @dataclass
 class TrendState:
@@ -73,6 +74,9 @@ def calculate_trend_state(
     confidence: float,
     max_velocity: float,
     discovery_source: str,
+    median_reel_views: float = 0.0,
+    max_reel_views: float = 0.0,
+    unique_creators: int = 1,
 ) -> TrendState:
     """
     Single source of truth for trend state.
@@ -81,8 +85,6 @@ def calculate_trend_state(
     """
     
     # 1. Determine velocity tier
-    # velocity_avg is in the range of thousands to millions (e.g., 30841, 86139, 1290523)
-    # Adjusted thresholds to match actual data scale
     if velocity_avg >= 100000:
         velocity_tier = "accelerating"
     elif velocity_avg >= 20000:
@@ -99,15 +101,34 @@ def calculate_trend_state(
     else:
         saturation_tier = "saturated"
     
-    # 3. Determine lifecycle (emerging/rising/peaked/expired)
+    # 3. Determine lifecycle (emerging/rising/peaked/expired/unqualified)
+    # STRICT TIERS — NO ELSE CATCH-ALL FOR RISING!
     if window_hours_remaining <= 0 or global_saturation_pct >= 90:
         lifecycle = TrendLifecycle.EXPIRED
-    elif velocity_tier == "declining" and saturation_tier in ["high", "saturated"]:
+    elif (global_saturation_pct >= 65 or audio_use_count >= 1000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
-    elif saturation_tier == "early" and velocity_tier in ["accelerating", "stable"]:
+    elif (
+        unique_creators >= 3
+        and median_reel_views >= 35000
+        and max_reel_views >= 75000
+        and velocity_avg >= 35000
+        and velocity_tier in ["accelerating", "stable"]
+        and global_saturation_pct < 75
+    ):
+        lifecycle = TrendLifecycle.RISING
+    elif (
+        unique_creators >= 2
+        and median_reel_views >= 10000
+        and global_saturation_pct < 25
+        and audio_use_count < 500000
+        and (velocity_tier in ["accelerating", "stable"] or velocity_avg >= 15000)
+    ):
+        lifecycle = TrendLifecycle.EMERGING
+    elif velocity_avg >= 20000 and unique_creators >= 2:
         lifecycle = TrendLifecycle.EMERGING
     else:
-        lifecycle = TrendLifecycle.RISING
+        # Low view noise / single creator -> UNQUALIFIED (hidden from public feeds)
+        lifecycle = TrendLifecycle.UNQUALIFIED
     
     # 4. Determine urgency (drives status copy)
     urgency_score = 0.0
