@@ -108,20 +108,21 @@ def get_trends(
         trends = _normalize_trends(res.data or [])
         
         # Wire C5: Inject niche adaptations using the engine for personalized feed
+        effective_niche = niche if (niche and niche not in ["all", "general"]) else user_niche
         for t in trends:
-            if user_niche and user_niche not in ["all", "general"]:
+            if effective_niche and effective_niche not in ["all", "general"]:
                 if not t.get("niche_relevance"):
                     t["niche_relevance"] = niche_relevance_engine.score_signal(t)
                 
-                score = t["niche_relevance"].get(user_niche, 0.0)
-                brief = niche_relevance_engine.generate_adaptation_brief(t, user_niche, score)
+                score = t["niche_relevance"].get(effective_niche, 0.0)
+                brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
                 
                 if brief:
                     if not t.get("adaptation_briefs"):
                         t["adaptation_briefs"] = {}
-                    t["adaptation_briefs"][user_niche] = brief
+                    t["adaptation_briefs"][effective_niche] = brief
 
-        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+        trends.sort(key=lambda t: _trend_priority_key(t, effective_niche, user_lang), reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -143,6 +144,7 @@ def get_trends(
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
+    niche: Optional[str] = None,
     current_user: str = Depends(get_current_user),
     _plan_check: str = Depends(require_feature("early_detection"))
 ):
@@ -178,11 +180,29 @@ def get_emerging_trends(
 
         if language and language != "all":
             q = q.eq("language", language)
+        if niche and niche != "all":
+            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+
         q = q.order("velocity_avg", desc=True)
         q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+
+        effective_niche = niche if (niche and niche not in ["all", "general"]) else user_niche
+        for t in trends:
+            if effective_niche and effective_niche not in ["all", "general"]:
+                if not t.get("niche_relevance"):
+                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
+                
+                score = t["niche_relevance"].get(effective_niche, 0.0)
+                brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
+                
+                if brief:
+                    if not t.get("adaptation_briefs"):
+                        t["adaptation_briefs"] = {}
+                    t["adaptation_briefs"][effective_niche] = brief
+
+        trends.sort(key=lambda t: _trend_priority_key(t, effective_niche, user_lang), reverse=True)
         
         # Add user watermark ID to each trend for leak tracing
         if user_id:
