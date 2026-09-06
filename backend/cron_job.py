@@ -1144,11 +1144,7 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup creator sync failed: {e}", exc_info=True)
 
-    # Run audio count check immediately on startup
-    try:
-        run_audio_count_check()
-    except Exception as e:
-        logging.error(f"Startup audio counts check failed: {e}", exc_info=True)
+    # Note: run_audio_count_check is scheduled separately every 6 hours; skipped on startup to avoid double-request burst
 
     # Run milestone reminders check immediately on startup
     try:
