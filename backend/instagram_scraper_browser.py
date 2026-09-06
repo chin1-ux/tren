@@ -110,38 +110,6 @@ class InstagramScraper:
         # Dynamically create cookies.json from INSTAGRAM_COOKIES_B64 env var if missing or invalid
         self._load_cookie_file()
         
-    def _load_cookie_file(self, force_secondary: bool = False) -> bool:
-        cookies_path = os.path.join(self.script_dir, "cookies.json")
-        env_var = "INSTAGRAM_COOKIES_B64_2" if force_secondary else "INSTAGRAM_COOKIES_B64"
-        cookies_b64 = os.getenv(env_var) or (os.getenv("INSTAGRAM_COOKIES_B64") if force_secondary else None)
-        
-        if cookies_b64:
-            import base64
-            try:
-                decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
-                json.loads(decoded)
-                with open(cookies_path, "w", encoding="utf-8") as f:
-                    f.write(decoded)
-                logger.info(f"Successfully updated cookies.json from {env_var} environment variable.")
-                return True
-            except Exception as b64_err:
-                logger.error(f"Failed to decode or write cookies from {env_var}: {b64_err}")
-        return os.path.exists(cookies_path)
-
-    def rotate_cookies_on_429(self) -> bool:
-        """Call when HTTP 429 is encountered to attempt switching to secondary cookies or set cooldown."""
-        global _RATE_LIMIT_COOLDOWN_UNTIL
-        logger.warning("HTTP 429 Rate Limit encountered. Attempting cookie failover to secondary account...")
-        if self._load_cookie_file(force_secondary=True):
-            logger.info("Switched to secondary Instagram cookie set.")
-            return True
-        else:
-            # Set 60-minute rate limit cooldown
-            _RATE_LIMIT_COOLDOWN_UNTIL = time.time() + 3600
-            logger.warning("No secondary cookies available. Activated 60-minute Rate-Limit Cooldown window.")
-            return False
-
-        
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
         if not self.supabase_url or not self.supabase_key:
