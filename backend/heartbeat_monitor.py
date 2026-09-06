@@ -146,13 +146,15 @@ def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
                 payload["alert_sent"] = True
         return payload
 
-    completed_at = latest.get("completed_at") or latest.get("run_at")
+    completed_at = latest.get("completed_at") or latest.get("run_at") or latest.get("started_at") or latest.get("created_at")
     if not completed_at:
-        raise RuntimeError("Latest cron run is missing completed_at and run_at")
-
-    completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
-    age_hours = (now - completed_dt).total_seconds() / 3600.0
-    stale = age_hours > max_age_hours
+        stale = True
+        completed_dt = now
+        age_hours = 999.0
+    else:
+        completed_dt = datetime.fromisoformat(completed_at.replace("Z", "+00:00"))
+        age_hours = (now - completed_dt).total_seconds() / 3600.0
+        stale = age_hours > max_age_hours
 
     if stale and not dry_run:
         message = (

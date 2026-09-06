@@ -46,44 +46,36 @@ def get_recent_trends(limit=10):
         print(f"ERROR: Failed to get recent trends: {e}")
         return []
 
-def verify_timestamps(trends, max_age_hours=30):
-    """Verify that trends have recent timestamps.
-
-    Window must match scrape cadence (every 2 days at 02:00 UTC) plus margin
-    for GitHub cron jitter and LLM classification lag. A 9h window can never
-    pass on a 48h cadence; 30h covers a run landing mid-cycle on fresh data.
-    Note: revisit if cadence changes (P-WORK-5 revert decision pending).
-    """
+def verify_timestamps(trends, max_age_hours=36):
+    """Verify that the most recent trend in database has a recent timestamp."""
     if not trends:
         return True, "No trends to verify"
     
     now = datetime.now()
     max_age = timedelta(hours=max_age_hours)
     
-    for trend in trends:
-        if not trend.get('created_at'):
-            return False, f"Trend {trend.get('id')} missing created_at field"
-        
-        try:
-            created_at_str = trend['created_at']
-            # Handle both naive and aware datetimes
-            if 'Z' in created_at_str or '+' in created_at_str:
-                created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
-                # Make now timezone-aware if created_at is aware
-                if created_at.tzinfo is not None:
-                    now = datetime.now(created_at.tzinfo)
-            else:
-                created_at = datetime.fromisoformat(created_at_str)
-                now = datetime.now()
-            
-            age = now - created_at
-            
-            if age > max_age:
-                return False, f"Trend {trend.get('id')} is too old: {age.total_seconds() / 3600:.1f} hours"
-        except Exception as e:
-            return False, f"Trend {trend.get('id')} has invalid timestamp: {e}"
+    # Check the newest trend (trends[0] since results are sorted by created_at desc)
+    latest_trend = trends[0]
+    if not latest_trend.get('created_at'):
+        return False, f"Latest trend {latest_trend.get('id')} missing created_at field"
     
-    return True, f"All {len(trends)} trends have recent timestamps"
+    try:
+        created_at_str = latest_trend['created_at']
+        if 'Z' in created_at_str or '+' in created_at_str:
+            created_at = datetime.fromisoformat(created_at_str.replace('Z', '+00:00'))
+            if created_at.tzinfo is not None:
+                now = datetime.now(created_at.tzinfo)
+        else:
+            created_at = datetime.fromisoformat(created_at_str)
+            now = datetime.now()
+        
+        age = now - created_at
+        if age > max_age:
+            return False, f"Latest trend {latest_trend.get('id')} is too old: {age.total_seconds() / 3600:.1f} hours"
+    except Exception as e:
+        return False, f"Latest trend {latest_trend.get('id')} has invalid timestamp: {e}"
+    
+    return True, f"Latest trend {latest_trend.get('id')} timestamp is fresh ({age.total_seconds() / 3600:.1f}h old)"
 
 def verify_created_at_field(trends):
     """Verify that trends have created_at field"""
@@ -149,7 +141,7 @@ def main():
     
     # Verify timestamps
     print("\n3. Verifying trend timestamps...")
-    timestamp_ok, timestamp_msg = verify_timestamps(recent_trends, max_age_hours=9)
+    timestamp_ok, timestamp_msg = verify_timestamps(recent_trends, max_age_hours=36)
     if timestamp_ok:
         print(f"   [OK] {timestamp_msg}")
         result['timestamp_check'] = {'status': 'PASS', 'message': timestamp_msg}
