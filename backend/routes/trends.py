@@ -81,8 +81,8 @@ def get_trends(
         if language and language != "all":
             q = q.eq("language", language)
 
-        if niche and niche != "all":
-            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+        # Niche filtering and adaptation are handled dynamically in Python via niche_relevance_engine below
+        # (avoiding Postgres 500/empty results on trends with NULL niche_tag/semantic_niches)
 
         # Server-side gating data delay filter
         # CRITICAL: first_detected_at may be NULL for older trends (scraper didn't always write it).
@@ -180,8 +180,7 @@ def get_emerging_trends(
 
         if language and language != "all":
             q = q.eq("language", language)
-        if niche and niche != "all":
-            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+        # Niche filtering and adaptation are handled dynamically in Python via niche_relevance_engine below
 
         q = q.order("velocity_avg", desc=True)
         q = q.limit(50)
