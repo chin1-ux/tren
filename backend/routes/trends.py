@@ -112,7 +112,7 @@ def get_trends(
         for t in trends:
             if effective_niche and effective_niche not in ["all", "general"]:
                 if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
+                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
                 
                 score = t["niche_relevance"].get(effective_niche, 0.0)
                 brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
@@ -192,7 +192,7 @@ def get_emerging_trends(
         for t in trends:
             if effective_niche and effective_niche not in ["all", "general"]:
                 if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
+                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
                 
                 score = t["niche_relevance"].get(effective_niche, 0.0)
                 brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
