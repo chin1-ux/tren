@@ -117,7 +117,7 @@ function TrendsFeed() {
     queryFn: () => fetchEmergingTrends(language),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
-    enabled: userPlan === "pro",
+    enabled: Boolean(user) && userPlan === "pro",
   });
 
   const {

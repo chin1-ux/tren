@@ -22,7 +22,7 @@ export function BottomTabBar() {
     queryFn: () => fetchEmergingTrends(),
     staleTime: 5 * 60_000,
     refetchInterval: 5 * 60_000,
-    enabled: !shouldHide && userPlan === "pro",
+    enabled: !shouldHide && Boolean(user) && userPlan === "pro",
   });
 
   const emergingCount = emergingTrends?.length ?? 0;
