@@ -634,6 +634,45 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             <div className="rounded-xl border border-primary/20 bg-primary/[0.04] p-3 space-y-3">
               <p className="text-[10px] font-bold text-primary uppercase tracking-wider">Content Strategy</p>
 
+              {/* ── Niche-Personalized Brief (shown when user has a niche set) ── */}
+              {(() => {
+                const nicheKey = selectedNiche && selectedNiche !== "all" ? selectedNiche : null;
+                const brief = nicheKey && trend.adaptation_briefs?.[nicheKey];
+                if (!brief) return null;
+                return (
+                  <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.07] p-3 space-y-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400">
+                      🎯 For Your Niche — {nicheKey.charAt(0).toUpperCase() + nicheKey.slice(1)}
+                    </p>
+                    {/* Main content angle */}
+                    <p className="text-xs font-semibold text-foreground leading-snug">{brief.brief}</p>
+                    {/* Hook line */}
+                    <div className="rounded-lg bg-white/[0.03] border border-white/10 px-2.5 py-1.5">
+                      <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-0.5">💬 Opening Hook</p>
+                      <p className="text-xs text-foreground/80 italic">"{brief.hook}"</p>
+                    </div>
+                    {/* Post ideas */}
+                    {Array.isArray(brief.post_ideas) && brief.post_ideas.length > 0 && (
+                      <div className="space-y-1">
+                        <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground">💡 Post Ideas</p>
+                        <ul className="space-y-0.5">
+                          {brief.post_ideas.slice(0, 3).map((idea: string, i: number) => (
+                            <li key={i} className="text-[11px] text-foreground/80 flex items-start gap-1.5">
+                              <span className="text-violet-400 shrink-0 mt-0.5">→</span>
+                              <span>{idea}</span>
+                            </li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                    {/* Urgency label */}
+                    {brief.urgency_label && (
+                      <p className="text-[10px] font-bold text-violet-300">{brief.urgency_label}</p>
+                    )}
+                  </div>
+                );
+              })()}
+
               {/* Hook */}
               <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
                 <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
@@ -840,7 +879,12 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
               {FEATURES.GENERATE_ENABLED && (
                 <Button
-                  onClick={(e) => { e.stopPropagation(); navigate({ to: "/generate", search: { trendId: trend.id } }); }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const search: Record<string, string> = { trendId: trend.id };
+                    if (selectedNiche && selectedNiche !== "all") search.niche = selectedNiche;
+                    navigate({ to: "/generate", search });
+                  }}
                   className="h-11 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
                 >
                   <Video className="h-4 w-4" /> Generate My Reel

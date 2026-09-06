@@ -83,13 +83,40 @@ function TrendsFeed() {
   const userEmail = useUserStore((s) => s.email);
   const userPlan = useUserStore((s) => s.plan) || 'free';
 
-  // Load preferences from localStorage
+  // Load preferences from localStorage first, then sync from server profile
   useEffect(() => {
     if (typeof window !== "undefined") {
       setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
       setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
     }
   }, []);
+
+  // Sync niche from server-side user profile after login
+  // This ensures returning users get personalized feeds even if localStorage was cleared
+  useEffect(() => {
+    if (!user || !userEmail) return;
+    const storedNiche = typeof window !== "undefined" ? localStorage.getItem("trendrop_pref_niche") : null;
+    // Only fetch if no local preference is set (avoid overriding user's manual filter choice)
+    if (storedNiche && storedNiche !== "all") return;
+
+    import("@/lib/api").then(({ API_URL }) => {
+      fetch(`${API_URL}/api/auth/me`, {
+        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}` },
+        credentials: "include",
+      })
+        .then(r => r.ok ? r.json() : null)
+        .then(data => {
+          const serverNiche = data?.niche || data?.creator_niche || data?.preferences?.niches?.[0];
+          if (serverNiche && serverNiche !== "all") {
+            setSelectedNiche(serverNiche);
+            if (typeof window !== "undefined") {
+              localStorage.setItem("trendrop_pref_niche", serverNiche);
+            }
+          }
+        })
+        .catch(() => {/* silent — localStorage fallback already applied */});
+    });
+  }, [user, userEmail]);
 
   // Tick every minute for countdown timers
   useEffect(() => {

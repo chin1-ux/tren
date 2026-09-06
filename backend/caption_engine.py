@@ -50,17 +50,32 @@ class CaptionEngine:
 
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
-    def get_caption_kit(self, trend_id: int) -> dict:
+    def get_caption_kit(self, trend_id: int, user_niche: str | None = None) -> dict:
         """
         Returns caption kit for a trend. Checks cache first, generates if not cached.
+        When user_niche is provided (e.g. 'fitness', 'food', 'fashion'), generates
+        niche-specific captions, hooks, and hashtags for that creator type.
+        Cache key is (trend_id, niche) so different niches get independent caches.
         """
-        # 1. Check Supabase cache
+        # Normalize niche
+        niche_key = (user_niche or "").strip().lower() or None
+        # Cache key includes niche so fitness and food creators get separate cached kits
+        cache_niche_col = f"caption_data_{niche_key}" if niche_key else "caption_data"
+
+        # 1. Check Supabase cache — try niche-specific column, fall back to generic
         try:
             cached = self.supabase.table("trend_captions") \
                 .select("*").eq("trend_id", trend_id).execute()
             if cached.data:
-                logger.info(f"Caption kit cache hit for trend_id={trend_id}")
-                return cached.data[0]["caption_data"]
+                row = cached.data[0]
+                # Try niche-specific cached version first
+                if niche_key and row.get(cache_niche_col):
+                    logger.info(f"Caption kit cache hit (niche={niche_key}) for trend_id={trend_id}")
+                    return row[cache_niche_col]
+                # Fall back to generic if no niche requested
+                if not niche_key and row.get("caption_data"):
+                    logger.info(f"Caption kit cache hit for trend_id={trend_id}")
+                    return row["caption_data"]
         except Exception as e:
             logger.warning(f"Cache lookup failed for trend_id={trend_id}: {e}")
 
@@ -70,23 +85,87 @@ class CaptionEngine:
             raise ValueError(f"Trend with id={trend_id} not found")
         trend = trend_res.data[0]
 
-        # 3. Generate caption kit
-        kit = self._generate_kit(trend)
+        # 3. Generate niche-specific caption kit
+        kit = self._generate_kit(trend, user_niche=niche_key)
 
-        # 4. Save to cache
+        # 4. Save to cache — store under niche-specific key OR generic key
         try:
-            self.supabase.table("trend_captions").upsert({
-                "trend_id": trend_id,
-                "caption_data": kit
-            }, on_conflict="trend_id").execute()
+            upsert_data: dict = {"trend_id": trend_id}
+            if niche_key:
+                upsert_data[cache_niche_col] = kit
+            else:
+                upsert_data["caption_data"] = kit
+            self.supabase.table("trend_captions").upsert(
+                upsert_data, on_conflict="trend_id"
+            ).execute()
         except Exception as e:
             logger.warning(f"Failed to cache caption kit for trend_id={trend_id}: {e}")
 
         return kit
 
-    def _generate_kit(self, trend: dict) -> dict:
+    # Niche-specific content angle instructions injected into the LLM prompt
+    _NICHE_INSTRUCTIONS: dict[str, str] = {
+        "fitness": (
+            "The creator makes FITNESS & GYM content. Frame all captions around workouts, transformation, "
+            "gym culture, consistency, and body goals. Hashtags must include gym-specific tags like "
+            "#gymlife #fitnessmotivation #workoutreel #gains #fitindia. "
+            "Content idea: sync gym highlights, transformation reveals, or workout tips to this audio."
+        ),
+        "food": (
+            "The creator makes FOOD & COOKING content. Frame all captions around recipes, restaurant visits, "
+            "cooking process, food reactions, and taste experiences. Hashtags must include "
+            "#foodie #indianfood #recipevideo #foodblogger #foodreels. "
+            "Content idea: use this audio for a satisfying cooking reel, street food review, or recipe reveal."
+        ),
+        "fashion": (
+            "The creator makes FASHION & STYLING content. Frame captions around outfit reveals, style tips, "
+            "thrift flips, and fashion hauls. Hashtags must include "
+            "#fashionreels #ootd #outfitoftheday #styleinspo #indianfashion. "
+            "Content idea: outfit transition, GRWM (Get Ready With Me), or style challenge."
+        ),
+        "travel": (
+            "The creator makes TRAVEL content. Frame captions around hidden gems, trip vibes, budget travel, "
+            "and destination reveals. Hashtags must include "
+            "#travelblogger #travelreels #exploreIndia #wanderlust #travelgram. "
+            "Content idea: cinematic b-roll of a destination synced to this trending audio."
+        ),
+        "comedy": (
+            "The creator makes COMEDY & RELATABLE content. Frame captions with desi humor, Indian slang, "
+            "and painfully relatable everyday scenarios. Hashtags must include "
+            "#funnyreels #desihumor #relatable #comedyvideo #reelsfunny. "
+            "Content idea: POV skit, trending meme format, or desi comedy sketch using this audio."
+        ),
+        "beauty": (
+            "The creator makes BEAUTY & SKINCARE content. Frame captions around makeup looks, skincare routines, "
+            "product reviews, and beauty hacks. Hashtags must include "
+            "#beautyreels #makeuptutorial #skincareroutine #glowup #beautyblogger. "
+            "Content idea: GRWM, transformation using makeup, or honest skincare product review."
+        ),
+        "tech": (
+            "The creator makes TECH content. Frame captions around gadget reviews, productivity tools, "
+            "AI tools, and tech tips. Hashtags must include "
+            "#techreels #gadgetreview #techindia #productivityhacks #techtips. "
+            "Content idea: unboxing, tech comparison, or 'this tool changed my workflow' reveal reel."
+        ),
+        "motivation": (
+            "The creator makes MOTIVATION & MINDSET content. Frame captions around discipline, "
+            "success mindset, hustle culture, and personal growth. Hashtags must include "
+            "#motivationreels #successmindset #hustle #selfgrowth #dailymotivation. "
+            "Content idea: powerful monologue, quote overlay, or personal failure-to-success story."
+        ),
+        "dance": (
+            "The creator makes DANCE content. Frame captions around choreography, dance tutorials, "
+            "and dance challenges. Hashtags must include "
+            "#dancereels #choreography #dancechallenge #indiandance #dancecover. "
+            "Content idea: original choreography, step tutorial, or 1-day dance challenge using this audio."
+        ),
+    }
+
+    def _generate_kit(self, trend: dict, user_niche: str | None = None) -> dict:
         """
         Calls Gemini to generate caption kit for the given trend dict.
+        When user_niche is set, injects niche-specific framing so a fitness creator
+        and a food creator get completely different captions for the same trending audio.
         """
         audio_title = trend.get("audio_title", "Unknown")
         audio_artist = trend.get("audio_artist", "Unknown")
@@ -130,9 +209,21 @@ class CaptionEngine:
             "mr": "Write captions in Marathi naturally mixed with English.",
         }.get(language, "Write captions in English.")
 
+        # Build niche-specific instruction block
+        niche_block = ""
+        if user_niche and user_niche in self._NICHE_INSTRUCTIONS:
+            niche_block = f"""
+🎯 CREATOR NICHE: {user_niche.upper()}
+{self._NICHE_INSTRUCTIONS[user_niche]}
+
+IMPORTANT: ALL captions, hashtags, and the viral script MUST be tailored specifically for a
+{user_niche} creator. Do NOT write generic captions — write as if this person only makes
+{user_niche} content and their audience follows them specifically for that.
+"""
+
         prompt = f"""
 You are a viral Instagram Reels content strategist for Indian creators.
-
+{niche_block}
 Trend details:
 - Audio: "{audio_title}" by {audio_artist}
 - Language: {language} — {lang_instruction}

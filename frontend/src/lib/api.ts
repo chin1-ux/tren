@@ -99,6 +99,15 @@ export interface ApiTrend {
   audio_genre?: string;
   audio_label?: string;
   first_detected_at?: string | null;
+  // personalization fields (from niche_relevance_engine, injected by /api/trends)
+  adaptation_briefs?: Record<string, {
+    brief: string;
+    hook: string;
+    urgency_label: string;
+    post_ideas: string[];
+    relevance_score: number;
+  }>;
+  niche_relevance?: Record<string, number>;
 }
 
 export interface ApiCaptionKit {
@@ -310,7 +319,13 @@ export interface UiTrend {
   firstDetectedAt?: string | null;
 
   // niche intelligence fields (from niche_relevance_engine)
-  adaptation_briefs?: Record<string, string>;
+  adaptation_briefs?: Record<string, {
+    brief: string;
+    hook: string;
+    urgency_label: string;
+    post_ideas: string[];
+    relevance_score: number;
+  }>;
   niche_relevance?: Record<string, number>;
 }
 
@@ -424,6 +439,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     isVoiceover: !!t.is_voiceover,
     saturationCount: t.saturation_count ?? 0,
     firstDetectedAt: t.first_detected_at ?? null,
+    // niche personalization fields — populated by server when user has a niche preference
+    adaptation_briefs: t.adaptation_briefs ?? undefined,
+    niche_relevance: t.niche_relevance ?? undefined,
   };
 }
 

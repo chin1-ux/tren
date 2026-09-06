@@ -193,16 +193,20 @@ function TrendDetailPage() {
         )}
 
         {/* Per-niche Adaptation Brief — injected by niche_relevance_engine */}
-        {userNiche && userNiche !== 'all' && trend.adaptation_briefs?.[userNiche] && (
-          <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
-            <p className="text-[10px] font-bold uppercase tracking-wide text-primary flex items-center gap-1">
-              <Zap className="h-3 w-3" /> Your Angle ({userNiche.replace('_', ' ')})
-            </p>
-            <p className="text-xs text-foreground/80 leading-relaxed">
-              {trend.adaptation_briefs[userNiche]}
-            </p>
-          </div>
-        )}
+        {userNiche && userNiche !== 'all' && trend.adaptation_briefs?.[userNiche] && (() => {
+          const b = trend.adaptation_briefs![userNiche];
+          return (
+            <div className="rounded-xl bg-primary/5 border border-primary/20 p-4 space-y-2">
+              <p className="text-[10px] font-bold uppercase tracking-wide text-primary flex items-center gap-1">
+                <Zap className="h-3 w-3" /> Your Angle ({userNiche.replace('_', ' ')})
+              </p>
+              <p className="text-xs text-foreground/80 leading-relaxed">{b.brief}</p>
+              {b.hook && (
+                <p className="text-xs text-foreground/60 italic">💬 "{b.hook}"</p>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Niche Relevance Scores */}
         {trend.niche_relevance && Object.keys(trend.niche_relevance).length > 0 && (

@@ -640,17 +640,36 @@ def get_trend_reels(
 
 @router.get("/api/trends/{trend_id}/caption")
 @limiter.limit("20/minute")
-def get_trend_caption(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
+def get_trend_caption(
+    request: Request,
+    trend_id: int,
+    niche: Optional[str] = None,
+    current_user: str = Depends(get_current_user)
+):
     """
     Returns AI-generated caption kit for a trend.
     Includes: 3 caption variants, 15 hashtags, audio cue, posting strategy.
-    Results are cached in trend_captions table.
+    Pass ?niche=fitness|food|fashion|travel|comedy|beauty|tech|motivation|dance to get
+    niche-specific captions. Falls back to user's saved profile niche if not provided.
+    Results are cached per (trend_id, niche) in trend_captions table.
     """
     if not CaptionEngine:
         raise HTTPException(status_code=503, detail="Caption generation service unavailable")
     try:
+        # Resolve the user's niche: explicit param > user profile > None
+        user_niche = niche
+        if not user_niche and current_user and current_user != "guest@trendrop.app":
+            try:
+                prefs_res = supabase.table("user_preferences").select("niches").eq("email", current_user).execute()
+                if prefs_res.data and prefs_res.data[0].get("niches"):
+                    first_niche = prefs_res.data[0]["niches"][0]
+                    if first_niche and first_niche != "all":
+                        user_niche = first_niche
+            except Exception as _prefs_err:
+                logger.debug(f"Could not fetch user niche for caption: {_prefs_err}")
+
         engine = CaptionEngine()
-        caption_kit = engine.get_caption_kit(trend_id)
+        caption_kit = engine.get_caption_kit(trend_id, user_niche=user_niche)
         return caption_kit
     except ValueError as ve:
         logger.warning(f"Validation error in caption generation for trend {trend_id}: {ve}")
