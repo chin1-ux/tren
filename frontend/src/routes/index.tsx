@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { useUserStore } from "@/store/useAppStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/")({
@@ -78,6 +79,7 @@ function TrendsFeed() {
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
+  const { user } = useAuth();
   const userEmail = useUserStore((s) => s.email);
   const userPlan = useUserStore((s) => s.plan) || 'free';
 
