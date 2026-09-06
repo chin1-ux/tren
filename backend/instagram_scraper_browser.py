@@ -133,22 +133,6 @@ class InstagramScraper:
         self._camoufox_browser = None  # SyncCamoufox instance
         self._camoufox_ctx = None       # Playwright browser context
         self._camoufox_page = None      # Active page for scraping
-
-    def _load_cookie_file(self) -> bool:
-        cookies_path = os.path.join(self.script_dir, "cookies.json")
-        cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
-        if cookies_b64:
-            import base64
-            try:
-                decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
-                json.loads(decoded)
-                with open(cookies_path, "w", encoding="utf-8") as f:
-                    f.write(decoded)
-                return True
-            except Exception:
-                pass
-        return os.path.exists(cookies_path)
-        
         self.hashtag_groups = {
             "INDIA_TRENDING": [
                 "trendingindia", "reelsindia", "instagramindia", "indiansong",
@@ -258,6 +242,21 @@ class InstagramScraper:
         for pool_name, tags in self.hashtag_groups.items():
             for tag in tags:
                 self._hashtag_pool_lookup[tag.lower()] = pool_name
+
+    def _load_cookie_file(self) -> bool:
+        cookies_path = os.path.join(self.script_dir, "cookies.json")
+        cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+        if cookies_b64:
+            import base64
+            try:
+                decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
+                json.loads(decoded)
+                with open(cookies_path, "w", encoding="utf-8") as f:
+                    f.write(decoded)
+                return True
+            except Exception:
+                pass
+        return os.path.exists(cookies_path)
 
     def _source_hashtag_pool_for_hashtags(self, hashtags: list[str]) -> str | None:
         for tag in hashtags or []:
