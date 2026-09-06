@@ -256,14 +256,24 @@ class TrendRefresher:
                     local_summary["peaked"] += 1
                     return local_summary
 
+                creator_count = self._count_unique_creators(
+                    trend.get("audio_title"), trend.get("audio_artist"), now, audio_id=trend.get("audio_id")
+                )
+
+                # Mandatory 2-creator & 2-reel gate: Single-creator noise MUST be demoted to unqualified
+                if creator_count < 2 or total_reels_count < 2:
+                    self._update_status(trend_id, "unqualified", {
+                        "window_hours_remaining": 0,
+                        "reel_count": total_reels_count,
+                        "promotion_reason": "single_creator_noise",
+                    })
+                    logger.info(f"[DEMOTED_UNQUALIFIED] '{audio_title}' (creator_count={creator_count}, total_reels={total_reels_count})")
+                    local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
+                    return local_summary
+
                 if current_status == "emerging":
-                    creator_count = self._count_unique_creators(
-                        trend.get("audio_title"), trend.get("audio_artist"), now
-                    )
                     high_confidence = creator_count >= 5
 
-                    # UNCALIBRATED — thresholds are educated guesses, not data-derived.
-                    # Re-tune after first real beta trajectory data exists.
                     qualifies_by_creator = creator_count >= 2
                     qualifies_by_volume = total_reels_count >= 3
                     velocity_ok_simple = (
@@ -279,10 +289,10 @@ class TrendRefresher:
                     if persisted_enough and qualifies_by_creator:
                         should_rise = True
                         promotion_reason = "creator_adoption"
-                    elif volume_enough and qualifies_by_volume:
+                    elif volume_enough and qualifies_by_volume and creator_count >= 2:
                         should_rise = True
                         promotion_reason = "volume_signal"
-                    elif volume_enough and velocity_ok_simple:
+                    elif volume_enough and velocity_ok_simple and creator_count >= 2:
                         should_rise = True
                         promotion_reason = "velocity_outlier"
 
@@ -311,9 +321,6 @@ class TrendRefresher:
                         })
                         local_summary["emerged"] += 1
                 else:
-                    creator_count = self._count_unique_creators(
-                        trend.get("audio_title"), trend.get("audio_artist"), now
-                    )
                     velocity_snapshot_ok, _ = self._velocity_promotion_allowed(
                         trend_id=trend_id,
                         current_velocity=velocity_for_check,
@@ -519,11 +526,20 @@ class TrendRefresher:
             logger.warning(f"Could not calc live velocity for '{audio_title}': {e}")
             return 0.0
 
-    def _count_unique_creators(self, audio_title: str, audio_artist: str, now: datetime) -> int:
+    def _count_unique_creators(self, audio_title: str, audio_artist: str, now: datetime, audio_id: str | None = None) -> int:
         """Counts distinct creator usernames using this audio in last 48h."""
         try:
-            normalized_title = normalize_audio_title(audio_title)
             threshold = (now - timedelta(hours=48)).isoformat()
+            if audio_id:
+                res_aid = self.supabase.table("reels") \
+                    .select("owner_username") \
+                    .eq("audio_id", audio_id) \
+                    .execute()
+                usernames_aid = {r.get("owner_username") for r in (res_aid.data or []) if r.get("owner_username")}
+                if len(usernames_aid) > 0:
+                    return len(usernames_aid)
+
+            normalized_title = normalize_audio_title(audio_title)
             res = self.supabase.table("reels") \
                 .select("owner_username, audio_title") \
                 .eq("audio_artist", audio_artist) \

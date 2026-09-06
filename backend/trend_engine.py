@@ -784,7 +784,7 @@ class TrendEngine:
             # STEP 3: Fetch ALL existing trends for dedup (all statuses).
             # On re-detection, update existing row in-place instead of inserting
             # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
-            STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
+            STATUS_PRIORITY = {"unqualified": -1, "expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
             all_trends_res = self.supabase.table("trends") \
                 .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()
@@ -863,15 +863,16 @@ class TrendEngine:
                             break
 
                 if existing_match:
-                    # Update-in-place: never-downgrade status on re-detection.
-                    # Only status is updated here — velocity/metrics are owned by
-                    # trend_refresher.py via snapshot logic. No last_detected_at
-                    # column exists; consider adding via migration for staleness tracking.
+                    # Update-in-place: never-downgrade status on re-detection, EXCEPT if single creator noise
                     old_status = existing_match.get("status", "emerging")
-                    new_detected_status = "emerging"
-                    old_priority = STATUS_PRIORITY.get(old_status, 0)
-                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
-                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if creator_count < 2 or len(group_reels) < 2:
+                        final_status = "unqualified"
+                    else:
+                        new_detected_status = "emerging"
+                        old_priority = STATUS_PRIORITY.get(old_status, 0)
+                        new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                        final_status = old_status if old_priority >= new_priority else new_detected_status
+
                     if final_status != old_status:
                         update_payload = {"status": final_status}
                         if final_status in ("emerging", "rising"):
