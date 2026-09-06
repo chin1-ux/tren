@@ -201,8 +201,18 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
         return None
     if not title:
         return None
-    if title.lower() == "original audio" or "original audio" in title.lower():
-        # Completely ignore original audio for now, per user request.
+    audio_id = reel.get("audio_id")
+    if title.lower() == "original audio":
+        if audio_id:
+            return (f"audio_id_{audio_id}", artist or "Original Audio")
+        return None
+    if "original audio" in title.lower():
+        # Handle-prefixed original audio (e.g. nikkiseey • Original audio)
+        if audio_id:
+            return (f"audio_id_{audio_id}", title)
+        canonical_title = normalize_audio_title(title)
+        if canonical_title:
+            return (canonical_title, artist or "Original Audio")
         return None
     if not artist:
         artist = "Unknown Artist"
@@ -1313,6 +1323,14 @@ class TrendEngine:
                     audio_use_count=audio_use_count,
                     oldest_age_hours=oldest_age_hours
                 )
+
+                # Resolve commercial song alias for Original Audio trends (e.g. Rompe by Daddy Yankee)
+                from song_fingerprint_client import resolve_song_alias_from_reels
+                from vision_transition_verifier import verify_transition_trend
+
+                commercial_song_alias = resolve_song_alias_from_reels(trend["audio_title"], group_reels)
+                transition_info = verify_transition_trend(group_reels, trend["audio_title"])
+                is_transition = transition_info.get("is_transition_trend", False)
 
                 trend_data = {
                     "audio_title": trend["audio_title"],

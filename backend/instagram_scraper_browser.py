@@ -160,9 +160,9 @@ class InstagramScraper:
                 "desimemes", "sarcasm"
             ],
             "FASHION": [
-                "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",
-                "ethnicwear", "sareelove", "kurtistyle", "fashionbloggerindia",
-                "grwm", "desifashion"
+                "transitionreels", "transition", "outfits", "fashionreels", "indianfashion",
+                "streetstyleindia", "ootdindia", "ethnicwear", "sareelove", "kurtistyle",
+                "fashionbloggerindia", "grwm", "desifashion", "fashiontransition"
             ],
             "TRAVEL": [
                 "travelreels", "incredibleindia", "travelindia", "himalayas",

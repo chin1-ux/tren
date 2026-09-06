@@ -564,6 +564,12 @@ def _normalize_trends(trends: list) -> list:
             reel_cnt = t.get("reel_count") or 1
             ind_cnt = t.get("india_use_count") or 0
             t["india_adoption_pct"] = round((ind_cnt / max(1, reel_cnt)) * 100.0, 1)
+
+        title_lower = (t.get("audio_title") or "").lower()
+        if "nikkiseey" in title_lower or "rompe" in title_lower:
+            t["commercial_song_alias"] = "Rompe - Daddy Yankee"
+            t["is_transition_trend"] = True
+            t["display_title"] = "Rompe (via nikkiseey • Original Audio)"
             
         # Inject matching reel details from lookup using normalized title
         norm_title = normalize_audio_title(t.get("audio_title", "") or "")
