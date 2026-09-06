@@ -1050,6 +1050,10 @@ class TrendEngine:
                 initial_status = None
                 promotion_trigger = None
 
+                # Require at least 2 unique creators & 2 reels to eliminate 1-user noise & gray area audios
+                if creator_count < 2 or len(group_reels) < 2:
+                    continue
+
                 # 10/10 Rising Logic: High use_count must ALSO have positive velocity / active momentum
                 # so that static high-count tracks from weeks ago don't jump directly into Rising feed.
                 if max_use_count >= RISING_USE_THRESHOLD and (creator_velocity > 0 or has_strong_official_velocity):
@@ -1058,10 +1062,10 @@ class TrendEngine:
                 elif creator_count >= 3 and creator_velocity > 0:
                     initial_status = "rising"
                     promotion_trigger = "creator_count_rising"
-                elif max_use_count >= RISING_USE_THRESHOLD:
+                elif max_use_count >= RISING_USE_THRESHOLD and creator_count >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "audio_use_count_emerging"
-                elif max_use_count >= EMERGING_USE_THRESHOLD:
+                elif max_use_count >= EMERGING_USE_THRESHOLD and creator_count >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "audio_use_count_emerging"
                 elif creator_count >= 2 and len(group_reels) >= 2:
