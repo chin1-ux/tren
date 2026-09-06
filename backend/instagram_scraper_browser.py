@@ -124,6 +124,16 @@ class InstagramScraper:
             else:
                 logger.warning("cookies.json not found and INSTAGRAM_COOKIES_B64 environment variable is empty.")
 
+        self.supabase_url = os.getenv("SUPABASE_URL")
+        self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+        if not self.supabase_url or not self.supabase_key:
+            raise ValueError("Supabase credentials missing from .env")
+        
+        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self._camoufox_browser = None  # SyncCamoufox instance
+        self._camoufox_ctx = None       # Playwright browser context
+        self._camoufox_page = None      # Active page for scraping
+
     def _load_cookie_file(self) -> bool:
         cookies_path = os.path.join(self.script_dir, "cookies.json")
         cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
@@ -138,16 +148,6 @@ class InstagramScraper:
             except Exception:
                 pass
         return os.path.exists(cookies_path)
-        
-        self.supabase_url = os.getenv("SUPABASE_URL")
-        self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-        if not self.supabase_url or not self.supabase_key:
-            raise ValueError("Supabase credentials missing from .env")
-        
-        self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
-        self._camoufox_browser = None  # SyncCamoufox instance
-        self._camoufox_ctx = None       # Playwright browser context
-        self._camoufox_page = None      # Active page for scraping
         
         self.hashtag_groups = {
             "INDIA_TRENDING": [
