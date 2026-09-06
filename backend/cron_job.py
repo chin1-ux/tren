@@ -1152,13 +1152,13 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup milestone reminders check failed: {e}", exc_info=True)
 
-    # Schedule every 3 hours
-    logging.info("Scheduling pipeline to run every 3 hours...")
-    schedule.every(3).hours.do(run_full_pipeline)
+    # Schedule main scraper pipeline every 4 hours (gives 4h gap between Instagram scraping sessions to prevent 429 rate limits)
+    logging.info("Scheduling main pipeline to run every 4 hours...")
+    schedule.every(4).hours.do(run_full_pipeline)
 
-    # Schedule every 6 hours for audio counts check
-    logging.info("Scheduling audio counts check to run every 6 hours...")
-    schedule.every(6).hours.do(run_audio_count_check)
+    # Schedule audio counts check every 8 hours (staggered from main pipeline)
+    logging.info("Scheduling audio counts check to run every 8 hours...")
+    schedule.every(8).hours.do(run_audio_count_check)
 
     # Schedule every 12 hours for milestone reminders check
     logging.info("Scheduling milestone reminders check to run every 12 hours...")
