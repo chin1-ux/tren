@@ -102,31 +102,23 @@ def calculate_trend_state(
         saturation_tier = "saturated"
     
     # 3. Determine lifecycle (emerging/rising/peaked/expired/unqualified)
-    # STRICT TIERS — NO LOW-VIEW NOISE IN EMERGING OR RISING!
     if window_hours_remaining <= 0 or global_saturation_pct >= 90:
         lifecycle = TrendLifecycle.EXPIRED
-    elif (global_saturation_pct >= 65 or audio_use_count >= 1000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
+    elif (global_saturation_pct >= 65 or audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
     elif (
-        unique_creators >= 3
-        and median_reel_views >= 25000
-        and max_reel_views >= 50000
-        and velocity_avg >= 35000
-        and velocity_tier in ["accelerating", "stable"]
+        (unique_creators >= 3 or audio_use_count >= 500000)
         and global_saturation_pct < 75
+        and velocity_tier in ["accelerating", "stable"]
     ):
         lifecycle = TrendLifecycle.RISING
     elif (
         unique_creators >= 2
-        and median_reel_views >= 5000
-        and velocity_avg >= 15000
-        and global_saturation_pct < 35
-        and audio_use_count < 1000000
-        and (max_reel_views / (median_reel_views + 1.0) <= 20.0)
+        and global_saturation_pct < 65
     ):
         lifecycle = TrendLifecycle.EMERGING
     else:
-        # Low view noise (e.g. Gallan Hundiyan with 1283 vel / 648 median views) -> UNQUALIFIED
+        # Low view / 1-creator noise -> UNQUALIFIED
         lifecycle = TrendLifecycle.UNQUALIFIED
     
     # 4. Determine urgency (drives status copy)

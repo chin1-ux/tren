@@ -336,6 +336,7 @@ def logout(request: Request, req: LogoutRequest):
 
 
 @router.api_route("/api/auth/verify", methods=["GET", "POST"])
+@router.api_route("/api/auth/me", methods=["GET", "POST"])
 @limiter.limit("30/hour")
 def verify(request: Request, req: Optional[VerifyRequest] = None):
     """Verify session token and enforce active session limits"""
