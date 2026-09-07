@@ -52,15 +52,57 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     if is_vercel:
-        logger.info("Vercel serverless environment detected: browser scraping deferred to worker host.")
+        logger.info("Vercel serverless environment: executing lightweight HTTP pipeline + TrendEngine + TrendRefresher.")
+        def _run_serverless_cron():
+            try:
+                # Step 1: Lightweight HTTP official audio count velocity sensor
+                try:
+                    from instagram_scraper_browser import InstagramScraper
+                    scraper = InstagramScraper()
+                    scraper.scrape_official_audio_counts()
+                    logger.info("Completed lightweight official audio count check.")
+                except Exception as sc_err:
+                    logger.warning(f"Lightweight audio count check warning: {sc_err}")
+
+                # Step 2: Trend Engine detection & freshness re-stamping
+                try:
+                    from trend_engine import TrendEngine
+                    engine = TrendEngine()
+                    engine.detect_trends()
+                    logger.info("Completed TrendEngine detection.")
+                except Exception as te_err:
+                    logger.warning(f"TrendEngine detection warning: {te_err}")
+
+                # Step 3: Trend Refresher status updates
+                try:
+                    if TrendRefresher:
+                        refresher = TrendRefresher()
+                        summary = refresher.refresh_all()
+                        logger.info(f"Completed TrendRefresher: {summary}")
+                except Exception as tr_err:
+                    logger.warning(f"TrendRefresher warning: {tr_err}")
+
+                # Step 4: Clear Redis trend cache keys
+                if standard_queue and standard_queue.connection:
+                    try:
+                        keys = standard_queue.connection.keys("trends:*")
+                        if keys:
+                            standard_queue.connection.delete(*keys)
+                            logger.info(f"Invalidated {len(keys)} trend cache keys after Vercel cron.")
+                    except Exception as cache_err:
+                        logger.warning(f"Cache invalidation warning: {cache_err}")
+            except Exception as e:
+                logger.error(f"Error in Vercel serverless cron execution: {e}", exc_info=True)
+
+        background_tasks.add_task(_run_serverless_cron)
         return {
-            "status": "serverless_environment_browser_skip",
-            "message": "Playwright browser automation requires worker host. Vercel cron trigger acknowledged."
+            "status": "triggered",
+            "message": "Lightweight serverless scraper pipeline & trend engine running in background task"
         }
 
     from cron_job import run_full_pipeline
     background_tasks.add_task(run_full_pipeline)
-    return {"status": "triggered", "message": "Scraper pipeline running in background task"}
+    return {"status": "triggered", "message": "Full Playwright scraper pipeline running in background task"}
 
 
 @app.get("/api/cron/refresh", tags=["Cron"])
