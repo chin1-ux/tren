@@ -122,10 +122,10 @@ def get_trends(
                         t["adaptation_briefs"] = {}
                     t["adaptation_briefs"][effective_niche] = brief
 
-        if sort == "newest":
-            trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
+        if sort == "time_left":
+            trends.sort(key=lambda t: (t.get("window_hours_remaining", 0), _trend_priority_key(t, effective_niche, user_lang)))
         else:
-            trends.sort(key=lambda t: _trend_priority_key(t, effective_niche, user_lang), reverse=True)
+            trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -237,9 +237,6 @@ def get_all_active_trends(
     except Exception as e:
         logger.exception(f"Error fetching all-active trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-    except Exception as e:
-        logger.exception(f"Error fetching all-active trends: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 @router.get("/api/trends/peaked")
@@ -285,7 +282,7 @@ def get_peaked_trends(
         q = q.limit(min(limit, 50))
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         trends = trends[:50]
         
         # Save to cache
@@ -329,7 +326,7 @@ def get_expired_trends(
         q = q.limit(fetch_limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         return trends[:50]
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
