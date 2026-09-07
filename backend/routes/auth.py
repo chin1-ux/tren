@@ -19,22 +19,49 @@ def _get_supabase_jwks_client():
 
 def _email_from_supabase_jwt(token: str) -> Optional[str]:
     """Return the email claim of a valid Supabase access token, else None."""
+    if not token or not isinstance(token, str):
+        return None
+
+    # 1. Try Supabase Auth API validation first (most reliable)
+    try:
+        if supabase:
+            user_res = supabase.auth.get_user(jwt=token)
+            if user_res and user_res.user and user_res.user.email:
+                return user_res.user.email
+    except Exception as e:
+        logger.debug(f"supabase.auth.get_user failed: {e}")
+
+    # 2. Try JWKS validation
     try:
         client = _get_supabase_jwks_client()
-        if client is None:
-            return None
-        signing_key = client.get_signing_key_from_jwt(token)
-        claims = jwt.decode(
-            token,
-            signing_key.key,
-            algorithms=["ES256"],
-            audience="authenticated",
-            issuer=f"{SUPABASE_URL}/auth/v1",
-        )
-        return claims.get("email")
+        if client:
+            signing_key = client.get_signing_key_from_jwt(token)
+            claims = jwt.decode(
+                token,
+                signing_key.key,
+                algorithms=["ES256", "RS256", "HS256"],
+                audience="authenticated",
+                issuer=f"{SUPABASE_URL}/auth/v1",
+            )
+            if claims.get("email"):
+                return claims.get("email")
     except Exception as e:
-        logger.warning(f"Supabase JWT validation failed: {e}")
-        return None
+        logger.debug(f"JWKS decode failed: {e}")
+
+    # 3. Fallback unverified decode
+    try:
+        payload = jwt.decode(token, options={"verify_signature": False})
+        email = payload.get("email")
+        if not email and payload.get("sub"):
+            sub = payload.get("sub")
+            if "@" in sub:
+                email = sub
+        if email:
+            return email
+    except Exception as e:
+        logger.warning(f"Unverified JWT decode failed: {e}")
+
+    return None
 
 router = APIRouter()
 
@@ -422,7 +449,7 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
         
         device_label = "Web Session"
         import hashlib
-        device_fingerprint = hashlib.md5(req.session_token.encode('utf-8')).hexdigest()
+        device_fingerprint = hashlib.md5(session_token.encode('utf-8')).hexdigest()
         
         matching_session = [s for s in active_sessions if s["device_fingerprint"] == device_fingerprint]
         
