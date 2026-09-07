@@ -430,11 +430,11 @@ def invalidate_cached_user_profile(email: str):
 
 def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     """
-    Returns a stable user identifier string given an Authorization header.
+    Returns a stable user identifier string (numeric ID or UUID) given an Authorization header.
 
     Priority:
-      1. Supabase JWT  -> returns Supabase user UUID
-      2. Custom auth_token from our `users` table -> returns the user email
+      1. Custom auth_token from our `users` table -> returns `str(user.id)`
+      2. Supabase JWT -> returns `str(user.id)` or Supabase user UUID
       3. None if neither matches
     """
     if not authorization or not authorization.startswith("Bearer "):
@@ -443,21 +443,26 @@ def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     if not token:
         return None
 
-    # --- Try Supabase JWT first ---
     if supabase:
+        # 1. Try custom auth_token in users table first
+        try:
+            res = supabase.table("users").select("id, email").eq("auth_token", token).limit(1).execute()
+            if res.data and len(res.data) > 0:
+                return str(res.data[0]["id"])
+        except Exception:
+            pass
+
+        # 2. Try Supabase Auth JWT
         try:
             local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
             user_res = local_supabase.auth.get_user(jwt=token)
             if user_res and user_res.user:
+                email = user_res.user.email
+                if email:
+                    res = supabase.table("users").select("id").eq("email", email).limit(1).execute()
+                    if res.data and len(res.data) > 0:
+                        return str(res.data[0]["id"])
                 return str(user_res.user.id)
-        except Exception:
-            pass
-
-        # --- Fall back to custom auth_token in users table ---
-        try:
-            res = supabase.table("users").select("email").eq("auth_token", token).limit(1).execute()
-            if res.data and len(res.data) > 0:
-                return res.data[0]["email"]
         except Exception:
             pass
 
