@@ -176,9 +176,15 @@ class TrendRefresher:
                     logger.warning(f"Failed to check new reels count for '{audio_title}': {e}")
                     new_reels_count = 0
 
+                # Global scraper freshness check: Do NOT penalty-decay window_hours if no scraper run occurred globally in >6h
+                global_scraper_idle = self._is_global_scraper_idle(now)
+
                 if new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
+                elif global_scraper_idle:
+                    new_window = window_hours
+                    logger.info(f"[WINDOW_DECAY_PAUSED] '{audio_title}' window held at {new_window}h (global scraper idle for >6h).")
                 else:
                     new_window = max(0, window_hours - 3)
 
@@ -554,6 +560,30 @@ class TrendRefresher:
         except Exception as e:
             logger.warning(f"Could not count creators for '{audio_title}': {e}")
             return 0
+
+    def _is_global_scraper_idle(self, now: datetime) -> bool:
+        """Returns True if no new reels have been scraped globally in the last 6 hours."""
+        try:
+            res = self.supabase.table("reels") \
+                .select("scraped_at, created_at") \
+                .order("scraped_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if not res.data:
+                return False
+            latest_str = res.data[0].get("scraped_at") or res.data[0].get("created_at")
+            if not latest_str:
+                return False
+            if latest_str.endswith("Z"):
+                latest_str = latest_str[:-1] + "+00:00"
+            latest_dt = datetime.fromisoformat(latest_str)
+            if latest_dt.tzinfo is None:
+                latest_dt = latest_dt.replace(tzinfo=timezone.utc)
+            idle_hours = (now - latest_dt).total_seconds() / 3600
+            return idle_hours > 6.0
+        except Exception as e:
+            logger.warning(f"Could not check global scraper idle status: {e}")
+            return False
 
     def _get_rising_baseline(self) -> float:
         """

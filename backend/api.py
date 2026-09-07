@@ -51,6 +51,13 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     if auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
         
+    if is_vercel:
+        logger.info("Vercel serverless environment detected: browser scraping deferred to worker host.")
+        return {
+            "status": "serverless_environment_browser_skip",
+            "message": "Playwright browser automation requires worker host. Vercel cron trigger acknowledged."
+        }
+
     from cron_job import run_full_pipeline
     background_tasks.add_task(run_full_pipeline)
     return {"status": "triggered", "message": "Scraper pipeline running in background task"}
