@@ -37,7 +37,6 @@ def bundle_python_function():
     vc_config = {
         "runtime": "python3.12",
         "handler": "api/[...path].py",
-        "launcherType": "Nodejs",
         "maxDuration": 30
     }
     with open(os.path.join(func_dir, '.vc-config.json'), 'w') as f:
