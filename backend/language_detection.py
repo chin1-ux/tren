@@ -16,7 +16,9 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "sunidhi": "hi", "shankar": "hi", "ehsaan": "hi", "loy": "hi", "udit narayan": "hi", "kumar sanu": "hi", "lata": "hi",
     "asha bhosle": "hi", "kishore": "hi", "rafi": "hi", "malik": "hi", "sardesai": "hi", "bollywood": "hi", "hindi song": "hi",
     "hindi music": "hi", "bhojpuri": "hi", "pawan singh": "hi", "khesari": "hi", "shilpi raj": "hi", "manoj tiger": "hi",
-    "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi",
+    "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi", "anand bhaskar": "hi",
+    "romy": "hi", "ginny diwan": "hi", "roop kumar rathod": "hi", "sadhana sargam": "hi", "tapas relia": "hi",
+    "antara nandy": "hi", "yuvnsoni": "hi", "hiten": "hi", "sharvi yadav": "hi",
     "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
     "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
     "deva": "hi", "maula": "hi", "mere": "hi", "bhajan": "hi", "mata": "hi", "chalisa": "hi", "kirtan": "hi",
@@ -27,42 +29,50 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     # -- Tamil --
     "anirudh": "ta", "sai abhyankkar": "ta", "gana muthu": "ta", "vishnu edavan": "ta", "edavan": "ta", "kollywood": "ta",
     "tamil song": "ta", "thalapathy": "ta", "thalaiva": "ta", "a.r. rahman": "ta", "yuvan": "ta", "g.v. prakash": "ta",
-    "vijay": "ta", "suriya": "ta", "dhanush": "ta", "rajinikanth": "ta", "kamal haasan": "ta", "harris jayaraj": "ta",
-    "imman": "ta", "vidyasagar": "ta", "ilayaraja": "ta", "santhosh narayanan": "ta", "karthik": "ta", "sid sriram": "ta",
+    "g v prakash": "ta", "vijay": "ta", "suriya": "ta", "dhanush": "ta", "rajinikanth": "ta", "kamal haasan": "ta", "harris jayaraj": "ta",
+    "imman": "ta", "vidyasagar": "ta", "ilayaraja": "ta", "ilaiyaraaja": "ta", "kj yesudas": "ta", "k.j. yesudas": "ta",
+    "santhosh narayanan": "ta", "karthik": "ta", "sid sriram": "ta", "tippu": "ta", "pradeep kumar": "ta",
     "tamilsong": "ta", "tamilreels": "ta", "tamil": "ta",
 
     # -- Telugu --
     "tollywood": "te", "telugu song": "te", "allu arjun": "te", "mahesh babu": "te", "ram charan": "te", "thaman": "te",
     "dsp": "te", "devi sri prasad": "te", "ntr": "te", "prabhas": "te", "pawan kalyan": "te", "chiranjeevi": "te",
     "mm keeravani": "te", "keeravani": "te", "mani sharma": "te", "anantha sreeram": "te", "chandrabose": "te",
-    "s.p. balu": "te", "spb": "te", "ramajogayya": "te",
+    "s.p. balu": "te", "spb": "te", "ramajogayya": "te", "s p charan": "te", "s. p. charan": "te", "smitha": "te",
     "telugusong": "te", "telugureels": "te", "telugu": "te",
 
     # -- Punjabi --
     "diljit": "pa", "ap dhillon": "pa", "punjabi song": "pa", "punjabi music": "pa", "sidhu moose wala": "pa",
     "karan aujla": "pa", "harrdy sandhu": "pa", "ammy virk": "pa", "guru randhawa": "pa", "b praak": "pa", "jaani": "pa",
     "parmish verma": "pa", "jass manak": "pa", "honey singh": "pa", "mankirt": "pa", "shubh": "pa", "sukhe": "pa",
-    "gurinder gill": "pa", "brown munde": "pa",
+    "gurinder gill": "pa", "brown munde": "pa", "surjit bindrakhia": "pa", "bindrakhia": "pa", "arjan dhillon": "pa",
+    "amar sajaalpuria": "pa", "gur sekhon": "pa", "gur sidhu": "pa", "cheema y": "pa", "dhanda nyoliwala": "pa",
     "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa",
     "satinder sartaaj": "pa", "daler mehndi": "pa", "harsh nussi": "pa", "babbu maan": "pa",
 
     # -- Bhojpuri --
     "bhojpuri": "bho", "pawan singh": "bho", "khesari": "bho", "shilpi raj": "bho", "manoj tiger": "bho",
-    "tuntun yadav": "bho", "neelkamal singh": "bho", "khushi kakkar": "bho", "bhojpurisong": "bho", "bhojpurireel": "bho",
+    "tuntun yadav": "bho", "neelkamal singh": "bho", "khushi kakkar": "bho", "gulshan yadav": "bho",
+    "awadhesh premi": "bho", "raushan rohi": "bho", "bhojpurisong": "bho", "bhojpurireel": "bho",
 
     # -- Haryanvi --
     "masoom sharma": "hne", "renuka panwar": "hne", "sapna choudhary": "hne", "pranjal dahiya": "hne",
-    "haryanvisong": "hne", "haryanvireel": "hne", "desi chore": "hne",
+    "ashu twinkle": "hne", "haryanvisong": "hne", "haryanvireel": "hne", "desi chore": "hne",
+
+    # -- Gujarati --
+    "osman mir": "gu", "kirtidan": "gu", "kirtidan gadhavi": "gu", "jayesh nayak": "gu", "jaymin dabhoda": "gu",
+    "kaushik bharwad": "gu", "aditya gadhvi": "gu", "gujarati": "gu", "gujaratisong": "gu",
 
     # -- Malayalam --
     "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
     "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
+    "rajeesh": "ml", "rajeesh k chandu": "ml", "kalabhavan mani": "ml",
     "malayalamsong": "ml", "malayalam": "ml",
 
     # -- Kannada --
     "sandalwood": "kn", "kannada song": "kn", "yash": "kn", "kiccha": "kn", "sudeep": "kn", "darshan": "kn",
     "puneeth": "kn", "ravi basrur": "kn", "v. harikrishna": "kn", "arjun janya": "kn", "sanjith hegde": "kn",
-    "vijay prakash": "kn", "hemanth": "kn",
+    "vijay prakash": "kn", "hemanth": "kn", "anoop seelin": "kn",
     "kannadareels": "kn", "kannada": "kn",
 
     # -- Marathi --

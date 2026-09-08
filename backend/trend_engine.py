@@ -471,7 +471,8 @@ def classify_single_trend(trend):
     # Language detection via shared module (replaces inline _detect_language)
     _audio_text = f"{trend.get('audio_title', '')} {trend.get('audio_artist', '')}"
     _dominant_caption = max(captions, key=len) if captions else ""
-    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption)
+    all_hashtags = [tag for r in reels for tag in (r.get("hashtags") or [])]
+    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption, all_hashtags)
 
     trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
 
@@ -811,13 +812,21 @@ class TrendEngine:
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
 
-                # ── Original Audio exclusion ──────────────────────────────────────────────
-                # Exclude ALL original-audio from trend detection entirely.
-                # Without fingerprinting, we can't match across posts reliably.
-                # Surface original audio via the format/pattern track (when built).
+                # ── Original Audio & Self-Promo Exclusion ──────────────────────────────────
+                # Exclude raw audio_id_* strings, original-audio, and single-creator self-promos (title == artist)
+                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
+                unique_creators = len(usernames)
+
+                is_raw_audio_id = title.lower().startswith("audio_id_")
+                is_self_promo = (
+                    bool(title.strip()) 
+                    and title.strip().lower().replace("_", "") == artist.strip().lower().replace("_", "")
+                )
                 is_original_audio = (
                     title.lower() in ("original audio", "original sound", "")
                     or title.lower().startswith("original_audio::")
+                    or is_raw_audio_id
+                    or is_self_promo
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
 
@@ -831,10 +840,9 @@ class TrendEngine:
                 ratio = (max_views / max(artist_followers, 100)) if artist_followers > 0 else 0.0
                 is_crossplatform_breakout = (ratio >= 15.0 and max_views >= 50000) or (max_use_cnt >= 50)
 
-                if is_original_audio and not is_crossplatform_breakout:
-                    logging.debug(
-                        f"Original-audio excluded from trend detection (no breakout signal): '{title}' | {artist} — "
-                        f"{len(group_reels)} reels"
+                if (is_original_audio or is_self_promo or is_raw_audio_id) and unique_creators < 2 and not is_crossplatform_breakout:
+                    logging.info(
+                        f"Original-audio / self-promo excluded (unique_creators={unique_creators}, breakout={is_crossplatform_breakout}): '{title}' | {artist}"
                     )
                     continue
                 # ────────────────────────────────────────────────────────────────────────
@@ -1197,10 +1205,15 @@ class TrendEngine:
 
                 # ── Aggregate audio_use_count + audio_id from linked reels ──
                 group_reels = trend.get("reels", [])
-                audio_use_count = max(
-                    (r.get("audio_use_count") or 0 for r in group_reels),
-                    default=0,
-                )
+                
+                # Sanitize corrupted audio_use_count (ignore unparsed multi-tens-of-millions sentinel counts >10M)
+                valid_counts = [r.get("audio_use_count") for r in group_reels if r.get("audio_use_count") and 0 < r.get("audio_use_count") < 10000000]
+                if valid_counts:
+                    audio_use_count = int(statistics.median(valid_counts))
+                else:
+                    raw_max = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                    audio_use_count = raw_max if raw_max < 10000000 else 50000
+
                 audio_id = next(
                     (r.get("audio_id") for r in group_reels if r.get("audio_id")),
                     None,
@@ -1212,15 +1225,18 @@ class TrendEngine:
 
                 # Saturation percentages
                 global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
-                # India saturation: proportional to global saturation based on Indian creator ratio.
-                # Raw count approach (india_use_count / 500) permanently yields ~0% because
-                # max india_use_count across all audio is ~13. Instead, scale global saturation
-                # by the fraction of scraped reels from Indian creators.
+                # India saturation: scale by Indian creator ratio or language origin
+                from language_detection import _looks_indian_audio, _INDIAN_LANG_CODES
+                is_indian = _looks_indian_audio(trend.get("audio_title"), trend.get("audio_artist")) or trend.get("language") in _INDIAN_LANG_CODES
+
                 if len(group_reels) > 0 and india_use_count > 0:
                     india_ratio = india_use_count / len(group_reels)
                     india_sat = round(min(100.0, global_sat * india_ratio * 2), 1)
+                elif is_indian:
+                    # High adoption in India for Indian tracks even if creator_country field is missing on raw scraped reels
+                    india_sat = round(min(100.0, global_sat * 0.75), 1)
                 else:
-                    india_sat = 0.0
+                    india_sat = round(min(100.0, global_sat * 0.15), 1)
 
                 # Fix #9: Window hours — saturation-based baseline adjusted by velocity direction.
                 # A trend with falling velocity gets 30% fewer hours regardless of saturation.
