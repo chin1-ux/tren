@@ -917,11 +917,24 @@ class TrendEngine:
                 
                 max_group_v = max((r.get("velocity_score", 0) for r in high_velocity_reels), default=0.0)
                 max_group_use = max((r.get("audio_use_count", 0) for r in high_velocity_reels if (r.get("audio_use_count") or 0) != SENTINEL_USE_COUNT), default=0)
-                is_breakout_single_reel = max_group_v > 5000.0 or max_group_use > 1000 or is_crossplatform_breakout
                 
-                # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
+                # Option C (Smart Multi-Signal Engine - Approved by User):
+                # Single-reel audio qualification requirements:
+                # 1. 1,000 <= audio_use_count < 3,000,000 (Goldilocks range)
+                # 2. velocity_score >= 1.2
+                # 3. Valid numeric Instagram audio_id (not spotify_)
+                is_smart_qualified_candidate = (
+                    max_group_use >= 1000 
+                    and max_group_use < 3_000_000 
+                    and max_group_v >= 1.2 
+                    and bool(representative_audio_id and representative_audio_id.isdigit())
+                )
+                
+                is_breakout_single_reel = max_group_v > 5000.0 or is_smart_qualified_candidate or is_crossplatform_breakout
+                
+                # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a smart qualified candidate or breakout single reel
                 if len(high_velocity_reels) < 3 and not is_breakout_single_reel:
-                    logging.debug(f"Audio {title} failed 3-reel threshold check (found {len(high_velocity_reels)} recent high-velocity reels)")
+                    logging.debug(f"Audio {title} failed smart multi-signal threshold check (found {len(high_velocity_reels)} recent high-velocity reels)")
                     continue
 
                 recent_6h_velocities = []
