@@ -49,17 +49,8 @@ api_route = {
     "dest": "/api/[...path]"
 }
 
-filesystem_route = {
-    "handle": "filesystem"
-}
-
-server_fallback_route = {
-    "src": "/(.*)",
-    "dest": "/__server"
-}
-
 if os.path.exists(config_path):
-    print("Modifying .vercel/output/config.json to add custom API and SSR routes...")
+    print("Modifying .vercel/output/config.json to inject API route...")
     with open(config_path, 'r') as f:
         config = json.load(f)
 else:
@@ -67,16 +58,15 @@ else:
     config = {"version": 3}
 
 config['version'] = 3
-config['routes'] = [
-    api_route,
-    filesystem_route,
-    server_fallback_route
-]
+existing_routes = config.get('routes', [])
+# Ensure api_route is at the top
+filtered_routes = [r for r in existing_routes if r.get('dest') != '/api/[...path]']
+config['routes'] = [api_route] + filtered_routes
 
 os.makedirs(os.path.dirname(config_path), exist_ok=True)
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
-print("Successfully injected API routes, static filesystem handler, and SSR routes!")
+print("Successfully injected API route into config.json!")
 
 def copy_static_assets():
     static_dst = '.vercel/output/static'
