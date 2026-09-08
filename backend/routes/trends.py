@@ -1224,10 +1224,10 @@ def report_trend_url(
         bonus_credits = 10
         if current_user and current_user != "guest@trendrop.app":
             try:
-                user_res = supabase.table("users").select("ai_credits").eq("email", current_user).execute()
+                user_res = supabase.table("users").select("credits_remaining").eq("email", current_user).execute()
                 if user_res.data:
-                    current_cred = user_res.data[0].get("ai_credits") or 0
-                    supabase.table("users").update({"ai_credits": current_cred + bonus_credits}).eq("email", current_user).execute()
+                    current_cred = user_res.data[0].get("credits_remaining") or 0
+                    supabase.table("users").update({"credits_remaining": current_cred + bonus_credits}).eq("email", current_user).execute()
                     logger.info(f"Awarded +{bonus_credits} bonus credits to {current_user}")
             except Exception as user_err:
                 logger.warning(f"Failed to award bonus credits to {current_user}: {user_err}")
