@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite dev",
-    "build": "vite build && node -e \"const fs=require('fs');const path=require('path');const src='dist';const dst='../.vercel/output/static';if(fs.existsSync(dst)){['sw.js','workbox-5cb67add.js'].concat(fs.readdirSync(src).filter(f=>f.startsWith('workbox-'))).forEach(f=>{const s=path.join(src,f);if(fs.existsSync(s)){fs.copyFileSync(s,path.join(dst,f));console.log('Copied',f,'to',dst);}});}else{console.log('Vercel output static dir not found, skipping sw copy');}\"",
+    "build": "vite build && node -e \"const fs=require('fs');const path=require('path');const dst='../.vercel/output/static';if(fs.existsSync(dst)){['public','dist'].forEach(dir=>{if(fs.existsSync(dir)){fs.readdirSync(dir).forEach(f=>{const s=path.join(dir,f);if(fs.statSync(s).isFile()){fs.copyFileSync(s,path.join(dst,f));console.log('Copied',f,'to',dst);}});}});}else{console.log('Vercel output static dir not found');}\"",
     "build:dev": "vite build --mode development",
     "preview": "vite preview",
     "lint": "eslint .",

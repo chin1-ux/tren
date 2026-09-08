@@ -14,8 +14,7 @@ router = APIRouter()
 def get_cultural_events(
     request: Request,
     days_ahead: int = 90,
-    current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("india_features"))
+    current_user: str = Depends(get_current_user)
 ):
     """Get upcoming India-specific cultural events."""
     if not CulturalEventCalendar:

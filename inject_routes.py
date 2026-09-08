@@ -78,5 +78,29 @@ with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
 print("Successfully injected API routes, static filesystem handler, and SSR routes!")
 
+def copy_static_assets():
+    static_dst = '.vercel/output/static'
+    os.makedirs(static_dst, exist_ok=True)
+    
+    pub_dir = 'frontend/public'
+    if os.path.exists(pub_dir):
+        for f in os.listdir(pub_dir):
+            s = os.path.join(pub_dir, f)
+            d = os.path.join(static_dst, f)
+            if os.path.isfile(s):
+                shutil.copy2(s, d)
+                print(f"Copied public asset {f} to {static_dst}")
+                
+    dist_dir = 'frontend/dist'
+    if os.path.exists(dist_dir):
+        for f in os.listdir(dist_dir):
+            s = os.path.join(dist_dir, f)
+            d = os.path.join(static_dst, f)
+            if os.path.isfile(s):
+                shutil.copy2(s, d)
+                print(f"Copied dist asset {f} to {static_dst}")
+
 clean_func_dir()
 bundle_python_function()
+copy_static_assets()
+
