@@ -18,9 +18,12 @@ artifacts
 artifacts/**
 screenshots
 screenshots/**
-*.png
-*.jpg
-*.webp
+# Diagnostic screenshot images
+scratch/*.png
+scratch/*.jpg
+scratch/*.webp
+artifacts/*.png
+screenshots/*.png
 *.html
 __pycache__
 **/__pycache__

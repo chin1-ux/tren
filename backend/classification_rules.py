@@ -104,8 +104,9 @@ def build_source_hashtag_pool(hashtags: list[str] | None) -> str | None:
     return "GLOBAL_DISCOVERY"
 
 def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str | None = None, sample_size: int = 0) -> str:
-    # If sample size is too small, return "general" to avoid overfitting
-    if sample_size > 0 and sample_size < 5:
+    # Only skip analysis for truly single-reel groups (< 2) to avoid false signals.
+    # Lowered from 5 to 2: groups with 2+ reels are sufficient to attempt keyword classification.
+    if sample_size > 0 and sample_size < 2:
         return "general"
 
     # Try to get a specific niche from hashtags first (works for all pools)

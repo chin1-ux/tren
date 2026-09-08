@@ -229,6 +229,60 @@ class SpotifyFetcher:
                 except Exception as e:
                     logger.error(f"Failed to save crossovers: {e}")
 
+        # 4. Direct registration into main 'trends' table for early Emerging feed surfacing
+        if all_tracks and self.supabase:
+            self.sync_to_trends_table(all_tracks)
+
+    def sync_to_trends_table(self, market_tracks: List[Dict]):
+        """Upsert top Spotify viral tracks to the main 'trends' table as emerging audio candidates"""
+        if not self.supabase or not market_tracks:
+            return
+            
+        now_iso = datetime.now(timezone.utc).isoformat()
+        trends_payload = []
+        seen_titles = set()
+
+        for track in market_tracks[:30]:
+            title = (track.get("title") or "").strip()
+            artist = (track.get("artist") or "Spotify Artist").strip()
+            if not title or title.lower() in seen_titles:
+                continue
+            seen_titles.add(title.lower())
+
+            audio_id = f"spotify_{track.get('spotify_id')}"
+            
+            trend_obj = {
+                "audio_id": audio_id,
+                "audio_title": title,
+                "audio_artist": artist,
+                "status": "emerging",
+                "velocity_avg": float(150.0 + (50 - track.get("rank", 25)) * 10),
+                "peak_velocity": float(250.0 + (50 - track.get("rank", 25)) * 15),
+                "audio_use_count": 2500,
+                "creator_diversity": 4,
+                "niche_tag": "music",
+                "content_type": "Music",
+                "language": "hi" if track.get("market") == "IN" else "en",
+                "discovery_source": "spotify_viral_50",
+                "first_detected_at": now_iso,
+                "window_hours_remaining": 48,
+                "why_this_works": f"Surging on Spotify Viral 50 ({track.get('market', 'GLOBAL')} Rank #{track.get('rank', 1)}). Use this track for early reels momentum.",
+                "adaptation_briefs": {
+                    "music": f"Rising Spotify sound '{title}' by {artist}. Early crossover opportunity for music/dance creators.",
+                    "dance": f"Choreography or hookstep sync to '{title}'.",
+                    "lifestyle": f"Aesthetic reel b-roll set to '{title}'."
+                }
+            }
+            trends_payload.append(trend_obj)
+
+        if trends_payload:
+            try:
+                self.supabase.table("trends").upsert(trends_payload, on_conflict="audio_id").execute()
+                logger.info(f"Successfully upserted {len(trends_payload)} Spotify viral tracks into main 'trends' table.")
+            except Exception as err:
+                logger.error(f"Failed to upsert Spotify tracks to 'trends' table: {err}")
+
 if __name__ == "__main__":
     fetcher = SpotifyFetcher()
     fetcher.run_sync()
+

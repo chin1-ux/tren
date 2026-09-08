@@ -18,7 +18,12 @@ export function PlanGate({
   children,
   onUpgrade
 }: PlanGateProps) {
-  const canAccess = currentPlan === 'pro';
+  const canAccess = Boolean(currentPlan) && (
+    currentPlan === 'pro' ||
+    currentPlan === 'pro_trial' ||
+    currentPlan.startsWith('pro') ||
+    currentPlan.startsWith('brand')
+  );
 
   if (canAccess) {
     return <>{children}</>;

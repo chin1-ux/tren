@@ -215,7 +215,11 @@ class InstagramScraper:
                 # Broad Viral & Music Seeds
                 "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
                 "hiphopreels", "edmmusic", "kpopreels"
-            ]
+            ],
+            "MICRO_DANCE": ["microdance", "trendingdance", "dancehacks", "southdance", "indiandance"],
+            "MICRO_FOOD": ["foodcreators", "microfood", "tastyfood", "indianfood", "kitchenhacks"],
+            "MICRO_FASHION": ["fashionhacks", "styletips", "outfitideas", "sareestyle", "fashiondiy"],
+            "MICRO_COMEDY": ["funnyreels", "comedyhacks", "relatable", "indiancomedy", "humor"]
         }
 
         # Dynamically load event hashtags from EventMonitor
@@ -440,6 +444,12 @@ class InstagramScraper:
         "shirlenequigley",
         "teamnaach",
         "awez_darbar",
+        "nagmanawab",
+        "unnati_m",
+        "shetroublemaker",
+        "bhuvan.bam22",
+        "mostlysane",
+        "reelsinstagram",
     ]
 
     async def scrape_creator_watchlist_async(self) -> tuple[list[dict], int]:
@@ -2188,34 +2198,40 @@ Return ONLY valid JSON, no markdown, no explanation:
         return results
 
     def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:
-        # Pattern 1: Modern Instagram Audio page layout ("Audio\n57.9K")
-        match = re.search(r'Audio\s*\n?\s*([\d,.]+)\s*([KMB]?)', text, re.IGNORECASE)
-        if not match:
-            # Pattern 2: Traditional layout ("57.9K reels" / "1.2M posts")
-            match = re.search(r'([\d,.]+)\s*([KMB]?)\s*(?:reels?|posts?|videos?)', text, re.IGNORECASE)
+        # Refined patterns: avoid multi-line regex leaps that capture follower/view counts
+        patterns = [
+            r'Audio[ \t]*(?:\n|\r\n)?[ \t]*([\d,.]+)[ \t]*([KMB]?)',
+            r'([\d,.]+)[ \t]*([KMB]?)[ \t]*(?:reels?|posts?|videos?|clips?)',
+            r'reels?[ \t]*[\n\r:]+[ \t]*([\d,.]+)[ \t]*([KMB]?)'
+        ]
 
-        if not match:
-            return None, None
+        for pat in patterns:
+            for match in re.finditer(pat, text, re.IGNORECASE):
+                val_str, suffix = match.groups()
+                val_str = val_str.replace(',', '')
+                try:
+                    val = float(val_str)
+                    suffix_upper = suffix.upper()
+                    if suffix_upper == 'K':
+                        val *= 1000
+                        precision_bucket = 'K'
+                    elif suffix_upper == 'M':
+                        val *= 1_000_000
+                        precision_bucket = 'M'
+                    elif suffix_upper == 'B':
+                        val *= 1_000_000_000
+                        precision_bucket = 'B'
+                    else:
+                        precision_bucket = 'exact'
 
-        val_str, suffix = match.groups()
-        val_str = val_str.replace(',', '')
-        try:
-            val = float(val_str)
-            suffix_upper = suffix.upper()
-            if suffix_upper == 'K':
-                val *= 1000
-                precision_bucket = 'K'
-            elif suffix_upper == 'M':
-                val *= 1_000_000
-                precision_bucket = 'M'
-            elif suffix_upper == 'B':
-                val *= 1_000_000_000
-                precision_bucket = 'B'
-            else:
-                precision_bucket = 'exact'
-            return int(val), precision_bucket
-        except ValueError:
-            return None, None
+                    # IG-wide sanity cap: max reels for any single audio in IG history is < 100M.
+                    # Anything >= 100M is a misparsed follower count or user ID.
+                    if 0 < val < 100_000_000:
+                        return int(val), precision_bucket
+                except ValueError:
+                    continue
+
+        return None, None
 
     def _save_official_count(self, audio_id: str, count: int, precision_bucket: str) -> None:
         try:
@@ -2275,11 +2291,19 @@ Return ONLY valid JSON, no markdown, no explanation:
 
             self.supabase.table("audio_official_counts").insert(insert_data).execute()
             
-            # 3. Update the latest audio_use_count in the reels table
+            # 3. Update the latest audio_use_count in the reels AND trends table
             self.supabase.table("reels") \
                 .update({"audio_use_count": count}) \
                 .eq("audio_id", audio_id) \
                 .execute()
+
+            try:
+                self.supabase.table("trends") \
+                    .update({"audio_use_count": count}) \
+                    .eq("audio_id", audio_id) \
+                    .execute()
+            except Exception as _tr_err:
+                logger.warning(f"Could not update trends table audio_use_count for {audio_id}: {_tr_err}")
                 
             velocity_str = f"{velocity:.3f}" if not velocity_is_null else "NULL"
             logger.info(f"Saved official count {count} for audio_id {audio_id} (velocity={velocity_str} per hour, precision={precision_bucket})")

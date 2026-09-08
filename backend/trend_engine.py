@@ -870,6 +870,9 @@ class TrendEngine:
                             existing_match = t
                             break
 
+                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
+                creator_count = len(usernames)
+
                 if existing_match:
                     # Update-in-place: never-downgrade status on re-detection for active trends
                     old_status = existing_match.get("status", "emerging")
@@ -887,7 +890,8 @@ class TrendEngine:
                     update_payload = {
                         "status": final_status,
                         "first_detected_at": now_iso,
-                        "window_hours_remaining": 48
+                        "window_hours_remaining": 48,
+                        "creator_diversity": creator_count
                     }
                         
                     try:
@@ -897,14 +901,12 @@ class TrendEngine:
                             .execute()
                         logging.info(
                             f"Updated existing trend '{title}' (id={existing_match['id']}): "
-                            f"status {old_status} -> {final_status}, re-stamped first_detected_at={now_iso}"
+                            f"status {old_status} -> {final_status}, creator_diversity={creator_count}, re-stamped first_detected_at={now_iso}"
                         )
                     except Exception as update_err:
                         logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
-                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
-                creator_count = len(usernames)
                 velocities = [r.get("velocity_score", 0.0) for r in group_reels]
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
@@ -1036,6 +1038,14 @@ class TrendEngine:
                 # from emerging → rising. The 800k bar was so high almost no Indian audio trends crossed it.
                 EMERGING_USE_THRESHOLD = 150000
                 RISING_USE_THRESHOLD = 500000
+                # Saturation gate: block audios with use_count >= 3M from entering Rising.
+                # These are globally saturated (Phase 3+); the algorithm no longer boosts
+                # new entries using them. This prevents old pop songs (Baazigar, etc.) from
+                # appearing as "Rising" just because we scraped 1-2 reels using them.
+                # NOTE: max_use_count here is the sanitized value (< 10M sentinel stripped
+                # at lines 1210-1215); real 10M+ songs will have been capped to 50000 there,
+                # so this gate only fires on genuinely high-count values.
+                RISING_SATURATION_GATE = 3_000_000
 
                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
@@ -1067,9 +1077,27 @@ class TrendEngine:
                 if creator_count < 2 or len(group_reels) < 2:
                     continue
 
+                # ── Saturation Gate (Fix: prevent dead audios in Rising) ──────────────
+                # If an audio already has >= 3M global uses, it is in Phase 3+ (saturated).
+                # Instagram no longer boosts new reels using it. Cap these at 'emerging'
+                # as a tracking entry; never promote to 'rising'.
+                # Note: max_use_count is pre-sanitized (10M+ sentinel → 50000) so this
+                # gate only fires on genuinely high measured use counts.
+                _is_globally_saturated = max_use_count >= RISING_SATURATION_GATE
+                # ─────────────────────────────────────────────────────────────────────
+
                 # 10/10 Rising Logic: High use_count must ALSO have positive velocity / active momentum
                 # so that static high-count tracks from weeks ago don't jump directly into Rising feed.
-                if max_use_count >= RISING_USE_THRESHOLD and (creator_velocity > 0 or has_strong_official_velocity):
+                if _is_globally_saturated:
+                    # Saturated audio: demote to emerging-only regardless of velocity.
+                    # We still track it, but never surface it as Rising.
+                    initial_status = "emerging"
+                    promotion_trigger = "saturated_audio_tracked"
+                    logging.debug(
+                        f"Saturation gate: '{title}' capped at emerging "
+                        f"(use_count={max_use_count:,} >= {RISING_SATURATION_GATE:,})"
+                    )
+                elif max_use_count >= RISING_USE_THRESHOLD and (creator_velocity > 0 or has_strong_official_velocity):
                     initial_status = "rising"
                     promotion_trigger = "audio_use_count_rising"
                 elif creator_count >= 3 and creator_velocity > 0:
@@ -1368,6 +1396,10 @@ class TrendEngine:
                     "velocity_avg": trend["avg_velocity"],
                     "peak_velocity": trend["max_velocity"],
                     "reel_count": trend["count"],
+                    # creator_diversity: actual count of distinct scraped creator usernames.
+                    # Previously always 0 because this field was never written at insert time.
+                    # Now computed from owner_username across all reels in this audio group.
+                    "creator_diversity": unique_creators,
                     "is_dance": trend.get("is_dance", False),
                     "needs_filming": trend.get("needs_filming", False),
                     "edit_style": trend.get("edit_style"),

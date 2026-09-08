@@ -48,15 +48,22 @@ class ShazamAudioRecognizer:
     def recognize_audio_bytes(self, audio_bytes: bytes) -> Optional[Dict[str, Any]]:
         """Synchronous wrapper for recognize_audio_bytes_async."""
         try:
-            loop = asyncio.get_event_loop()
-            if loop.is_running():
-                import nest_asyncio
-                nest_asyncio.apply()
-                return loop.run_until_complete(self.recognize_audio_bytes_async(audio_bytes))
+            try:
+                loop = asyncio.get_running_loop()
+            except RuntimeError:
+                loop = None
+
+            if loop and loop.is_running():
+                # If called from an active event loop, run in thread pool to prevent blocking/nesting conflict
+                import concurrent.futures
+                with concurrent.futures.ThreadPoolExecutor(max_workers=1) as pool:
+                    future = pool.submit(lambda: asyncio.run(self.recognize_audio_bytes_async(audio_bytes)))
+                    return future.result()
             else:
-                return loop.run_until_complete(self.recognize_audio_bytes_async(audio_bytes))
-        except Exception:
-            return asyncio.run(self.recognize_audio_bytes_async(audio_bytes))
+                return asyncio.run(self.recognize_audio_bytes_async(audio_bytes))
+        except Exception as e:
+            logger.error(f"Sync Shazam recognition error: {e}")
+            return None
 
     async def recognize_audio_url_async(self, url: str, timeout_seconds: float = 10.0) -> Optional[Dict[str, Any]]:
         """

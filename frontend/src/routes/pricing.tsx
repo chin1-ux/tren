@@ -3,6 +3,7 @@ import { Check, Star, Zap, Coins } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useUserStore } from "@/store/useAppStore";
 import { useAuth } from "@/contexts/AuthContext";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/pricing")({
   component: PricingPage,
@@ -151,6 +152,3 @@ function PricingPage() {
     </div>
   );
 }
-
-// Need to import toast
-import { toast } from "sonner";

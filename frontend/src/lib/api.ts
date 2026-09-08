@@ -581,9 +581,10 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
   return list.slice(0, 50).map(adaptTrend);
 }
 
-export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]> {
+export async function fetchEmergingTrends(language?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
+  if (niche && niche !== "all") params.set("niche", niche);
   params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/emerging?${params.toString()}`);
@@ -598,9 +599,10 @@ export async function fetchEmergingTrends(language?: string): Promise<UiTrend[]>
   }
 }
 
-export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
+export async function fetchPeakedTrends(language?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
+  if (niche && niche !== "all") params.set("niche", niche);
   params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/peaked?${params.toString()}`);
@@ -612,9 +614,10 @@ export async function fetchPeakedTrends(language?: string): Promise<UiTrend[]> {
   }
 }
 
-export async function fetchExpiredTrends(language?: string): Promise<UiTrend[]> {
+export async function fetchExpiredTrends(language?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
+  if (niche && niche !== "all") params.set("niche", niche);
   params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/expired?${params.toString()}`);
@@ -1515,6 +1518,15 @@ export async function fetchTargetedTrends(): Promise<UiTrend[]> {
   const data = await http<ApiTrend[]>("/api/trends/targeted");
   return data.map(adaptTrend);
 }
+
+export async function submitTrendUrl(url: string): Promise<{ status: string; message: string; reel_id?: string; audio_title?: string; bonus_credits?: number }> {
+  return http<{ status: string; message: string; reel_id?: string; audio_title?: string; bonus_credits?: number }>("/api/trends/submit", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ url }),
+  });
+}
+
 
 
 

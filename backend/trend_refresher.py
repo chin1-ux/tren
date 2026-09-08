@@ -63,6 +63,8 @@ class TrendRefresher:
             "risen": 0,
             "peaked": 0,
             "expired": 0,
+            "unqualified": 0,
+            "recovered": 0,
             "errors": 0,
             "audio_use_count_refreshed": 0,
             "audio_page_count_refreshed": 0,
@@ -217,9 +219,15 @@ class TrendRefresher:
                 # Peaked→emerging recovery: if velocity climbed back above baseline
                 # AND new reels appeared recently, treat as renewed momentum.
                 # UNCALIBRATED — thresholds are educated guesses, not data-derived.
+                # Peaked→emerging recovery: if velocity climbed back above baseline
+                # AND new reels appeared recently, treat as renewed momentum.
+                # UNCALIBRATED — thresholds are educated guesses, not data-derived.
                 # Re-tune after real peaked→emerging trajectory data exists.
+                audio_use_count = trend.get("audio_use_count") or 0
+                RISING_SATURATION_GATE = 3_000_000
+
                 if current_status == "peaked" and velocity_for_check > 0 and rising_baseline > 0:
-                    if velocity_for_check >= rising_baseline and new_reels_count > 0:
+                    if velocity_for_check >= rising_baseline and new_reels_count > 0 and audio_use_count < RISING_SATURATION_GATE:
                         self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
@@ -238,7 +246,7 @@ class TrendRefresher:
                 EXPIRED_RECOVERY_MAX_AGE_DAYS = 30
                 if current_status == "expired" and velocity_for_check > 0 and rising_baseline > 0:
                     age_days = age_hours / 24.0
-                    if age_days <= EXPIRED_RECOVERY_MAX_AGE_DAYS and velocity_for_check >= rising_baseline and new_reels_count > 0:
+                    if age_days <= EXPIRED_RECOVERY_MAX_AGE_DAYS and velocity_for_check >= rising_baseline and new_reels_count > 0 and audio_use_count < RISING_SATURATION_GATE:
                         self._update_status(trend_id, "rising", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
@@ -265,17 +273,31 @@ class TrendRefresher:
                 creator_count = self._count_unique_creators(
                     trend.get("audio_title"), trend.get("audio_artist"), now, audio_id=trend.get("audio_id")
                 )
+                diversity_val = min(5, creator_count)
 
                 # Mandatory 2-creator & 2-reel gate: Single-creator noise MUST be demoted to unqualified
                 if creator_count < 2 or total_reels_count < 2:
                     self._update_status(trend_id, "unqualified", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,
+                        "creator_diversity": diversity_val,
                         "promotion_reason": "single_creator_noise",
                     })
                     logger.info(f"[DEMOTED_UNQUALIFIED] '{audio_title}' (creator_count={creator_count}, total_reels={total_reels_count})")
                     local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
                     return local_summary
+
+                # Saturation gate check: if audio is in death-phase (≥ 3M), it cannot be Rising
+                if audio_use_count >= RISING_SATURATION_GATE:
+                    if current_status == "rising":
+                        self._update_status(trend_id, "emerging", {
+                            "window_hours_remaining": new_window,
+                            "creator_diversity": diversity_val,
+                            "promotion_reason": "demoted_saturated_rising",
+                        })
+                        logger.info(f"[SATURATION_DEMOTED] '{audio_title}' rising->emerging (use_count={audio_use_count} >= 3M)")
+                        local_summary["demoted_saturated"] = local_summary.get("demoted_saturated", 0) + 1
+                        return local_summary
 
                 if current_status == "emerging":
                     high_confidence = creator_count >= 5
@@ -292,15 +314,16 @@ class TrendRefresher:
                     should_rise = False
                     promotion_reason = trend.get("promotion_reason")
 
-                    if persisted_enough and qualifies_by_creator:
-                        should_rise = True
-                        promotion_reason = "creator_adoption"
-                    elif volume_enough and qualifies_by_volume and creator_count >= 2:
-                        should_rise = True
-                        promotion_reason = "volume_signal"
-                    elif volume_enough and velocity_ok_simple and creator_count >= 2:
-                        should_rise = True
-                        promotion_reason = "velocity_outlier"
+                    if audio_use_count < RISING_SATURATION_GATE:
+                        if persisted_enough and qualifies_by_creator:
+                            should_rise = True
+                            promotion_reason = "creator_adoption"
+                        elif volume_enough and qualifies_by_volume and creator_count >= 2:
+                            should_rise = True
+                            promotion_reason = "volume_signal"
+                        elif volume_enough and velocity_ok_simple and creator_count >= 2:
+                            should_rise = True
+                            promotion_reason = "velocity_outlier"
 
                     if should_rise:
                         self._update_status(trend_id, "rising", {
@@ -308,6 +331,7 @@ class TrendRefresher:
                             "velocity_avg": velocity_for_check,
                             "peak_velocity": max(velocity_for_check, peak_velocity),
                             "reel_count": total_reels_count,
+                            "creator_diversity": diversity_val,
                             "high_confidence": high_confidence,
                             "promotion_reason": promotion_reason,
                         })
@@ -322,27 +346,30 @@ class TrendRefresher:
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
                             "reel_count": total_reels_count,
+                            "creator_diversity": diversity_val,
                             "high_confidence": high_confidence,
                             "promotion_reason": trend.get("promotion_reason"),
                         })
                         local_summary["emerged"] += 1
                 else:
-                    velocity_snapshot_ok, _ = self._velocity_promotion_allowed(
-                        trend_id=trend_id,
-                        current_velocity=velocity_for_check,
-                        baseline=rising_baseline,
-                    )
-                    promotion_reason = "both" if (creator_count >= 3 and velocity_snapshot_ok) else (
-                        "creator_adoption" if creator_count >= 3 else "velocity_outlier"
-                    )
-                    self._update_status(trend_id, "rising", {
-                        "window_hours_remaining": new_window,
-                        "velocity_avg": velocity_for_check,
-                        "peak_velocity": max(velocity_for_check, peak_velocity),
-                        "reel_count": total_reels_count,
-                        "high_confidence": creator_count >= 5,
-                        "promotion_reason": promotion_reason,
-                    })
+                    if audio_use_count < RISING_SATURATION_GATE:
+                        velocity_snapshot_ok, _ = self._velocity_promotion_allowed(
+                            trend_id=trend_id,
+                            current_velocity=velocity_for_check,
+                            baseline=rising_baseline,
+                        )
+                        promotion_reason = "both" if (creator_count >= 3 and velocity_snapshot_ok) else (
+                            "creator_adoption" if creator_count >= 3 else "velocity_outlier"
+                        )
+                        self._update_status(trend_id, "rising", {
+                            "window_hours_remaining": new_window,
+                            "velocity_avg": velocity_for_check,
+                            "peak_velocity": max(velocity_for_check, peak_velocity),
+                            "reel_count": total_reels_count,
+                            "creator_diversity": diversity_val,
+                            "high_confidence": creator_count >= 5,
+                            "promotion_reason": promotion_reason,
+                        })
                     
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
@@ -354,7 +381,7 @@ class TrendRefresher:
             for local_summary in executor.map(process_trend, trends):
                 with summary_lock:
                     for k, v in local_summary.items():
-                        summary[k] += v
+                        summary[k] = summary.get(k, 0) + v
 
         logger.info(f"=== TrendRefresher done: {summary} ===")
         return summary
