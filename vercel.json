@@ -1,7 +1,7 @@
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "buildCommand": "cd frontend && npm run build && cd .. && python inject_routes.py",
-  "installCommand": "pip install -r requirements.txt && cd frontend && npm install",
+  "installCommand": "pip install --break-system-packages -r requirements.txt && cd frontend && npm install",
   "framework": null,
   "crons": [
     {
