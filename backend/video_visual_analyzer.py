@@ -1,346 +1,153 @@
-"""
-Video Visual Analysis System
-Analyzes video visual content using OpenCV (free library)
-Phase 1 of hybrid approach - visual analysis for virality prediction
-"""
 import os
 import sys
-from typing import Dict, List, Optional
-from dotenv import load_dotenv
+import logging
+import json
+import io
+from typing import Dict, Any, List, Optional
+from datetime import datetime, timezone
 
-# Set UTF-8 encoding for Windows console
-if sys.platform == 'win32':
-    try:
-        import codecs
-        if hasattr(sys.stdout, 'buffer'):
-            sys.stdout = codecs.getwriter('utf-8')(sys.stdout.buffer, 'strict')
-        if hasattr(sys.stderr, 'buffer'):
-            sys.stderr = codecs.getwriter('utf-8')(sys.stderr.buffer, 'strict')
-    except Exception:
-        pass
+logger = logging.getLogger("video_visual_analyzer")
 
-load_dotenv()
-
-# Try to import OpenCV - if not available, provide simulation
+# Check Gemini API availability
 try:
-    import cv2
-    OPENCV_AVAILABLE = True
+    import google.generativeai as genai
+    _GENAI_AVAILABLE = True
 except ImportError:
-    OPENCV_AVAILABLE = False
-    print("Warning: OpenCV not installed. Visual analysis will use simulation mode.")
+    _GENAI_AVAILABLE = False
+    logger.warning("google-generativeai module not installed. Vision analysis will use text fallback heuristics.")
+
+# Check OpenCV / Pillow availability for frame extraction
+try:
+    from PIL import Image
+    _PIL_AVAILABLE = True
+except ImportError:
+    _PIL_AVAILABLE = False
 
 
 class VideoVisualAnalyzer:
     """
-    Analyzes video visual content using OpenCV
-    Includes face detection, motion analysis, color analysis, text detection
+    Multi-Modal Vision Analysis Engine (Zero-Cost Storage Architecture).
+    Extracts 3 in-memory keyframes (0.5s, 3.0s, end) from public reel previews,
+    runs Gemini 1.5 Flash Vision classification for action tagging (OOTD, Gym, Dance, Talking Head)
+    and OCR text overlays, keeping Supabase storage at EXACTLY 0 MB.
     """
-    
-    @staticmethod
-    def analyze_visual_content(video_path: str) -> Dict:
+
+    def __init__(self):
+        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_2")
+        self.model = None
+        if _GENAI_AVAILABLE and self.api_key:
+            try:
+                genai.configure(api_key=self.api_key)
+                self.model = genai.GenerativeModel("gemini-1.5-flash")
+                logger.info("Initialized Gemini 1.5 Flash Vision model for keyframe analysis.")
+            except Exception as e:
+                logger.warning(f"Failed to initialize Gemini Vision model: {e}")
+
+    def analyze_reel_keyframes_in_memory(
+        self,
+        image_bytes_list: List[bytes],
+        caption: str = "",
+        hashtags: List[str] = None
+    ) -> Dict[str, Any]:
         """
-        Analyze visual content of a video
-        
-        Args:
-            video_path: Path to video file
-        
-        Returns:
-            Visual analysis results
+        Analyze 1–3 keyframe image byte payloads using Gemini 1.5 Flash.
+        Returns structured visual action tags, OCR text, and vibe categories.
         """
-        if not OPENCV_AVAILABLE:
-            return VideoVisualAnalyzer._simulate_visual_analysis()
-        
+        if not self.model or not image_bytes_list:
+            logger.info("Vision analysis running in text-fallback mode (no Gemini key or images).")
+            return self._fallback_text_analysis(caption, hashtags)
+
         try:
-            cap = cv2.VideoCapture(video_path)
+            pil_images = []
+            for img_bytes in image_bytes_list[:3]:
+                if img_bytes and len(img_bytes) > 100:
+                    try:
+                        img = Image.open(io.BytesIO(img_bytes))
+                        pil_images.append(img)
+                    except Exception as img_err:
+                        logger.warning(f"Could not parse image byte stream: {img_err}")
+
+            if not pil_images:
+                return self._fallback_text_analysis(caption, hashtags)
+
+            prompt = (
+                "You are an expert Instagram Reels visual analyst. Analyze these keyframes from a video reel.\n"
+                "Extract structured JSON with the following exact keys:\n"
+                "- 'visual_action': Primary action shown (e.g., 'OOTD Showcase', 'Gym Workout', 'Talking Head', 'Dance Choreo', 'Food Recipe', 'Car Edit', 'Product Unboxing', 'POV Meme')\n"
+                "- 'vibe_category': Aesthetic / vibe ('transition', 'aesthetic', 'comedy', 'fitness', 'fashion', 'motivational')\n"
+                "- 'detected_text_overlays': List of any visible on-screen text/POV captions\n"
+                "- 'camera_motion': Type of camera movement ('static', 'slow pan', 'whip transition', 'handheld')\n"
+                "- 'confidence': Float between 0.0 and 1.0\n\n"
+                "Return ONLY valid JSON."
+            )
+
+            contents = [prompt] + pil_images
+            response = self.model.generate_content(contents)
             
-            if not cap.isOpened():
-                return {'error': 'Could not open video file'}
-            
-            # Get video properties
-            frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-            fps = cap.get(cv2.CAP_PROP_FPS)
-            duration = frame_count / fps if fps > 0 else 0
-            
-            # Sample frames for analysis
-            sample_interval = max(1, frame_count // 30)  # Sample 30 frames
-            frames = []
-            
-            frame_idx = 0
-            while len(frames) < 30 and frame_idx < frame_count:
-                cap.set(cv2.CAP_PROP_POS_FRAMES, frame_idx)
-                ret, frame = cap.read()
-                if ret:
-                    frames.append(frame)
-                frame_idx += sample_interval
-            
-            cap.release()
-            
-            if not frames:
-                return {'error': 'Could not extract frames from video'}
-            
-            # Analyze frames
-            analysis = {
-                'face_detection': VideoVisualAnalyzer._detect_faces(frames),
-                'motion_analysis': VideoVisualAnalyzer._analyze_motion(frames),
-                'color_analysis': VideoVisualAnalyzer._analyze_colors(frames),
-                'scene_detection': VideoVisualAnalyzer._detect_scenes(frames),
-                'text_detection': VideoVisualAnalyzer._detect_text(frames)
-            }
-            
-            return analysis
-            
-        except Exception as e:
-            return {'error': f'Visual analysis failed: {str(e)}'}
-    
-    @staticmethod
-    def _detect_faces(frames: List) -> Dict:
-        """Detect faces in video frames using OpenCV"""
-        try:
-            # Load pre-trained face detector
-            face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-            
-            faces_per_frame = []
-            total_faces = 0
-            
-            for frame in frames:
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                faces = face_cascade.detectMultiScale(gray, 1.1, 4, minSize=(30, 30))
-                faces_per_frame.append(len(faces))
-                total_faces += len(faces)
-            
-            avg_faces = total_faces / len(frames) if frames else 0
-            max_faces = max(faces_per_frame) if faces_per_frame else 0
-            
+            raw_text = (response.text or "").strip()
+            if raw_text.startswith("```json"):
+                raw_text = raw_text[7:]
+            if raw_text.endswith("```"):
+                raw_text = raw_text[:-3]
+            raw_text = raw_text.strip()
+
+            parsed = json.loads(raw_text)
+            logger.info(f"Gemini Vision classification SUCCESS: visual_action='{parsed.get('visual_action')}', vibe='{parsed.get('vibe_category')}'")
             return {
-                'total_faces_detected': total_faces,
-                'average_faces_per_frame': round(avg_faces, 2),
-                'max_faces_in_frame': max_faces,
-                'frames_with_faces': sum(1 for f in faces_per_frame if f > 0),
-                'face_present_percentage': round((sum(1 for f in faces_per_frame if f > 0) / len(frames)) * 100, 2) if frames else 0
+                "status": "success",
+                "visual_action": parsed.get("visual_action", "General Reel"),
+                "vibe_category": parsed.get("vibe_category", "general"),
+                "detected_text_overlays": parsed.get("detected_text_overlays", []),
+                "camera_motion": parsed.get("camera_motion", "unknown"),
+                "confidence": float(parsed.get("confidence", 0.85)),
+                "analyzed_at": datetime.now(timezone.utc).isoformat()
             }
-            
+
         except Exception as e:
-            return {'error': f'Face detection failed: {str(e)}'}
-    
-    @staticmethod
-    def _analyze_motion(frames: List) -> Dict:
-        """Analyze motion patterns in video"""
-        try:
-            if len(frames) < 2:
-                return {'error': 'Not enough frames for motion analysis'}
-            
-            motion_scores = []
-            
-            for i in range(len(frames) - 1):
-                # Calculate frame difference
-                diff = cv2.absdiff(frames[i], frames[i+1])
-                gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-                motion_score = gray_diff.mean()
-                motion_scores.append(motion_score)
-            
-            avg_motion = sum(motion_scores) / len(motion_scores) if motion_scores else 0
-            max_motion = max(motion_scores) if motion_scores else 0
-            
-            # Determine motion level
-            if avg_motion > 50:
-                motion_level = 'high'
-            elif avg_motion > 20:
-                motion_level = 'medium'
-            else:
-                motion_level = 'low'
-            
-            return {
-                'average_motion': round(avg_motion, 2),
-                'max_motion': round(max_motion, 2),
-                'motion_level': motion_level,
-                'has_constant_motion': motion_level in ['medium', 'high']
-            }
-            
-        except Exception as e:
-            return {'error': f'Motion analysis failed: {str(e)}'}
-    
-    @staticmethod
-    def _analyze_colors(frames: List) -> Dict:
-        """Analyze color properties (vibrancy, brightness, saturation)"""
-        try:
-            if not frames:
-                return {'error': 'No frames for color analysis'}
-            
-            brightness_values = []
-            saturation_values = []
-            
-            for frame in frames:
-                # Convert to HSV
-                hsv = cv2.cvtColor(frame, cv2.COLOR_BGR2HSV)
-                
-                # Average brightness (V channel)
-                brightness = hsv[:, :, 2].mean()
-                brightness_values.append(brightness)
-                
-                # Average saturation (S channel)
-                saturation = hsv[:, :, 1].mean()
-                saturation_values.append(saturation)
-            
-            avg_brightness = sum(brightness_values) / len(brightness_values) if brightness_values else 0
-            avg_saturation = sum(saturation_values) / len(saturation_values) if saturation_values else 0
-            
-            # Determine vibrancy
-            if avg_saturation > 150:
-                vibrancy = 'high'
-            elif avg_saturation > 100:
-                vibrancy = 'medium'
-            else:
-                vibrancy = 'low'
-            
-            return {
-                'average_brightness': round(avg_brightness, 2),
-                'average_saturation': round(avg_saturation, 2),
-                'vibrancy_level': vibrancy,
-                'is_well_lit': 100 <= avg_brightness <= 200,
-                'is_colorful': avg_saturation > 100
-            }
-            
-        except Exception as e:
-            return {'error': f'Color analysis failed: {str(e)}'}
-    
-    @staticmethod
-    def _detect_scenes(frames: List) -> Dict:
-        """Detect scene changes/edits"""
-        try:
-            if len(frames) < 2:
-                return {'error': 'Not enough frames for scene detection'}
-            
-            scene_changes = 0
-            prev_frame = frames[0]
-            
-            for frame in frames[1:]:
-                # Calculate difference
-                diff = cv2.absdiff(prev_frame, frame)
-                gray_diff = cv2.cvtColor(diff, cv2.COLOR_BGR2GRAY)
-                
-                # Threshold for scene change
-                if gray_diff.mean() > 30:
-                    scene_changes += 1
-                
-                prev_frame = frame
-            
-            # Calculate edit frequency
-            edit_frequency = scene_changes / len(frames) if frames else 0
-            
-            if edit_frequency > 0.1:
-                edit_style = 'fast_cuts'
-            elif edit_frequency > 0.05:
-                edit_style = 'moderate'
-            else:
-                edit_style = 'slow'
-            
-            return {
-                'scene_changes': scene_changes,
-                'edit_frequency': round(edit_frequency, 3),
-                'edit_style': edit_style,
-                'estimated_cuts': scene_changes
-            }
-            
-        except Exception as e:
-            return {'error': f'Scene detection failed: {str(e)}'}
-    
-    @staticmethod
-    def _detect_text(frames: List) -> Dict:
-        """Detect text overlays in video"""
-        try:
-            # Try to import pytesseract
-            import pytesseract
-            
-            text_present_frames = 0
-            text_detections = []
-            
-            for frame in frames:
-                # Convert to grayscale
-                gray = cv2.cvtColor(frame, cv2.COLOR_BGR2GRAY)
-                
-                # Use pytesseract to detect text
-                text = pytesseract.image_to_string(gray)
-                
-                if text.strip():
-                    text_present_frames += 1
-                    text_detections.append(text.strip()[:50])  # First 50 chars
-            
-            text_percentage = (text_present_frames / len(frames)) * 100 if frames else 0
-            
-            return {
-                'frames_with_text': text_present_frames,
-                'text_percentage': round(text_percentage, 2),
-                'has_text_overlays': text_percentage > 10,
-                'text_detected_count': len(text_detections)
-            }
-            
-        except ImportError:
-            return {'error': 'pytesseract not installed - text detection requires pytesseract'}
-        except Exception as e:
-            return {'error': f'Text detection failed: {str(e)}'}
-    
-    @staticmethod
-    def _simulate_visual_analysis() -> Dict:
-        """Simulate visual analysis when OpenCV is not available"""
+            logger.error(f"Gemini Vision analysis error: {e}", exc_info=True)
+            return self._fallback_text_analysis(caption, hashtags)
+
+    def _fallback_text_analysis(self, caption: str = "", hashtags: List[str] = None) -> Dict[str, Any]:
+        """
+        Rule-based text fallback when Gemini API or images are unavailable.
+        """
+        text = (caption or "").lower()
+        tags = [t.lower() for t in (hashtags or [])]
+        combined = text + " " + " ".join(tags)
+
+        visual_action = "General Reel"
+        vibe_category = "general"
+
+        if any(w in combined for w in ["gym", "workout", "gains", "chest", "legday", "fitness"]):
+            visual_action = "Gym Workout"
+            vibe_category = "fitness"
+        elif any(w in combined for w in ["ootd", "grwm", "fashion", "outfit", "style"]):
+            visual_action = "OOTD Showcase"
+            vibe_category = "fashion"
+        elif any(w in combined for w in ["dance", "choreo", "steps", "indiandance"]):
+            visual_action = "Dance Choreo"
+            vibe_category = "transition"
+        elif any(w in combined for w in ["pov", "relatable", "funny", "lol", "meme", "comedy"]):
+            visual_action = "POV Meme"
+            vibe_category = "comedy"
+        elif any(w in combined for w in ["recipe", "food", "cooking", "delicious", "eat"]):
+            visual_action = "Food Recipe"
+            vibe_category = "aesthetic"
+
         return {
-            'face_detection': {
-                'total_faces_detected': 12,
-                'average_faces_per_frame': 0.4,
-                'max_faces_in_frame': 2,
-                'frames_with_faces': 8,
-                'face_present_percentage': 26.67
-            },
-            'motion_analysis': {
-                'average_motion': 45.2,
-                'max_motion': 89.5,
-                'motion_level': 'medium',
-                'has_constant_motion': True
-            },
-            'color_analysis': {
-                'average_brightness': 145.8,
-                'average_saturation': 128.3,
-                'vibrancy_level': 'medium',
-                'is_well_lit': True,
-                'is_colorful': True
-            },
-            'scene_detection': {
-                'scene_changes': 3,
-                'edit_frequency': 0.1,
-                'edit_style': 'fast_cuts',
-                'estimated_cuts': 3
-            },
-            'text_detection': {
-                'frames_with_text': 5,
-                'text_percentage': 16.67,
-                'has_text_overlays': True,
-                'text_detected_count': 3
-            },
-            'simulation_mode': True
+            "status": "fallback_heuristics",
+            "visual_action": visual_action,
+            "vibe_category": vibe_category,
+            "detected_text_overlays": [],
+            "camera_motion": "unknown",
+            "confidence": 0.65,
+            "analyzed_at": datetime.now(timezone.utc).isoformat()
         }
 
 
-# Test the video visual analyzer
+# Quick test wrapper
 if __name__ == "__main__":
-    print("=== Video Visual Analyzer ===")
-    
-    print(f"\n[Info] OpenCV Available: {OPENCV_AVAILABLE}")
-    
-    # Test visual analysis
-    print("\n[Test 1] Visual Content Analysis")
-    
-    if OPENCV_AVAILABLE:
-        print("  [OK] Full OpenCV analysis available")
-        print("  [Note] Requires actual video file for real analysis")
-    else:
-        analysis = VideoVisualAnalyzer._simulate_visual_analysis()
-        print(f"  [OK] Simulation mode")
-        print(f"  [OK] Face detection: {analysis['face_detection']['total_faces_detected']} faces")
-        print(f"  [OK] Motion level: {analysis['motion_analysis']['motion_level']}")
-        print(f"  [OK] Vibrancy: {analysis['color_analysis']['vibrancy_level']}")
-        print(f"  [OK] Edit style: {analysis['scene_detection']['edit_style']}")
-        print(f"  [OK] Text overlays: {analysis['text_detection']['has_text_overlays']}")
-    
-    print("\n=== Video Visual Analyzer Working ===")
-    print("\nNote: Install OpenCV with: pip install opencv-python")
-    print("Install pytesseract with: pip install pytesseract")
-    print("Full visual analysis requires both libraries")
+    logging.basicConfig(level=logging.INFO)
+    analyzer = VideoVisualAnalyzer()
+    res = analyzer.analyze_reel_keyframes_in_memory([], caption="POV: GRWM for college outfit check #ootd #fashion")
+    print("Test Fallback Analysis Output:", res)
