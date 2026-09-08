@@ -20,8 +20,8 @@ def clean_func_dir():
 def bundle_python_function():
     os.makedirs(func_dir, exist_ok=True)
 
-    os.makedirs(os.path.join(func_dir, 'api'), exist_ok=True)
-    shutil.copy2('api/[...path].py', os.path.join(func_dir, 'api', '[...path].py'))
+    # Copy entrypoint as index.py (valid python module name)
+    shutil.copy2('api/[...path].py', os.path.join(func_dir, 'index.py'))
 
     dest_backend = os.path.join(func_dir, 'backend')
     shutil.copytree(
@@ -36,7 +36,7 @@ def bundle_python_function():
 
     vc_config = {
         "runtime": "python3.12",
-        "handler": "api/[...path].py",
+        "handler": "index.py",
         "maxDuration": 30
     }
     with open(os.path.join(func_dir, '.vc-config.json'), 'w') as f:
