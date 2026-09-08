@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target } from "lucide-react";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target, Lock, Sparkles, ArrowRight } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -466,7 +466,36 @@ function TrendsFeed() {
             </p>
           </div>
         )}
-        {feedTab === "emerging" && (
+        {feedTab === "emerging" && userPlan !== "pro" ? (
+          <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-purple-900/30 to-pink-950/40 p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shrink-0 shadow-md">
+                <Lock className="w-5 h-5 text-white" />
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                    ⚡ Early Access Feed
+                  </h4>
+                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-violet-500/25 text-violet-300 border border-violet-500/40 rounded-full">
+                    PRO FEATURE
+                  </span>
+                </div>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Detect viral audio & trends 48-72 hours before they go mainstream. Upgrade to Pro to unlock real-time early detection.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => navigate({ to: "/pricing" })}
+              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-bold text-xs shrink-0 shadow-md flex items-center justify-center gap-1.5 transition-all"
+            >
+              <Sparkles className="w-3.5 h-3.5" />
+              Upgrade to Pro
+              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
+            </button>
+          </div>
+        ) : feedTab === "emerging" && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
               ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
@@ -504,7 +533,25 @@ function TrendsFeed() {
           </div>
         )}
 
-        {isLoading ? (
+        {feedTab === "emerging" && userPlan !== "pro" ? (
+          <PlanGate
+            feature="Early Access Feed"
+            requiredPlan="pro"
+            currentPlan={userPlan}
+            onUpgrade={() => navigate({ to: "/pricing" })}
+          >
+            <div className="flex flex-col gap-4">
+              {(deduplicatedTrends.rising.length > 0 ? deduplicatedTrends.rising.slice(0, 3) : []).map((t) => (
+                <TrendCard
+                  key={t.id}
+                  trend={withCountdown(t)}
+                  onDanceTap={() => {}}
+                  selectedNiche={selectedNiche}
+                />
+              ))}
+            </div>
+          </PlanGate>
+        ) : isLoading ? (
           <>
             <SkeletonCard />
             <SkeletonCard />
@@ -524,24 +571,6 @@ function TrendsFeed() {
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>
-        ) : feedTab === "emerging" ? (
-          <PlanGate
-            feature="Early Detection Feed"
-            requiredPlan="pro"
-            currentPlan={userPlan}
-            onUpgrade={() => window.location.href = '/pricing'}
-          >
-            <div className="flex flex-col gap-4">
-              {trends.map((t) => (
-                <TrendCard
-                  key={t.id}
-                  trend={withCountdown(t)}
-                  onDanceTap={setDanceTrend}
-                  selectedNiche={selectedNiche}
-                />
-              ))}
-            </div>
-          </PlanGate>
         ) : (
           trends.map((t) => (
             <TrendCard
