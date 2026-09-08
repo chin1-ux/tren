@@ -49,25 +49,34 @@ api_route = {
     "dest": "/api/[...path]"
 }
 
+filesystem_route = {
+    "handle": "filesystem"
+}
+
+server_fallback_route = {
+    "src": "/(.*)",
+    "dest": "/__server"
+}
+
 if os.path.exists(config_path):
-    print("Modifying .vercel/output/config.json to add custom API routes...")
+    print("Modifying .vercel/output/config.json to add custom API and SSR routes...")
     with open(config_path, 'r') as f:
         config = json.load(f)
 else:
     print("Creating .vercel/output/config.json from scratch...")
     config = {"version": 3}
 
-routes = config.get('routes', [])
-
-if not any(r.get('src') == "/api/(.*)" for r in routes):
-    routes.insert(0, api_route)
-
-config['routes'] = routes
+config['version'] = 3
+config['routes'] = [
+    api_route,
+    filesystem_route,
+    server_fallback_route
+]
 
 os.makedirs(os.path.dirname(config_path), exist_ok=True)
 with open(config_path, 'w') as f:
     json.dump(config, f, indent=2)
-print("Successfully injected API routes!")
+print("Successfully injected API routes, static filesystem handler, and SSR routes!")
 
 clean_func_dir()
 bundle_python_function()
