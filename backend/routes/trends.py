@@ -69,7 +69,7 @@ def get_trends(
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"]).gt("window_hours_remaining", 0)
 
         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -172,7 +172,7 @@ def get_emerging_trends(
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
         
         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
@@ -230,7 +230,7 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).order("first_detected_at", desc=True).limit(100).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"]).order("first_detected_at", desc=True).limit(100).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         return trends
@@ -267,7 +267,7 @@ def get_peaked_trends(
             return JSONResponse(content=entry['data'], headers=headers)
             
     try:
-        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
         
         # 14-day retention gate for Peaked tab (max 14 days post-peak)
         peaked_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
@@ -310,7 +310,7 @@ def get_expired_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
         
         # 7-day retention gate for Expired tab (max 7 days historical archive)
         expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
