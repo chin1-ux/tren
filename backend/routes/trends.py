@@ -1109,3 +1109,142 @@ def get_niche_trends(
     except Exception as e:
         logger.exception(f"Error fetching niche trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+def is_safe_instagram_url(url: str) -> bool:
+    if not url:
+        return False
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(url)
+        if parsed.scheme not in ["http", "https"]:
+            return False
+        hostname = parsed.hostname
+        if not hostname:
+            return False
+        allowed_domains = ["instagram.com", ".instagram.com", ".cdninstagram.com", ".fbcdn.net"]
+        return any(hostname == domain or hostname.endswith(domain) for domain in allowed_domains)
+    except Exception:
+        return False
+
+
+class ReportTrendRequest(BaseModel):
+    url: str
+
+
+@router.post("/api/trends/report")
+@limiter.limit("10/minute")
+def report_trend_url(
+    request: Request,
+    payload: ReportTrendRequest,
+    background_tasks: BackgroundTasks,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    User URL Crowdsourcing Engine ("Paste Reel / Report a Trend").
+    Ingests user-submitted Reel or Audio URLs, extracts metadata,
+    triggers background trend detection, and awards +10 Bonus AI Credits.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+
+    url = (payload.url or "").strip()
+    if not url:
+        raise HTTPException(status_code=400, detail="URL parameter required.")
+
+    # Domain security check
+    if not is_safe_instagram_url(url):
+        raise HTTPException(status_code=400, detail="Invalid domain. Only valid Instagram reel or audio URLs permitted.")
+
+    try:
+        import re, requests
+        shortcode = None
+        audio_id = None
+        
+        # Match reel shortcode
+        match_reel = re.search(r'/(?:reel|p)/([A-Za-z0-9_-]+)', url)
+        if match_reel:
+            shortcode = match_reel.group(1)
+
+        # Match audio ID
+        match_audio = re.search(r'/reels/audio/(\d+)', url)
+        if match_audio:
+            audio_id = match_audio.group(1)
+
+        if not shortcode and not audio_id:
+            raise HTTPException(status_code=400, detail="Could not extract valid reel shortcode or audio ID from URL.")
+
+        now_str = datetime.now(timezone.utc).isoformat()
+        audio_title = "Reported Audio Trend"
+        audio_artist = "Unknown Creator"
+
+        if shortcode:
+            # Try fetching public shortcode metadata
+            try:
+                hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
+                resp = requests.get(f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis", headers=hdr, timeout=4)
+                if resp.ok:
+                    data = resp.json()
+                    item = data.get("graphql", {}).get("shortcode_media") or data.get("items", [{}])[0]
+                    clips_meta = item.get("clips_metadata", {}) or {}
+                    audio_info = clips_meta.get("original_sound_info") or clips_meta.get("music_info", {}) or {}
+                    music = audio_info.get("music_asset_info") or audio_info
+                    audio_title = music.get("title") or audio_title
+                    audio_artist = music.get("display_artist") or music.get("artist_name") or audio_artist
+                    audio_id = str(music.get("audio_cluster_id") or music.get("id") or audio_id or "")
+            except Exception as meta_err:
+                logger.warning(f"Metadata fetch warning for shortcode {shortcode}: {meta_err}")
+
+        # Ingest into reels table
+        reel_payload = {
+            "reel_id": shortcode or f"audio_{audio_id}",
+            "audio_id": audio_id,
+            "audio_title": audio_title,
+            "audio_artist": audio_artist,
+            "view_count": 5000,
+            "like_count": 450,
+            "velocity_score": 150.0,
+            "scraped_at": now_str,
+            "created_at": now_str
+        }
+        supabase.table("reels").upsert(reel_payload, on_conflict="reel_id").execute()
+
+        # Defer trend detection to background task for instant response
+        def _run_async_detect():
+            try:
+                from trend_engine import TrendEngine
+                engine = TrendEngine()
+                engine.detect_trends()
+            except Exception as te_err:
+                logger.warning(f"Background TrendEngine detection warning: {te_err}")
+
+        background_tasks.add_task(_run_async_detect)
+
+        # Award +10 Bonus AI Credits to user
+        bonus_credits = 10
+        if current_user and current_user != "guest@trendrop.app":
+            try:
+                user_res = supabase.table("users").select("ai_credits").eq("email", current_user).execute()
+                if user_res.data:
+                    current_cred = user_res.data[0].get("ai_credits") or 0
+                    supabase.table("users").update({"ai_credits": current_cred + bonus_credits}).eq("email", current_user).execute()
+                    logger.info(f"Awarded +{bonus_credits} bonus credits to {current_user}")
+            except Exception as user_err:
+                logger.warning(f"Failed to award bonus credits to {current_user}: {user_err}")
+
+        return {
+            "status": "success",
+            "message": f"Trend reported successfully! Awarded +{bonus_credits} Bonus AI Credits.",
+            "reel_id": shortcode or f"audio_{audio_id}",
+            "audio_id": audio_id,
+            "audio_title": audio_title,
+            "audio_artist": audio_artist,
+            "bonus_credits_awarded": bonus_credits
+        }
+
+    except HTTPException as he:
+        raise he
+    except Exception as e:
+        logger.error(f"Error in /api/trends/report: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
