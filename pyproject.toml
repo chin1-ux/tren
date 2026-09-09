@@ -24,7 +24,6 @@ dependencies = [
 worker = [
     "numpy",
     "google-generativeai",
-    "shazamio",
 ]
 browser-scraper = [
     "camoufox[geoip]>=0.4.11",
