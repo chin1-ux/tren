@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target, Lock, Sparkles, ArrowRight, Plus } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, submitTrendUrl, type UiTrend } from "@/lib/api";
+import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -18,7 +18,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { useUserStore } from "@/store/useAppStore";
-import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/")({
@@ -46,19 +45,18 @@ const LANGUAGES = [
 ];
 
 const NICHES = [
-  { id: "all",                  label: "All" },
-  { id: "dance",                label: "💃 Dance" },
-  { id: "music",                label: "🎵 Music" },
-  { id: "devotional",           label: "🙏 Devotional" },
-  { id: "romance/relationship", label: "💕 Romance" },
-  { id: "comedy",               label: "😂 Comedy" },
-  { id: "fitness",              label: "💪 Fitness" },
-  { id: "food",                 label: "🍜 Food" },
-  { id: "fashion",              label: "👗 Fashion" },
-  { id: "travel",               label: "✈️ Travel" },
-  { id: "tech",                 label: "💻 Tech" },
-  { id: "narrative_edit",       label: "🎞️ Creative Edit" },
-  { id: "beauty",               label: "💄 Beauty" },
+  { id: "all",      label: "All" },
+  { id: "fitness",  label: "💪 Fitness" },
+  { id: "food",     label: "🍜 Food" },
+  { id: "comedy",   label: "😂 Comedy" },
+  { id: "fashion",  label: "👗 Fashion" },
+  { id: "business", label: "💼 Business" },
+  { id: "travel",   label: "✈️ Travel" },
+  { id: "beauty",   label: "💄 Beauty" },
+  { id: "devotional", label: "🙏 Devotional" },
+  { id: "tech",     label: "💻 Tech" },
+  { id: "narrative_edit", label: "🎞️ Creative Edit" },
+  { id: "romance_relationship", label: "💕 Romance" },
 ];
 
 type FeedTab = "rising" | "emerging" | "peaked" | "expired" | "workspace";
@@ -79,17 +77,11 @@ function TrendsFeed() {
   // Niche filter — read from preferences
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
 
-  // Reel submission modal state
-  const [isSubmitOpen, setIsSubmitOpen] = useState(false);
-  const [submitUrlInput, setSubmitUrlInput] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
-  const { user } = useAuth();
   const userEmail = useUserStore((s) => s.email);
   const userPlan = useUserStore((s) => s.plan) || 'free';
 
-  // Load preferences from localStorage first, then sync from server profile
+  // Load preferences from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
       setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
@@ -97,56 +89,11 @@ function TrendsFeed() {
     }
   }, []);
 
-  // Sync niche from server-side user profile after login
-  // This ensures returning users get personalized feeds even if localStorage was cleared
-  useEffect(() => {
-    if (!user || !userEmail) return;
-    const storedNiche = typeof window !== "undefined" ? localStorage.getItem("trendrop_pref_niche") : null;
-    // Only fetch if no local preference is set (avoid overriding user's manual filter choice)
-    if (storedNiche && storedNiche !== "all") return;
-
-    import("@/lib/api").then(({ API_URL }) => {
-      fetch(`${API_URL}/api/auth/me`, {
-        headers: { Authorization: `Bearer ${localStorage.getItem("auth_token") || ""}` },
-        credentials: "include",
-      })
-        .then(r => r.ok ? r.json() : null)
-        .then(data => {
-          const serverNiche = data?.niche || data?.creator_niche || data?.preferences?.niches?.[0];
-          if (serverNiche && serverNiche !== "all") {
-            setSelectedNiche(serverNiche);
-            if (typeof window !== "undefined") {
-              localStorage.setItem("trendrop_pref_niche", serverNiche);
-            }
-          }
-        })
-        .catch(() => {/* silent — localStorage fallback already applied */});
-    });
-  }, [user, userEmail]);
-
   // Tick every minute for countdown timers
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
-
-  const handleSubmitReel = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!submitUrlInput.trim()) return;
-    setIsSubmitting(true);
-    try {
-      const res = await submitTrendUrl(submitUrlInput.trim());
-      toast.success(res.message || "Reel submitted successfully!");
-      setSubmitUrlInput("");
-      setIsSubmitOpen(false);
-      refetchRising();
-      refetchEmerging();
-    } catch (err: any) {
-      toast.error(err.message || "Failed to submit Reel URL. Check domain and format.");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
 
   const {
     data: risingData,
@@ -166,11 +113,11 @@ function TrendsFeed() {
     isError: emergingError,
     refetch: refetchEmerging,
   } = useQuery({
-    queryKey: ["trends-emerging", language, selectedNiche],
-    queryFn: () => fetchEmergingTrends(language, selectedNiche),
+    queryKey: ["trends-emerging", language],
+    queryFn: () => fetchEmergingTrends(language),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
-    enabled: Boolean(user) && userPlan === "pro",
+    enabled: userPlan === "pro",
   });
 
   const {
@@ -179,8 +126,8 @@ function TrendsFeed() {
     isError: peakedError,
     refetch: refetchPeaked,
   } = useQuery({
-    queryKey: ["trends-peaked", language, selectedNiche],
-    queryFn: () => fetchPeakedTrends(language, selectedNiche),
+    queryKey: ["trends-peaked", language],
+    queryFn: () => fetchPeakedTrends(language),
     staleTime: 15 * 60_000, // 15 min stale time for peaked trends
     refetchInterval: 30 * 60_000, // 30 min polling
   });
@@ -191,8 +138,8 @@ function TrendsFeed() {
     isError: expiredError,
     refetch: refetchExpired,
   } = useQuery({
-    queryKey: ["trends-expired", language, selectedNiche],
-    queryFn: () => fetchExpiredTrends(language, selectedNiche),
+    queryKey: ["trends-expired", language],
+    queryFn: () => fetchExpiredTrends(language),
     staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
     refetchInterval: 60 * 60_000, // 60 min polling
   });
@@ -210,7 +157,7 @@ function TrendsFeed() {
 
   const emergingCount = emergingData?.length ?? 0;
 
-  // Notify on new emerging trends (in-app toast + OS Web Push Notification)
+  // Notify on new emerging trends
   useEffect(() => {
     if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
       const diff = emergingCount - prevCountRef.current;
@@ -218,21 +165,9 @@ function TrendsFeed() {
         description: "Switch to the Emerging tab to see them first.",
         action: { label: "View", onClick: () => setFeedTab("emerging") }
       });
-
-      const isNotifyAllowed = typeof window !== "undefined" && localStorage.getItem("trendrop_notify_trend_alerts") !== "false";
-      if (isNotifyAllowed && "Notification" in window && Notification.permission === "granted") {
-        try {
-          new Notification(`⚡ ${diff} New Emerging Trend${diff > 1 ? "s" : ""} Detected!`, {
-            body: `Fresh early trends available in ${selectedNiche === 'all' ? 'All Niches' : selectedNiche}.`,
-            icon: "/icon-192.png",
-          });
-        } catch (err) {
-          /* silent fallback */
-        }
-      }
     }
     prevCountRef.current = emergingCount;
-  }, [emergingCount, selectedNiche]);
+  }, [emergingCount]);
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
   // Priority: rising > emerging > peaked > expired
@@ -266,10 +201,10 @@ function TrendsFeed() {
     });
 
     return {
-      rising: deduplicatedRising.slice(0, 50),
-      emerging: deduplicatedEmerging.slice(0, 50),
-      peaked: deduplicatedPeaked.slice(0, 50),
-      expired: deduplicatedExpired.slice(0, 50),
+      rising: deduplicatedRising,
+      emerging: deduplicatedEmerging,
+      peaked: deduplicatedPeaked,
+      expired: deduplicatedExpired,
     };
   }, [risingData, emergingData, peakedData, expiredData]);
 
@@ -304,35 +239,7 @@ function TrendsFeed() {
     : refetchTargeted;
 
   const trends = useMemo(() => {
-    let list = activeData ?? [];
-
-    if (selectedNiche && selectedNiche !== "all") {
-      const normNiche = selectedNiche.toLowerCase();
-      const normNicheAlt = normNiche.includes("/") ? normNiche.replace("/", "_") : normNiche.replace("_", "/");
-
-      const isMatch = (t: UiTrend) => {
-        const tag = (t.nicheTag || "general").toLowerCase();
-        const content = (t.contentType || "").toLowerCase();
-        const semantics = (t.semanticNiches || []).map((s) => s.toLowerCase());
-
-        return (
-          tag === normNiche ||
-          tag === normNicheAlt ||
-          content === normNiche ||
-          content === normNicheAlt ||
-          semantics.includes(normNiche) ||
-          semantics.includes(normNicheAlt) ||
-          Boolean(t.adaptation_briefs?.[selectedNiche])
-        );
-      };
-
-      const matching = list.filter(isMatch);
-      if (matching.length > 0) {
-        const nonMatching = list.filter((t) => !isMatch(t));
-        list = [...matching, ...nonMatching];
-      }
-    }
-
+    const list = activeData ?? [];
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
     return list.filter(
@@ -341,7 +248,7 @@ function TrendsFeed() {
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q)
     );
-  }, [activeData, searchQuery, selectedNiche]);
+  }, [activeData, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -371,17 +278,6 @@ function TrendsFeed() {
             <TrenddropLogo size={34} />
 
             <div className="flex items-center gap-2">
-              {/* Submit Reel / Crowdsourcing Button */}
-              <button
-                id="submit-reel-btn"
-                onClick={() => setIsSubmitOpen(true)}
-                className="relative flex items-center gap-1.5 rounded-full bg-gradient-to-r from-[#e63946] to-[#ff006e] px-3 py-1.5 text-xs font-semibold text-white shadow-md transition-all hover:opacity-90 active:scale-95"
-              >
-                <Plus className="h-3.5 w-3.5" />
-                <span>Submit Reel</span>
-                <span className="rounded-md bg-black/20 px-1 py-0.5 text-[10px] font-bold text-white/90">+10 Cr</span>
-              </button>
-
               {/* Notification bell — switches to Emerging tab when tapped */}
                 <button
               id="notification-bell"
@@ -436,14 +332,14 @@ function TrendsFeed() {
             onClick={() => setFeedTab("rising")}
             icon={<TrendingUp className="h-3.5 w-3.5" />}
             label="Rising"
-            count={Math.min(50, deduplicatedTrends.rising.length)}
+            count={deduplicatedTrends.rising.length}
           />
           <TabButton
             active={feedTab === "emerging"}
             onClick={() => setFeedTab("emerging")}
             icon={<Zap className="h-3.5 w-3.5" />}
             label="Emerging"
-            count={Math.min(50, deduplicatedTrends.emerging.length)}
+            count={deduplicatedTrends.emerging.length}
             urgent
           />
           <TabButton
@@ -458,14 +354,14 @@ function TrendsFeed() {
             onClick={() => setFeedTab("peaked")}
             icon={<Clock className="h-3.5 w-3.5" />}
             label="Peaked"
-            count={Math.min(50, deduplicatedTrends.peaked.length)}
+            count={deduplicatedTrends.peaked.length}
           />
           <TabButton
             active={feedTab === "expired"}
             onClick={() => setFeedTab("expired")}
             icon={<AlertCircle className="h-3.5 w-3.5" />}
             label="Expired"
-            count={Math.min(50, deduplicatedTrends.expired.length)}
+            count={deduplicatedTrends.expired.length}
           />
         </div>
 
@@ -541,36 +437,7 @@ function TrendsFeed() {
             </p>
           </div>
         )}
-        {feedTab === "emerging" && userPlan !== "pro" ? (
-          <div className="rounded-2xl border border-violet-500/30 bg-gradient-to-r from-violet-950/40 via-purple-900/30 to-pink-950/40 p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-3">
-              <div className="p-2.5 bg-gradient-to-br from-violet-500 to-purple-600 rounded-xl shrink-0 shadow-md">
-                <Lock className="w-5 h-5 text-white" />
-              </div>
-              <div>
-                <div className="flex items-center gap-2">
-                  <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
-                    ⚡ Early Access Feed
-                  </h4>
-                  <span className="px-2 py-0.5 text-[10px] font-extrabold bg-violet-500/25 text-violet-300 border border-violet-500/40 rounded-full">
-                    PRO FEATURE
-                  </span>
-                </div>
-                <p className="text-xs text-muted-foreground mt-0.5">
-                  Detect viral audio & trends 48-72 hours before they go mainstream. Upgrade to Pro to unlock real-time early detection.
-                </p>
-              </div>
-            </div>
-            <button
-              onClick={() => navigate({ to: "/pricing" })}
-              className="w-full sm:w-auto px-4 py-2 rounded-xl bg-gradient-to-r from-violet-500 to-purple-600 hover:from-violet-600 hover:to-purple-700 text-white font-bold text-xs shrink-0 shadow-md flex items-center justify-center gap-1.5 transition-all"
-            >
-              <Sparkles className="w-3.5 h-3.5" />
-              Upgrade to Pro
-              <ArrowRight className="w-3.5 h-3.5 ml-0.5" />
-            </button>
-          </div>
-        ) : feedTab === "emerging" && (
+        {feedTab === "emerging" && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
               ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
@@ -608,25 +475,7 @@ function TrendsFeed() {
           </div>
         )}
 
-        {feedTab === "emerging" && userPlan !== "pro" ? (
-          <PlanGate
-            feature="Early Access Feed"
-            requiredPlan="pro"
-            currentPlan={userPlan}
-            onUpgrade={() => navigate({ to: "/pricing" })}
-          >
-            <div className="flex flex-col gap-4">
-              {(deduplicatedTrends.rising.length > 0 ? deduplicatedTrends.rising.slice(0, 3) : []).map((t) => (
-                <TrendCard
-                  key={t.id}
-                  trend={withCountdown(t)}
-                  onDanceTap={() => {}}
-                  selectedNiche={selectedNiche}
-                />
-              ))}
-            </div>
-          </PlanGate>
-        ) : isLoading ? (
+        {isLoading ? (
           <>
             <SkeletonCard />
             <SkeletonCard />
@@ -646,6 +495,24 @@ function TrendsFeed() {
                 : "Our active trend rail is warming up. New trends will appear soon."}
             </p>
           </div>
+        ) : feedTab === "emerging" ? (
+          <PlanGate
+            feature="Early Detection Feed"
+            requiredPlan="pro"
+            currentPlan={userPlan}
+            onUpgrade={() => window.location.href = '/pricing'}
+          >
+            <div className="flex flex-col gap-4">
+              {trends.map((t) => (
+                <TrendCard
+                  key={t.id}
+                  trend={withCountdown(t)}
+                  onDanceTap={setDanceTrend}
+                  selectedNiche={selectedNiche}
+                />
+              ))}
+            </div>
+          </PlanGate>
         ) : (
           trends.map((t) => (
             <TrendCard
@@ -662,83 +529,6 @@ function TrendsFeed() {
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
 
-      {/* ── User Reel Submission / Crowdsourcing Modal ───────────────────────────────── */}
-      <AnimatePresence>
-        {isSubmitOpen && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4 backdrop-blur-sm"
-            onClick={() => setIsSubmitOpen(false)}
-          >
-            <motion.div
-              initial={{ scale: 0.9, opacity: 0 }}
-              animate={{ scale: 1, opacity: 1 }}
-              exit={{ scale: 0.9, opacity: 0 }}
-              className="w-full max-w-md rounded-2xl border border-white/10 bg-[#121216] p-6 shadow-2xl"
-              onClick={(e) => e.stopPropagation()}
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-primary/20 text-primary">
-                    <Sparkles className="h-5 w-5" />
-                  </div>
-                  <div>
-                    <h3 className="text-base font-bold text-foreground">Submit Instagram Reel</h3>
-                    <p className="text-xs text-muted-foreground">Submit a viral audio/reel link & get +10 AI Credits</p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setIsSubmitOpen(false)}
-                  className="rounded-lg p-1.5 text-muted-foreground hover:bg-white/10 hover:text-foreground"
-                >
-                  <X className="h-4 w-4" />
-                </button>
-              </div>
-
-              <form onSubmit={handleSubmitReel} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-semibold text-muted-foreground mb-1.5">
-                    Instagram Reel or Audio Link
-                  </label>
-                  <input
-                    type="url"
-                    placeholder="https://www.instagram.com/reel/..."
-                    value={submitUrlInput}
-                    onChange={(e) => setSubmitUrlInput(e.target.value)}
-                    required
-                    className="w-full rounded-xl border border-border/50 bg-background/50 px-3.5 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none focus:ring-1 focus:ring-primary"
-                  />
-                </div>
-
-                <div className="flex items-center justify-between pt-2">
-                  <span className="text-[11px] text-muted-foreground">
-                    🎁 Instant +10 AI Credits on submission
-                  </span>
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setIsSubmitOpen(false)}
-                      className="rounded-xl px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-white/5"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      type="submit"
-                      disabled={isSubmitting || !submitUrlInput.trim()}
-                      className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#e63946] to-[#ff006e] px-4 py-2 text-xs font-bold text-white shadow-lg transition-all hover:opacity-90 disabled:opacity-50"
-                    >
-                      {isSubmitting ? "Ingesting..." : "Submit Reel"}
-                      <ArrowRight className="h-3.5 w-3.5" />
-                    </button>
-                  </div>
-                </div>
-              </form>
-            </motion.div>
-          </motion.div>
-        )}
-      </AnimatePresence>
 
       </div>
   );

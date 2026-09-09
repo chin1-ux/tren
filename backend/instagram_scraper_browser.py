@@ -88,8 +88,6 @@ def _normalize_trend_origin(meta: dict, reel: dict) -> dict:
             meta["creator_country"] = "unknown"
     return meta
 
-_RATE_LIMIT_COOLDOWN_UNTIL = 0
-
 class InstagramScraper:
     def __init__(self):
         load_dotenv()
@@ -105,7 +103,6 @@ class InstagramScraper:
         self._last_browser_init = "not started"
         self._last_scrape_result = "not started"
         self._last_scrape_stats = {}
-        self.script_dir = script_dir
         
         # Dynamically create cookies.json from INSTAGRAM_COOKIES_B64 env var if missing
         cookies_path = os.path.join(script_dir, "cookies.json")
@@ -115,6 +112,7 @@ class InstagramScraper:
                 import base64
                 try:
                     decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
+                    # Validate JSON
                     json.loads(decoded)
                     with open(cookies_path, "w", encoding="utf-8") as f:
                         f.write(decoded)
@@ -124,6 +122,7 @@ class InstagramScraper:
             else:
                 logger.warning("cookies.json not found and INSTAGRAM_COOKIES_B64 environment variable is empty.")
 
+        
         self.supabase_url = os.getenv("SUPABASE_URL")
         self.supabase_key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
         if not self.supabase_url or not self.supabase_key:
@@ -133,6 +132,7 @@ class InstagramScraper:
         self._camoufox_browser = None  # SyncCamoufox instance
         self._camoufox_ctx = None       # Playwright browser context
         self._camoufox_page = None      # Active page for scraping
+        
         self.hashtag_groups = {
             "INDIA_TRENDING": [
                 "trendingindia", "reelsindia", "instagramindia", "indiansong",
@@ -160,9 +160,9 @@ class InstagramScraper:
                 "desimemes", "sarcasm"
             ],
             "FASHION": [
-                "transitionreels", "transition", "outfits", "fashionreels", "indianfashion",
-                "streetstyleindia", "ootdindia", "ethnicwear", "sareelove", "kurtistyle",
-                "fashionbloggerindia", "grwm", "desifashion", "fashiontransition"
+                "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",
+                "ethnicwear", "sareelove", "kurtistyle", "fashionbloggerindia",
+                "grwm", "desifashion"
             ],
             "TRAVEL": [
                 "travelreels", "incredibleindia", "travelindia", "himalayas",
@@ -215,11 +215,7 @@ class InstagramScraper:
                 # Broad Viral & Music Seeds
                 "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
                 "hiphopreels", "edmmusic", "kpopreels"
-            ],
-            "MICRO_DANCE": ["microdance", "trendingdance", "dancehacks", "southdance", "indiandance"],
-            "MICRO_FOOD": ["foodcreators", "microfood", "tastyfood", "indianfood", "kitchenhacks"],
-            "MICRO_FASHION": ["fashionhacks", "styletips", "outfitideas", "sareestyle", "fashiondiy"],
-            "MICRO_COMEDY": ["funnyreels", "comedyhacks", "relatable", "indiancomedy", "humor"]
+            ]
         }
 
         # Dynamically load event hashtags from EventMonitor
@@ -246,21 +242,6 @@ class InstagramScraper:
         for pool_name, tags in self.hashtag_groups.items():
             for tag in tags:
                 self._hashtag_pool_lookup[tag.lower()] = pool_name
-
-    def _load_cookie_file(self) -> bool:
-        cookies_path = os.path.join(self.script_dir, "cookies.json")
-        cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
-        if cookies_b64:
-            import base64
-            try:
-                decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
-                json.loads(decoded)
-                with open(cookies_path, "w", encoding="utf-8") as f:
-                    f.write(decoded)
-                return True
-            except Exception:
-                pass
-        return os.path.exists(cookies_path)
 
     def _source_hashtag_pool_for_hashtags(self, hashtags: list[str]) -> str | None:
         for tag in hashtags or []:
@@ -444,12 +425,6 @@ class InstagramScraper:
         "shirlenequigley",
         "teamnaach",
         "awez_darbar",
-        "nagmanawab",
-        "unnati_m",
-        "shetroublemaker",
-        "bhuvan.bam22",
-        "mostlysane",
-        "reelsinstagram",
     ]
 
     async def scrape_creator_watchlist_async(self) -> tuple[list[dict], int]:
@@ -2198,40 +2173,34 @@ Return ONLY valid JSON, no markdown, no explanation:
         return results
 
     def _parse_reels_count_text(self, text: str) -> tuple[int, str] | tuple[None, None]:
-        # Refined patterns: avoid multi-line regex leaps that capture follower/view counts
-        patterns = [
-            r'Audio[ \t]*(?:\n|\r\n)?[ \t]*([\d,.]+)[ \t]*([KMB]?)',
-            r'([\d,.]+)[ \t]*([KMB]?)[ \t]*(?:reels?|posts?|videos?|clips?)',
-            r'reels?[ \t]*[\n\r:]+[ \t]*([\d,.]+)[ \t]*([KMB]?)'
-        ]
+        # Pattern 1: Modern Instagram Audio page layout ("Audio\n57.9K")
+        match = re.search(r'Audio\s*\n?\s*([\d,.]+)\s*([KMB]?)', text, re.IGNORECASE)
+        if not match:
+            # Pattern 2: Traditional layout ("57.9K reels" / "1.2M posts")
+            match = re.search(r'([\d,.]+)\s*([KMB]?)\s*(?:reels?|posts?|videos?)', text, re.IGNORECASE)
 
-        for pat in patterns:
-            for match in re.finditer(pat, text, re.IGNORECASE):
-                val_str, suffix = match.groups()
-                val_str = val_str.replace(',', '')
-                try:
-                    val = float(val_str)
-                    suffix_upper = suffix.upper()
-                    if suffix_upper == 'K':
-                        val *= 1000
-                        precision_bucket = 'K'
-                    elif suffix_upper == 'M':
-                        val *= 1_000_000
-                        precision_bucket = 'M'
-                    elif suffix_upper == 'B':
-                        val *= 1_000_000_000
-                        precision_bucket = 'B'
-                    else:
-                        precision_bucket = 'exact'
+        if not match:
+            return None, None
 
-                    # IG-wide sanity cap: max reels for any single audio in IG history is < 100M.
-                    # Anything >= 100M is a misparsed follower count or user ID.
-                    if 0 < val < 100_000_000:
-                        return int(val), precision_bucket
-                except ValueError:
-                    continue
-
-        return None, None
+        val_str, suffix = match.groups()
+        val_str = val_str.replace(',', '')
+        try:
+            val = float(val_str)
+            suffix_upper = suffix.upper()
+            if suffix_upper == 'K':
+                val *= 1000
+                precision_bucket = 'K'
+            elif suffix_upper == 'M':
+                val *= 1_000_000
+                precision_bucket = 'M'
+            elif suffix_upper == 'B':
+                val *= 1_000_000_000
+                precision_bucket = 'B'
+            else:
+                precision_bucket = 'exact'
+            return int(val), precision_bucket
+        except ValueError:
+            return None, None
 
     def _save_official_count(self, audio_id: str, count: int, precision_bucket: str) -> None:
         try:
@@ -2291,19 +2260,11 @@ Return ONLY valid JSON, no markdown, no explanation:
 
             self.supabase.table("audio_official_counts").insert(insert_data).execute()
             
-            # 3. Update the latest audio_use_count in the reels AND trends table
+            # 3. Update the latest audio_use_count in the reels table
             self.supabase.table("reels") \
                 .update({"audio_use_count": count}) \
                 .eq("audio_id", audio_id) \
                 .execute()
-
-            try:
-                self.supabase.table("trends") \
-                    .update({"audio_use_count": count}) \
-                    .eq("audio_id", audio_id) \
-                    .execute()
-            except Exception as _tr_err:
-                logger.warning(f"Could not update trends table audio_use_count for {audio_id}: {_tr_err}")
                 
             velocity_str = f"{velocity:.3f}" if not velocity_is_null else "NULL"
             logger.info(f"Saved official count {count} for audio_id {audio_id} (velocity={velocity_str} per hour, precision={precision_bucket})")

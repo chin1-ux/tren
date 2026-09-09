@@ -262,6 +262,8 @@ export interface UiTrend {
 
   // v2 new fields
   audioId?: string | null;
+  audioUrl?: string | null;
+  previewUrl?: string | null;
   audioUseCount?: number;
   globalSaturationPct?: number;
   indiaSaturationPct?: number;
@@ -575,20 +577,18 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
   if (language && language !== "all") params.set("language", language);
   if (sort) params.set("sort", sort);
   if (niche && niche !== "all") params.set("niche", niche);
-  params.set("limit", "50");
   const data = await http<ApiTrend[] | { trends: ApiTrend[] }>(`/api/trends?${params.toString()}`);
   const list = Array.isArray(data) ? data : (data as { trends: ApiTrend[] }).trends ?? [];
-  return list.slice(0, 50).map(adaptTrend);
+  return list.map(adaptTrend);
 }
 
 export async function fetchEmergingTrends(language?: string, niche?: string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
   if (niche && niche !== "all") params.set("niche", niche);
-  params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/emerging?${params.toString()}`);
-    return data.slice(0, 50).map(adaptTrend);
+    return (data || []).map(adaptTrend);
   } catch (e: any) {
     // 401 / 403 = auth/plan restriction — return empty array so UI shows upgrade modal
     const msg = String(e?.message || "");
@@ -603,10 +603,9 @@ export async function fetchPeakedTrends(language?: string, niche?: string): Prom
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
   if (niche && niche !== "all") params.set("niche", niche);
-  params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/peaked?${params.toString()}`);
-    return data.slice(0, 50).map(adaptTrend);
+    return (data || []).map(adaptTrend);
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("401") || msg.startsWith("403")) return [];
@@ -618,10 +617,9 @@ export async function fetchExpiredTrends(language?: string, niche?: string): Pro
   const params = new URLSearchParams();
   if (language && language !== "all") params.set("language", language);
   if (niche && niche !== "all") params.set("niche", niche);
-  params.set("limit", "50");
   try {
     const data = await http<ApiTrend[]>(`/api/trends/expired?${params.toString()}`);
-    return data.slice(0, 50).map(adaptTrend);
+    return (data || []).map(adaptTrend);
   } catch (e: any) {
     const msg = String(e?.message || "");
     if (msg.startsWith("401") || msg.startsWith("403")) return [];

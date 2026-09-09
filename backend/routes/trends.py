@@ -69,7 +69,7 @@ def get_trends(
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"]).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
 
         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -81,8 +81,8 @@ def get_trends(
         if language and language != "all":
             q = q.eq("language", language)
 
-        # Niche filtering and adaptation are handled dynamically in Python via niche_relevance_engine below
-        # (avoiding Postgres 500/empty results on trends with NULL niche_tag/semantic_niches)
+        if niche and niche != "all":
+            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
         # Server-side gating data delay filter
         # CRITICAL: first_detected_at may be NULL for older trends (scraper didn't always write it).
@@ -103,29 +103,52 @@ def get_trends(
         else:
             q = q.order("velocity_avg", desc=True)
 
-        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        
+
+        # --- Legitimacy Filter: Strip sentinel use_count values ---
+        # These are scraper fallback placeholders, not real audio counts.
+        # Full list empirically derived from production data (values appearing on 3+ different audio_ids).
+        _SENTINEL_USE_COUNTS = {
+            501034, 68085985, 549315,
+            1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
+            2000000, 2200000, 2700000, 3800000,
+            36725947, 37083523, 44387446, 44387531, 46027607,
+            54717606, 64317600, 68386983, 76096904, 76096962,
+            93134979, 93135497, 93135510, 93135904,
+            94909287, 94909461, 94909669,
+            18139253, 18152379, 36106069,
+        }
+        trends = [
+            t for t in trends
+            if (t.get("audio_use_count") or 0) not in _SENTINEL_USE_COUNTS
+        ]
+
+        # --- 70/30 Distribution: Indian/regional first, English/global after ---
+        # Prioritise local trends but keep global variety.
+        # Only applied when no specific language filter is active.
+        if not language or language == "all":
+            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
+            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
+                      or (t.get("discovery_source") or "") == "regional"]
+            english = [t for t in trends if t not in indian]
+            trends = indian + english
+
         # Wire C5: Inject niche adaptations using the engine for personalized feed
-        effective_niche = niche if (niche and niche not in ["all", "general"]) else user_niche
         for t in trends:
-            if effective_niche and effective_niche not in ["all", "general"]:
+            if user_niche and user_niche not in ["all", "general"]:
                 if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
+                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
                 
-                score = t["niche_relevance"].get(effective_niche, 0.0)
-                brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
+                score = t["niche_relevance"].get(user_niche, 0.0)
+                brief = niche_relevance_engine.generate_adaptation_brief(t, user_niche, score)
                 
                 if brief:
                     if not t.get("adaptation_briefs"):
                         t["adaptation_briefs"] = {}
-                    t["adaptation_briefs"][effective_niche] = brief
+                    t["adaptation_briefs"][user_niche] = brief
 
-        if sort == "time_left":
-            trends.sort(key=lambda t: (t.get("window_hours_remaining", 0), _trend_priority_key(t, effective_niche, user_lang)))
-        else:
-            trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
+        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -147,8 +170,8 @@ def get_trends(
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
-    niche: Optional[str] = None,
-    current_user: str = Depends(get_current_user)
+    current_user: str = Depends(get_current_user),
+    _plan_check: str = Depends(require_feature("early_detection"))
 ):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
@@ -171,7 +194,7 @@ def get_emerging_trends(
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
         
         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
@@ -182,29 +205,35 @@ def get_emerging_trends(
 
         if language and language != "all":
             q = q.eq("language", language)
-        # Sort: velocity_avg (actual momentum) primary, first_detected_at (recency) secondary tiebreaker.
-        # DB-level order is set here for query efficiency; Python re-sorts after niche enrichment.
         q = q.order("velocity_avg", desc=True)
-        q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
 
-        effective_niche = niche if (niche and niche not in ["all", "general"]) else user_niche
-        for t in trends:
-            if effective_niche and effective_niche not in ["all", "general"]:
-                if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
-                
-                score = t["niche_relevance"].get(effective_niche, 0.0)
-                brief = niche_relevance_engine.generate_adaptation_brief(t, effective_niche, score)
-                
-                if brief:
-                    if not t.get("adaptation_briefs"):
-                        t["adaptation_briefs"] = {}
-                    t["adaptation_briefs"][effective_niche] = brief
+        # --- Legitimacy Filter: Strip sentinel use_count values ---
+        _SENTINEL_USE_COUNTS = {
+            501034, 68085985, 549315,
+            1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
+            2000000, 2200000, 2700000, 3800000,
+            36725947, 37083523, 44387446, 44387531, 46027607,
+            54717606, 64317600, 68386983, 76096904, 76096962,
+            93134979, 93135497, 93135510, 93135904,
+            94909287, 94909461, 94909669,
+            18139253, 18152379, 36106069,
+        }
+        trends = [
+            t for t in trends
+            if (t.get("audio_use_count") or 0) not in _SENTINEL_USE_COUNTS
+        ]
 
-        # velocity_avg (real signal) is primary; first_detected_at breaks ties among same-velocity trends.
-        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
+        # --- 70/30 Distribution for Emerging tab ---
+        if not language or language == "all":
+            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
+            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
+                      or (t.get("discovery_source") or "") == "regional"]
+            english = [t for t in trends if t not in indian]
+            trends = indian + english
+
+        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
         
         # Add user watermark ID to each trend for leak tracing
         if user_id:
@@ -230,9 +259,9 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"]).order("first_detected_at", desc=True).limit(100).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
+        trends.sort(key=_trend_priority_key, reverse=True)
         return trends
     except Exception as e:
         logger.exception(f"Error fetching all-active trends: {e}")
@@ -244,7 +273,7 @@ def get_all_active_trends(
 def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
-    limit: int = 100,
+    limit: Optional[int] = None,
     current_user: str = Depends(get_current_user)
 ):
     """
@@ -267,7 +296,7 @@ def get_peaked_trends(
             return JSONResponse(content=entry['data'], headers=headers)
             
     try:
-        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
+        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
         
         # 14-day retention gate for Peaked tab (max 14 days post-peak)
         peaked_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
@@ -279,11 +308,11 @@ def get_peaked_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        q = q.limit(min(limit, 50))
+        if limit:
+            q = q.limit(limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
-        trends = trends[:50]
+        trends.sort(key=_trend_priority_key, reverse=True)
         
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
@@ -300,7 +329,7 @@ def get_peaked_trends(
 def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
-    limit: Optional[int] = 50,
+    limit: Optional[int] = None,
     current_user: str = Depends(get_current_user),
 ):
     """
@@ -310,10 +339,10 @@ def get_expired_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"])
+        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
         
-        # 7-day retention gate for Expired tab (max 7 days historical archive)
-        expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        # 30-day retention gate for Expired tab (max 30 days historical archive)
+        expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         q = q.or_(
             f"first_detected_at.gte.{expired_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{expired_cutoff})"
@@ -322,12 +351,11 @@ def get_expired_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)
-        fetch_limit = min(limit if limit is not None else 50, 50)
-        q = q.limit(fetch_limit)
+        if limit:
+            q = q.limit(limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
-        return trends[:50]
+        return trends
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -662,36 +690,17 @@ def get_trend_reels(
 
 @router.get("/api/trends/{trend_id}/caption")
 @limiter.limit("20/minute")
-def get_trend_caption(
-    request: Request,
-    trend_id: int,
-    niche: Optional[str] = None,
-    current_user: str = Depends(get_current_user)
-):
+def get_trend_caption(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
     """
     Returns AI-generated caption kit for a trend.
     Includes: 3 caption variants, 15 hashtags, audio cue, posting strategy.
-    Pass ?niche=fitness|food|fashion|travel|comedy|beauty|tech|motivation|dance to get
-    niche-specific captions. Falls back to user's saved profile niche if not provided.
-    Results are cached per (trend_id, niche) in trend_captions table.
+    Results are cached in trend_captions table.
     """
     if not CaptionEngine:
         raise HTTPException(status_code=503, detail="Caption generation service unavailable")
     try:
-        # Resolve the user's niche: explicit param > user profile > None
-        user_niche = niche
-        if not user_niche and current_user and current_user != "guest@trendrop.app":
-            try:
-                prefs_res = supabase.table("user_preferences").select("niches").eq("email", current_user).execute()
-                if prefs_res.data and prefs_res.data[0].get("niches"):
-                    first_niche = prefs_res.data[0]["niches"][0]
-                    if first_niche and first_niche != "all":
-                        user_niche = first_niche
-            except Exception as _prefs_err:
-                logger.debug(f"Could not fetch user niche for caption: {_prefs_err}")
-
         engine = CaptionEngine()
-        caption_kit = engine.get_caption_kit(trend_id, user_niche=user_niche)
+        caption_kit = engine.get_caption_kit(trend_id)
         return caption_kit
     except ValueError as ve:
         logger.warning(f"Validation error in caption generation for trend {trend_id}: {ve}")
@@ -1109,142 +1118,3 @@ def get_niche_trends(
     except Exception as e:
         logger.exception(f"Error fetching niche trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-def is_safe_instagram_url(url: str) -> bool:
-    if not url:
-        return False
-    try:
-        from urllib.parse import urlparse
-        parsed = urlparse(url)
-        if parsed.scheme not in ["http", "https"]:
-            return False
-        hostname = parsed.hostname
-        if not hostname:
-            return False
-        allowed_domains = ["instagram.com", ".instagram.com", ".cdninstagram.com", ".fbcdn.net"]
-        return any(hostname == domain or hostname.endswith(domain) for domain in allowed_domains)
-    except Exception:
-        return False
-
-
-class ReportTrendRequest(BaseModel):
-    url: str
-
-
-@router.post("/api/trends/report")
-@limiter.limit("10/minute")
-def report_trend_url(
-    request: Request,
-    payload: ReportTrendRequest,
-    background_tasks: BackgroundTasks,
-    current_user: str = Depends(get_current_user)
-):
-    """
-    User URL Crowdsourcing Engine ("Paste Reel / Report a Trend").
-    Ingests user-submitted Reel or Audio URLs, extracts metadata,
-    triggers background trend detection, and awards +10 Bonus AI Credits.
-    """
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
-
-    url = (payload.url or "").strip()
-    if not url:
-        raise HTTPException(status_code=400, detail="URL parameter required.")
-
-    # Domain security check
-    if not is_safe_instagram_url(url):
-        raise HTTPException(status_code=400, detail="Invalid domain. Only valid Instagram reel or audio URLs permitted.")
-
-    try:
-        import re, requests
-        shortcode = None
-        audio_id = None
-        
-        # Match reel shortcode
-        match_reel = re.search(r'/(?:reel|p)/([A-Za-z0-9_-]+)', url)
-        if match_reel:
-            shortcode = match_reel.group(1)
-
-        # Match audio ID
-        match_audio = re.search(r'/reels/audio/(\d+)', url)
-        if match_audio:
-            audio_id = match_audio.group(1)
-
-        if not shortcode and not audio_id:
-            raise HTTPException(status_code=400, detail="Could not extract valid reel shortcode or audio ID from URL.")
-
-        now_str = datetime.now(timezone.utc).isoformat()
-        audio_title = "Reported Audio Trend"
-        audio_artist = "Unknown Creator"
-
-        if shortcode:
-            # Try fetching public shortcode metadata
-            try:
-                hdr = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
-                resp = requests.get(f"https://www.instagram.com/p/{shortcode}/?__a=1&__d=dis", headers=hdr, timeout=4)
-                if resp.ok:
-                    data = resp.json()
-                    item = data.get("graphql", {}).get("shortcode_media") or data.get("items", [{}])[0]
-                    clips_meta = item.get("clips_metadata", {}) or {}
-                    audio_info = clips_meta.get("original_sound_info") or clips_meta.get("music_info", {}) or {}
-                    music = audio_info.get("music_asset_info") or audio_info
-                    audio_title = music.get("title") or audio_title
-                    audio_artist = music.get("display_artist") or music.get("artist_name") or audio_artist
-                    audio_id = str(music.get("audio_cluster_id") or music.get("id") or audio_id or "")
-            except Exception as meta_err:
-                logger.warning(f"Metadata fetch warning for shortcode {shortcode}: {meta_err}")
-
-        # Ingest into reels table
-        reel_payload = {
-            "reel_id": shortcode or f"audio_{audio_id}",
-            "audio_id": audio_id,
-            "audio_title": audio_title,
-            "audio_artist": audio_artist,
-            "view_count": 5000,
-            "like_count": 450,
-            "velocity_score": 150.0,
-            "scraped_at": now_str,
-            "created_at": now_str
-        }
-        supabase.table("reels").upsert(reel_payload, on_conflict="reel_id").execute()
-
-        # Defer trend detection to background task for instant response
-        def _run_async_detect():
-            try:
-                from trend_engine import TrendEngine
-                engine = TrendEngine()
-                engine.detect_trends()
-            except Exception as te_err:
-                logger.warning(f"Background TrendEngine detection warning: {te_err}")
-
-        background_tasks.add_task(_run_async_detect)
-
-        # Award +10 Bonus AI Credits to user
-        bonus_credits = 10
-        if current_user and current_user != "guest@trendrop.app":
-            try:
-                user_res = supabase.table("users").select("credits_remaining").eq("email", current_user).execute()
-                if user_res.data:
-                    current_cred = user_res.data[0].get("credits_remaining") or 0
-                    supabase.table("users").update({"credits_remaining": current_cred + bonus_credits}).eq("email", current_user).execute()
-                    logger.info(f"Awarded +{bonus_credits} bonus credits to {current_user}")
-            except Exception as user_err:
-                logger.warning(f"Failed to award bonus credits to {current_user}: {user_err}")
-
-        return {
-            "status": "success",
-            "message": f"Trend reported successfully! Awarded +{bonus_credits} Bonus AI Credits.",
-            "reel_id": shortcode or f"audio_{audio_id}",
-            "audio_id": audio_id,
-            "audio_title": audio_title,
-            "audio_artist": audio_artist,
-            "bonus_credits_awarded": bonus_credits
-        }
-
-    except HTTPException as he:
-        raise he
-    except Exception as e:
-        logger.error(f"Error in /api/trends/report: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-

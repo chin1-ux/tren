@@ -1,29 +1,18 @@
-import os, sys
-sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import os
 import re
 import json
 import time
 import logging
 import concurrent.futures
-import statistics
 from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
-from language_detection import _detect_audio_language, _looks_indian_audio, _INDIAN_LANG_CODES
+from language_detection import _detect_audio_language
 from audio_title_normalize import normalize_audio_title
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
 from dotenv import load_dotenv
-# Song fingerprinting & transition detection — imported at module level to avoid per-trend overhead
-try:
-    from song_fingerprint_client import resolve_song_alias_from_reels as _resolve_song_alias
-except ImportError:
-    _resolve_song_alias = None
-try:
-    from vision_transition_verifier import verify_transition_trend as _verify_transition
-except ImportError:
-    _verify_transition = None
 
 # Defensive guard: hashtag pool names are internal routing labels, not real niches.
 # If they leak into niche_tag, remap to "general" and log a warning.
@@ -210,18 +199,8 @@ def _trend_group_key(reel: dict) -> tuple[str, str] | None:
         return None
     if not title:
         return None
-    audio_id = reel.get("audio_id")
-    if title.lower() == "original audio":
-        if audio_id:
-            return (f"audio_id_{audio_id}", artist or "Original Audio")
-        return None
-    if "original audio" in title.lower():
-        # Handle-prefixed original audio (e.g. nikkiseey • Original audio)
-        if audio_id:
-            return (f"audio_id_{audio_id}", title)
-        canonical_title = normalize_audio_title(title)
-        if canonical_title:
-            return (canonical_title, artist or "Original Audio")
+    if title.lower() == "original audio" or "original audio" in title.lower():
+        # Completely ignore original audio for now, per user request.
         return None
     if not artist:
         artist = "Unknown Artist"
@@ -480,8 +459,7 @@ def classify_single_trend(trend):
     # Language detection via shared module (replaces inline _detect_language)
     _audio_text = f"{trend.get('audio_title', '')} {trend.get('audio_artist', '')}"
     _dominant_caption = max(captions, key=len) if captions else ""
-    all_hashtags = [tag for r in reels for tag in (r.get("hashtags") or [])]
-    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption, all_hashtags)
+    trend["language"] = _detect_audio_language(_audio_text, _dominant_caption)
 
     trend["cultural_context"] = "celebration" if trend["is_dance"] else "everyday"
 
@@ -794,7 +772,7 @@ class TrendEngine:
             # STEP 3: Fetch ALL existing trends for dedup (all statuses).
             # On re-detection, update existing row in-place instead of inserting
             # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
-            STATUS_PRIORITY = {"unqualified": -1, "expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
+            STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
             all_trends_res = self.supabase.table("trends") \
                 .select("audio_title, audio_artist, audio_id, status, id") \
                 .execute()
@@ -821,37 +799,33 @@ class TrendEngine:
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
 
-                # ── Original Audio & Self-Promo Exclusion ──────────────────────────────────
-                # Exclude raw audio_id_* strings, original-audio, and single-creator self-promos (title == artist)
-                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
-                unique_creators = len(usernames)
-
-                is_raw_audio_id = title.lower().startswith("audio_id_")
-                is_self_promo = (
-                    bool(title.strip()) 
-                    and title.strip().lower().replace("_", "") == artist.strip().lower().replace("_", "")
-                )
+                # ── Original Audio exclusion ──────────────────────────────────────────────
+                # Exclude ALL original-audio and user-created custom audio mixes ("Mix:") from trend detection entirely.
+                # Without fingerprinting, we can't match across posts reliably.
+                # Surface original audio via the format/pattern track (when built).
                 is_original_audio = (
                     title.lower() in ("original audio", "original sound", "")
                     or title.lower().startswith("original_audio::")
-                    or is_raw_audio_id
-                    or is_self_promo
+                    or title.lower().startswith("mix:")
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
 
                 # Check for TikTok migration breakout footprint:
-                # 1. High use_count (>= 50)
-                # 2. Or high view-to-follower ratio on the audio artist (> 15x with 50k+ views)
+                # Require genuine crossplatform TikTok data or exceptional view-to-follower ratio
                 max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
                 artist_followers = max((r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
                 max_views = max((r.get("view_count") or 0 for r in group_reels), default=0)
 
                 ratio = (max_views / max(artist_followers, 100)) if artist_followers > 0 else 0.0
-                is_crossplatform_breakout = (ratio >= 15.0 and max_views >= 50000) or (max_use_cnt >= 50)
+                is_crossplatform_breakout = (
+                    (ratio >= 15.0 and max_views >= 50000 and max_use_cnt >= 500)
+                    or bool(group_reels and group_reels[0].get("tiktok_data"))
+                )
 
-                if (is_original_audio or is_self_promo or is_raw_audio_id) and unique_creators < 2 and not is_crossplatform_breakout:
-                    logging.info(
-                        f"Original-audio / self-promo excluded (unique_creators={unique_creators}, breakout={is_crossplatform_breakout}): '{title}' | {artist}"
+                if is_original_audio and not is_crossplatform_breakout:
+                    logging.debug(
+                        f"Original-audio/User-mix excluded from trend detection: '{title}' | {artist} — "
+                        f"{len(group_reels)} reels"
                     )
                     continue
                 # ────────────────────────────────────────────────────────────────────────
@@ -879,47 +853,36 @@ class TrendEngine:
                             existing_match = t
                             break
 
-                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
-                creator_count = len(usernames)
-
                 if existing_match:
-                    # Update-in-place: never-downgrade status on re-detection for active trends
+                    # Update-in-place: never-downgrade status on re-detection.
+                    # Only status is updated here — velocity/metrics are owned by
+                    # trend_refresher.py via snapshot logic. No last_detected_at
+                    # column exists; consider adding via migration for staleness tracking.
                     old_status = existing_match.get("status", "emerging")
-                    max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
-                    aid_str = str(representative_audio_id or "").strip()
-                    is_smart_match = max_use_cnt >= 1000 and max_use_cnt < 3_000_000 and aid_str.isdigit()
-
-                    if old_status in ("emerging", "rising"):
-                        final_status = old_status
-                    elif (creator_count < 2 or len(group_reels) < 2) and not is_smart_match:
-                        final_status = "unqualified"
-                    else:
-                        new_detected_status = "emerging"
-                        old_priority = STATUS_PRIORITY.get(old_status, 0)
-                        new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
-                        final_status = old_status if old_priority >= new_priority else new_detected_status
-
-                    # NOTE: first_detected_at is a birth certificate — written once at initial detection,
-                    # NEVER updated on re-detection. Use creator_diversity and window refresh only.
-                    update_payload = {
-                        "status": final_status,
-                        "window_hours_remaining": 48,
-                        "creator_diversity": creator_count
-                    }
-
-                    try:
-                        self.supabase.table("trends") \
-                            .update(update_payload) \
-                            .eq("id", existing_match["id"]) \
-                            .execute()
-                        logging.info(
-                            f"Updated existing trend '{title}' (id={existing_match['id']}): "
-                            f"status {old_status} -> {final_status}, creator_diversity={creator_count}"
-                        )
-                    except Exception as update_err:
-                        logging.warning(f"Failed to update existing trend '{title}': {update_err}")
+                    new_detected_status = "emerging"
+                    old_priority = STATUS_PRIORITY.get(old_status, 0)
+                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if final_status != old_status:
+                        update_payload = {"status": final_status}
+                        if final_status in ("emerging", "rising"):
+                            update_payload["window_hours_remaining"] = 48
+                            
+                        try:
+                            self.supabase.table("trends") \
+                                .update(update_payload) \
+                                .eq("id", existing_match["id"]) \
+                                .execute()
+                            logging.info(
+                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
+                                f"status {old_status} -> {final_status}"
+                            )
+                        except Exception as update_err:
+                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
+                usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
+                creator_count = len(usernames)
                 velocities = [r.get("velocity_score", 0.0) for r in group_reels]
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
@@ -930,27 +893,26 @@ class TrendEngine:
                 
                 max_group_v = max((r.get("velocity_score", 0) for r in high_velocity_reels), default=0.0)
                 max_group_use = max((r.get("audio_use_count", 0) for r in high_velocity_reels if (r.get("audio_use_count") or 0) != SENTINEL_USE_COUNT), default=0)
-                
-                # Option C (Smart Multi-Signal Engine - Approved by User):
-                # Single-reel audio qualification requirements:
-                # 1. 1,000 <= audio_use_count < 3,000,000 (Goldilocks range)
-                # 2. velocity_score >= 1.2
-                # 3. Valid numeric Instagram audio_id (not spotify_)
-                # Option C Smart Multi-Signal: 1K-3M use_count range AND velocity >= 1.2 (as per spec).
-                # Threshold was previously > 0.0 (too weak — nearly any track qualified).
-                # Now correctly enforces the originally committed spec of velocity_score >= 1.2.
-                is_smart_qualified_candidate = (
-                    max_group_use >= 1000
-                    and max_group_use < 3_000_000
-                    and max_group_v >= 1.2
-                    and bool(representative_audio_id and representative_audio_id.isdigit())
+                # Single-reel breakout guard:
+                # Reel must be recent (<=36h) AND audio must not be evergreen (use_count < 100K).
+                # Prevents old high-use audios (e.g. 300K-use santoor/devotional tracks) from
+                # re-surfacing as "emerging" just because one scrape finds them with high velocity.
+                # Crossplatform breakout (TikTok migration signal) bypasses age/use-count rules.
+                single_reel_age_ok = oldest_age_hours <= 36
+                is_breakout_single_reel = (
+                    (max_group_v > 5000.0 and single_reel_age_ok)
+                    or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok)
+                    or is_crossplatform_breakout
                 )
 
-                is_breakout_single_reel = max_group_v > 5000.0 or is_smart_qualified_candidate or is_crossplatform_breakout
-                
-                # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a smart qualified candidate or breakout single reel
+                # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
                 if len(high_velocity_reels) < 3 and not is_breakout_single_reel:
-                    logging.debug(f"Audio {title} failed smart multi-signal threshold check (found {len(high_velocity_reels)} recent high-velocity reels)")
+                    logging.debug(
+                        f"Audio '{title}' failed 3-reel threshold check "
+                        f"(found {len(high_velocity_reels)} recent high-velocity reels, "
+                        f"age={oldest_age_hours:.1f}h, use_count={max_group_use}, "
+                        f"breakout={is_breakout_single_reel})"
+                    )
                     continue
 
                 recent_6h_velocities = []
@@ -1067,14 +1029,6 @@ class TrendEngine:
                 # from emerging → rising. The 800k bar was so high almost no Indian audio trends crossed it.
                 EMERGING_USE_THRESHOLD = 150000
                 RISING_USE_THRESHOLD = 500000
-                # Saturation gate: block audios with use_count >= 3M from entering Rising.
-                # These are globally saturated (Phase 3+); the algorithm no longer boosts
-                # new entries using them. This prevents old pop songs (Baazigar, etc.) from
-                # appearing as "Rising" just because we scraped 1-2 reels using them.
-                # NOTE: max_use_count here is the sanitized value (< 10M sentinel stripped
-                # at lines 1210-1215); real 10M+ songs will have been capped to 50000 there,
-                # so this gate only fires on genuinely high-count values.
-                RISING_SATURATION_GATE = 3_000_000
 
                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
@@ -1102,40 +1056,15 @@ class TrendEngine:
                 initial_status = None
                 promotion_trigger = None
 
-                # Require at least 2 unique creators & 2 reels to eliminate 1-user noise & gray area audios
-                if creator_count < 2 or len(group_reels) < 2:
-                    continue
-
-                # ── Saturation Gate (Fix: prevent dead audios in Rising) ──────────────
-                # If an audio already has >= 3M global uses, it is in Phase 3+ (saturated).
-                # Instagram no longer boosts new reels using it. Cap these at 'emerging'
-                # as a tracking entry; never promote to 'rising'.
-                # Note: max_use_count is pre-sanitized (10M+ sentinel → 50000) so this
-                # gate only fires on genuinely high measured use counts.
-                _is_globally_saturated = max_use_count >= RISING_SATURATION_GATE
-                # ─────────────────────────────────────────────────────────────────────
-
-                # 10/10 Rising Logic: High use_count must ALSO have positive velocity / active momentum
-                # so that static high-count tracks from weeks ago don't jump directly into Rising feed.
-                if _is_globally_saturated:
-                    # Saturated audio: demote to emerging-only regardless of velocity.
-                    # We still track it, but never surface it as Rising.
-                    initial_status = "emerging"
-                    promotion_trigger = "saturated_audio_tracked"
-                    logging.debug(
-                        f"Saturation gate: '{title}' capped at emerging "
-                        f"(use_count={max_use_count:,} >= {RISING_SATURATION_GATE:,})"
-                    )
-                elif max_use_count >= RISING_USE_THRESHOLD and (creator_velocity > 0 or has_strong_official_velocity):
+                if max_use_count >= RISING_USE_THRESHOLD:
                     initial_status = "rising"
                     promotion_trigger = "audio_use_count_rising"
                 elif creator_count >= 3 and creator_velocity > 0:
+                    # TODO: Investigate why creator_count_rising fired 0 times in backtests.
+                    # Verify if condition is too strict or if creator velocity metrics need tuning.
                     initial_status = "rising"
                     promotion_trigger = "creator_count_rising"
-                elif max_use_count >= RISING_USE_THRESHOLD and creator_count >= 2:
-                    initial_status = "emerging"
-                    promotion_trigger = "audio_use_count_emerging"
-                elif max_use_count >= EMERGING_USE_THRESHOLD and creator_count >= 2:
+                elif max_use_count >= EMERGING_USE_THRESHOLD:
                     initial_status = "emerging"
                     promotion_trigger = "audio_use_count_emerging"
                 elif creator_count >= 2 and len(group_reels) >= 2:
@@ -1262,15 +1191,10 @@ class TrendEngine:
 
                 # ── Aggregate audio_use_count + audio_id from linked reels ──
                 group_reels = trend.get("reels", [])
-                
-                # Sanitize corrupted audio_use_count (ignore unparsed multi-tens-of-millions sentinel counts >10M)
-                valid_counts = [r.get("audio_use_count") for r in group_reels if r.get("audio_use_count") and 0 < r.get("audio_use_count") < 10000000]
-                if valid_counts:
-                    audio_use_count = int(statistics.median(valid_counts))
-                else:
-                    raw_max = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
-                    audio_use_count = raw_max if raw_max < 10000000 else 50000
-
+                audio_use_count = max(
+                    (r.get("audio_use_count") or 0 for r in group_reels),
+                    default=0,
+                )
                 audio_id = next(
                     (r.get("audio_id") for r in group_reels if r.get("audio_id")),
                     None,
@@ -1282,20 +1206,14 @@ class TrendEngine:
 
                 # Saturation percentages
                 global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
-                # India saturation: derived from actual scraped creator_country=IN data,
-                # or language-based heuristic for Indian audio. For non-Indian audio with
-                # no India reels, report 0.0 (honest) rather than a fabricated floor.
-                is_indian = _looks_indian_audio(trend.get("audio_title"), trend.get("audio_artist")) or trend.get("language") in _INDIAN_LANG_CODES
-
+                # India saturation: proportional to global saturation based on Indian creator ratio.
+                # Raw count approach (india_use_count / 500) permanently yields ~0% because
+                # max india_use_count across all audio is ~13. Instead, scale global saturation
+                # by the fraction of scraped reels from Indian creators.
                 if len(group_reels) > 0 and india_use_count > 0:
                     india_ratio = india_use_count / len(group_reels)
                     india_sat = round(min(100.0, global_sat * india_ratio * 2), 1)
-                elif is_indian:
-                    # Heuristic: Indian-origin audio likely has high India adoption
-                    # even when creator_country tagging is sparse
-                    india_sat = round(min(100.0, global_sat * 0.75), 1)
                 else:
-                    # No India reels and not Indian audio — honest 0, not a fabricated floor
                     india_sat = 0.0
 
                 # Fix #9: Window hours — saturation-based baseline adjusted by velocity direction.
@@ -1318,28 +1236,12 @@ class TrendEngine:
                 if window_h > 0 and _recent_vel < _avg_vel * 0.7:
                     window_h = max(8, int(window_h * 0.7))  # 30% reduction, floor at 8h
 
-                # Creator & View Quality metrics
-                creators = set()
-                view_counts = []
-                for r in group_reels:
-                    author = r.get("creator_username") or r.get("username") or r.get("owner_username")
-                    if author:
-                        creators.add(author.lower())
-                    views = r.get("view_count") or r.get("play_count") or 0
-                    if views > 0:
-                        view_counts.append(views)
-                
-                unique_creators = len(creators) if creators else len(group_reels)
-                median_reel_views = float(statistics.median(view_counts)) if view_counts else 0.0
-                max_reel_views = float(max(view_counts, default=0.0))
-                india_adoption_pct = round((india_use_count / len(group_reels)) * 100.0, 1) if group_reels else 0.0
-
                 opportunity_score = calculate_opportunity_score(
                     india_saturation_pct=india_sat,
                     window_hours_remaining=window_h,
                     confidence=confidence,
                 )
-                # Calculate unified trend state with strict multi-factor criteria
+                # Calculate unified trend state
                 trend_state = calculate_trend_state(
                     velocity_avg=trend["avg_velocity"],
                     global_saturation_pct=global_sat,
@@ -1349,9 +1251,6 @@ class TrendEngine:
                     confidence=confidence,
                     max_velocity=trend["max_velocity"],
                     discovery_source=trend.get("discovery_source", "regional"),
-                    median_reel_views=median_reel_views,
-                    max_reel_views=max_reel_views,
-                    unique_creators=unique_creators,
                 )
 
 
@@ -1409,13 +1308,6 @@ class TrendEngine:
                     oldest_age_hours=oldest_age_hours
                 )
 
-                # Resolve commercial song alias + transition detection.
-                # Uses module-level imports (hoisted from per-trend hot loop) to avoid
-                # repeated import resolution and reduce per-trend overhead.
-                commercial_song_alias = _resolve_song_alias(trend["audio_title"], group_reels) if _resolve_song_alias else None
-                transition_info = _verify_transition(group_reels, trend["audio_title"]) if _verify_transition else {}
-                is_transition = transition_info.get("is_transition_trend", False)
-
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],
@@ -1427,10 +1319,6 @@ class TrendEngine:
                     "velocity_avg": trend["avg_velocity"],
                     "peak_velocity": trend["max_velocity"],
                     "reel_count": trend["count"],
-                    # creator_diversity: actual count of distinct scraped creator usernames.
-                    # Previously always 0 because this field was never written at insert time.
-                    # Now computed from owner_username across all reels in this audio group.
-                    "creator_diversity": unique_creators,
                     "is_dance": trend.get("is_dance", False),
                     "needs_filming": trend.get("needs_filming", False),
                     "edit_style": trend.get("edit_style"),

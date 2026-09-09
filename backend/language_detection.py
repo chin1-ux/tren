@@ -9,13 +9,15 @@ import re
 
 # ── Maps language keywords (in audio title / caption / hashtags) → ISO 639-1 ──
 LANG_KEYWORD_MAP: dict[str, str] = {
-    # -- Bollywood / Hindi --
+    # -- Bollywood / Hindi / Regional --
     "arijit": "hi", "alka": "hi", "pritam": "hi", "rahman": "hi", "sachin": "hi", "amit": "hi", "neha": "hi", "vishal": "hi",
     "shreya": "hi", "armaan": "hi", "badshah": "hi", "dhvani": "hi", "jubin": "hi", "anu malik": "hi", "hema sardesai": "hi",
+    "jasleen royal": "hi", "jasleen": "hi", "ansh chahal": "hi", "sadhu tiwari": "hi", "aishwarya majmudar": "hi", "aghori muzik": "hi",
     "shaarib toshi": "hi", "kumaar": "hi", "tanishk": "hi", "bagchi": "hi", "shreya ghoshal": "hi", "sonu nigam": "hi",
     "sunidhi": "hi", "shankar": "hi", "ehsaan": "hi", "loy": "hi", "udit narayan": "hi", "kumar sanu": "hi", "lata": "hi",
     "asha bhosle": "hi", "kishore": "hi", "rafi": "hi", "malik": "hi", "sardesai": "hi", "bollywood": "hi", "hindi song": "hi",
     "hindi music": "hi", "bhojpuri": "hi", "pawan singh": "hi", "khesari": "hi", "shilpi raj": "hi", "manoj tiger": "hi",
+    "pramod premi yadav": "hi", "pramod premi": "hi", "abhishek gupta": "hi", "ps polist": "hi",
     "nadeem-shravan": "hi", "nadeem shravan": "hi", "javed ali": "hi", "mohit chauhan": "hi", "anand bhaskar": "hi",
     "romy": "hi", "ginny diwan": "hi", "roop kumar rathod": "hi", "sadhana sargam": "hi", "tapas relia": "hi",
     "antara nandy": "hi", "yuvnsoni": "hi", "hiten": "hi", "sharvi yadav": "hi",
@@ -32,7 +34,7 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "g v prakash": "ta", "vijay": "ta", "suriya": "ta", "dhanush": "ta", "rajinikanth": "ta", "kamal haasan": "ta", "harris jayaraj": "ta",
     "imman": "ta", "vidyasagar": "ta", "ilayaraja": "ta", "ilaiyaraaja": "ta", "kj yesudas": "ta", "k.j. yesudas": "ta",
     "santhosh narayanan": "ta", "karthik": "ta", "sid sriram": "ta", "tippu": "ta", "pradeep kumar": "ta",
-    "tamilsong": "ta", "tamilreels": "ta", "tamil": "ta",
+    "tamilsong": "ta", "tamilreels": "ta", "tamil": "ta", "dhibu ninan thomas": "ta",
 
     # -- Telugu --
     "tollywood": "te", "telugu song": "te", "allu arjun": "te", "mahesh babu": "te", "ram charan": "te", "thaman": "te",
@@ -54,6 +56,11 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "bhojpuri": "bho", "pawan singh": "bho", "khesari": "bho", "shilpi raj": "bho", "manoj tiger": "bho",
     "tuntun yadav": "bho", "neelkamal singh": "bho", "khushi kakkar": "bho", "gulshan yadav": "bho",
     "awadhesh premi": "bho", "raushan rohi": "bho", "bhojpurisong": "bho", "bhojpurireel": "bho",
+    "samar singh": "bho", "pramod premi": "bho", "arvind akela": "bho", "kallu": "bho", "bhojpuriya": "bho",
+    "babaan": "bho", "babuaan": "bho", "chehra nurani": "bho", "highlojan": "bho", "balam mor": "bho",
+    "aego baat": "bho", "rajawa re": "bho", "majanuaa": "bho", "choli me holi": "bho", "kamar me dagi": "bho",
+    "bihar mein": "bho", "bihari song": "bho", "bhojpuri music": "bho", "yadav 5731": "bho",
+    "khushbu tiwari": "bho", "nirhua": "bho", "dinesh lal": "bho", "amarpali": "bho",
 
     # -- Haryanvi --
     "masoom sharma": "hne", "renuka panwar": "hne", "sapna choudhary": "hne", "pranjal dahiya": "hne",
@@ -62,11 +69,14 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     # -- Gujarati --
     "osman mir": "gu", "kirtidan": "gu", "kirtidan gadhavi": "gu", "jayesh nayak": "gu", "jaymin dabhoda": "gu",
     "kaushik bharwad": "gu", "aditya gadhvi": "gu", "gujarati": "gu", "gujaratisong": "gu",
+    "bandish projekt": "gu", "pooja kalyani": "gu", "dakla": "gu", "garba": "gu",
+    "aishwariya majmudar": "gu", "aishwarya majmudar": "gu", "nirav barot": "gu", "umbare ubhi": "gu",
+    "sambhalu re": "gu", "kanudo vhalo": "gu", "gujarati song": "gu", "gujarati reels": "gu",
 
     # -- Malayalam --
     "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
     "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
-    "rajeesh": "ml", "rajeesh k chandu": "ml", "kalabhavan mani": "ml",
+    "rajeesh": "ml", "rajeesh k chandu": "ml", "kalabhavan mani": "ml", "kadakanninmunakondu": "ml",
     "malayalamsong": "ml", "malayalam": "ml",
 
     # -- Kannada --
@@ -81,7 +91,7 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "marathisong": "mr", "marathireels": "mr", "marathi": "mr",
 
     # -- Bengali --
-    "bengali song": "bn", "arijit singh": "bn", "anupam roy": "bn",
+    "bengali song": "bn", "anupam roy": "bn",
     "bengalisong": "bn", "bengalireels": "bn", "bengali": "bn",
 
     # -- Other --
@@ -102,7 +112,8 @@ VERNACULAR_HASHTAG_LANG: dict[str, str] = {
     "tirangayatra": "hi",
 }
 
-_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "bn", "bho", "hne"}
+_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml"}
+DISALLOWED_REGIONAL_LANGS = {"gu", "hne", "bho", "bn"}
 
 
 def _normalize_text(t: str) -> str:
@@ -188,3 +199,20 @@ def _looks_indian_audio(title: str | None, artist: str | None, caption: str | No
             return True
 
     return False
+
+
+def is_disallowed_regional_content(title: str | None, artist: str | None, caption: str | None = None, hashtags: list[str] | None = None) -> bool:
+    """Check if content belongs to disallowed regional languages (Gujarati gu, Haryanvi hne, Bhojpuri bho, Bengali bn)."""
+    full_text = f"{title or ''} {artist or ''} {caption or ''} {' '.join(hashtags or [])}".lower()
+    for kw, lang in LANG_KEYWORD_MAP.items():
+        if lang in DISALLOWED_REGIONAL_LANGS and kw in full_text:
+            return True
+    detected = _detect_audio_language(full_text, caption or '', hashtags or [])
+    if detected in DISALLOWED_REGIONAL_LANGS:
+        return True
+    return False
+
+def is_bhojpuri_content(title: str | None, artist: str | None, caption: str | None = None, hashtags: list[str] | None = None) -> bool:
+    """Check if title, artist, caption or hashtags belong to Bhojpuri language/music."""
+    return is_disallowed_regional_content(title, artist, caption, hashtags)
+
