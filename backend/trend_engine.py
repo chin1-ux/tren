@@ -926,7 +926,7 @@ class TrendEngine:
                 is_smart_qualified_candidate = (
                     max_group_use >= 1000 
                     and max_group_use < 3_000_000 
-                    and max_group_v >= 1.2 
+                    and max_group_v > 0.0 
                     and bool(representative_audio_id and representative_audio_id.isdigit())
                 )
                 
