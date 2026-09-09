@@ -258,7 +258,9 @@ class TrendRefresher:
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
 
-                if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
+                # Peaked transition gate: only transition to peaked if the trend has been active for at least 12h
+                # and its current velocity dropped below 40% of peak velocity.
+                if current_status in ("rising", "emerging") and age_hours >= 12 and velocity_for_check < peak_velocity * 0.40 and peak_velocity > 0:
                     self._update_status(trend_id, "peaked", {
                         "window_hours_remaining": new_window,
                         "velocity_avg": velocity_for_check,
@@ -269,6 +271,11 @@ class TrendRefresher:
                     logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
                     local_summary["peaked"] += 1
                     return local_summary
+
+                creator_count = self._count_unique_creators(
+                    trend.get("audio_title"), trend.get("audio_artist"), now, audio_id=trend.get("audio_id")
+                )
+                diversity_val = min(5, creator_count)
 
                 audio_use_count = trend.get("audio_use_count") or 0
                 audio_id_str = str(trend.get("audio_id") or "").strip()
@@ -324,6 +331,12 @@ class TrendRefresher:
                         elif volume_enough and velocity_ok_simple and creator_count >= 2:
                             should_rise = True
                             promotion_reason = "velocity_outlier"
+                        elif is_smart_candidate and persisted_enough and velocity_for_check > 0:
+                            # Smart candidate exception: high audio_use_count (1K-3M) is itself
+                            # a proxy for multi-creator adoption when creator scraped count is low.
+                            # Allows verified Option C tracks to graduate emerging -> rising.
+                            should_rise = True
+                            promotion_reason = "smart_candidate_use_count"
 
                     if should_rise:
                         self._update_status(trend_id, "rising", {

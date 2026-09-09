@@ -229,9 +229,12 @@ class SpotifyFetcher:
                 except Exception as e:
                     logger.error(f"Failed to save crossovers: {e}")
 
-        # 4. Direct registration into main 'trends' table for early Emerging feed surfacing
-        if all_tracks and self.supabase:
-            self.sync_to_trends_table(all_tracks)
+        # NOTE: sync_to_trends_table() was intentionally removed.
+        # It wrote synthetic velocity_avg (rank-formula), synthetic audio_use_count (reels*500),
+        # and hardcoded status="emerging" directly into the main `trends` table via upsert,
+        # which overwrote real TrendEngine-verified signal on conflict.
+        # Spotify crossover data belongs in the `spotify_crossovers` table only.
+        # Re-enable only once Spotify tracks have been verified against real scraped velocity.
 
     def sync_to_trends_table(self, market_tracks: List[Dict]):
         """

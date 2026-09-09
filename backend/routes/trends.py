@@ -182,9 +182,9 @@ def get_emerging_trends(
 
         if language and language != "all":
             q = q.eq("language", language)
-        # Niche filtering and adaptation are handled dynamically in Python via niche_relevance_engine below
-
-        q = q.order("first_detected_at", desc=True)
+        # Sort: velocity_avg (actual momentum) primary, first_detected_at (recency) secondary tiebreaker.
+        # DB-level order is set here for query efficiency; Python re-sorts after niche enrichment.
+        q = q.order("velocity_avg", desc=True)
         q = q.limit(50)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
@@ -203,7 +203,8 @@ def get_emerging_trends(
                         t["adaptation_briefs"] = {}
                     t["adaptation_briefs"][effective_niche] = brief
 
-        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
+        # velocity_avg (real signal) is primary; first_detected_at breaks ties among same-velocity trends.
+        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t, effective_niche, user_lang)), reverse=True)
         
         # Add user watermark ID to each trend for leak tracing
         if user_id:
@@ -231,7 +232,7 @@ def get_all_active_trends(
     try:
         res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending"]).order("first_detected_at", desc=True).limit(100).execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
+        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         return trends
     except Exception as e:
         logger.exception(f"Error fetching all-active trends: {e}")
@@ -281,7 +282,7 @@ def get_peaked_trends(
         q = q.limit(min(limit, 50))
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
+        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         trends = trends[:50]
         
         # Save to cache
@@ -325,7 +326,7 @@ def get_expired_trends(
         q = q.limit(fetch_limit)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: (str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
+        trends.sort(key=lambda t: (t.get("velocity_avg") or 0.0, str(t.get("first_detected_at") or t.get("created_at") or "1970-01-01T00:00:00Z"), _trend_priority_key(t)), reverse=True)
         return trends[:50]
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)

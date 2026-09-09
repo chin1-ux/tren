@@ -11,10 +11,19 @@ from dataclasses import dataclass
 from datetime import datetime, timezone, timedelta
 import requests
 from classification_rules import classify_niche, classify_content_tone
-from language_detection import _detect_audio_language
+from language_detection import _detect_audio_language, _looks_indian_audio, _INDIAN_LANG_CODES
 from audio_title_normalize import normalize_audio_title
 from trend_scoring import calculate_opportunity_score, calculate_trend_state, calculate_realistic_peaking_score, GLOBAL_SATURATION_THRESHOLD_REELS, INDIA_SATURATION_THRESHOLD_REELS
 from dotenv import load_dotenv
+# Song fingerprinting & transition detection — imported at module level to avoid per-trend overhead
+try:
+    from song_fingerprint_client import resolve_song_alias_from_reels as _resolve_song_alias
+except ImportError:
+    _resolve_song_alias = None
+try:
+    from vision_transition_verifier import verify_transition_trend as _verify_transition
+except ImportError:
+    _verify_transition = None
 
 # Defensive guard: hashtag pool names are internal routing labels, not real niches.
 # If they leak into niche_tag, remap to "general" and log a warning.
@@ -890,14 +899,14 @@ class TrendEngine:
                         new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
                         final_status = old_status if old_priority >= new_priority else new_detected_status
 
-                    now_iso = datetime.now(timezone.utc).isoformat()
+                    # NOTE: first_detected_at is a birth certificate — written once at initial detection,
+                    # NEVER updated on re-detection. Use creator_diversity and window refresh only.
                     update_payload = {
                         "status": final_status,
-                        "first_detected_at": now_iso,
                         "window_hours_remaining": 48,
                         "creator_diversity": creator_count
                     }
-                        
+
                     try:
                         self.supabase.table("trends") \
                             .update(update_payload) \
@@ -905,7 +914,7 @@ class TrendEngine:
                             .execute()
                         logging.info(
                             f"Updated existing trend '{title}' (id={existing_match['id']}): "
-                            f"status {old_status} -> {final_status}, creator_diversity={creator_count}, re-stamped first_detected_at={now_iso}"
+                            f"status {old_status} -> {final_status}, creator_diversity={creator_count}"
                         )
                     except Exception as update_err:
                         logging.warning(f"Failed to update existing trend '{title}': {update_err}")
@@ -927,13 +936,16 @@ class TrendEngine:
                 # 1. 1,000 <= audio_use_count < 3,000,000 (Goldilocks range)
                 # 2. velocity_score >= 1.2
                 # 3. Valid numeric Instagram audio_id (not spotify_)
+                # Option C Smart Multi-Signal: 1K-3M use_count range AND velocity >= 1.2 (as per spec).
+                # Threshold was previously > 0.0 (too weak — nearly any track qualified).
+                # Now correctly enforces the originally committed spec of velocity_score >= 1.2.
                 is_smart_qualified_candidate = (
-                    max_group_use >= 1000 
-                    and max_group_use < 3_000_000 
-                    and max_group_v > 0.0 
+                    max_group_use >= 1000
+                    and max_group_use < 3_000_000
+                    and max_group_v >= 1.2
                     and bool(representative_audio_id and representative_audio_id.isdigit())
                 )
-                
+
                 is_breakout_single_reel = max_group_v > 5000.0 or is_smart_qualified_candidate or is_crossplatform_breakout
                 
                 # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a smart qualified candidate or breakout single reel
@@ -1270,18 +1282,21 @@ class TrendEngine:
 
                 # Saturation percentages
                 global_sat = round(min(100.0, (audio_use_count / GLOBAL_SATURATION_THRESHOLD_REELS) * 100), 1)
-                # India saturation: scale by Indian creator ratio or language origin
-                from language_detection import _looks_indian_audio, _INDIAN_LANG_CODES
+                # India saturation: derived from actual scraped creator_country=IN data,
+                # or language-based heuristic for Indian audio. For non-Indian audio with
+                # no India reels, report 0.0 (honest) rather than a fabricated floor.
                 is_indian = _looks_indian_audio(trend.get("audio_title"), trend.get("audio_artist")) or trend.get("language") in _INDIAN_LANG_CODES
 
                 if len(group_reels) > 0 and india_use_count > 0:
                     india_ratio = india_use_count / len(group_reels)
                     india_sat = round(min(100.0, global_sat * india_ratio * 2), 1)
                 elif is_indian:
-                    # High adoption in India for Indian tracks even if creator_country field is missing on raw scraped reels
+                    # Heuristic: Indian-origin audio likely has high India adoption
+                    # even when creator_country tagging is sparse
                     india_sat = round(min(100.0, global_sat * 0.75), 1)
                 else:
-                    india_sat = round(min(100.0, global_sat * 0.15), 1)
+                    # No India reels and not Indian audio — honest 0, not a fabricated floor
+                    india_sat = 0.0
 
                 # Fix #9: Window hours — saturation-based baseline adjusted by velocity direction.
                 # A trend with falling velocity gets 30% fewer hours regardless of saturation.
@@ -1394,12 +1409,11 @@ class TrendEngine:
                     oldest_age_hours=oldest_age_hours
                 )
 
-                # Resolve commercial song alias for Original Audio trends (e.g. Rompe by Daddy Yankee)
-                from song_fingerprint_client import resolve_song_alias_from_reels
-                from vision_transition_verifier import verify_transition_trend
-
-                commercial_song_alias = resolve_song_alias_from_reels(trend["audio_title"], group_reels)
-                transition_info = verify_transition_trend(group_reels, trend["audio_title"])
+                # Resolve commercial song alias + transition detection.
+                # Uses module-level imports (hoisted from per-trend hot loop) to avoid
+                # repeated import resolution and reduce per-trend overhead.
+                commercial_song_alias = _resolve_song_alias(trend["audio_title"], group_reels) if _resolve_song_alias else None
+                transition_info = _verify_transition(group_reels, trend["audio_title"]) if _verify_transition else {}
                 is_transition = transition_info.get("is_transition_trend", False)
 
                 trend_data = {
