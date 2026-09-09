@@ -270,13 +270,13 @@ class TrendRefresher:
                     local_summary["peaked"] += 1
                     return local_summary
 
-                creator_count = self._count_unique_creators(
-                    trend.get("audio_title"), trend.get("audio_artist"), now, audio_id=trend.get("audio_id")
-                )
-                diversity_val = min(5, creator_count)
+                audio_use_count = trend.get("audio_use_count") or 0
+                audio_id_str = str(trend.get("audio_id") or "").strip()
+                is_smart_candidate = audio_use_count >= 1000 and audio_use_count < RISING_SATURATION_GATE and audio_id_str.isdigit()
 
-                # Mandatory 2-creator & 2-reel gate: Single-creator noise MUST be demoted to unqualified
-                if creator_count < 2 or total_reels_count < 2:
+                # Mandatory 2-creator & 2-reel gate: Single-creator noise MUST be demoted to unqualified,
+                # UNLESS it is a verified smart candidate with 1,000+ reels on Instagram.
+                if (creator_count < 2 or total_reels_count < 2) and not is_smart_candidate:
                     self._update_status(trend_id, "unqualified", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,

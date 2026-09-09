@@ -876,9 +876,13 @@ class TrendEngine:
                 if existing_match:
                     # Update-in-place: never-downgrade status on re-detection for active trends
                     old_status = existing_match.get("status", "emerging")
+                    max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+                    aid_str = str(representative_audio_id or "").strip()
+                    is_smart_match = max_use_cnt >= 1000 and max_use_cnt < 3_000_000 and aid_str.isdigit()
+
                     if old_status in ("emerging", "rising"):
                         final_status = old_status
-                    elif creator_count < 2 or len(group_reels) < 2:
+                    elif (creator_count < 2 or len(group_reels) < 2) and not is_smart_match:
                         final_status = "unqualified"
                     else:
                         new_detected_status = "emerging"
