@@ -6,6 +6,10 @@ instagram_scraper_browser.py. Every other call site should import
 _detect_audio_language from here rather than maintaining its own copy.
 """
 import re
+import urllib.request
+import urllib.parse
+import json
+
 
 # ── Maps language keywords (in audio title / caption / hashtags) → ISO 639-1 ──
 LANG_KEYWORD_MAP: dict[str, str] = {
@@ -45,12 +49,26 @@ LANG_KEYWORD_MAP: dict[str, str] = {
 
     # -- Punjabi --
     "diljit": "pa", "ap dhillon": "pa", "punjabi song": "pa", "punjabi music": "pa", "sidhu moose wala": "pa",
-    "karan aujla": "pa", "harrdy sandhu": "pa", "ammy virk": "pa", "guru randhawa": "pa", "b praak": "pa", "jaani": "pa",
+    "karan aujla": "pa", "harrdy sandhu": "pa", "harvy sandhu": "pa", "jordan sandhu": "pa", "ammy virk": "pa", "guru randhawa": "pa", "b praak": "pa", "jaani": "pa",
     "parmish verma": "pa", "jass manak": "pa", "honey singh": "pa", "mankirt": "pa", "shubh": "pa", "sukhe": "pa",
     "gurinder gill": "pa", "brown munde": "pa", "surjit bindrakhia": "pa", "bindrakhia": "pa", "arjan dhillon": "pa",
     "amar sajaalpuria": "pa", "gur sekhon": "pa", "gur sidhu": "pa", "cheema y": "pa", "dhanda nyoliwala": "pa",
-    "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa",
+    "punjabisong": "pa", "punjabisongs": "pa", "punjabi": "pa", "tarsem jassar": "pa", "tarseem jassar": "pa",
     "satinder sartaaj": "pa", "daler mehndi": "pa", "harsh nussi": "pa", "babbu maan": "pa",
+    "sukha": "pa", "manni sandhu": "pa", "hustinder": "pa", "madan madi": "pa", "sharn": "pa",
+    "prem dhillon": "pa", "elly mangat": "pa", "gurnam bhullar": "pa", "navaan sandhu": "pa",
+    "khan bhaini": "pa", "veet baljit": "pa", "amrit maan": "pa", "kulwinder billa": "pa",
+    "korala maan": "pa", "singga": "pa", "mankirt aulakh": "pa", "balkar sidhu": "pa",
+    "nirvair pannu": "pa", "geeta zaildar": "pa", "rajvir jawanda": "pa", "bhalwaan": "pa",
+    "gagan kokri": "pa", "harjit harman": "pa", "kamal khaira": "pa", "kulwinder dhillon": "pa",
+    "maninder buttar": "pa", "ninja": "pa", "sippy gill": "pa", "sharry mann": "pa",
+    "sunanda sharma": "pa", "jatt": "pa", "gabru": "pa", "pind": "pa", "billo": "pa",
+    "mitran": "pa", "sohneya": "pa", "wang": "pa", "rullde": "pa", "firde": "pa",
+    "anand raaj anand": "hi", "shweta pandit": "hi", "saroj": "hi", "zubeen garg": "hi",
+    "samay raina": "hi", "ashneer grover": "hi", "dilliwaliwomaniya": "hi", "rahul gurjar": "hi",
+    "roopkumar rathod": "hi", "sunil shetty": "hi", "alisha chinai": "hi", "babul supriyo": "hi",
+    "lucky ali": "hi", "shaan": "hi", "palash sen": "hi", "jagjit singh": "hi", "pankaj udhas": "hi",
+    "samayraina": "hi", "indiasgotlatent": "hi", "bajrangbali": "hi", "sanatandharma": "hi",
 
     # -- Bhojpuri --
     "bhojpuri": "bho", "pawan singh": "bho", "khesari": "bho", "shilpi raj": "bho", "manoj tiger": "bho",
@@ -134,6 +152,45 @@ _SCRIPT_RANGES = {
     "ta": ("\u0B80", "\u0BFF"), # Tamil
 }
 
+_GENRE_LANG_MAP = {
+    "punjabi": "pa",
+    "bollywood": "hi",
+    "indian pop": "hi",
+    "devotional": "hi",
+    "hindustani": "hi",
+    "tamil": "ta",
+    "telugu": "te",
+    "marathi": "mr",
+    "malayalam": "ml",
+    "kannada": "kn",
+    "bhojpuri": "bho",
+    "haryanvi": "hne",
+    "gujarati": "gu",
+}
+
+def resolve_via_music_catalog(audio_text: str, artist_text: str = "") -> str | None:
+    """
+    Lookup track genre via iTunes / Apple Music (Shazam catalog) API to accurately
+    classify Romanized regional songs (e.g., Punjabi, Hindi, Tamil) when script/keyword checks fail.
+    """
+    query = f"{audio_text or ''} {artist_text or ''}".strip()
+    if not query or len(query) < 3:
+        return None
+    try:
+        url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&limit=3"
+        req = urllib.request.Request(url, headers={"User-Agent": "Trendrop/1.0"})
+        with urllib.request.urlopen(req, timeout=3) as resp:
+            data = json.loads(resp.read().decode('utf-8'))
+            results = data.get("results", [])
+            for res in results:
+                genre = (res.get("primaryGenreName") or "").lower()
+                for key, code in _GENRE_LANG_MAP.items():
+                    if key in genre:
+                        return code
+    except Exception:
+        pass
+    return None
+
 def _detect_audio_language(
     audio_text: str,
     caption_text: str,
@@ -146,7 +203,8 @@ def _detect_audio_language(
     2. Individual hashtag keyword match
     3. Keyword match in title/artist/caption using normalized text and word boundaries
     4. Native script detection in caption/title → corresponding language
-    5. Default → en
+    5. iTunes / Shazam Catalog API lookup (primaryGenreName: Punjabi, Bollywood, etc.)
+    6. Default → en
     """
     # Priority 1: vernacular pool hashtag (100% reliable)
     for tag in (hashtags or []):
@@ -163,22 +221,37 @@ def _detect_audio_language(
     # Priority 3: keyword match in normalized audio + caption text
     full_text_raw = f"{audio_text or ''} {caption_text or ''}"
     full_text_norm = _normalize_text(full_text_raw)
-    # Pre-pad with spaces to simulate word boundaries
     padded_text = f" {full_text_norm} "
+
+    # Also extract comma/dash/slash separated segments (e.g. "Harvy Sandhu, Mirroronly")
+    raw_segments = re.split(r'[,/\-\|]', audio_text or '')
+    norm_segments = [f" {_normalize_text(seg)} " for seg in raw_segments if _normalize_text(seg)]
 
     # Check for keyword matches
     for keyword, lang_code in LANG_KEYWORD_MAP.items():
         norm_keyword = _normalize_text(keyword)
-        if norm_keyword and f" {norm_keyword} " in padded_text:
+        if not norm_keyword:
+            continue
+        padded_kw = f" {norm_keyword} "
+        if padded_kw in padded_text:
             return lang_code
+        for seg in norm_segments:
+            if padded_kw in seg:
+                return lang_code
 
     # Priority 4: Native script detection
     for lang_code, (start, end) in _SCRIPT_RANGES.items():
         if any(start <= ch <= end for ch in full_text_raw):
             return lang_code
 
+    # Priority 5: Catalog lookup (iTunes / Shazam Music API for Romanized tracks)
+    catalog_lang = resolve_via_music_catalog(audio_text)
+    if catalog_lang:
+        return catalog_lang
+
     # Default
     return "en"
+
 
 
 def _looks_indian_audio(title: str | None, artist: str | None, caption: str | None = None) -> bool:
