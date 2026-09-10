@@ -27,8 +27,14 @@ def bundle_python_function():
     shutil.copytree(
         'backend',
         dest_backend,
-        ignore=shutil.ignore_patterns('venv', '.venv', '__pycache__', '*.pyc', '*.pyo', '.env', '*.log', 'uploads', 'outputs')
+        ignore=shutil.ignore_patterns(
+            'venv', '.venv', '__pycache__', '*.pyc', '*.pyo', '.env', '*.log',
+            'uploads', 'outputs', 'scratch', 'test_*.py', 'check_*.py', 'verify_*.py',
+            'investigate_*.py', 'analyze_*.py', 'backfill_*.py', 'migrate_*.py',
+            'run_*.py', 'preview_*.py', '*.sql', '*.csv', '*.txt'
+        )
     )
+
 
     for filename in ['requirements.txt', 'pyproject.toml', '.python-version']:
         if os.path.exists(filename):
