@@ -143,8 +143,16 @@ function LoginPage() {
                 localStorage.setItem("trendrop_user_plan", "pro");
                 localStorage.setItem("trendrop_user_niche", "all");
                 localStorage.setItem("trendrop_user_language", "all");
-                window.location.href = "/";
+                useUserStore.getState().setUser({
+                  email: "demo@trendrop.app",
+                  niche: "all",
+                  language: "all",
+                  plan: "pro",
+                  authToken: "demo_guest_token"
+                });
+                window.location.replace("/");
               }}
+
             >
               ⚡ Explore Live Trends (Demo Mode)
             </Button>
