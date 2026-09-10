@@ -32,12 +32,14 @@ def get_trends(
     if standard_queue and standard_queue.connection:
         try:
             cached_data = standard_queue.connection.get(cache_key)
-            if cached_data:
+            parsed_cache = json.loads(cached_data) if cached_data else None
+            if parsed_cache and len(parsed_cache) > 0:
                 logger.info(f"Serving trends from cache for key: {cache_key}")
-                headers = {"Cache-Control": "public, max-age=300"}
-                return JSONResponse(content=json.loads(cached_data), headers=headers)
+                headers = {"Cache-Control": "public, max-age=60"}
+                return JSONResponse(content=parsed_cache, headers=headers)
         except Exception as e:
             logger.error(f"Redis fetch error: {e}")
+
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
