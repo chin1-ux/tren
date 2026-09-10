@@ -383,6 +383,21 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
         if not session_token:
             return {"success": False, "valid": False, "error": "No session token provided"}
 
+        # Instant demo token bypass for Demo Mode & automated UI testing
+        if session_token in ["demo_guest_token", "demo_token_123", "demo_pro_token"]:
+            return {
+                "success": True,
+                "valid": True,
+                "user": {
+                    "email": "demo@trendrop.app",
+                    "niche": "all",
+                    "language": "all",
+                    "plan": "pro",
+                    "status": "active"
+                }
+            }
+
+
         # 1. Try resolving session token in users database table first
         db_user_res = supabase.table("users").select("*").eq("auth_token", session_token).limit(1).execute()
         if db_user_res.data:
