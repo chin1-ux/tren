@@ -106,6 +106,16 @@ def get_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
 
+        # Fallback: If delay_hours or strict rising filter returns 0 trends (e.g. fresh breakout trends detected <24h ago),
+        # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
+        if not trends:
+            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
+            if language and language != "all":
+                q_fb = q_fb.eq("language", language)
+            res_fb = q_fb.execute()
+            trends = _normalize_trends(res_fb.data or [])
+
+
         # --- Legitimacy Filter: Strip sentinel use_count values ---
         # These are scraper fallback placeholders, not real audio counts.
         # Full list empirically derived from production data (values appearing on 3+ different audio_ids).
