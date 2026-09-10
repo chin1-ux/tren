@@ -83,10 +83,14 @@ def get_trends(
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
-        # Server-side gating data delay filter (only for free/guest accounts when older trends exist)
+        # Server-side gating data delay filter: Only apply if user is on free plan and we have sufficient trends
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
-            q = q.lte("created_at", time_cutoff)
+            q_delayed = q.lte("created_at", time_cutoff)
+            res_delayed = q_delayed.execute()
+            if res_delayed.data and len(res_delayed.data) > 0:
+                q = q_delayed
+
 
 
         if sort == "time_left":
