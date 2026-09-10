@@ -893,6 +893,25 @@ class TrendEngine:
                 
                 max_group_v = max((r.get("velocity_score", 0) for r in high_velocity_reels), default=0.0)
                 max_group_use = max((r.get("audio_use_count", 0) for r in high_velocity_reels if (r.get("audio_use_count") or 0) != SENTINEL_USE_COUNT), default=0)
+
+                # Calculate oldest_age_hours for high_velocity_reels
+                now_utc = datetime.now(timezone.utc)
+                posted_dates = []
+                for r in high_velocity_reels:
+                    p_str = r.get("posted_at") or r.get("created_at") or r.get("scraped_at")
+                    if p_str:
+                        try:
+                            dt = datetime.fromisoformat(str(p_str).replace("Z", "+00:00"))
+                            if dt.tzinfo is None:
+                                dt = dt.replace(tzinfo=timezone.utc)
+                            posted_dates.append(dt)
+                        except Exception:
+                            pass
+                oldest_age_hours = (
+                    max((now_utc - p).total_seconds() / 3600.0 for p in posted_dates)
+                    if posted_dates else 0.0
+                )
+
                 # Single-reel breakout guard:
                 # Reel must be recent (<=36h) AND audio must not be evergreen (use_count < 100K).
                 # Prevents old high-use audios (e.g. 300K-use santoor/devotional tracks) from
@@ -1053,21 +1072,32 @@ class TrendEngine:
                     except Exception as _auc_err:
                         logging.debug(f"detect_trends: could not fetch official audio velocity for audio_id={representative_audio_id}: {_auc_err}")
 
+                # Mandatory Creator Diversity Gate:
+                # Require at least 2 distinct creator accounts for emerging, and at least 3 distinct creators for rising.
+                # Single-creator self-promotional audios (e.g. speechplaninc with 12 reels from 1 account) are strictly skipped.
+                if creator_count < 2 and not (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0):
+                    logging.debug(f"Creator diversity gate: skipping '{title}' | {artist} — only {creator_count} distinct creator account(s)")
+                    continue
+
+                # Active Velocity Floor Gate:
+                # Require max_velocity >= 0.3 or recent_6h_avg > 0.0 to eliminate dead audios with zero velocity.
+                if max_velocity < 0.3 and recent_6h_avg == 0.0:
+                    logging.debug(f"Velocity floor gate: skipping '{title}' | {artist} — max_velocity={max_velocity}, recent_6h_avg={recent_6h_avg}")
+                    continue
+
                 initial_status = None
                 promotion_trigger = None
 
-                if max_use_count >= RISING_USE_THRESHOLD:
+                if max_use_count >= RISING_USE_THRESHOLD and creator_count >= 3:
                     initial_status = "rising"
                     promotion_trigger = "audio_use_count_rising"
-                elif creator_count >= 3 and creator_velocity > 0:
-                    # TODO: Investigate why creator_count_rising fired 0 times in backtests.
-                    # Verify if condition is too strict or if creator velocity metrics need tuning.
+                elif creator_count >= 3 and (creator_velocity > 0 or max_velocity >= 1.0):
                     initial_status = "rising"
                     promotion_trigger = "creator_count_rising"
-                elif max_use_count >= EMERGING_USE_THRESHOLD:
+                elif max_use_count >= EMERGING_USE_THRESHOLD and creator_count >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "audio_use_count_emerging"
-                elif creator_count >= 2 and len(group_reels) >= 2:
+                elif creator_count >= 2:
                     initial_status = "emerging"
                     promotion_trigger = "creator_count_emerging"
 
@@ -1251,6 +1281,8 @@ class TrendEngine:
                     confidence=confidence,
                     max_velocity=trend["max_velocity"],
                     discovery_source=trend.get("discovery_source", "regional"),
+                    unique_creators=creator_count,
+                    initial_status=trend.get("initial_status"),
                 )
 
 

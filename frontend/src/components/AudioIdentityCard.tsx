@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { Music, ExternalLink, Activity } from "lucide-react";
+import React, { useEffect, useState, useRef } from "react";
+import { Music, ExternalLink, Play, Pause, Volume2 } from "lucide-react";
 import { SparklineChart } from "./SparklineChart";
 import { fetchAudioHistory } from "../lib/api";
 
@@ -10,6 +10,7 @@ interface AudioIdentityCardProps {
   audioUseCount?: number | null;
   trendId?: string | number | null;
   opportunityScore?: number;
+  previewUrl?: string | null;
 }
 
 export const AudioIdentityCard = ({
@@ -19,9 +20,12 @@ export const AudioIdentityCard = ({
   audioUseCount,
   trendId,
   opportunityScore = 50,
+  previewUrl = null,
 }: AudioIdentityCardProps) => {
   const [history, setHistory] = useState<number[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (trendId) {
@@ -35,6 +39,17 @@ export const AudioIdentityCard = ({
         .finally(() => setLoadingHistory(false));
     }
   }, [trendId]);
+
+  const togglePlay = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!audioRef.current) return;
+    if (isPlaying) {
+      audioRef.current.pause();
+      setIsPlaying(false);
+    } else {
+      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
+    }
+  };
 
   const instagramUrl = audioId
     ? `https://www.instagram.com/reels/audio/${audioId}/`
@@ -64,21 +79,49 @@ export const AudioIdentityCard = ({
 
   return (
     <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/60 p-4 transition-all duration-300 hover:border-white/20">
-      {/* Waveform Visualization */}
+      {/* Hidden audio element for preview playback */}
+      {previewUrl && (
+        <audio
+          ref={audioRef}
+          src={previewUrl}
+          onEnded={() => setIsPlaying(false)}
+          onPause={() => setIsPlaying(false)}
+          onPlay={() => setIsPlaying(true)}
+        />
+      )}
+
+      {/* Header Row: Waveform & Growth Sparkline */}
       <div className="mb-4 flex items-center justify-between">
-        <div className="flex items-center gap-1.5 h-6">
-          <Music className="h-4 w-4 text-white/60 mr-1" />
-          {[1.2, 0.6, 1.5, 0.9, 1.4, 0.7, 1.1].map((delay, idx) => (
-            <div
-              key={idx}
-              className={`w-0.5 rounded-full ${getWaveformColor()}`}
-              style={{
-                height: "100%",
-                animation: `pulse 1.2s ease-in-out infinite`,
-                animationDelay: `${delay}s`,
-              }}
-            />
-          ))}
+        <div className="flex items-center gap-2">
+          {/* Play/Pause Button if audio sample is available */}
+          {previewUrl ? (
+            <button
+              onClick={togglePlay}
+              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary border border-primary/40 hover:bg-primary hover:text-white transition-all active:scale-95"
+              aria-label={isPlaying ? "Pause audio preview" : "Play audio preview"}
+            >
+              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
+            </button>
+          ) : (
+            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/60">
+              <Music className="h-4 w-4" />
+            </div>
+          )}
+
+          {/* Equalizer Bars - Animates ONLY when isPlaying is true */}
+          <div className="flex items-center gap-1 h-6">
+            {[1.2, 0.6, 1.5, 0.9, 1.4, 0.7, 1.1].map((delay, idx) => (
+              <div
+                key={idx}
+                className={`w-0.5 rounded-full ${getWaveformColor()} transition-all duration-200`}
+                style={{
+                  height: isPlaying ? "100%" : "30%",
+                  animation: isPlaying ? `pulse 1.2s ease-in-out infinite` : "none",
+                  animationDelay: `${delay}s`,
+                }}
+              />
+            ))}
+          </div>
         </div>
         
         {/* Sparkline integration */}
@@ -100,7 +143,8 @@ export const AudioIdentityCard = ({
       </div>
 
       <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
-        <span className="text-xs font-medium text-white/60">
+        <span className="text-xs font-medium text-white/60 flex items-center gap-1">
+          <Volume2 className="h-3 w-3 text-muted-foreground" />
           {formatReelCount(audioUseCount)}
         </span>
         
@@ -109,6 +153,7 @@ export const AudioIdentityCard = ({
             href={instagramUrl}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={(e) => e.stopPropagation()}
             className="flex items-center gap-1 text-[11px] font-semibold text-sky-400 hover:text-sky-300 transition-colors"
           >
             Open on IG
@@ -126,3 +171,4 @@ export const AudioIdentityCard = ({
     </div>
   );
 };
+

@@ -155,7 +155,8 @@ class TrendRefresher:
                 stored_reel_count = trend.get("reel_count") or 0
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
-                min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(3 * 24)))
+                # Real short-form trends last 1 to 3 weeks (14 days = 336h).
+                min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(14 * 24)))
 
                 live_velocity = self._calc_live_velocity(
                     trend.get("audio_title"), trend.get("audio_artist"), now
@@ -176,11 +177,15 @@ class TrendRefresher:
                     logger.warning(f"Failed to check new reels count for '{audio_title}': {e}")
                     new_reels_count = 0
 
+                clean_use_cnt = int(trend.get("audio_use_count") or 0)
                 if new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
+                elif clean_use_cnt >= 50000 or total_reels_count >= 2:
+                    # Protect active/popular tracks from zeroing out on scraper sampling misses
+                    new_window = max(24, window_hours - 1)
                 else:
-                    new_window = max(0, window_hours - 3)
+                    new_window = max(0, window_hours - 2)
 
                 # 14-day ceiling for peaked trends (force to expired)
                 if current_status == "peaked" and age_hours >= (14 * 24.0):
@@ -245,16 +250,38 @@ class TrendRefresher:
                         return local_summary
 
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
-                    self._update_status(trend_id, "peaked", {
-                        "window_hours_remaining": new_window,
-                        "velocity_avg": velocity_for_check,
-                        "reel_count": total_reels_count,
-                        "high_confidence": bool(trend.get("high_confidence", False)),
-                        "promotion_reason": trend.get("promotion_reason"),
-                    })
-                    logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f})")
-                    local_summary["peaked"] += 1
-                    return local_summary
+                    # Anti-flicker: require 2 consecutive low-velocity snapshots before demoting.
+                    # A single low reading (e.g. no new reels in window) is too noisy to trust.
+                    try:
+                        snaps_res = self.supabase.table("trend_snapshots") \
+                            .select("velocity_avg") \
+                            .eq("trend_id", trend_id) \
+                            .order("captured_at", desc=True) \
+                            .limit(2) \
+                            .execute()
+                        snap_vels = [float(s.get("velocity_avg") or 0.0) for s in (snaps_res.data or [])]
+                        # Need at least 2 historical snapshots both below the threshold
+                        two_dip_confirmed = (
+                            len(snap_vels) >= 2
+                            and all(v < peak_velocity * 0.60 for v in snap_vels)
+                        )
+                    except Exception as _snap_err:
+                        logger.debug(f"Anti-flicker snapshot check failed for trend_id={trend_id}: {_snap_err}")
+                        two_dip_confirmed = True  # fail-open: demote if snapshots unavailable
+
+                    if two_dip_confirmed:
+                        self._update_status(trend_id, "peaked", {
+                            "window_hours_remaining": new_window,
+                            "velocity_avg": velocity_for_check,
+                            "reel_count": total_reels_count,
+                            "high_confidence": bool(trend.get("high_confidence", False)),
+                            "promotion_reason": trend.get("promotion_reason"),
+                        })
+                        logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f}, 2-dip confirmed)")
+                        local_summary["peaked"] += 1
+                        return local_summary
+                    else:
+                        logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but only 1 dip — holding current status ({current_status})")
 
                 if current_status == "emerging":
                     creator_count = self._count_unique_creators(
@@ -262,8 +289,20 @@ class TrendRefresher:
                     )
                     high_confidence = creator_count >= 5
 
-                    # UNCALIBRATED — thresholds are educated guesses, not data-derived.
-                    # Re-tune after first real beta trajectory data exists.
+                    # Single-Creator Filter Pass:
+                    # An emerging trend with < 2 distinct creators (e.g. self-promotion speechplaninc)
+                    # and no massive global count is marked unqualified.
+                    discovery_source = trend.get("discovery_source") or ""
+                    clean_use_count = trend.get("audio_use_count") or 0
+                    if creator_count < 2 and discovery_source != "global" and clean_use_count < 500_000:
+                        self._update_status(trend_id, "unqualified", {
+                            "window_hours_remaining": 0,
+                            "promotion_reason": "single_creator_unqualified",
+                        })
+                        logger.info(f"[UNQUALIFIED] '{audio_title}' marked unqualified — only {creator_count} distinct creator account")
+                        local_summary["expired"] += 1
+                        return local_summary
+
                     qualifies_by_creator = creator_count >= 2
                     qualifies_by_volume = total_reels_count >= 3
                     velocity_ok_simple = (
@@ -271,20 +310,45 @@ class TrendRefresher:
                         and velocity_for_check > rising_baseline * 1.2
                     )
 
-                    persisted_enough = age_hours >= 6
-                    volume_enough = age_hours >= 8
+                    persisted_enough = age_hours >= 1.5
+                    volume_enough = age_hours >= 2
                     should_rise = False
                     promotion_reason = trend.get("promotion_reason")
 
-                    if persisted_enough and qualifies_by_creator:
+                    _SENTINEL_USE_COUNTS = {
+                        501034, 68085985, 549315,
+                        1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
+                        2000000, 2200000, 2700000, 3800000,
+                        36725947, 37083523, 44387446, 44387531, 46027607,
+                        54717606, 64317600, 68386983, 76096904, 76096962,
+                        93134979, 93135497, 93135510, 93135904,
+                        94909287, 94909461, 94909669,
+                        18139253, 18152379, 36106069,
+                    }
+                    RISING_USE_THRESHOLD = 500_000
+
+                    # Fast-track rules for rising promotion:
+                    # 1. High audio_use_count >= 500k
+                    # 2. Strong multi-creator adoption (>= 3 creators)
+                    # 3. High velocity spike (velocity >= 1.0 with >= 2 creators)
+                    if (
+                        clean_use_count not in _SENTINEL_USE_COUNTS
+                        and clean_use_count >= RISING_USE_THRESHOLD
+                    ):
+                        should_rise = True
+                        promotion_reason = "audio_use_count_fasttrack"
+                    elif creator_count >= 3:
+                        should_rise = True
+                        promotion_reason = "creator_adoption_fasttrack"
+                    elif creator_count >= 2 and velocity_for_check >= 0.5:
+                        should_rise = True
+                        promotion_reason = "velocity_outlier"
+                    elif persisted_enough and qualifies_by_creator:
                         should_rise = True
                         promotion_reason = "creator_adoption"
                     elif volume_enough and qualifies_by_volume:
                         should_rise = True
                         promotion_reason = "volume_signal"
-                    elif volume_enough and velocity_ok_simple:
-                        should_rise = True
-                        promotion_reason = "velocity_outlier"
 
                     if should_rise:
                         self._update_status(trend_id, "rising", {
@@ -475,15 +539,26 @@ class TrendRefresher:
             else:
                 return False
 
+            # Filter out known scraper sentinel values. The scraper writes these when it
+            # cannot parse the real use_count. Both values are confirmed sentinel placeholders:
+            #   501034 — original sentinel (already guarded in trend_engine.py:892)
+            #   68085985 — newer sentinel (NOT previously filtered, causing lifecycle corruption)
+            _SENTINEL_USE_COUNTS = {501034, 68085985}
+
             counts = [
                 r["audio_use_count"]
                 for r in (matching if audio_title and audio_artist and not audio_id else (res.data or []))
-                if r.get("audio_use_count") and r["audio_use_count"] > 0
+                if r.get("audio_use_count")
+                and r["audio_use_count"] > 0
+                and r["audio_use_count"] not in _SENTINEL_USE_COUNTS
             ]
             if not counts:
                 return False
 
             live_max = max(counts)
+            if live_max in _SENTINEL_USE_COUNTS:
+                logger.debug(f"[AUDIO_USE_COUNT] Skipping sentinel value {live_max} for trend_id={trend_id}")
+                return False
             if live_max > stored_count:
                 self.supabase.table("trends") \
                     .update({"audio_use_count": live_max}) \

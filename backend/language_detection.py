@@ -166,6 +166,17 @@ _GENRE_LANG_MAP = {
     "bhojpuri": "bho",
     "haryanvi": "hne",
     "gujarati": "gu",
+    "latin": "latin",
+    "spanish": "latin",
+    "reggaeton": "latin",
+    "urbano latino": "latin",
+    "brazilian": "brazilian",
+    "baile funk": "brazilian",
+    "funk": "brazilian",
+    "samba": "brazilian",
+    "k-pop": "korean",
+    "kpop": "korean",
+    "korean": "korean",
 }
 
 def resolve_via_music_catalog(audio_text: str, artist_text: str = "") -> str | None:

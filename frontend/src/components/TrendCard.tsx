@@ -390,11 +390,16 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     return "bg-primary/10 text-primary dark:text-primary border-primary/20";
   };
 
-  const getOpportunityScoreStatus = (score: number) => {
-    if (score >= 80) return "Act now — window closing fast";
-    if (score >= 60) return "Still time to jump in";
-    if (score >= 40) return "Saturating — post today";
-    return "Too late for this trend";
+  const getOpportunityScoreStatus = (score?: number, globalSat?: number) => {
+    if (score === undefined || score === 0) {
+      if (globalSat !== undefined && globalSat < 30) return "🚀 Early discovery window open";
+      return null;
+    }
+    if (score >= 80) return "🚀 Act now — prime opportunity window";
+    if (score >= 60) return "⚡ High momentum — post soon";
+    if (score >= 40) return "📈 Growing popularity";
+    if (globalSat && globalSat >= 80) return "⚠️ High saturation — test with care";
+    return "⚡ Early discovery window open";
   };
 
   return (
@@ -464,6 +469,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           }}
           trendId={trend.id}
           opportunityScore={trend.opportunityScore}
+          previewUrl={audioUrl || trend.previewUrl || trend.audioUrl}
         />
       </div>
 
@@ -487,11 +493,14 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <p className="text-xs text-muted-foreground mt-0.5 truncate">by {trend.artist}</p>
         
         {/* Saturation advice subtitle */}
-        {trend.opportunityScore !== undefined && (
-          <p className="text-[10px] text-muted-foreground/80 italic mt-0.5">
-            {getOpportunityScoreStatus(trend.opportunityScore)}
-          </p>
-        )}
+        {(() => {
+          const statusText = getOpportunityScoreStatus(trend.opportunityScore, globalPct);
+          return statusText ? (
+            <p className="text-[10px] text-muted-foreground/80 italic mt-0.5">
+              {statusText}
+            </p>
+          ) : null;
+        })()}
       </div>
 
       {/* ── 2. Audio use count ────────────────────────────────────────────── */}

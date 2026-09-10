@@ -8,12 +8,14 @@ interface TrendCardVideoProps {
     audio_artist?: string | null;
     audio_use_count?: number | null;
     audio_id?: string | null;
+    preview_url?: string | null;
   };
   trendId?: string | number | null;
   opportunityScore?: number;
+  previewUrl?: string | null;
 }
 
-export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50 }: TrendCardVideoProps) => {
+export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50, previewUrl }: TrendCardVideoProps) => {
   return (
     <AudioIdentityCard
       audioId={reel.audio_id}
@@ -22,6 +24,8 @@ export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50 }: TrendCa
       audioUseCount={reel.audio_use_count}
       trendId={trendId}
       opportunityScore={opportunityScore}
+      previewUrl={previewUrl || reel.preview_url}
     />
   );
 };
+

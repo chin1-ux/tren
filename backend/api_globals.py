@@ -590,6 +590,18 @@ def _normalize_trends(trends: list) -> list:
         if match:
             t["reel_id"] = match.get("reel_id")
             t["views_delta_last_run"] = match.get("views_delta_last_run") or 0
+
+        # Mandatory Shazam / iTunes Music Catalog Language Pass
+        curr_lang = t.get("detected_language") or t.get("language") or "en"
+        if curr_lang in ("en", "unknown") and (t.get("audio_title") or t.get("audio_artist")):
+            try:
+                from language_detection import resolve_via_music_catalog
+                catalog_lang = resolve_via_music_catalog(t.get("audio_title"), t.get("audio_artist"))
+                if catalog_lang:
+                    t["detected_language"] = catalog_lang
+                    t["language"] = catalog_lang
+            except Exception as _shazam_err:
+                logger.debug(f"_normalize_trends: Shazam language pass error for {t.get('audio_title')}: {_shazam_err}")
             
     return trends
 

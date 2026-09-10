@@ -77,6 +77,7 @@ def calculate_trend_state(
     median_reel_views: float = 0.0,
     max_reel_views: float = 0.0,
     unique_creators: int = 1,
+    initial_status: Optional[str] = None,
 ) -> TrendState:
     """
     Single source of truth for trend state.
@@ -84,10 +85,11 @@ def calculate_trend_state(
     Uses configurable thresholds/weights from environment variables.
     """
     
-    # 1. Determine velocity tier
-    if velocity_avg >= 100000:
+    # 1. Determine velocity tier using effective velocity (max of average and max reel velocity)
+    effective_velocity = max(velocity_avg, max_velocity)
+    if effective_velocity >= 50000:
         velocity_tier = "accelerating"
-    elif velocity_avg >= 20000:
+    elif effective_velocity >= 3000:
         velocity_tier = "stable"
     else:
         velocity_tier = "declining"
@@ -107,13 +109,13 @@ def calculate_trend_state(
     elif (global_saturation_pct >= 65 or audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
     elif (
-        (unique_creators >= 3 or audio_use_count >= 500000)
+        (unique_creators >= 3 or audio_use_count >= 500000 or effective_velocity >= 20000)
         and global_saturation_pct < 75
         and velocity_tier in ["accelerating", "stable"]
     ):
         lifecycle = TrendLifecycle.RISING
     elif (
-        unique_creators >= 2
+        (unique_creators >= 2 or effective_velocity >= 500 or initial_status in ["rising", "emerging"])
         and global_saturation_pct < 65
     ):
         lifecycle = TrendLifecycle.EMERGING

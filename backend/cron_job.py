@@ -193,6 +193,11 @@ def run_full_pipeline(stages: list = None):
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
+    if scrape_mode == "global" and not os.environ.get("SCRAPER_HASHTAGS"):
+        global_tags = "fyp,viral,trending,foryou,explorar,reels,brasil,danca,dancechallenge,dancetrend,tiktokdance,choreography,hiphopdance,dancecover,dancevideo,speedupsongs,remixreels,viralaudio,reelsaudio,trendingsound,viralmusic,reelsound,phonk,brazilianphonk,funkbrasil,phonkmusic,speedupphonk,driftphonk,phonkdance,reelsbrasil,passinho,funkmtg,dancabrasil,mtgphonk,reggaeton,latinmusic,latinreels,spanishmusic,spanishreels,latintrend,afrobeats,afrobeatsreels,kpop,kpopdance"
+        os.environ["SCRAPER_HASHTAGS"] = global_tags
+        logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
+
     # 0. Schema Validation
     if _stage("schema"):
         try:
@@ -239,13 +244,23 @@ def run_full_pipeline(stages: list = None):
             
             if total_yt > 0:
                 logging.info(f"Step 2/5: YouTube scraping complete. Found {total_yt} trending items.")
-                # Ideally, extract topics and pass them to unified signals, but for now we just verify it runs.
-                # yt_topics = yt_fetcher.extract_trending_topics(yt_music)
             else:
                 logging.info("Step 2/5: YouTube scraping complete but no items found (check API key).")
         except Exception as e:
             run_state["stage"] = "youtube_scrape_failed"
             logging.error(f"Step 2/5 FAILED (YouTube): {e}", exc_info=True)
+
+    # 2b. Spotify Viral 50 Radar: fetch trending songs across BR, IN, US, Global
+    if _stage("scrape") or _stage("spotify"):
+        try:
+            run_state["stage"] = "spotify_scrape"
+            logging.info("Step 2b/5: Ingesting Spotify Viral 50 & Trending Search audios...")
+            from spotify_fetcher import SpotifyFetcher
+            sf = SpotifyFetcher()
+            sf.run_sync()
+            logging.info("Step 2b/5: Spotify Viral Radar ingestion complete.")
+        except Exception as e:
+            logging.warning(f"Step 2b/5 Spotify Ingestion failed (non-fatal): {e}")
 
     # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
     audio_backfill_filled = 0
@@ -543,6 +558,31 @@ def run_full_pipeline(stages: list = None):
                 run_state["stage"] = "trend_engine_failed"
                 run_state["cutoff_reason"] = f"trend engine failed: {e}"
                 logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
+
+        # 3b. Permanent Disallowed Regional Filter Pass: purge Gujarati, Haryanvi, Bengali, Bhojpuri trends & reels
+        try:
+            from language_detection import is_disallowed_regional_content
+            sb = _get_supabase()
+            active_trends = sb.table("trends").select("id, audio_title, audio_artist").neq("status", "unqualified").execute().data or []
+            regional_purged = 0
+            for t in active_trends:
+                if is_disallowed_regional_content(t.get("audio_title"), t.get("audio_artist")):
+                    sb.table("trends").update({"status": "unqualified"}).eq("id", t["id"]).execute()
+                    regional_purged += 1
+            if regional_purged > 0:
+                logging.info(f"Regional Filter Pass: Marked {regional_purged} disallowed regional trends (Gujarati/Bhojpuri/Haryanvi/Bengali) as unqualified.")
+
+            # Also delete any stored disallowed regional reels
+            all_reels = sb.table("reels").select("reel_id, audio_title, audio_artist, caption").execute().data or []
+            regional_reels_deleted = 0
+            for r in all_reels:
+                if is_disallowed_regional_content(r.get("audio_title"), r.get("audio_artist"), r.get("caption")):
+                    sb.table("reels").delete().eq("reel_id", r["reel_id"]).execute()
+                    regional_reels_deleted += 1
+            if regional_reels_deleted > 0:
+                logging.info(f"Regional Filter Pass: Deleted {regional_reels_deleted} disallowed regional reels.")
+        except Exception as _reg_err:
+            logging.warning(f"Regional filter pass warning: {_reg_err}")
 
     # 4. Trend Refresher: update lifecycle of existing trends
     if _stage("refresh"):

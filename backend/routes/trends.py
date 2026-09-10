@@ -115,11 +115,9 @@ def get_trends(
 
         # --- Legitimacy Filter: Strip sentinel use_count values ---
         # These are scraper fallback placeholders, not real audio counts.
-        # Full list empirically derived from production data (values appearing on 3+ different audio_ids).
+        # Note: 1000000 (1M) is a legitimate Instagram display count (e.g. Othaiyadi Pathayila) and is excluded from sentinels.
         _SENTINEL_USE_COUNTS = {
             501034, 68085985, 549315,
-            1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
-            2000000, 2200000, 2700000, 3800000,
             36725947, 37083523, 44387446, 44387531, 46027607,
             54717606, 64317600, 68386983, 76096904, 76096962,
             93134979, 93135497, 93135510, 93135904,

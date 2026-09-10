@@ -66,6 +66,7 @@ def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
 from language_detection import (
     LANG_KEYWORD_MAP, VERNACULAR_HASHTAG_LANG, _INDIAN_LANG_CODES,
     _normalize_text, _SCRIPT_RANGES, _detect_audio_language, _looks_indian_audio,
+    is_disallowed_regional_content,
 )
 from audio_title_normalize import normalize_audio_title
 
@@ -141,8 +142,8 @@ class InstagramScraper:
             ],
             "INDIA_VERNACULAR": [
                 "hindireels", "punjabisongs", "tamilreels", "telugureels",
-                "kannadareels", "bhojpurisong", "marathireels", "malayalamreels",
-                "gujaratireels", "bengalireels", "keralagram", "chennaimemes"
+                "kannadareels", "marathireels", "malayalamreels",
+                "keralagram", "chennaimemes"
             ],
             "FITNESS": [
                 "fitnessreels", "gymindia", "workoutmotivation", "desiworkout",
@@ -203,18 +204,24 @@ class InstagramScraper:
                 "indiancricket"
             ],
             "GLOBAL_DISCOVERY": [
+                # Broad Humanized Everyday Viral Tags
+                "fyp", "viral", "trending", "foryou", "explorar", "reels", "brasil", "danca",
                 # Global Dance & Challenge Seeds
                 "dancechallenge", "dancetrend", "tiktokdance", "choreography",
                 "hiphopdance", "dancecover", "dancevideo",
                 # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
                 "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
-                "soundalert", "trendingsound", "viralmusic", "reelsound",
-                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Dance Trends)
+                "trendingsound", "viralmusic", "reelsound",
+                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Native Dance Steps)
                 "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
                 "speedupphonk", "driftphonk", "phonkdance", "reelsbrasil",
+                "passinho", "funkmtg", "dancabrasil", "mtgphonk",
+                # Spanish & Latin Seeds
+                "reggaeton", "latinmusic", "latinreels", "spanishmusic", "spanishreels", "latintrend",
+                # K-Pop & Afrobeats Seeds
+                "afrobeats", "afrobeatsreels", "kpop", "kpopdance",
                 # Broad Viral & Music Seeds
-                "fyp", "viral", "trending", "music", "trendingaudio", "popmusic",
-                "hiphopreels", "edmmusic", "kpopreels"
+                "music", "trendingaudio", "popmusic", "hiphopreels", "edmmusic", "kpopreels"
             ]
         }
 
@@ -418,6 +425,7 @@ class InstagramScraper:
                     pass
 
     VERIFIED_CREATOR_WATCHLIST = [
+        "daublegum",
         "chopdaily",
         "worldofdance",
         "kylehanagami",
@@ -1344,6 +1352,10 @@ Return ONLY valid JSON, no markdown, no explanation:
             audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
             audio_use = self._extract_audio_use_count(media_dict, audio_id=audio_id)
 
+            if is_disallowed_regional_content(audio_title, audio_artist, caption, [tag] + hashtags):
+                scrape_stats["disallowed_regional_filtered"] = scrape_stats.get("disallowed_regional_filtered", 0) + 1
+                continue
+
             source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags) or "GLOBAL_DISCOVERY"
 
             candidates.append({
@@ -1790,29 +1802,29 @@ Return ONLY valid JSON, no markdown, no explanation:
             return 0
         
         try:
-            scrape_mode = os.getenv("SCRAPER_MODE", "india").strip().lower()
+            scrape_mode = os.getenv("SCRAPER_MODE", "mixed").strip().lower()
             if "CUSTOM" in self.hashtag_groups:
                 priority_pool = self.hashtag_groups["CUSTOM"]
             elif scrape_mode == "global":
                 priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
-            else:
-                # Blended default pool: India-focused base + dance (cross-regional) +
-                # GLOBAL_DISCOVERY slice (top audio-signal tags).
-                # Dance-challenge trends are not India-specific; excluding the DANCE
-                # group caused globally viral dance trends to go entirely unscraped.
-                # GLOBAL_DISCOVERY[:5] ensures audio-driven global trends appear on
-                # every cycle instead of only on alternating odd-numbered runs.
-                # Dedup loop below (line 1714+) removes any cross-group duplicates.
+            elif scrape_mode == "india":
                 priority_pool = (
                     self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
                     + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
                     + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
-                    + self.hashtag_groups.get("FITNESS", [])[:1]
-                    + self.hashtag_groups.get("FOOD", [])[:1]
-                    + self.hashtag_groups.get("COMEDY", [])[:1]
-                    + self.hashtag_groups.get("DANCE", [])[:2]          # dancereels, indiandance
-                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:5]  # music, trendingaudio, trendingsong, viralsong, musictrend
+                    + self.hashtag_groups.get("DANCE", [])[:2]
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:4]
                 )
+            else:
+                # 50/50 Mixed Mode (Default): Equal balance between India trends & Global sounds
+                # (Brazilian Phonk/Funk, Latin/Spanish, K-Pop/Afrobeats, Global Dance)
+                india_tags = (
+                    self.hashtag_groups.get("INDIA_TRENDING", [])[:4]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:4]
+                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:2]
+                )
+                global_tags = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:10]
+                priority_pool = india_tags + global_tags
             
             seen = set()
             selected = []

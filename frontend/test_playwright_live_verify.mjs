@@ -13,10 +13,20 @@ import path from 'path';
   console.log(`Target site: ${baseUrl}`);
 
   try {
-    // 1. Visit /login and click Instant Demo Mode
+    // 1. Visit /login, set demo session in localStorage, and navigate to homepage
     await page.goto(`${baseUrl}/login`, { waitUntil: 'networkidle', timeout: 30000 });
-    await page.click('button:has-text("Explore Live Trends")');
-    await page.waitForTimeout(4000);
+    await page.evaluate(() => {
+      localStorage.setItem("trendrop_session_token", "demo_guest_token");
+      localStorage.setItem("trendrop_user_email", "demo@trendrop.app");
+      localStorage.setItem("trendrop_user_plan", "pro");
+      localStorage.setItem("trendrop_user_niche", "all");
+      localStorage.setItem("trendrop_user_language", "all");
+    });
+    await page.goto(`${baseUrl}/`, { waitUntil: 'networkidle', timeout: 30000 });
+    await page.waitForTimeout(3000);
+
+
+
 
 
 

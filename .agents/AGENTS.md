@@ -49,6 +49,12 @@ for stmt in new_columns:
 - Before reporting anything as "done," confirm against actual current session state — don't re-report already-closed items as outstanding, and don't assume a prior claim was accepted without checking.
 - Test/seed scripts must target a non-prod environment, or if none exists, must use an obviously-tagged, auto-cleaned dataset and confirm cleanup as part of the same task — not as a follow-up once caught.
 
+## GitHub Actions Scraper Architecture & Quota Rule
+
+- **Main Account Workflows Disabled**: All 10 GitHub Actions workflows on the main account (`ch1nmay/trendrop`) are manually disabled to preserve GitHub Actions quota (reached 90% limit).
+- **Dedicated Scraper Account Active**: Background scraping continues automatically on the dedicated scraper repository (`chin1-ux/tren`), where `Scraper (Dedicated Account - 3h)` (ID: `342411740`) is active.
+- **Do not re-enable main account workflows** unless explicitly requested by Chinmay.
+
 ## Scraper Freeze & Breakage Protection Rule (Golden Checkpoint v1.0)
 
 **Tag**: `golden-scraper-v1.0` (Commit: `1632591` in `trendrop`, `631a7fb` in `trendrop_tren`)
