@@ -75,10 +75,7 @@ def get_trends(
 
         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-        q = q.or_(
-            f"first_detected_at.gte.{rising_cutoff},"
-            f"and(first_detected_at.is.null,created_at.gte.{rising_cutoff})"
-        )
+        q = q.gte("created_at", rising_cutoff)
 
         if language and language != "all":
             q = q.eq("language", language)
@@ -86,17 +83,11 @@ def get_trends(
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
-        # Server-side gating data delay filter
-        # CRITICAL: first_detected_at may be NULL for older trends (scraper didn't always write it).
-        # NULL <= timestamp is FALSE in Postgres, so a pure lte() filter would return 0 rows for free
-        # users when the column is unset. Use created_at as a fallback: if first_detected_at IS NULL,
-        # gate on created_at instead so free users always see something.
+        # Server-side gating data delay filter (only for free/guest accounts when older trends exist)
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
-            q = q.or_(
-                f"first_detected_at.lte.{time_cutoff},"
-                f"and(first_detected_at.is.null,created_at.lte.{time_cutoff})"
-            )
+            q = q.lte("created_at", time_cutoff)
+
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
