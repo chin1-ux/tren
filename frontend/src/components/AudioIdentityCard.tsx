@@ -8,6 +8,7 @@ interface AudioIdentityCardProps {
   audioTitle?: string | null;
   audioArtist?: string | null;
   audioUseCount?: number | null;
+  reelCount?: number | null;
   trendId?: string | number | null;
   opportunityScore?: number;
   previewUrl?: string | null;
@@ -18,6 +19,7 @@ export const AudioIdentityCard = ({
   audioTitle,
   audioArtist,
   audioUseCount,
+  reelCount,
   trendId,
   opportunityScore = 50,
   previewUrl = null,
@@ -57,11 +59,12 @@ export const AudioIdentityCard = ({
     ? `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(audioTitle)}`
     : null;
 
-  const formatReelCount = (num?: number | null) => {
-    if (!num) return "0 reels";
-    if (num >= 1000000) return `${(num / 1000000).toFixed(1)}M reels`;
-    if (num >= 1000) return `${(num / 1000).toFixed(1)}K reels`;
-    return `${num} reels`;
+  const formatReelCount = (num?: number | null, fallbackCount?: number | null) => {
+    const countToUse = num && num > 0 ? num : (fallbackCount && fallbackCount > 0 ? fallbackCount : 0);
+    if (!countToUse) return "— reels";
+    if (countToUse >= 1000000) return `${(countToUse / 1000000).toFixed(1)}M reels`;
+    if (countToUse >= 1000) return `${(countToUse / 1000).toFixed(1)}K reels`;
+    return `${countToUse} reels`;
   };
 
   const getWaveformColor = () => {
@@ -145,7 +148,7 @@ export const AudioIdentityCard = ({
       <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
         <span className="text-xs font-medium text-white/60 flex items-center gap-1">
           <Volume2 className="h-3 w-3 text-muted-foreground" />
-          {formatReelCount(audioUseCount)}
+          {formatReelCount(audioUseCount, reelCount)}
         </span>
         
         {instagramUrl && (

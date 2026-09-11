@@ -93,11 +93,12 @@ const formatViews = (v: number) => {
   return v.toString();
 };
 
-function formatAudioUseCount(count: number): string {
-  if (!count) return "—";
-  if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M`;
-  if (count >= 1_000) return `${count.toLocaleString()}`;
-  return count.toString();
+function formatAudioUseCount(count: number, fallbackReelCount?: number): string {
+  const countToUse = count && count > 0 ? count : (fallbackReelCount && fallbackReelCount > 0 ? fallbackReelCount : 0);
+  if (!countToUse) return "—";
+  if (countToUse >= 1_000_000) return `${(countToUse / 1_000_000).toFixed(1)}M`;
+  if (countToUse >= 1_000) return `${countToUse.toLocaleString()}`;
+  return countToUse.toString();
 }
 
 /** Format a scraped-at ISO string into a human-readable "Aug 27, 06:21 AM" */
@@ -505,7 +506,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                 📈 +{formatViews(trend.viewsDelta)}
               </span>
             )}
-            <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount)}</span>
+            <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount, trend.reelCount)}</span>
           </div>
         </div>
       )}
