@@ -603,7 +603,16 @@ def _normalize_trends(trends: list) -> list:
             except Exception as _shazam_err:
                 logger.debug(f"_normalize_trends: Shazam language pass error for {t.get('audio_title')}: {_shazam_err}")
             
-    return trends
+    # Filter out unqualified or flagged self-promotional trends
+    clean_trends = []
+    for t in trends:
+        st = (t.get("status") or "").lower()
+        title = (t.get("audio_title") or "").lower()
+        if st in ("unqualified", "disqualified") or "speech plan" in title or "speechplan" in title:
+            continue
+        clean_trends.append(t)
+
+    return clean_trends
 
 
 def _trend_priority_key(trend: dict, user_niche: str = "all", user_lang: str = "all") -> tuple[float, int, int, float, float]:
