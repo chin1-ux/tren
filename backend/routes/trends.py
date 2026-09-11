@@ -175,8 +175,7 @@ def get_trends(
 def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None, 
-    current_user: str = Depends(get_current_user),
-    _plan_check: str = Depends(require_feature("early_detection"))
+    current_user: str = Depends(get_current_user)
 ):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
