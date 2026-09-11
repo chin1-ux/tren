@@ -208,7 +208,7 @@ class TrendRefresher:
                         "reel_count": total_reels_count,
                         "high_confidence": bool(trend.get("high_confidence", False)),
                         "promotion_reason": "peaked_14d_age_out",
-                    })
+                    }, previous_status=current_status)
                     logger.info(f"[EXPIRED_PEAKED_14D] '{audio_title}' aged out of peaked after {age_hours:.1f}h")
                     local_summary["expired"] += 1
                     return local_summary
@@ -219,7 +219,7 @@ class TrendRefresher:
                         "reel_count": total_reels_count,
                         "high_confidence": bool(trend.get("high_confidence", False)),
                         "promotion_reason": trend.get("promotion_reason"),
-                    })
+                    }, previous_status=current_status)
                     logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
                     local_summary["expired"] += 1
                     return local_summary
@@ -239,7 +239,7 @@ class TrendRefresher:
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
                             "promotion_reason": "recovery",
-                        })
+                        }, previous_status=current_status)
                         logger.info(f"[RECOVERED] '{audio_title}' peaked→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count})")
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
@@ -258,7 +258,7 @@ class TrendRefresher:
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
                             "promotion_reason": "recovery",
-                        })
+                        }, previous_status=current_status)
                         logger.info(f"[RECOVERED] '{audio_title}' expired→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count}, age={age_days:.1f}d)")
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
@@ -290,7 +290,7 @@ class TrendRefresher:
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
                             "promotion_reason": trend.get("promotion_reason"),
-                        })
+                        }, previous_status=current_status)
                         logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f}, 2-dip confirmed)")
                         local_summary["peaked"] += 1
                         return local_summary
@@ -321,6 +321,12 @@ class TrendRefresher:
                     "peak_velocity": max(velocity_for_check, peak_velocity),
                     "reel_count": total_reels_count,
                     "high_confidence": high_confidence,
+                }, previous_status=current_status, decision_metrics={
+                    "velocity_avg": velocity_for_check,
+                    "peak_velocity": max(velocity_for_check, peak_velocity),
+                    "reel_count": total_reels_count,
+                    "unique_creators": creator_count,
+                    "audio_use_count": clean_use_cnt,
                 })
                 logger.info(f"[{new_status.upper()}] '{audio_title}' (id={trend_id}, creators={creator_count}, velocity={velocity_for_check:.2f})")
                 local_summary[new_status] = local_summary.get(new_status, 0) + 1
@@ -340,10 +346,18 @@ class TrendRefresher:
         logger.info(f"=== TrendRefresher done: {summary} ===")
         return summary
 
-    def _update_status(self, trend_id: int, status: str, extra: dict = None):
+    def _update_status(self, trend_id: int, status: str, extra: dict = None, previous_status: str = None, decision_metrics: dict = None):
         payload = {"status": status}
         if extra:
             payload.update(extra)
+        status_reason = {
+            "previous_status": previous_status,
+            "new_status": status,
+            "transition_timestamp": datetime.now(timezone.utc).isoformat(),
+            "trigger_source": "refresher",
+            "decision_metrics": decision_metrics or extra or {}
+        }
+        payload["status_reason"] = status_reason
         self.supabase.table("trends").update(payload).eq("id", trend_id).execute()
 
     def _refresh_opportunity_score(self, trend: dict, *, confidence: float | None = None, window_hours_remaining: float | None = None) -> float:

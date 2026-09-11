@@ -847,7 +847,19 @@ class TrendEngine:
                     new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
                     final_status = old_status if old_priority >= new_priority else new_detected_status
                     if final_status != old_status:
-                        update_payload = {"status": final_status}
+                        update_payload = {
+                            "status": final_status,
+                            "status_reason": {
+                                "previous_status": old_status,
+                                "new_status": final_status,
+                                "transition_timestamp": datetime.now(timezone.utc).isoformat(),
+                                "trigger_source": "detect",
+                                "decision_metrics": {
+                                    "old_priority": old_priority,
+                                    "new_priority": new_priority,
+                                }
+                            }
+                        }
                         if final_status in ("emerging", "rising"):
                             update_payload["window_hours_remaining"] = 48
                             
@@ -1379,6 +1391,18 @@ class TrendEngine:
                     "saturation_count": trend.get("saturation_count", 0),
                     # Fix #5: sample_captions written at detection time for nightly LLM batch context
                     "sample_captions": trend.get("sample_captions", ""),
+                    "status_reason": {
+                        "previous_status": None,
+                        "new_status": trend.get("initial_status", "emerging"),
+                        "transition_timestamp": datetime.now(timezone.utc).isoformat(),
+                        "trigger_source": "detect",
+                        "decision_metrics": {
+                            "avg_velocity": trend.get("avg_velocity"),
+                            "max_velocity": trend.get("max_velocity"),
+                            "composite_score": trend.get("composite_score"),
+                            "creator_count": len(trend.get("usernames", [])),
+                        }
+                    },
                 }
 
                 try:
