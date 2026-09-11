@@ -35,7 +35,10 @@ def get_trends(
             parsed_cache = json.loads(cached_data) if cached_data else None
             if parsed_cache and len(parsed_cache) > 0:
                 logger.info(f"Serving trends from cache for key: {cache_key}")
-                headers = {"Cache-Control": "public, max-age=60"}
+                headers = {
+                    "Cache-Control": "public, max-age=60",
+                    "X-Skipped-Local-Fallback": "true",
+                }
                 return JSONResponse(content=parsed_cache, headers=headers)
         except Exception as e:
             logger.error(f"Redis fetch error: {e}")
@@ -100,12 +103,14 @@ def get_trends(
         else:
             q = q.order("velocity_avg", desc=True)
 
+        skipped_local_fallback = True
         res = q.execute()
         trends = _normalize_trends(res.data or [])
 
         # Fallback: If delay_hours or strict rising filter returns 0 trends (e.g. fresh breakout trends detected <24h ago),
         # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
         if not trends:
+            skipped_local_fallback = False
             q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
             if language and language != "all":
                 q_fb = q_fb.eq("language", language)
@@ -146,7 +151,10 @@ def get_trends(
             except Exception as e:
                 logger.error(f"Redis cache write error: {e}")
                 
-        headers = {"Cache-Control": "public, max-age=300"}
+        headers = {
+            "Cache-Control": "public, max-age=300",
+            "X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false",
+        }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching trends: {e}", exc_info=True)
@@ -499,18 +507,30 @@ def get_trends_by_language(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
+        skipped_local_fallback = True
         res = supabase.table("trends") \
             .select("*") \
             .in_("status", ["emerging", "rising"]) \
             .eq("is_seed_data", False) \
-            .in_("llm_classification_status", ["completed", "not_needed"]) \
+            .in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]) \
             .eq("language", lang) \
             .order("velocity_avg", desc=True) \
             .limit(100) \
             .execute()
         trends = _normalize_trends(res.data or [])
+        if not trends:
+            skipped_local_fallback = False
+            res_fb = supabase.table("trends") \
+                .select("*") \
+                .eq("language", lang) \
+                .order("velocity_avg", desc=True) \
+                .limit(100) \
+                .execute()
+            trends = _normalize_trends(res_fb.data or [])
+
         trends.sort(key=_trend_priority_key, reverse=True)
-        return trends
+        headers = {"X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false"}
+        return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
