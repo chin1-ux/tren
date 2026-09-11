@@ -1,5 +1,6 @@
 from __future__ import annotations
 import os
+from typing import Optional
 from dataclasses import dataclass
 from enum import Enum
 
@@ -72,10 +73,10 @@ def calculate_trend_state(
     global_saturation_pct: float,
     india_saturation_pct: float,
     window_hours_remaining: float,
-    audio_use_count: int,
-    confidence: float,
-    max_velocity: float,
-    discovery_source: str,
+    audio_use_count: Optional[int] = None,
+    confidence: float = 0.8,
+    max_velocity: float = 0.0,
+    discovery_source: str = "regional",
     median_reel_views: float = 0.0,
     max_reel_views: float = 0.0,
     unique_creators: int = 1,
@@ -86,6 +87,7 @@ def calculate_trend_state(
     All UI elements (status copy, badges, CTAs) derive from this.
     Uses configurable thresholds/weights from environment variables.
     """
+    safe_audio_use_count = audio_use_count or 0
     
     # 1. Determine velocity tier using effective velocity (max of average and max reel velocity)
     effective_velocity = max(velocity_avg, max_velocity)
@@ -108,16 +110,16 @@ def calculate_trend_state(
     # 3. Determine lifecycle (emerging/rising/peaked/expired/unqualified)
     if window_hours_remaining <= 0 or global_saturation_pct >= 90:
         lifecycle = TrendLifecycle.EXPIRED
-    elif (global_saturation_pct >= 65 or audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
+    elif (global_saturation_pct >= 65 or safe_audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
     elif (
-        (unique_creators >= 3 or audio_use_count >= RISING_USE_THRESHOLD or effective_velocity >= 20000)
+        (unique_creators >= 3 or safe_audio_use_count >= RISING_USE_THRESHOLD or effective_velocity >= 20000)
         and global_saturation_pct < 75
         and velocity_tier in ["accelerating", "stable"]
     ):
         lifecycle = TrendLifecycle.RISING
     elif (
-        (unique_creators >= 2 or audio_use_count >= EMERGING_USE_THRESHOLD or effective_velocity >= 500)
+        (unique_creators >= 2 or safe_audio_use_count >= EMERGING_USE_THRESHOLD or effective_velocity >= 500)
         and global_saturation_pct < 65
     ):
         lifecycle = TrendLifecycle.EMERGING

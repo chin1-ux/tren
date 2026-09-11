@@ -222,7 +222,7 @@ function AdminAuditPage() {
                       {log.action.replace("_", " ").toUpperCase()}
                     </span>
                     <span className="text-[10px] text-muted-foreground">
-                      {new Date(log.timestamp).toLocaleString()}
+                      {new Date(log.timestamp).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
                     </span>
                   </div>
                   <div className="space-y-1 text-sm">

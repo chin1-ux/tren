@@ -757,9 +757,9 @@ class InstagramScraper:
             logger.warning(f"Error extracting audio info: {e}")
         return None, None, None, False
 
-    def _extract_audio_use_count(self, media: dict, audio_id: str | None = None) -> int:
+    def _extract_audio_use_count(self, media: dict, audio_id: str | None = None) -> int | None:
         if not media:
-            return 0
+            return None
         try:
             clips_metadata = media.get("clips_metadata", {}) or {}
             
@@ -798,7 +798,6 @@ class InstagramScraper:
         # 5. DB fallback: Instagram removed use_count from their API circa mid-2025.
         #    If we've already fetched the official count for this audio via
         #    scrape_official_audio_counts, use that as the best available proxy.
-        official_count = 0
         if audio_id:
             try:
                 res = self.supabase.table("audio_official_counts") \
@@ -808,33 +807,11 @@ class InstagramScraper:
                     .limit(1) \
                     .execute()
                 if res.data and res.data[0].get("official_use_count") is not None:
-                    official_count = int(res.data[0]["official_use_count"])
+                    return int(res.data[0]["official_use_count"])
             except Exception:
                 pass
-        
-        if official_count > 0:
-            return official_count
 
-        # Reference-based estimate fallback:
-        # Use average of recent official counts as a honest estimate instead of
-        # a fabricated formula. Returns 0 if no reference data exists.
-        if audio_id:
-            try:
-                res = self.supabase.table("audio_official_counts") \
-                    .select("official_use_count") \
-                    .order("checked_at", desc=True) \
-                    .limit(100) \
-                    .execute()
-                if res.data:
-                    counts = [int(r["official_use_count"]) for r in res.data
-                              if r.get("official_use_count") and int(r["official_use_count"]) > 0]
-                    if counts:
-                        avg_count = int(sum(counts) / len(counts))
-                        return max(100, avg_count)
-            except Exception as e:
-                logger.warning(f"Error calculating reference audio_use_count: {e}")
-
-        return 0
+        return None
 
     def _load_instagram_cookie_headers(self) -> tuple[dict, dict]:
         """Load Instagram headers and cookies for direct HTTP fallbacks."""

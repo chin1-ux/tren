@@ -469,26 +469,16 @@ class TrendRefresher:
             else:
                 return False
 
-            # Filter out known scraper sentinel values. The scraper writes these when it
-            # cannot parse the real use_count. Both values are confirmed sentinel placeholders:
-            #   501034 — original sentinel (already guarded in trend_engine.py:892)
-            #   68085985 — newer sentinel (NOT previously filtered, causing lifecycle corruption)
-            _SENTINEL_USE_COUNTS = {501034, 68085985}
-
             counts = [
                 r["audio_use_count"]
                 for r in (matching if audio_title and audio_artist and not audio_id else (res.data or []))
-                if r.get("audio_use_count")
+                if r.get("audio_use_count") is not None
                 and r["audio_use_count"] > 0
-                and r["audio_use_count"] not in _SENTINEL_USE_COUNTS
             ]
             if not counts:
                 return False
 
             live_max = max(counts)
-            if live_max in _SENTINEL_USE_COUNTS:
-                logger.debug(f"[AUDIO_USE_COUNT] Skipping sentinel value {live_max} for trend_id={trend_id}")
-                return False
             if live_max > stored_count:
                 self.supabase.table("trends") \
                     .update({"audio_use_count": live_max}) \

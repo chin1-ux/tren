@@ -56,7 +56,7 @@ export function TrendProofSection({ trendId, isPeaking }: TrendProofSectionProps
             <div>
               <span className="text-gray-400">First Detected:</span>
               <span className="ml-2 font-mono">
-                {new Date(timeline.first_detected_at).toLocaleString()}
+                {new Date(timeline.first_detected_at).toLocaleString("en-IN", { timeZone: "Asia/Kolkata" })}
               </span>
             </div>
             <div>

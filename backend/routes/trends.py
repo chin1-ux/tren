@@ -113,22 +113,6 @@ def get_trends(
             trends = _normalize_trends(res_fb.data or [])
 
 
-        # --- Legitimacy Filter: Strip sentinel use_count values ---
-        # These are scraper fallback placeholders (Instagram internal asset IDs 60M-99M), not real audio counts.
-        _SENTINEL_USE_COUNTS = {
-            501034, 68085985, 549315,
-            36725947, 37083523, 44387446, 44387531, 46027607,
-            54717606, 64317600, 68386983, 76096904, 76096962,
-            93134979, 93135497, 93135510, 93135904,
-            94909287, 94909461, 94909669,
-            18139253, 18152379, 36106069,
-        }
-        trends = [
-            t for t in trends
-            if (t.get("audio_use_count") or 0) not in _SENTINEL_USE_COUNTS
-            and not (60_000_000 <= (t.get("audio_use_count") or 0) < 99_000_000)
-        ]
-
         # --- 70/30 Distribution: Indian/regional first, English/global after ---
         # Prioritise local trends but keep global variety.
         # Only applied when no specific language filter is active.
@@ -212,22 +196,6 @@ def get_emerging_trends(
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-
-        # --- Legitimacy Filter: Strip sentinel use_count values ---
-        _SENTINEL_USE_COUNTS = {
-            501034, 68085985, 549315,
-            1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
-            2000000, 2200000, 2700000, 3800000,
-            36725947, 37083523, 44387446, 44387531, 46027607,
-            54717606, 64317600, 68386983, 76096904, 76096962,
-            93134979, 93135497, 93135510, 93135904,
-            94909287, 94909461, 94909669,
-            18139253, 18152379, 36106069,
-        }
-        trends = [
-            t for t in trends
-            if (t.get("audio_use_count") or 0) not in _SENTINEL_USE_COUNTS
-        ]
 
         # --- 70/30 Distribution for Emerging tab ---
         if not language or language == "all":
