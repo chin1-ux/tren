@@ -3,6 +3,8 @@ import os
 from dataclasses import dataclass
 from enum import Enum
 
+from trend_constants import RISING_USE_THRESHOLD, EMERGING_USE_THRESHOLD
+
 # Configurable thresholds/weights for urgency calculation
 URGENCY_THRESHOLD_CRITICAL = float(os.getenv("URGENCY_THRESHOLD_CRITICAL", "70"))
 URGENCY_THRESHOLD_HIGH = float(os.getenv("URGENCY_THRESHOLD_HIGH", "50"))
@@ -109,13 +111,13 @@ def calculate_trend_state(
     elif (global_saturation_pct >= 65 or audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
     elif (
-        (unique_creators >= 3 or audio_use_count >= 500000 or effective_velocity >= 20000)
+        (unique_creators >= 3 or audio_use_count >= RISING_USE_THRESHOLD or effective_velocity >= 20000)
         and global_saturation_pct < 75
         and velocity_tier in ["accelerating", "stable"]
     ):
         lifecycle = TrendLifecycle.RISING
     elif (
-        (unique_creators >= 2 or effective_velocity >= 500 or initial_status in ["rising", "emerging"])
+        (unique_creators >= 2 or audio_use_count >= EMERGING_USE_THRESHOLD or effective_velocity >= 500)
         and global_saturation_pct < 65
     ):
         lifecycle = TrendLifecycle.EMERGING

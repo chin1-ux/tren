@@ -1085,24 +1085,8 @@ class TrendEngine:
                     logging.debug(f"Velocity floor gate: skipping '{title}' | {artist} — max_velocity={max_velocity}, recent_6h_avg={recent_6h_avg}")
                     continue
 
-                initial_status = None
-                promotion_trigger = None
-
-                if max_use_count >= RISING_USE_THRESHOLD and creator_count >= 3:
-                    initial_status = "rising"
-                    promotion_trigger = "audio_use_count_rising"
-                elif creator_count >= 3 and (creator_velocity > 0 or max_velocity >= 1.0):
-                    initial_status = "rising"
-                    promotion_trigger = "creator_count_rising"
-                elif max_use_count >= EMERGING_USE_THRESHOLD and creator_count >= 2:
-                    initial_status = "emerging"
-                    promotion_trigger = "audio_use_count_emerging"
-                elif creator_count >= 2:
-                    initial_status = "emerging"
-                    promotion_trigger = "creator_count_emerging"
-
-                if not initial_status:
-                    continue
+                initial_status = "emerging"
+                promotion_trigger = "detection"
 
                 # Removed Hard minimum 2-reel gate to fix the chicken-and-egg bug.
                 # If an audio has massive use_count (e.g. 50,000+) but we only scraped 1 reel using it,

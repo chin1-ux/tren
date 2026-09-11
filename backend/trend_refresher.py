@@ -6,7 +6,7 @@ from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
 from supabase import create_client, Client
-from trend_scoring import calculate_opportunity_score, calculate_realistic_peaking_score
+from trend_scoring import calculate_opportunity_score, calculate_realistic_peaking_score, calculate_trend_state
 from audio_title_normalize import normalize_audio_title
 
 try:
@@ -63,6 +63,7 @@ class TrendRefresher:
             "risen": 0,
             "peaked": 0,
             "expired": 0,
+            "unqualified": 0,
             "errors": 0,
             "audio_use_count_refreshed": 0,
             "audio_page_count_refreshed": 0,
@@ -296,117 +297,33 @@ class TrendRefresher:
                     else:
                         logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but only 1 dip — holding current status ({current_status})")
 
-                if current_status == "emerging":
-                    creator_count = self._count_unique_creators(
-                        trend.get("audio_title"), trend.get("audio_artist"), now
-                    )
-                    high_confidence = creator_count >= 5
+                creator_count = self._count_unique_creators(
+                    trend.get("audio_title"), trend.get("audio_artist"), now
+                )
+                high_confidence = creator_count >= 5
 
-                    # Single-Creator Filter Pass:
-                    # An emerging trend with < 2 distinct creators (e.g. self-promotion speechplaninc)
-                    # and no massive global count is marked unqualified.
-                    discovery_source = trend.get("discovery_source") or ""
-                    clean_use_count = trend.get("audio_use_count") or 0
-                    if creator_count < 2 and discovery_source != "global" and clean_use_count < 500_000:
-                        self._update_status(trend_id, "unqualified", {
-                            "window_hours_remaining": 0,
-                            "promotion_reason": "single_creator_unqualified",
-                        })
-                        logger.info(f"[UNQUALIFIED] '{audio_title}' marked unqualified — only {creator_count} distinct creator account")
-                        local_summary["expired"] += 1
-                        return local_summary
+                trend_state = calculate_trend_state(
+                    velocity_avg=velocity_for_check,
+                    global_saturation_pct=trend.get("global_saturation_pct", 0.0),
+                    india_saturation_pct=trend.get("india_saturation_pct", 0.0),
+                    window_hours_remaining=new_window,
+                    audio_use_count=clean_use_cnt,
+                    confidence=trend.get("confidence", 0.8),
+                    max_velocity=max(velocity_for_check, peak_velocity),
+                    discovery_source=trend.get("discovery_source", "regional"),
+                    unique_creators=creator_count,
+                )
+                new_status = trend_state.lifecycle.value
 
-                    qualifies_by_creator = creator_count >= 2
-                    qualifies_by_volume = total_reels_count >= 3
-                    velocity_ok_simple = (
-                        rising_baseline > 0
-                        and velocity_for_check > rising_baseline * 1.2
-                    )
-
-                    persisted_enough = age_hours >= 1.5
-                    volume_enough = age_hours >= 2
-                    should_rise = False
-                    promotion_reason = trend.get("promotion_reason")
-
-                    _SENTINEL_USE_COUNTS = {
-                        501034, 68085985, 549315,
-                        1000000, 1100000, 1200000, 1300000, 1400000, 1600000, 1700000,
-                        2000000, 2200000, 2700000, 3800000,
-                        36725947, 37083523, 44387446, 44387531, 46027607,
-                        54717606, 64317600, 68386983, 76096904, 76096962,
-                        93134979, 93135497, 93135510, 93135904,
-                        94909287, 94909461, 94909669,
-                        18139253, 18152379, 36106069,
-                    }
-                    # Emerging protection: Keep fresh breakout trends in emerging for at least 48h
-                    # unless global saturation reaches >65% or age_hours >= 48
-                    if age_hours < 48 and trend.get("global_saturation_pct", 0) < 65:
-                        should_rise = False
-                    else:
-                        if (
-                            clean_use_count not in _SENTINEL_USE_COUNTS
-                            and not (60_000_000 <= clean_use_count < 99_000_000)
-                            and clean_use_count >= RISING_USE_THRESHOLD
-                        ):
-                            should_rise = True
-                            promotion_reason = "audio_use_count_fasttrack"
-                        elif creator_count >= 3:
-                            should_rise = True
-                            promotion_reason = "creator_adoption_fasttrack"
-                        elif creator_count >= 2 and velocity_for_check >= 0.5:
-                            should_rise = True
-                            promotion_reason = "velocity_outlier"
-                        elif persisted_enough and qualifies_by_creator:
-                            should_rise = True
-                            promotion_reason = "creator_adoption"
-                        elif volume_enough and qualifies_by_volume:
-                            should_rise = True
-                            promotion_reason = "volume_signal"
-
-                    if should_rise:
-                        self._update_status(trend_id, "rising", {
-                            "window_hours_remaining": new_window,
-                            "velocity_avg": velocity_for_check,
-                            "peak_velocity": max(velocity_for_check, peak_velocity),
-                            "reel_count": total_reels_count,
-                            "high_confidence": high_confidence,
-                            "promotion_reason": promotion_reason,
-                        })
-                        logger.info(
-                            f"[RISEN] '{audio_title}' ({creator_count} creators, "
-                            f"velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, "
-                            f"reason={promotion_reason})"
-                        )
-                        local_summary["risen"] += 1
-                    else:
-                        self._update_status(trend_id, "emerging", {
-                            "window_hours_remaining": new_window,
-                            "velocity_avg": velocity_for_check,
-                            "reel_count": total_reels_count,
-                            "high_confidence": high_confidence,
-                            "promotion_reason": trend.get("promotion_reason"),
-                        })
-                        local_summary["emerged"] += 1
-                else:
-                    creator_count = self._count_unique_creators(
-                        trend.get("audio_title"), trend.get("audio_artist"), now
-                    )
-                    velocity_snapshot_ok, _ = self._velocity_promotion_allowed(
-                        trend_id=trend_id,
-                        current_velocity=velocity_for_check,
-                        baseline=rising_baseline,
-                    )
-                    promotion_reason = "both" if (creator_count >= 3 and velocity_snapshot_ok) else (
-                        "creator_adoption" if creator_count >= 3 else "velocity_outlier"
-                    )
-                    self._update_status(trend_id, "rising", {
-                        "window_hours_remaining": new_window,
-                        "velocity_avg": velocity_for_check,
-                        "peak_velocity": max(velocity_for_check, peak_velocity),
-                        "reel_count": total_reels_count,
-                        "high_confidence": creator_count >= 5,
-                        "promotion_reason": promotion_reason,
-                    })
+                self._update_status(trend_id, new_status, {
+                    "window_hours_remaining": new_window,
+                    "velocity_avg": velocity_for_check,
+                    "peak_velocity": max(velocity_for_check, peak_velocity),
+                    "reel_count": total_reels_count,
+                    "high_confidence": high_confidence,
+                })
+                logger.info(f"[{new_status.upper()}] '{audio_title}' (id={trend_id}, creators={creator_count}, velocity={velocity_for_check:.2f})")
+                local_summary[new_status] = local_summary.get(new_status, 0) + 1
                     
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
@@ -418,7 +335,7 @@ class TrendRefresher:
             for local_summary in executor.map(process_trend, trends):
                 with summary_lock:
                     for k, v in local_summary.items():
-                        summary[k] += v
+                        summary[k] = summary.get(k, 0) + v
 
         logger.info(f"=== TrendRefresher done: {summary} ===")
         return summary
