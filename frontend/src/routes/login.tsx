@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { toast } from "sonner";
 import { useAuth } from "@/contexts/AuthContext";
+import { useUserStore } from "@/store/useAppStore";
 import { motion } from "framer-motion";
 
 export const Route = createFileRoute("/login")({
