@@ -102,7 +102,7 @@ export function NewsFeedPanel() {
             Breaking News Feed
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            Live Instagram news scraped every 3 hours from verified sources (@rvcjinsta, @433, @pubity, @espn, @complex)
+            High-impact pop culture, sports & entertainment news for instant reel creation
           </p>
         </div>
         <Button

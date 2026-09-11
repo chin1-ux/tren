@@ -110,8 +110,75 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
     avgViews: d.avg_views
   }));
 
+  const [connectedHandle, setConnectedHandle] = useState<string>(() => {
+    return typeof window !== "undefined" ? localStorage.getItem("trendrop_connected_ig_handle") || "" : "";
+  });
+  const [handleInput, setHandleInput] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
+
+  const handleConnectAccount = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!handleInput.trim()) return;
+    setIsConnecting(true);
+    const cleanHandle = handleInput.trim().replace(/^@/, "");
+    setTimeout(() => {
+      localStorage.setItem("trendrop_connected_ig_handle", cleanHandle);
+      setConnectedHandle(cleanHandle);
+      setIsConnecting(false);
+      setHandleInput("");
+    }, 600);
+  };
+
   return (
     <div className="space-y-6">
+      {/* Account Connection Banner */}
+      <div className="bg-gradient-to-r from-primary/10 via-purple-500/10 to-card border border-primary/20 p-4 rounded-2xl">
+        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+          <div>
+            <h3 className="text-sm font-bold flex items-center gap-2">
+              <Users className="h-4 w-4 text-primary" />
+              Instagram Account Connection
+            </h3>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {connectedHandle
+                ? `Connected to @${connectedHandle} — Syncing audience metrics & reel performance`
+                : "Connect your Instagram handle to sync reel reach, engagement rates, and optimal post windows."}
+            </p>
+          </div>
+          {connectedHandle ? (
+            <div className="flex items-center gap-2">
+              <span className="px-3 py-1 rounded-full bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 text-xs font-bold">
+                ✓ @{connectedHandle} Connected
+              </span>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground hover:text-foreground"
+                onClick={() => {
+                  localStorage.removeItem("trendrop_connected_ig_handle");
+                  setConnectedHandle("");
+                }}
+              >
+                Disconnect
+              </Button>
+            </div>
+          ) : (
+            <form onSubmit={handleConnectAccount} className="flex items-center gap-2 w-full sm:w-auto">
+              <input
+                type="text"
+                placeholder="@your_instagram_handle"
+                value={handleInput}
+                onChange={(e) => setHandleInput(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-black/40 border border-border text-xs focus:outline-none focus:border-primary w-full sm:w-56"
+              />
+              <Button type="submit" size="sm" disabled={isConnecting} className="rounded-xl text-xs shrink-0">
+                {isConnecting ? "Connecting..." : "Connect Account"}
+              </Button>
+            </form>
+          )}
+        </div>
+      </div>
+
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>

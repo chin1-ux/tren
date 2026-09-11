@@ -29,6 +29,105 @@ class CulturalEventCalendar:
     
     # Cultural events for 2026-2027
     CULTURAL_EVENTS = {
+        'ganesh_chaturthi_2026': {
+            'name': 'Ganesh Chaturthi',
+            'date': '2026-09-14',
+            'duration_days': 10,
+            'content_themes': ['ganpati', 'morya', 'modak', 'aarti', 'festive_wear', 'visarjan'],
+            'content_automation': ['Modak making recipe', 'Ganpati welcome reels', 'Mandap decor ideas', 'Aarti singing challenge'],
+            'creator_opportunities': ['Ethnic fashion sponsors', 'Festive food brand partnerships', 'Pandal tour vlogs'],
+            'optimal_posting_days': [-2, -1, 0, 1, 2],
+            'hashtags': ['#GaneshChaturthi2026', '#GanpatiBappaMorya', '#Ganpati2026'],
+            'trending_hashtags': ['#ganpatidecoration', '#modakrecipe', '#bappamorya'],
+            'content_ideas': [
+                'Ganesha idol welcome ceremony',
+                'Modak preparation step-by-step',
+                'Ethnic outfit transition reel',
+                'Eco-friendly Ganesha making',
+                'Visarjan procession highlights'
+            ],
+            'region_specific': {
+                'maharashtra': ['Dhol Tasha', 'Modak', 'Pandal Visits'],
+                'south': ['Gauri Ganesha', 'Kolam', 'Prasadam'],
+                'north': ['Ganpati Sthapna', 'Sweets']
+            }
+        },
+        'navratri_2026': {
+            'name': 'Navratri (Sharad)',
+            'date': '2026-09-28',
+            'duration_days': 9,
+            'content_themes': ['garba', 'dandiya', 'chaniya_choli', 'ethnic_makeup', 'fasting_recipes'],
+            'content_automation': ['9 Days 9 Colors Outfits', 'Garba step tutorials', 'Fasting snack ideas', 'Dandiya night makeup'],
+            'creator_opportunities': ['Traditional jewellery sponsors', 'Garba venue promotions', 'Ethnic makeup tutorials'],
+            'optimal_posting_days': [-3, -1, 0, 1, 2],
+            'hashtags': ['#Navratri2026', '#GarbaLover', '#DandiyaNight', '#9Days9Colors'],
+            'trending_hashtags': ['#garbareels', '#chaniyacholi', '#navratrilook'],
+            'content_ideas': [
+                '9 Days 9 Colors outfit lookbook',
+                'Popular Garba steps tutorial',
+                'GRWM for Dandiya night',
+                'Fast-friendly Sabudana Khichdi recipe',
+                'Dandiya night vlog'
+            ],
+            'region_specific': {
+                'gujarat': ['Garba Nights', 'Chaniya Choli', 'Aarti'],
+                'north': ['Kanya Pujan', 'Mata Rani Chowki', 'Fasting']
+            }
+        },
+        'durga_puja_2026': {
+            'name': 'Durga Puja',
+            'date': '2026-10-17',
+            'duration_days': 5,
+            'content_themes': ['pujo', 'pandal_hopping', 'dhunuchi_naach', 'saree_draping', 'bengali_sweets'],
+            'content_automation': ['Pandal hopping guide', 'Traditional Saree GRWM', 'Dhunuchi dance challenge', 'Bengali bhog recipes'],
+            'creator_opportunities': ['Saree brand sponsorships', 'Restaurant Pujo menu features', 'Pandal media coverage'],
+            'optimal_posting_days': [-2, -1, 0, 1],
+            'hashtags': ['#DurgaPuja2026', '#Pujo2026', '#SubhoSaptami', '#SubhoNabami'],
+            'trending_hashtags': ['#pandalhopping', '#bengalilook', '#dhunuchinaach'],
+            'content_ideas': [
+                'Top 5 Must-Visit Pandals vlog',
+                'Traditional Red & White Saree look',
+                'Dhunuchi Naach energy video',
+                'Kolkata street food tour during Pujo',
+                'Sindoor Khela moments'
+            ],
+            'region_specific': {
+                'east': ['Pandal Hopping', 'Bhog', 'Sindoor Khela', 'Cultural Shows']
+            }
+        },
+        'dussehra_2026': {
+            'name': 'Dussehra (Vijayadashami)',
+            'date': '2026-10-20',
+            'duration_days': 1,
+            'content_themes': ['ramlila', 'ravan_dahan', 'victory_good_over_evil', 'festive_greetings'],
+            'content_automation': ['Ramlila highlights', 'Ravan Dahan fireworks', 'Festive wish reels'],
+            'creator_opportunities': ['Local event partnerships', 'Festive fashion sponsors'],
+            'optimal_posting_days': [-1, 0, 1],
+            'hashtags': ['#Dussehra2026', '#Vijayadashami', '#HappyDussehra'],
+            'trending_hashtags': ['#ravandahan', '#ramlila'],
+            'content_ideas': [
+                'Ravan Dahan fireworks footage',
+                'Vijayadashami festive greeting reel'
+            ]
+        },
+        'karva_chauth_2026': {
+            'name': 'Karva Chauth',
+            'date': '2026-10-29',
+            'duration_days': 1,
+            'content_themes': ['sargi', 'mehndi', 'fasting', 'ethnic_red_suit', 'moon_sighting'],
+            'content_automation': ['Mehndi design ideas', 'Sargi thali prep', 'Red ethnic outfit GRWM', 'Moon sighting moment'],
+            'creator_opportunities': ['Jewellery brand collaborations', 'Mehndi artist showcases', 'Skincare fasting tips'],
+            'optimal_posting_days': [-2, -1, 0],
+            'hashtags': ['#KarvaChauth2026', '#KarwaChauthSpecial', '#MehndiDesigns'],
+            'trending_hashtags': ['#karwachauthlook', '#sargithali'],
+            'content_ideas': [
+                'Quick & elegant Mehndi design ideas',
+                'Sargi thali morning preparation',
+                'Red saree / lehenga GRWM',
+                'Pooja thali decoration ideas',
+                'Moon sighting ritual reel'
+            ]
+        },
         'diwali_2026': {
             'name': 'Diwali',
             'date': '2026-11-14',
@@ -36,7 +135,7 @@ class CulturalEventCalendar:
             'content_themes': ['lights', 'diyas', 'rangoli', 'sweets', 'fireworks', 'family', 'gifts'],
             'content_automation': ['Home decor tutorials', 'Recipe videos', 'Outfit showcases', 'Family vlogs'],
             'creator_opportunities': ['Partner with home decor brands', 'Festive recipe collaborations', 'Traditional outfit sponsorships'],
-            'optimal_posting_days': [-2, -1, 0, 1],  # Days before/after event
+            'optimal_posting_days': [-2, -1, 0, 1],
             'hashtags': ['#Diwali2026', '#FestivalOfLights', '#DiwaliVibes', '#IndianFestival'],
             'trending_hashtags': ['#diwalireels', '#diwalicrackers', '#diwalidecoration'],
             'content_ideas': [
@@ -47,13 +146,7 @@ class CulturalEventCalendar:
                 'Fireworks display',
                 'Gift opening',
                 'Traditional outfit showcase'
-            ],
-            'region_specific': {
-                'north': ['Kaju Katli', 'Lakshmi Puja', 'Fireworks'],
-                'south': ['Deepavali', 'Oil Baths', 'New Clothes'],
-                'east': ['Kali Puja', 'Lights', 'Sweets'],
-                'west': ['Diwali Melas', 'Fireworks', 'Decoration']
-            }
+            ]
         },
         'holi_2027': {
             'name': 'Holi',
