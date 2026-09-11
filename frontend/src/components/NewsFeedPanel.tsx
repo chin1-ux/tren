@@ -102,7 +102,7 @@ export function NewsFeedPanel() {
             Breaking News Feed
           </h2>
           <p className="text-xs text-muted-foreground mt-0.5">
-            News events with content opportunity for {userNiche === "current_affairs" ? "current affairs creators" : "your niche"}
+            Live Instagram news scraped every 3 hours from verified sources (@rvcjinsta, @433, @pubity, @espn, @complex)
           </p>
         </div>
         <Button

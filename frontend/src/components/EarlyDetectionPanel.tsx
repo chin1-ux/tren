@@ -219,15 +219,14 @@ export function EarlyDetectionPanel() {
           </div>
         </div>
 
-        {/* Signal Type Filter Pills (E9) */}
+        {/* Signal Type Filter Pills */}
         {activeTab === 'trends' && (
           <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
             {([
-              { key: 'all',      label: 'All',      icon: <Sparkles className="h-3 w-3" /> },
-              { key: 'audio',    label: 'Audio',    icon: <Music2 className="h-3 w-3" /> },
-              { key: 'format',   label: 'Format',   icon: <Layout className="h-3 w-3" /> },
-              { key: 'news',     label: 'News',     icon: <Newspaper className="h-3 w-3" /> },
-              { key: 'festival', label: 'Festival', icon: <PartyPopper className="h-3 w-3" /> },
+              { key: 'all',      label: 'All Signals', icon: <Sparkles className="h-3 w-3" /> },
+              { key: 'audio',    label: 'Spotify Viral', icon: <Music2 className="h-3 w-3" /> },
+              { key: 'news',     label: 'Live News',     icon: <Newspaper className="h-3 w-3" /> },
+              { key: 'festival', label: 'Festivals',     icon: <PartyPopper className="h-3 w-3" /> },
             ] as { key: SignalFilter; label: string; icon: React.ReactNode }[]).map((f) => (
               <button
                 key={f.key}

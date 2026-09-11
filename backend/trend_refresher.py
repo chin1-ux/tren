@@ -325,30 +325,29 @@ class TrendRefresher:
                         94909287, 94909461, 94909669,
                         18139253, 18152379, 36106069,
                     }
-                    RISING_USE_THRESHOLD = 500_000
-
-                    # Fast-track rules for rising promotion:
-                    # 1. High audio_use_count >= 500k
-                    # 2. Strong multi-creator adoption (>= 3 creators)
-                    # 3. High velocity spike (velocity >= 1.0 with >= 2 creators)
-                    if (
-                        clean_use_count not in _SENTINEL_USE_COUNTS
-                        and clean_use_count >= RISING_USE_THRESHOLD
-                    ):
-                        should_rise = True
-                        promotion_reason = "audio_use_count_fasttrack"
-                    elif creator_count >= 3:
-                        should_rise = True
-                        promotion_reason = "creator_adoption_fasttrack"
-                    elif creator_count >= 2 and velocity_for_check >= 0.5:
-                        should_rise = True
-                        promotion_reason = "velocity_outlier"
-                    elif persisted_enough and qualifies_by_creator:
-                        should_rise = True
-                        promotion_reason = "creator_adoption"
-                    elif volume_enough and qualifies_by_volume:
-                        should_rise = True
-                        promotion_reason = "volume_signal"
+                    # Emerging protection: Keep fresh breakout trends in emerging for at least 48h
+                    # unless global saturation reaches >65% or age_hours >= 48
+                    if age_hours < 48 and trend.get("global_saturation_pct", 0) < 65:
+                        should_rise = False
+                    else:
+                        if (
+                            clean_use_count not in _SENTINEL_USE_COUNTS
+                            and clean_use_count >= RISING_USE_THRESHOLD
+                        ):
+                            should_rise = True
+                            promotion_reason = "audio_use_count_fasttrack"
+                        elif creator_count >= 3:
+                            should_rise = True
+                            promotion_reason = "creator_adoption_fasttrack"
+                        elif creator_count >= 2 and velocity_for_check >= 0.5:
+                            should_rise = True
+                            promotion_reason = "velocity_outlier"
+                        elif persisted_enough and qualifies_by_creator:
+                            should_rise = True
+                            promotion_reason = "creator_adoption"
+                        elif volume_enough and qualifies_by_volume:
+                            should_rise = True
+                            promotion_reason = "volume_signal"
 
                     if should_rise:
                         self._update_status(trend_id, "rising", {

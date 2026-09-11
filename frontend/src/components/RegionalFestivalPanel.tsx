@@ -224,7 +224,12 @@ export function RegionalFestivalPanel() {
                   size="sm"
                   variant="outline"
                   className="rounded-full text-[10px] h-7 px-3 gap-1"
-                  onClick={() => toast.info(`Content ideas for ${festival.name} coming soon!`)}
+                  onClick={() => {
+                    const ideaList = festival.hashtags && festival.hashtags.length > 0 
+                      ? festival.hashtags.join(", ") 
+                      : "Create a 30-second festive transition reel using trending audio.";
+                    toast.info(`💡 Content Angles for ${festival.name}: ${ideaList}`);
+                  }}
                 >
                   Ideas
                   <ChevronRight className="h-3 w-3" />
