@@ -96,19 +96,7 @@ export function NewsTrendCard({ trend, userNiche, index = 0 }: NewsTrendCardProp
       {/* Title */}
       <h3 className="text-sm font-bold font-display mb-1 leading-snug">{trend.trend_name}</h3>
 
-      {/* Keywords */}
-      {trend.topic_keywords?.length > 0 && (
-        <div className="flex flex-wrap gap-1 mb-3">
-          {trend.topic_keywords.slice(0, 5).map((kw) => (
-            <span
-              key={kw}
-              className="px-2 py-0.5 text-[10px] bg-white/10 text-muted-foreground rounded-full border border-border/40"
-            >
-              #{kw}
-            </span>
-          ))}
-        </div>
-      )}
+
 
       <div className="border-t border-border/30 my-3" />
 

@@ -137,11 +137,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
                   ⏳ Classifying
                 </span>
               )}
-              {nicheTag && nicheTag !== "general" && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-blue-500/10 border border-blue-500/20 px-2.5 py-0.5 text-xs font-bold text-blue-400">
-                  #{nicheTag}
-                </span>
-              )}
+
             </div>
 
             {/* Hook Brief details */}

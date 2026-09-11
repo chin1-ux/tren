@@ -181,16 +181,7 @@ function TrendDetailPage() {
           <StatPill label="Category" value={`${trend.contentTypeEmoji} ${trend.contentType}`} />
         </div>
 
-        {/* Semantic Niches */}
-        {trend.semanticNiches && trend.semanticNiches.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 pt-1">
-            {trend.semanticNiches.map((n) => (
-              <span key={n} className="inline-flex items-center gap-1 rounded-full bg-secondary/15 text-secondary border border-secondary/20 px-2.5 py-0.5 text-xs font-semibold">
-                # {n}
-              </span>
-            ))}
-          </div>
-        )}
+
 
         {/* Per-niche Adaptation Brief — injected by niche_relevance_engine */}
         {userNiche && userNiche !== 'all' && trend.adaptation_briefs?.[userNiche] && (() => {

@@ -524,26 +524,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         )}
         {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
         {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
-        {displayNiches.map((n) => {
-          const isMatched = selectedNiche && selectedNiche !== "all" && (n || "").toLowerCase() === selectedNiche.toLowerCase();
-          return (
-            <Chip
-              key={n}
-              className={
-                isMatched
-                  ? "bg-emerald-500/20 text-emerald-400 border-emerald-500/30 font-bold shadow-[0_0_8px_rgba(16,185,129,0.2)]"
-                  : "bg-secondary/15 text-secondary border border-secondary/20"
-              }
-            >
-              # {n}
-            </Chip>
-          );
-        })}
-        {remainingCount > 0 && (
-          <Chip className="bg-white/5 text-muted-foreground cursor-help">
-            +{remainingCount} more
-          </Chip>
-        )}
+
         {trend.reelCount != null && trend.reelCount > 0 && (
           <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount.toLocaleString()} reels</Chip>
         )}
