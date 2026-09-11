@@ -383,49 +383,7 @@ function TrendsFeed() {
           )}
         </div>
 
-        {/* Niche Selection Chip Strip */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mt-2 px-1">
-          {NICHES.map((nicheItem) => (
-            <button
-              key={nicheItem.id}
-              onClick={() => {
-                setSelectedNiche(nicheItem.id);
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("trendrop_pref_niche", nicheItem.id);
-                }
-              }}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-all border ${
-                selectedNiche === nicheItem.id
-                  ? "bg-primary text-white border-primary"
-                  : "bg-muted text-muted-foreground border-border/30 hover:text-foreground"
-              }`}
-            >
-              {nicheItem.label}
-            </button>
-          ))}
-        </div>
 
-        {/* Language Selection Chip Strip (Hidden temporarily) */}
-        {/* <div className="flex gap-2 overflow-x-auto no-scrollbar py-2 mt-2 px-1">
-          {LANGUAGES.map((lang) => (
-            <button
-              key={lang.code}
-              onClick={() => {
-                setLanguage(lang.code);
-                if (typeof window !== "undefined") {
-                  localStorage.setItem("trendrop_pref_language", lang.code);
-                }
-              }}
-              className={`shrink-0 rounded-full px-3 py-1 text-xs font-semibold transition-all border ${
-                language === lang.code
-                  ? "bg-primary text-white border-primary"
-                  : "bg-muted text-muted-foreground border-border/30 hover:text-foreground"
-              }`}
-            >
-              {lang.label}
-            </button>
-          ))}
-        </div> */}
       </div>
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}

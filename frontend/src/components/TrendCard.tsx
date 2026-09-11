@@ -445,16 +445,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             🌐 CROSSOVER
           </span>
         )}
-        {trend.language && trend.language !== "en" && (
-          <span className="inline-flex items-center gap-1 rounded-full bg-white/5 px-2 py-0.5 text-[9px] font-semibold text-muted-foreground">
-            {LANG_EMOJIS[trend.language] || trend.language.toUpperCase()}
-          </span>
-        )}
-        {trend.opportunityScore !== undefined && trend.opportunityScore > 0 && (
-          <span className={`ml-auto inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[10px] font-extrabold border ${getOpportunityScoreBadgeColor(trend.opportunityScore)}`}>
-            🟢 {Math.round(trend.opportunityScore)}
-          </span>
-        )}
+
       </div>
 
       {/* Video/Audio Identity Card replacing Image Thumbnail */}
@@ -521,24 +512,15 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
 
       {/* ── 3. Chips row ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
-        <Chip>{trend.contentTypeEmoji} {trend.contentType}</Chip>
         {trend.isRegionalCrossover && trend.crossoverFromLanguage && (
           <Chip className="bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
             🔀 {trend.crossoverFromLanguage} crossover
-          </Chip>
-        )}
-        {trend.creatorFitScore !== undefined && trend.creatorFitScore >= 0.8 && (
-          <Chip className="bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 font-bold">
-            🎯 Niche Match
           </Chip>
         )}
         {!trend.isClassificationVerified && (
           <Chip className="bg-amber-500/15 text-amber-300 border border-amber-500/20">
             ⏳ Classifying
           </Chip>
-        )}
-        {trend.isClassificationVerified && trend.languageEmoji && trend.language && (
-          <Chip>{trend.languageEmoji} {trend.language}</Chip>
         )}
         {trend.isDance && <Chip className="bg-amber/15 text-amber border border-amber/20">💃 Dance</Chip>}
         {trend.isNarrativeEdit && <Chip className="bg-purple/15 text-purple border border-purple/20">🎞️ Narrative</Chip>}
@@ -565,38 +547,6 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         {trend.reelCount != null && trend.reelCount > 0 && (
           <Chip className="bg-white/5 text-muted-foreground">{trend.reelCount.toLocaleString()} reels</Chip>
         )}
-      </div>
-
-      {/* ── 4. Velocity waveform ──────────────────────────────────────────── */}
-      <div className="space-y-1.5">
-        <div className="flex items-center justify-between text-xs">
-          <span className="font-semibold uppercase tracking-wide text-muted-foreground">Velocity</span>
-          {velocityStrength > 0 ? (
-            <span className="font-bold text-primary">
-              {velocityStrength.toFixed(1)}x normal
-              {(trend.reelCount ?? 0) < 5 && (
-                <span className="ml-1 text-[9px] text-muted-foreground font-normal">(n={trend.reelCount})</span>
-              )}
-            </span>
-          ) : (
-            <span className="font-bold text-primary">Trend strength</span>
-          )}
-        </div>
-        <div className="flex items-end gap-[3px] h-7">
-          {Array.from({ length: 20 }).map((_, i) => {
-            const filled = velocityStrength > 0 && i < Math.round((Math.min(100, (velocityStrength / 30) * 100) / 100) * 20);
-            const h = 15 + Math.sin(i * 0.8) * 10;
-            return (
-              <motion.div
-                key={i}
-                initial={{ height: 0 }}
-                animate={{ height: `${h}px` }}
-                transition={{ type: "spring", stiffness: 80, damping: 10, delay: i * 0.02 }}
-                className={`flex-1 rounded-sm ${filled ? "bg-gradient-to-t from-primary to-secondary" : "bg-muted/30"}`}
-              />
-            );
-          })}
-        </div>
       </div>
 
       {/* Expand hint */}
@@ -745,14 +695,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
               </p>
             </div>
 
-            {/* ── 6. Saturation dual clocks comparison ── */}
-            <div className="rounded-xl border border-border/40 bg-white/[0.02] p-3 space-y-3">
-              <p className="text-[10px] font-bold text-muted-foreground uppercase tracking-wider">📊 Saturation Clock</p>
-              <div className="grid grid-cols-2 gap-4">
-                <SaturationBar label="🌍 Global Saturation" pct={globalPct} />
-                <SaturationBar label="🇮🇳 India Saturation" pct={indiaPct} showOpportunity={true} />
-              </div>
-            </div>
+
 
             {/* Creator scores */}
             <div className="space-y-2">
@@ -886,19 +829,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
                 )}
               </Button>
 
-              {FEATURES.GENERATE_ENABLED && (
-                <Button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const search: Record<string, string> = { trendId: trend.id };
-                    if (selectedNiche && selectedNiche !== "all") search.niche = selectedNiche;
-                    navigate({ to: "/generate", search });
-                  }}
-                  className="h-11 w-full bg-primary font-bold uppercase tracking-wide text-white hover:bg-primary/90 transition-all hover:scale-[1.01]"
-                >
-                  <Video className="h-4 w-4" /> Generate My Reel
-                </Button>
-              )}
+
 
             </div>
           </motion.div>
