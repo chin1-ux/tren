@@ -155,6 +155,19 @@ class TrendRefresher:
                 stored_reel_count = trend.get("reel_count") or 0
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
+                # Unqualify orphan/single-reel tracks with 0 usage count
+                clean_use_cnt = int(trend.get("audio_use_count") or 0)
+                if clean_use_cnt == 0 and total_reels_count <= 1:
+                    self._update_status(trend_id, "unqualified", {
+                        "window_hours_remaining": 0,
+                        "reel_count": total_reels_count,
+                        "high_confidence": False,
+                        "promotion_reason": "unqualified_single_reel_zero_count",
+                    })
+                    logger.info(f"[UNQUALIFY_SINGLE_REEL] '{audio_title}' (id={trend_id}) has 0 use_count and {total_reels_count} reels.")
+                    local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
+                    return local_summary
+
                 # Real short-form trends last 1 to 3 weeks (14 days = 336h).
                 min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(14 * 24)))
 
@@ -332,6 +345,7 @@ class TrendRefresher:
                     else:
                         if (
                             clean_use_count not in _SENTINEL_USE_COUNTS
+                            and not (60_000_000 <= clean_use_count < 99_000_000)
                             and clean_use_count >= RISING_USE_THRESHOLD
                         ):
                             should_rise = True
