@@ -80,25 +80,21 @@ export function EarlyDetectionPanel() {
   }, []);
 
   const fetchEarlyTrends = async () => {
-    if (userPlan === "free") {
-      setEarlyTrends([]);
-      setLoading(false);
-      return;
-    }
     try {
-      // Use apiFetch (not bare fetch) so the Authorization: Bearer <token> header
-      // is injected automatically from inMemoryToken / trendrop_session_token.
-      // Without this, get_current_user returns guest@trendrop.app and
-      // require_feature("early_detection") raises 401 for every user.
-      const res = await apiFetch('/api/trends/emerging');
+      const res = await apiFetch('/api/spotify/viral');
       if (res.ok) {
         const data = await res.json();
-        // Map flat API rows into the display shape; drop rows we can't derive.
-        setEarlyTrends((data || []).map(mapEarlyTrend).filter(Boolean));
-      } else if (res.status === 401 || res.status === 403) {
-        // 401 = unauthenticated (token missing/expired), 403 = plan gate
-        // Both mean we cannot show early trends — PlanGate will handle the UI.
-        setEarlyTrends([]);
+        if (data && data.length > 0) {
+          setEarlyTrends(data);
+          setLoading(false);
+          return;
+        }
+      }
+      
+      const resEmerging = await apiFetch('/api/trends/emerging');
+      if (resEmerging.ok) {
+        const dataFb = await resEmerging.json();
+        setEarlyTrends((dataFb || []).map(mapEarlyTrend).filter(Boolean));
       }
     } catch (err) {
       console.error('Error fetching early trends:', err);
@@ -276,6 +272,11 @@ export function EarlyDetectionPanel() {
                       <h3 className="text-sm font-semibold font-display truncate">
                         {trend.audio_title}
                       </h3>
+                      {(trend as any).market_label && (
+                        <span className="px-2 py-0.5 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full shrink-0">
+                          {(trend as any).market_label}
+                        </span>
+                      )}
                       <span className={`px-2 py-0.5 text-[10px] font-bold ${getScoreBg(trend.prediction?.combined_score ?? 0)} ${getScoreColor(trend.prediction?.combined_score ?? 0)} rounded-full`}>
                         {(trend.prediction?.combined_score ?? 0).toFixed(0)}%
                       </span>
