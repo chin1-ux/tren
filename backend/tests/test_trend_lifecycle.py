@@ -119,3 +119,35 @@ def test_lifecycle_unqualified():
         unique_creators=1,
     )
     assert state.lifecycle == TrendLifecycle.UNQUALIFIED
+
+
+def test_fix2_stale_creator_count_negative_control():
+    """Negative control for Fix 2: prove stale creator_count leaks corrupt lifecycle state."""
+    actual_usernames = ["creatorA", "creatorB"]
+    actual_creator_count = len(actual_usernames)  # 2 creators -> SHOULD BE EMERGING
+    stale_leaked_creator_count = 5                 # Leaked from previous loop -> WRONGLY PROMOTES TO RISING
+
+    # Correct calculation (Fix 2 fix active):
+    correct_state = calculate_trend_state(
+        velocity_avg=4000.0,
+        global_saturation_pct=10.0,
+        india_saturation_pct=5.0,
+        window_hours_remaining=48,
+        audio_use_count=20000,
+        unique_creators=actual_creator_count,
+    )
+    # Actual 2 creators must be EMERGING
+    assert correct_state.lifecycle == TrendLifecycle.EMERGING
+
+    # Buggy calculation (reintroducing Fix 2 bug using stale_leaked_creator_count=5):
+    buggy_state = calculate_trend_state(
+        velocity_avg=4000.0,
+        global_saturation_pct=10.0,
+        india_saturation_pct=5.0,
+        window_hours_remaining=48,
+        audio_use_count=20000,
+        unique_creators=stale_leaked_creator_count,
+    )
+    # Proves the bug: using stale leaked creator_count=5 falsely returns RISING instead of EMERGING
+    assert buggy_state.lifecycle == TrendLifecycle.RISING
+

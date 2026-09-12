@@ -352,7 +352,7 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed"]).order("velocity_avg", desc=True).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).order("velocity_avg", desc=True).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         return trends

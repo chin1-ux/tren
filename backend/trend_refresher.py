@@ -1,5 +1,4 @@
 import logging
-import logging
 import os
 import statistics
 from datetime import datetime, timezone, timedelta
