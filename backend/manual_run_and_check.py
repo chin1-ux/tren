@@ -1,10 +1,19 @@
-import os
-import sys
-import argparse
+import logging
 
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
+
+log_file_path = os.path.join(backend_dir, "instagram_scraper_browser.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s",
+    force=True,
+    handlers=[
+        logging.StreamHandler(sys.stdout),
+        logging.FileHandler(log_file_path, mode="a", encoding="utf-8")
+    ]
+)
 
 from datetime import datetime
 from dotenv import load_dotenv
@@ -12,6 +21,7 @@ from supabase import create_client
 
 # Load environment variables
 load_dotenv()
+
 
 # Initialize Supabase client
 url = os.getenv('SUPABASE_URL')
