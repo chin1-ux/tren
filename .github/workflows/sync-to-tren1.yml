@@ -1,9 +1,6 @@
 name: Sync to Dedicated Scraper Repo (chin1-ux/tren)
 
 on:
-  push:
-    branches:
-      - main
   workflow_dispatch:
 
 jobs:
@@ -23,7 +20,7 @@ jobs:
             git config user.name "github-actions[bot]"
             git config user.email "github-actions[bot]@users.noreply.github.com"
             git remote add target https://x-access-token:${SCRAPER_REPO_TOKEN}@github.com/chin1-ux/tren.git || true
-            git push target main --force
+            git push target main --force-with-lease
           else
             echo "SCRAPER_REPO_TOKEN not configured; skipping sync."
           fi
