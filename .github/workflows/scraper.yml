@@ -99,6 +99,8 @@ jobs:
           || github.event.inputs.mode == 'india'
         env:
           SCRAPER_MODE: india
+          CAMOUFOX_SKIP_INSTAGRAM_WARMUP: "1"
+
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
