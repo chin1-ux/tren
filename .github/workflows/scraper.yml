@@ -153,3 +153,14 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python backend/verify_scraper_run.py
+
+      - name: Upload scraper browser log artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instagram-scraper-browser-log
+          path: |
+            instagram_scraper_browser.log
+            backend/instagram_scraper_browser.log
+          if-no-files-found: ignore
+
