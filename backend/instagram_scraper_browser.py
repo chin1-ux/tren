@@ -136,13 +136,11 @@ class InstagramScraper:
         
         self.hashtag_groups = {
             "INDIA_TRENDING": [
-                "trendingindia", "reelsindia", "instagramindia", "indiansong",
-                "reelkarofeelkaro", "desimemes", "exploreindia", "viralindia",
-                "india", "mumbai", "delhi", "bangalore", "creatorindia"
+                "indiansong", "reelkarofeelkaro", "trendingindia", "exploreindia"
             ],
             "INDIA_VERNACULAR": [
-                "hindireels", "punjabisongs", "tamilreels", "telugureels",
-                "kannadareels", "marathireels", "malayalamreels",
+                "telugureels", "kannadareels", "marathireels", "punjabisongs",
+                "hindireels", "tamilreels", "malayalamreels",
                 "keralagram", "chennaimemes"
             ],
             "FITNESS": [
@@ -156,9 +154,12 @@ class InstagramScraper:
                 "foodporn", "streetfoodindia", "paneer", "biryani"
             ],
             "COMEDY": [
-                "comedyreels", "desicomedy", "indiancomedy", "funnyreels",
-                "relatablereels", "standupindia", "memesindia", "trolls",
-                "desimemes", "sarcasm"
+                "desicomedy", "comedyreels", "indiancomedy", "funnyreels",
+                "relatablereels"
+            ],
+            "DANCE": [
+                "dancechallenge", "choreography", "dancereels", "danceindia",
+                "dancevideo"
             ],
             "FASHION": [
                 "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",

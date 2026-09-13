@@ -9,7 +9,7 @@ on:
       mode:
         description: 'Which mode to run'
         required: false
-        default: 'both'
+        default: 'india'
         type: choice
         options:
           - both
@@ -23,7 +23,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    timeout-minutes: 60
 
     steps:
       - name: Checkout repository
