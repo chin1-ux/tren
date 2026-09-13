@@ -50,6 +50,7 @@ class TrendLifecycle(Enum):
     RISING = "rising"
     PEAKED = "peaked"
     EXPIRED = "expired"
+    RESURGING = "resurging"
     UNQUALIFIED = "unqualified"
 
 @dataclass

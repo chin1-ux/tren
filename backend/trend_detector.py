@@ -456,8 +456,73 @@ def _save_trend(trend: Dict, supabase: Client):
             existing = res.data[0]
 
     if existing:
-        STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
-        current_priority = STATUS_PRIORITY.get(existing.get("status", ""), 0)
+        existing_status = existing.get("status", "")
+        if existing_status in ["expired", "peaked"]:
+            unique_creators = trend.get("unique_creators", 1)
+            new_velocity = trend.get("avg_velocity", 0.0)
+
+            # Query trend_snapshots to check historical sustained signal
+            snaps_res = supabase.table("trend_snapshots") \
+                .select("velocity_avg, creator_count, captured_at") \
+                .eq("trend_id", existing["id"]) \
+                .order("captured_at", desc=True) \
+                .limit(2) \
+                .execute()
+            
+            snapshots = snaps_res.data or []
+            
+            from trend_constants import RESURGENCE_VELOCITY_THRESHOLD
+            has_sustained_signal = (
+                len(snapshots) >= 2 and
+                unique_creators >= 3 and
+                all((s.get("velocity_avg") or 0) >= RESURGENCE_VELOCITY_THRESHOLD for s in snapshots) and
+                all((s.get("creator_count") or 0) >= 3 for s in snapshots) and
+                new_velocity >= RESURGENCE_VELOCITY_THRESHOLD
+            )
+            
+            if has_sustained_signal:
+                status_reason = {
+                    "new_status": "resurging",
+                    "previous_status": existing_status,
+                    "trigger_source": "resurgence_gate",
+                    "snapshots_evaluated": len(snapshots),
+                    "decision_metrics": {
+                        "velocity_avg": new_velocity,
+                        "unique_creators": unique_creators
+                    }
+                }
+                supabase.table("trends").update({
+                    "status": "resurging",
+                    "velocity_avg": new_velocity,
+                    "peak_velocity": trend["max_velocity"],
+                    "reel_count": trend["reel_count"],
+                    "saturation_score": trend["saturation_score"],
+                    "window_hours_remaining": trend["window_hours_remaining"],
+                    "confidence": trend["confidence"],
+                    "status_reason": status_reason
+                }).eq("id", existing["id"]).execute()
+            else:
+                status_reason = {
+                    "new_status": existing_status,
+                    "previous_status": existing_status,
+                    "trigger_source": "resurgence_gate_denied",
+                    "snapshots_evaluated": len(snapshots),
+                    "decision_metrics": {
+                        "velocity_avg": new_velocity,
+                        "unique_creators": unique_creators
+                    }
+                }
+                supabase.table("trends").update({
+                    "velocity_avg": new_velocity,
+                    "peak_velocity": max(trend["max_velocity"], existing.get("peak_velocity") or 0),
+                    "reel_count": trend["reel_count"],
+                    "saturation_score": trend["saturation_score"],
+                    "status_reason": status_reason
+                }).eq("id", existing["id"]).execute()
+            return
+
+        STATUS_PRIORITY = {"unqualified": 0, "candidate": 1, "emerging": 2, "rising": 3}
+        current_priority = STATUS_PRIORITY.get(existing_status, 0)
         new_priority = STATUS_PRIORITY.get("emerging", 2)
         if new_priority > current_priority:
             supabase.table("trends").update({

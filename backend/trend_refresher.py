@@ -226,40 +226,57 @@ class TrendRefresher:
                 velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
 
-                # Peaked→emerging recovery: if velocity climbed back above baseline
-                # AND new reels appeared recently, treat as renewed momentum.
-                # UNCALIBRATED — thresholds are educated guesses, not data-derived.
-                # Re-tune after real peaked→emerging trajectory data exists.
-                if current_status == "peaked" and velocity_for_check > 0 and rising_baseline > 0:
-                    if velocity_for_check >= rising_baseline and new_reels_count > 0:
-                        self._update_status(trend_id, "rising", {
+                # Peaked/Expired recovery MUST pass the Resurgence Gate
+                # (Sustained signal across 2+ snapshots with velocity >= 3,000 and unique_creators >= 3).
+                if current_status in ["peaked", "expired"]:
+                    unique_creators = self._count_unique_creators(
+                        trend.get("audio_title"), trend.get("audio_artist"), datetime.now(timezone.utc)
+                    )
+                    
+                    snaps_res = self.supabase.table("trend_snapshots") \
+                        .select("velocity_avg, creator_count, captured_at") \
+                        .eq("trend_id", trend_id) \
+                        .order("captured_at", desc=True) \
+                        .limit(2) \
+                        .execute()
+                    snapshots = snaps_res.data or []
+                    
+                    from trend_constants import RESURGENCE_VELOCITY_THRESHOLD
+                    has_sustained_signal = (
+                        len(snapshots) >= 2 and
+                        unique_creators >= 3 and
+                        all((s.get("velocity_avg") or 0) >= RESURGENCE_VELOCITY_THRESHOLD for s in snapshots) and
+                        all((s.get("creator_count") or 0) >= 3 for s in snapshots) and
+                        velocity_for_check >= RESURGENCE_VELOCITY_THRESHOLD
+                    )
+                    
+                    if has_sustained_signal:
+                        self._update_status(trend_id, "resurging", {
                             "window_hours_remaining": new_window,
                             "velocity_avg": velocity_for_check,
                             "reel_count": total_reels_count,
                             "high_confidence": bool(trend.get("high_confidence", False)),
-                            "promotion_reason": "recovery",
+                            "promotion_reason": "resurgence_gate",
                         }, previous_status=current_status)
-                        logger.info(f"[RECOVERED] '{audio_title}' peaked→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count})")
+                        logger.info(f"[RESURGING] '{audio_title}' {current_status}→resurging (velocity={velocity_for_check:.2f}, creators={unique_creators})")
                         local_summary["recovered"] = local_summary.get("recovered", 0) + 1
                         return local_summary
-
-                # Expired→rising recovery: same logic as peaked, but with an age cap.
-                # Expired trends can be arbitrarily old (weeks/months), so we only allow
-                # recovery if first_detected_at is within the last 30 days.
-                # Uses first_detected_at because no status_changed_at field exists.
-                EXPIRED_RECOVERY_MAX_AGE_DAYS = 30
-                if current_status == "expired" and velocity_for_check > 0 and rising_baseline > 0:
-                    age_days = age_hours / 24.0
-                    if age_days <= EXPIRED_RECOVERY_MAX_AGE_DAYS and velocity_for_check >= rising_baseline and new_reels_count > 0:
-                        self._update_status(trend_id, "rising", {
-                            "window_hours_remaining": new_window,
+                    else:
+                        # Resurgence gate denied: remain peaked/expired, log decision
+                        self.supabase.table("trends").update({
                             "velocity_avg": velocity_for_check,
                             "reel_count": total_reels_count,
-                            "high_confidence": bool(trend.get("high_confidence", False)),
-                            "promotion_reason": "recovery",
-                        }, previous_status=current_status)
-                        logger.info(f"[RECOVERED] '{audio_title}' expired→rising (velocity={velocity_for_check:.2f}, baseline={rising_baseline:.2f}, new_reels={new_reels_count}, age={age_days:.1f}d)")
-                        local_summary["recovered"] = local_summary.get("recovered", 0) + 1
+                            "status_reason": {
+                                "new_status": current_status,
+                                "previous_status": current_status,
+                                "trigger_source": "refresher_resurgence_gate_denied",
+                                "snapshots_evaluated": len(snapshots),
+                                "decision_metrics": {
+                                    "velocity_avg": velocity_for_check,
+                                    "unique_creators": unique_creators
+                                }
+                            }
+                        }).eq("id", trend_id).execute()
                         return local_summary
 
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:

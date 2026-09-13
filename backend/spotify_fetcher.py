@@ -5,6 +5,7 @@ from typing import List, Dict, Any
 from datetime import datetime, timezone
 from dotenv import load_dotenv
 from supabase import create_client, Client
+from trend_constants import VINTAGE_CATALOG_AGE_DAYS, VINTAGE_CATALOG_AGE_YEARS_FALLBACK
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger("spotify_fetcher")
@@ -88,6 +89,15 @@ class SpotifyFetcher:
             for i, track in enumerate(items):
                 if not track:
                     continue
+                album_info = track.get("album", {}) or {}
+                rel_date = album_info.get("release_date")
+                rel_year = None
+                if rel_date:
+                    try:
+                        rel_year = int(rel_date.split("-")[0])
+                    except (ValueError, IndexError):
+                        pass
+
                 tracks.append({
                     "market": "SEARCH",
                     "rank": i + 1,
@@ -95,7 +105,9 @@ class SpotifyFetcher:
                     "artist": ", ".join([a.get("name") for a in track.get("artists", [])]),
                     "spotify_id": track.get("id"),
                     "popularity": track.get("popularity", 0),
-                    "query": query
+                    "query": query,
+                    "release_date": rel_date,
+                    "release_year": rel_year
                 })
             return tracks
         except Exception as e:
@@ -127,6 +139,15 @@ class SpotifyFetcher:
                 track = item.get("track")
                 if not track:
                     continue
+                album_info = track.get("album", {}) or {}
+                rel_date = album_info.get("release_date")
+                rel_year = None
+                if rel_date:
+                    try:
+                        rel_year = int(rel_date.split("-")[0])
+                    except (ValueError, IndexError):
+                        pass
+
                 tracks.append({
                     "market": country_code,
                     "rank": i + 1,
@@ -134,7 +155,9 @@ class SpotifyFetcher:
                     "artist": ", ".join([a.get("name") for a in track.get("artists", [])]),
                     "spotify_id": track.get("id"),
                     "popularity": track.get("popularity", 0),
-                    "is_new": item.get("added_at", "") > (datetime.now(timezone.utc).isoformat())
+                    "is_new": item.get("added_at", "") > (datetime.now(timezone.utc).isoformat()),
+                    "release_date": rel_date,
+                    "release_year": rel_year
                 })
             return tracks
         except Exception as e:
@@ -149,10 +172,11 @@ class SpotifyFetcher:
         crossovers = []
         
         for track in market_tracks:
-            title_clean = track['title'].split("(")[0].split("-")[0].strip()
-            if not title_clean or len(title_clean) < 3:
-                continue
-                
+            try:
+                title_clean = track['title'].split("(")[0].split("-")[0].strip()
+                if not title_clean or len(title_clean) < 3:
+                    continue
+                    
                 # Tier 2 Normalized Match (Exact Title + Exact Primary Artist using explicit 'artist' column)
                 from audio_utils import _normalize_audio_title_and_artist, _extract_remix_indicators
 
@@ -175,6 +199,30 @@ class SpotifyFetcher:
 
                 if not is_tracked:
                     spotify_pattern = f"spotify_viral_{track['spotify_id']}"
+                    rel_date = track.get("release_date")
+                    rel_year = track.get("release_year")
+                    
+                    # Exact day-based age check against VINTAGE_CATALOG_AGE_DAYS
+                    is_vintage = False
+                    if rel_date:
+                        try:
+                            parts = rel_date.split("-")
+                            if len(parts) == 3:
+                                dt_rel = datetime.strptime(rel_date, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+                                age_days = (datetime.now(timezone.utc) - dt_rel).days
+                                if age_days >= VINTAGE_CATALOG_AGE_DAYS:
+                                    is_vintage = True
+                            elif len(parts) == 1 and rel_year:
+                                # Fallback if only year was provided in API response (wider margin for fuzzy year precision)
+                                if (datetime.now(timezone.utc).year - rel_year) >= VINTAGE_CATALOG_AGE_YEARS_FALLBACK:
+                                    is_vintage = True
+                        except Exception as parse_err:
+                            logger.debug(f"Could not parse release_date '{rel_date}': {parse_err}")
+
+                    niche_rel = {"dance": 0.9, "lifestyle": 0.7, "remix": 0.95}
+                    if is_vintage:
+                        niche_rel["vintage_catalog"] = True
+
                     crossover = {
                         "trend_type": "audio",
                         "trend_name": f"{track['title']} - {track['artist']}",
@@ -184,7 +232,9 @@ class SpotifyFetcher:
                         "velocity_avg": float(100 - track.get('rank', 10)),
                         "confidence": 85.0,
                         "status": "candidate",
-                        "niche_relevance": {"dance": 0.9, "lifestyle": 0.7, "remix": 0.95},
+                        "release_date": rel_date,
+                        "release_year": rel_year,
+                        "niche_relevance": niche_rel,
                         "adaptation_briefs": {
                             "dance": f"Rising Spotify sound '{track['title']}' by {track['artist']}. Early crossover opportunity for dance/reels creators.",
                             "lifestyle": f"Viral audio hit: Use '{track['title']}' before it saturates."
