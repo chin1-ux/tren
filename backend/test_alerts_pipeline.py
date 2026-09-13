@@ -165,6 +165,46 @@ class TestAlertsPipeline(unittest.TestCase):
             self.assertGreaterEqual(mock_resend_send.call_count, 1)
             logger.info("Verified: Email send function was called successfully (mocked).")
 
+    def test_content_trends_uuid_routing(self):
+        """
+        Verify the original bug scenario: passing a real content_trends UUID string into
+        send_trend_alerts(..., table_name='content_trends') queries content_trends directly
+        and does NOT crash with PostgreSQL invalid input syntax for type bigint.
+        """
+        import uuid
+        import resend
+        resend.api_key = "mock_key"
+        
+        test_uuid = str(uuid.uuid4())
+        dummy_data = {
+            "id": test_uuid,
+            "trend_type": "format",
+            "trend_name": "UUID Test Format",
+            "template_pattern": "test_uuid_pattern",
+            "topic_keywords": ["test", "uuid"],
+            "velocity_avg": 2.5,
+            "confidence": 0.85,
+            "status": "emerging",
+            "niche_relevance": {"dance": 0.9},
+            "window_hours_remaining": 24
+        }
+        
+        try:
+            supabase.table("content_trends").insert(dummy_data).execute()
+            
+            with patch.object(resend.Emails, 'send') as mock_resend_send:
+                mock_resend_send.return_value = {"id": "mock-email-id"}
+                from alert_system import AlertSystem
+                alert_system = AlertSystem()
+                alert_system.resend_key = "mock_key"
+                resend.api_key = "mock_key"
+                
+                # Dispatch alerts using content_trends UUID
+                emails_sent = alert_system.send_trend_alerts([test_uuid], table_name="content_trends")
+                logger.info(f"Verified: send_trend_alerts successfully routed UUID signal from content_trends without error. Emails sent: {emails_sent}")
+        finally:
+            supabase.table("content_trends").delete().eq("id", test_uuid).execute()
+
     def test_alert_worker_flow(self):
         """
         Verify that alert_worker.py processes pending queue entries,
