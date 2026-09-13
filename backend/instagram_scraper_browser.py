@@ -43,22 +43,22 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
-def calculate_saturation(audio_use_count: int, india_use_count: int) -> dict:
-    global_pct = min(100.0, (audio_use_count / 100_000) * 100)
-    india_pct = min(100.0, (india_use_count / 8_000) * 100)
+def calculate_saturation(audio_use_count: int | None, india_use_count: int | None) -> dict:
+    global_pct = round(min(100.0, (audio_use_count / 100_000) * 100), 1) if audio_use_count is not None else None
+    india_pct = round(min(100.0, ((india_use_count or 0) / 8_000) * 100), 1)
     return {
-        "global": round(global_pct, 1),
-        "india": round(india_pct, 1),
+        "global": global_pct,
+        "india": india_pct,
     }
 
-def calculate_window_hours(audio_use_count: int, velocity_pct: float) -> int:
-    if audio_use_count > 100_000:
+def calculate_window_hours(audio_use_count: int | None, velocity_pct: float) -> int:
+    if audio_use_count is not None and audio_use_count > 100_000:
         return 0
-    if velocity_pct > 300 and audio_use_count < 20_000:
+    if velocity_pct > 300 and (audio_use_count is None or audio_use_count < 20_000):
         return 8
-    if velocity_pct > 150 and audio_use_count < 50_000:
+    if velocity_pct > 150 and (audio_use_count is None or audio_use_count < 50_000):
         return 16
-    if velocity_pct > 100 and audio_use_count < 80_000:
+    if velocity_pct > 100 and (audio_use_count is None or audio_use_count < 80_000):
         return 24
     return 4
 

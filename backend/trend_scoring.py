@@ -88,6 +88,7 @@ def calculate_trend_state(
     Uses configurable thresholds/weights from environment variables.
     """
     safe_audio_use_count = audio_use_count or 0
+    safe_global_sat = global_saturation_pct if global_saturation_pct is not None else 0.0
     
     # 1. Determine velocity tier using effective velocity (max of average and max reel velocity)
     effective_velocity = max(velocity_avg, max_velocity)
@@ -98,29 +99,29 @@ def calculate_trend_state(
     else:
         velocity_tier = "declining"
     
-    if global_saturation_pct < 20:
+    if safe_global_sat < 20:
         saturation_tier = "early"
-    elif global_saturation_pct < 50:
+    elif safe_global_sat < 50:
         saturation_tier = "moderate"
-    elif global_saturation_pct < 75:
+    elif safe_global_sat < 75:
         saturation_tier = "high"
     else:
         saturation_tier = "saturated"
     
     # 3. Determine lifecycle (emerging/rising/peaked/expired/unqualified)
-    if window_hours_remaining <= 0 or global_saturation_pct >= 90:
+    if window_hours_remaining <= 0 or safe_global_sat >= 90:
         lifecycle = TrendLifecycle.EXPIRED
-    elif (global_saturation_pct >= 65 or safe_audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
+    elif (safe_global_sat >= 65 or safe_audio_use_count >= 5000000) and (velocity_tier == "declining" or saturation_tier in ["high", "saturated"]):
         lifecycle = TrendLifecycle.PEAKED
     elif (
         (unique_creators >= 3 or safe_audio_use_count >= RISING_USE_THRESHOLD or effective_velocity >= 20000)
-        and global_saturation_pct < 75
+        and safe_global_sat < 75
         and velocity_tier in ["accelerating", "stable"]
     ):
         lifecycle = TrendLifecycle.RISING
     elif (
         (unique_creators >= 2 or safe_audio_use_count >= EMERGING_USE_THRESHOLD or effective_velocity >= 500)
-        and global_saturation_pct < 65
+        and safe_global_sat < 65
     ):
         lifecycle = TrendLifecycle.EMERGING
     else:
