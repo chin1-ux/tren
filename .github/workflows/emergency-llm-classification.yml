@@ -2,9 +2,9 @@ name: Emergency LLM Classification
 
 on:
   workflow_dispatch: # Manual trigger
-  schedule:
-    # EMERGENCY POSTURE: 4x/day (was 12x) — revert to 2h post-Sept 1 reset
-    - cron: '0 0,6,12,18 * * *'
+#  schedule:
+#    # EMERGENCY POSTURE: 4x/day (was 12x) — revert to 2h post-Sept 1 reset
+#    - cron: '0 0,6,12,18 * * *'
 
 jobs:
   check-and-classify:

@@ -769,22 +769,19 @@ class TrendEngine:
                 len(audio_groups),
             )
 
-            # STEP 3: Fetch ALL existing trends for dedup (all statuses).
-            # On re-detection, update existing row in-place instead of inserting
-            # a duplicate. Status uses never-downgrade rule (rising > emerging > peaked > expired).
+            # STEP 3: Fetch ALL existing trends for dedup from content_trends (all statuses).
+            from audio_utils import _normalize_audio_title_and_artist, _extract_remix_indicators
+
             STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
-            all_trends_res = self.supabase.table("trends") \
-                .select("audio_title, audio_artist, audio_id, status, id") \
+            all_trends_res = self.supabase.table("content_trends") \
+                .select("trend_name, artist, audio_id, template_pattern, status, id") \
+                .eq("trend_type", "audio") \
                 .execute()
-            existing_named = {
-                (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip())
-                for t in (all_trends_res.data or [])
-                if t.get("audio_title")
-                and (t.get("audio_title") or "").strip().lower() != "original audio"
-            }
+            
+            all_trends = all_trends_res.data or []
             existing_by_audio_id = {
                 (t.get("audio_id") or "").strip(): t
-                for t in (all_trends_res.data or [])
+                for t in all_trends
                 if t.get("audio_id")
             }
 
@@ -792,12 +789,10 @@ class TrendEngine:
             confirmed = []
 
             for (title, artist), group_reels in audio_groups.items():
-                representative_audio_id = next((r.get("audio_id") for r in group_reels if r.get("audio_id")), None)
+                representative_audio_id = next((str(r.get("audio_id")) for r in group_reels if r.get("audio_id")), None)
+                representative_spotify_id = next((r.get("spotify_id") for r in group_reels if r.get("spotify_id")), None)
 
                 # ── Original Audio exclusion ──────────────────────────────────────────────
-                # Exclude ALL original-audio and user-created custom audio mixes ("Mix:") from trend detection entirely.
-                # Without fingerprinting, we can't match across posts reliably.
-                # Surface original audio via the format/pattern track (when built).
                 is_original_audio = (
                     title.lower() in ("original audio", "original sound", "")
                     or title.lower().startswith("original_audio::")
@@ -805,8 +800,6 @@ class TrendEngine:
                     or any(r.get("is_original_audio") is True for r in group_reels)
                 )
 
-                # Check for TikTok migration breakout footprint:
-                # Require genuine crossplatform TikTok data or exceptional view-to-follower ratio
                 max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
                 artist_followers = max((r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
                 max_views = max((r.get("view_count") or 0 for r in group_reels), default=0)
@@ -825,15 +818,36 @@ class TrendEngine:
                     continue
                 # ────────────────────────────────────────────────────────────────────────
 
-                # Check for existing trend by audio_id (primary) or title+artist (fallback)
+                # Check for existing trend:
+                # Step 1: Exact IG audio_id Fast-Path
                 existing_match = None
                 if representative_audio_id and representative_audio_id.strip() in existing_by_audio_id:
                     existing_match = existing_by_audio_id[representative_audio_id.strip()]
-                elif title.lower() != "original audio" and (title, artist) in existing_named:
-                    # Title+artist match without audio_id match — find by normalized name
-                    for t in (all_trends_res.data or []):
-                        if (normalize_audio_title(t.get("audio_title", "")).strip(), t.get("audio_artist", "").strip()) == (title, artist):
+                
+                # Step 2: Exact Spotify Track ID Fast-Path
+                if not existing_match and representative_spotify_id:
+                    sp_pattern = f"spotify_viral_{representative_spotify_id}"
+                    for t in all_trends:
+                        if t.get("template_pattern") == sp_pattern:
                             existing_match = t
+                            if representative_audio_id and not t.get("audio_id"):
+                                # Backfill audio_id on first match
+                                self.supabase.table("content_trends").update({"audio_id": representative_audio_id}).eq("id", t["id"]).execute()
+                            break
+
+                # Step 3: Tier 2 Normalized Match (Exact Title + Exact Primary Artist + Remix Guard)
+                if not existing_match and title.lower() != "original audio":
+                    norm_t, norm_a = _normalize_audio_title_and_artist(title, artist)
+                    remix_kw = _extract_remix_indicators(title)
+
+                    for t in all_trends:
+                        e_norm_t, e_norm_a = _normalize_audio_title_and_artist(t.get("trend_name", ""), t.get("artist", ""))
+                        e_remix_kw = _extract_remix_indicators(t.get("trend_name", ""))
+                        if norm_t == e_norm_t and norm_a == e_norm_a and remix_kw == e_remix_kw:
+                            existing_match = t
+                            if representative_audio_id and not t.get("audio_id"):
+                                # Backfill audio_id on first match so subsequent reels hit Step 1 fast-path
+                                self.supabase.table("content_trends").update({"audio_id": representative_audio_id}).eq("id", t["id"]).execute()
                             break
 
                 if existing_match:

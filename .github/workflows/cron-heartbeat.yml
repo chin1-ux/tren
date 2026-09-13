@@ -1,9 +1,9 @@
 name: Cron Heartbeat Watchdog
 
 on:
-  schedule:
-    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
-    - cron: '15 0,8,16 * * *'
+#  schedule:
+#    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
+#    - cron: '15 0,8,16 * * *'
   workflow_dispatch:
 
 jobs:

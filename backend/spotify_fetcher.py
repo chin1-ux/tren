@@ -153,21 +153,32 @@ class SpotifyFetcher:
             if not title_clean or len(title_clean) < 3:
                 continue
                 
-            try:
-                # Check if it's already present in content_trends
+                # Tier 2 Normalized Match (Exact Title + Exact Primary Artist using explicit 'artist' column)
+                from audio_utils import _normalize_audio_title_and_artist, _extract_remix_indicators
+
+                norm_title, norm_artist = _normalize_audio_title_and_artist(track['title'], track['artist'])
+                remix_kw = _extract_remix_indicators(track['title'])
+
                 res = self.supabase.table("content_trends") \
-                    .select("id, status") \
+                    .select("id, trend_name, artist, status, template_pattern") \
                     .eq("trend_type", "audio") \
-                    .ilike("trend_name", f"%{title_clean}%") \
                     .execute()
-                    
-                is_tracked = len(res.data) > 0
-                
+
+                is_tracked = False
+                for existing in (res.data or []):
+                    e_norm_t, e_norm_a = _normalize_audio_title_and_artist(existing.get("trend_name", ""), existing.get("artist", ""))
+                    e_remix_kw = _extract_remix_indicators(existing.get("trend_name", ""))
+
+                    if norm_title == e_norm_t and norm_artist == e_norm_a and remix_kw == e_remix_kw:
+                        is_tracked = True
+                        break
+
                 if not is_tracked:
                     spotify_pattern = f"spotify_viral_{track['spotify_id']}"
                     crossover = {
                         "trend_type": "audio",
                         "trend_name": f"{track['title']} - {track['artist']}",
+                        "artist": track['artist'],
                         "template_pattern": spotify_pattern,
                         "topic_keywords": [track['artist'], "Spotify Viral", track.get('market', 'GLOBAL')],
                         "velocity_avg": float(100 - track.get('rank', 10)),

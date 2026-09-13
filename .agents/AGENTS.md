@@ -51,9 +51,10 @@ for stmt in new_columns:
 
 ## GitHub Actions Scraper Architecture & Quota Rule
 
-- **Main Account Workflows Disabled**: All 10 GitHub Actions workflows on the main account (`ch1nmay/trendrop`) are manually disabled to preserve GitHub Actions quota (reached 90% limit).
+- **Main Account Workflows Disabled**: All 10 GitHub Actions workflows on the main account (`ch1n-may/trendrop`) are manually disabled to preserve GitHub Actions quota (reached 90% limit).
 - **Dedicated Scraper Account Active**: Background scraping continues automatically on the dedicated scraper repository (`chin1-ux/tren`), where `Scraper (Dedicated Account - 3h)` (ID: `342411740`) is active.
 - **Do not re-enable main account workflows** unless explicitly requested by Chinmay.
+- **Standing Quota-Blocked Sync Rule**: For the remainder of the billing cycle, `sync-to-tren1.yml` on `ch1n-may/trendrop` will fail due to main account quota. Attempt `sync-to-tren1.yml` once. If it fails with the known billing error, do NOT retry or poll — immediately report the failure and ask Chinmay whether to use the one-time direct-push exception for that specific reviewed commit.
 
 ## Scraper Freeze & Breakage Protection Rule (Golden Checkpoint v1.0)
 
