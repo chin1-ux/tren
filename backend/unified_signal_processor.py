@@ -252,7 +252,7 @@ class UnifiedSignalProcessor:
         
         # 3. Trigger alerts for high urgency signals
         if saved_ids:
-            self.alert_system.send_trend_alerts(saved_ids)
+            self.alert_system.send_trend_alerts(saved_ids, table_name="content_trends")
         logger.info("=== Completed Unified Signal Processor Cycle ===")
         
 if __name__ == "__main__":

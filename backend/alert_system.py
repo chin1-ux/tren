@@ -49,14 +49,14 @@ class AlertSystem:
         # Initialize Resend
         resend.api_key = self.resend_key
 
-    def send_trend_alerts(self, trend_ids: list):
+    def send_trend_alerts(self, trend_ids: list, table_name: str = None):
         """
         STEP 1 - Fetch trend data from Supabase
         STEP 2 - Fetch matching users by niche/language
         STEP 3 - Build email with urgency tier + caption kit
         STEP 4 - Send via Resend
         """
-        logging.info(f"Starting alert run for trend_ids: {trend_ids}")
+        logging.info(f"Starting alert run for trend_ids: {trend_ids} (table_name={table_name})")
         if not trend_ids:
             logging.info("No trend_ids provided. Exiting.")
             return
@@ -65,28 +65,48 @@ class AlertSystem:
             return 0
 
         try:
-            # Load user preferences instead of just users table
+            # Load user preferences or fallback to users table
             prefs_res = self.supabase.table("user_preferences").select("*").execute()
             user_prefs = prefs_res.data or []
-            logging.info(f"Loaded {len(user_prefs)} user preferences from Supabase.")
+            if not user_prefs:
+                users_res = self.supabase.table("users").select("*").execute()
+                user_prefs = users_res.data or []
+            logging.info(f"Loaded {len(user_prefs)} user preferences/users from Supabase.")
         except Exception as e:
-            logging.error(f"Failed to fetch user_preferences: {e}", exc_info=True)
+            logging.error(f"Failed to fetch user_preferences/users: {e}", exc_info=True)
             return
 
         total_emails_sent = 0
 
         for trend_id in trend_ids:
             try:
-                trend_res = self.supabase.table("trends").select("*").eq("id", trend_id).execute()
-                if not trend_res.data:
-                    # Maybe it's a content_trend
-                    ct_res = self.supabase.table("content_trends").select("*").eq("id", trend_id).execute()
-                    if not ct_res.data:
-                        logging.warning(f"Trend {trend_id} not found in trends or content_trends. Skipping.")
-                        continue
-                    trend = ct_res.data[0]
-                else:
-                    trend = trend_res.data[0]
+                trend = None
+                if table_name:
+                    try:
+                        res = self.supabase.table(table_name).select("*").eq("id", trend_id).execute()
+                        if res.data:
+                            trend = res.data[0]
+                    except Exception as te:
+                        logging.warning(f"Failed querying {table_name} for trend {trend_id}: {te}")
+
+                if not trend:
+                    # Smart table resolution based on trend_id type
+                    is_int_id = isinstance(trend_id, int) or (isinstance(trend_id, str) and trend_id.isdigit())
+                    primary_table = "trends" if is_int_id else "content_trends"
+                    fallback_table = "content_trends" if is_int_id else "trends"
+
+                    for tbl in (primary_table, fallback_table):
+                        try:
+                            res = self.supabase.table(tbl).select("*").eq("id", trend_id).execute()
+                            if res.data:
+                                trend = res.data[0]
+                                break
+                        except Exception:
+                            continue
+
+                if not trend:
+                    logging.warning(f"Trend {trend_id} not found in trends or content_trends. Skipping.")
+                    continue
 
                 trend_type = trend.get("trend_type", "audio")
                 audio_title = trend.get("trend_name") or trend.get("audio_title") or "Unknown Title"
@@ -95,8 +115,9 @@ class AlertSystem:
                 window_hours = trend.get("window_hours_remaining", 24)
                 velocity_avg = trend.get("velocity_avg", 1.0)
                 status = trend.get("status", "rising")
-                saturation_score = trend.get("saturation_score", 0.0)
-                niche_relevance = trend.get("niche_relevance", {})
+                raw_sat = trend.get("saturation_score")
+                saturation_score = float(raw_sat) if raw_sat is not None else 0.0
+                niche_relevance = trend.get("niche_relevance") or {}
                 
                 # Niche-specific trigger logic variables
                 viral_potential = trend.get("confidence", 0) if trend_type != "audio" else 0
@@ -116,9 +137,11 @@ class AlertSystem:
                 # Match users based on D1 triggers
                 matching_users = []
                 for pref in user_prefs:
-                    user_niches = pref.get("niches", [])
-                    user_state = pref.get("state", "").lower()
-                    
+                    user_niches = pref.get("niches") or []
+                    if isinstance(user_niches, str):
+                        user_niches = [user_niches]
+                    if not user_niches and pref.get("niche"):
+                        user_niches = [pref.get("niche")]
                     if not user_niches:
                         user_niches = ["all"]
                         
@@ -126,12 +149,14 @@ class AlertSystem:
                     urgency_prefix = "🔥 Trending"
                     
                     for niche in user_niches:
-                        # 1. Audio < 15% saturation in user's niche
-                        if trend_type == "audio" and saturation_score < 0.15:
-                            # If audio is relevant to niche or they accept all
+                        # 1. Audio trend in user's niche
+                        if trend_type == "audio":
                             if niche == "all" or niche_relevance.get(niche, 0) > 0.2:
                                 is_match = True
-                                urgency_prefix = "🚨 EARLY SIGNAL"
+                                if saturation_score < 0.15:
+                                    urgency_prefix = "🚨 EARLY SIGNAL"
+                                else:
+                                    urgency_prefix = "🔥 Trending"
                                 break
                                 
                         # 2. News event viral_potential > 70 for user's niche
@@ -156,6 +181,12 @@ class AlertSystem:
                             is_match = True
                             urgency_prefix = "⚡ EARLY MOVER FORMAT"
                             break
+
+                        # 5. Default fallback match for general/audio trends
+                        if not is_match and trend_type not in ("news_event", "predictable_event", "format"):
+                            if niche == "all" or niche_relevance.get(niche, 0) > 0.2:
+                                is_match = True
+                                break
 
                     if is_match:
                         matching_users.append({"email": pref.get("email"), "urgency": urgency_prefix})
@@ -191,7 +222,6 @@ class AlertSystem:
                 continue
 
         logging.info(f"Alert run complete. Emails sent: {total_emails_sent}")
-        print(f"Total emails sent: {total_emails_sent}")
         return total_emails_sent
 
     def _build_email_html(
@@ -199,21 +229,21 @@ class AlertSystem:
         caption_kit: dict = None, urgency_prefix: str = "🔥 Trending",
         saturation_score: float = 0.0
     ) -> str:
-        audio_title = trend.get("audio_title", "Unknown Title")
-        audio_artist = trend.get("audio_artist", "Unknown Artist")
-        velocity_avg = trend.get("velocity_avg", 1.0)
-        window_hours = trend.get("window_hours_remaining", 24)
+        audio_title = trend.get("audio_title") or "Unknown Title"
+        audio_artist = trend.get("audio_artist") or "Unknown Artist"
+        velocity_avg = trend.get("velocity_avg") or 1.0
+        window_hours = trend.get("window_hours_remaining") or 24
         content_type = trend.get("content_type") or "trend"
         language = trend.get("language")
-        ideal_content_description = trend.get("ideal_content_description", "")
-        camera_style = trend.get("camera_style", "handheld")
-        edit_style = trend.get("edit_style", "fast_cuts")
+        ideal_content_description = trend.get("ideal_content_description") or ""
+        camera_style = trend.get("camera_style") or "handheld"
+        edit_style = trend.get("edit_style") or "fast_cuts"
         text_overlay_template = trend.get("text_overlay_template")
-        why_this_works = trend.get("why_this_works", "")
+        why_this_works = trend.get("why_this_works") or ""
         audio_cue_second = trend.get("audio_cue_second")
         optimal_post_hour = trend.get("optimal_post_hour_ist")
-        best_platform = trend.get("best_platform_first", "instagram")
-        status = trend.get("status", "rising")
+        best_platform = trend.get("best_platform_first") or "instagram"
+        status = trend.get("status") or "rising"
 
         # Urgency banner color
         if "BREAKING" in urgency_prefix:
