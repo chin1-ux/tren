@@ -148,7 +148,7 @@ export const AudioIdentityCard = ({
       <div className="mt-4 flex items-center justify-between border-t border-white/5 pt-3">
         <span className="text-xs font-medium text-white/60 flex items-center gap-1">
           <Volume2 className="h-3 w-3 text-muted-foreground" />
-          {formatReelCount(audioUseCount, reelCount)}
+          {audioUseCount && audioUseCount > 0 ? `${audioUseCount >= 1000 ? `${(audioUseCount / 1000).toFixed(0)}K` : audioUseCount.toString()} IG uses · ${reelCount || 1} tracked` : `${reelCount || 1} reel tracked`}
         </span>
         
         {instagramUrl && (

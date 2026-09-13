@@ -186,14 +186,6 @@ class InstagramScraper:
                 "startupindia", "businessindia", "motivationalquotes",
                 "growthmindset", "leadership", "dailyquotes"
             ],
-            "DANCE": [
-                # Cross-regional tags first so DANCE[:2] always includes them.
-                # India-specific tags (bhangra, garba, bollywooddance) fall past the
-                # slice cut but remain available for full-pool or CUSTOM runs.
-                "dancechallenge", "choreography",
-                "dancereels", "indiandance", "bhangra", "garba", "classicaldance",
-                "bollywooddance", "dancecover", "hiphopindia"
-            ],
             "CURRENT_AFFAIRS": [
                 "currentaffairs", "newsindia", "geopolitics", "upsc", "indiaexplained",
                 "indiannews", "politicsindia", "breakingnews", "stockmarketindia",
@@ -247,11 +239,26 @@ class InstagramScraper:
             if custom_tags:
                 self.hashtag_groups = {"CUSTOM": custom_tags}
         self._hashtag_pool_lookup = {}
+        # Register specific niche pools first so catch-all pools cannot overwrite them
         for pool_name, tags in self.hashtag_groups.items():
+            if pool_name in ("GLOBAL_DISCOVERY", "CUSTOM"):
+                continue
             for tag in tags:
                 self._hashtag_pool_lookup[tag.lower()] = pool_name
+        for pool_name in ("GLOBAL_DISCOVERY", "CUSTOM"):
+            for tag in self.hashtag_groups.get(pool_name, []):
+                if tag.lower() not in self._hashtag_pool_lookup:
+                    self._hashtag_pool_lookup[tag.lower()] = pool_name
 
-    def _source_hashtag_pool_for_hashtags(self, hashtags: list[str]) -> str | None:
+    def _source_hashtag_pool_for_hashtags(self, hashtags: list[str], scraped_tag: str | None = None) -> str | None:
+        if scraped_tag:
+            pool = self._hashtag_pool_lookup.get(scraped_tag.lower().lstrip("#"))
+            if pool:
+                return pool
+        for tag in hashtags or []:
+            pool = self._hashtag_pool_lookup.get(tag.lower().lstrip("#"))
+            if pool and pool not in ("GLOBAL_DISCOVERY", "CUSTOM"):
+                return pool
         for tag in hashtags or []:
             pool = self._hashtag_pool_lookup.get(tag.lower().lstrip("#"))
             if pool:
@@ -1130,7 +1137,7 @@ Return ONLY valid JSON, no markdown, no explanation:
             "optimal_length_seconds": 20,
             "visual_format": "montage",
             "hook_brief_one_line": "Open with the strongest visual immediately.",
-            "niche_tags": [classify_niche(reels_batch[0].get("caption") or "", reels_batch[0].get("hashtags") or [], self._source_hashtag_pool_for_hashtags(reels_batch[0].get("hashtags") or []))] if reels_batch else ["general"],
+            "niche_tags": [classify_niche(reels_batch[0].get("caption") or "", reels_batch[0].get("hashtags") or [], self._source_hashtag_pool_for_hashtags(reels_batch[0].get("hashtags") or [], scraped_tag=None))] if reels_batch else ["general"],
         }
 
         if call_llm is None:
@@ -1344,7 +1351,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 scrape_stats["disallowed_regional_filtered"] = scrape_stats.get("disallowed_regional_filtered", 0) + 1
                 continue
 
-            source_hashtag_pool = self._source_hashtag_pool_for_hashtags([tag] + hashtags) or "GLOBAL_DISCOVERY"
+            source_hashtag_pool = self._source_hashtag_pool_for_hashtags(hashtags, scraped_tag=tag) or "GLOBAL_DISCOVERY"
 
             candidates.append({
                 "reel_id": reel_id,

@@ -18,6 +18,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { useUserStore } from "@/store/useAppStore";
+import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
 export const Route = createFileRoute("/")({
@@ -80,6 +81,7 @@ function TrendsFeed() {
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
   const userEmail = useUserStore((s) => s.email);
   const userPlan = useUserStore((s) => s.plan) || 'free';
+  const { loading: isAuthLoading } = useAuth();
 
   // Load preferences from localStorage
   useEffect(() => {
@@ -103,7 +105,7 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends", language, sortMode, selectedNiche],
     queryFn: () => fetchTrends(language, sortMode, selectedNiche),
-    staleTime: 3 * 60_000,
+    staleTime: 30_000,
     refetchInterval: 5 * 60_000,
   });
 
@@ -117,7 +119,7 @@ function TrendsFeed() {
     queryFn: () => fetchEmergingTrends(language),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
-    enabled: userPlan === "pro",
+    enabled: !isAuthLoading && userPlan === "pro",
   });
 
   const {
