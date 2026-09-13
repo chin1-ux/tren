@@ -663,10 +663,10 @@ class TrendEngine:
     def _estimate_hook_retention_score(self, reels: list[dict], title: str, recent_6h_avg: float, avg_velocity: float, max_velocity: float) -> float:
         engagement_rates = []
         for r in reels:
-            views = r.get("view_count") or 0
+            views = r.get("view_count")
             likes = r.get("like_count") or 0
             comments = r.get("comment_count") or 0
-            if views > 0:
+            if views is not None and views > 0:
                 er = (likes + comments) / views
                 engagement_rates.append(er)
         if engagement_rates:

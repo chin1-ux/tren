@@ -992,10 +992,11 @@ class InstagramScraper:
                     video_url = media["video_versions"][0].get("url")
 
                 # Standardize format to match our pipeline expectancies
+                raw_play_count = media.get("play_count") if media.get("play_count") is not None else media.get("view_count")
                 items.append({
                     "shortCode": media.get("code"),
-                    "videoViewCount": media.get("play_count") or media.get("view_count") or 0,
-                    "likesCount": media.get("like_count") or 0,
+                    "videoViewCount": raw_play_count,
+                    "likesCount": media.get("like_count"),
                     "commentsCount": media.get("comment_count") or 0,
                     "ownerFollowersCount": owner.get("follower_count") or 0,
                     "timestamp": timestamp,
@@ -1261,8 +1262,10 @@ Return ONLY valid JSON, no markdown, no explanation:
                 scrape_stats["missing_reel_id"] += 1
                 continue
 
-            view = int(item.get("videoViewCount") or 0)
-            likes = int(item.get("likesCount") or 0)
+            raw_view = item.get("videoViewCount")
+            view = int(raw_view) if raw_view is not None else None
+            raw_likes = item.get("likesCount")
+            likes = int(raw_likes) if raw_likes is not None else 0
             comments = int(item.get("commentsCount") or 0)
             owner = item.get("ownerUsername")
             followers = _resolve_followers(owner, int(item.get("ownerFollowersCount") or 0))
@@ -1275,7 +1278,10 @@ Return ONLY valid JSON, no markdown, no explanation:
             posted = datetime.fromisoformat(timestamp)
             hours_live = max((now_utc - posted).total_seconds() / 3600.0, 0.5)
 
-            engagement = (view * 1.0) + (likes * 3.0) + (comments * 3.0)
+            if view is not None:
+                engagement = (view * 1.0) + (likes * 3.0) + (comments * 3.0)
+            else:
+                engagement = (likes * 3.0) + (comments * 3.0)
             if followers <= 0:
                 # Fallback to 2500 for micro-creators / new accounts without baselines
                 # to prevent discarding early trend adopters
@@ -1306,17 +1312,21 @@ Return ONLY valid JSON, no markdown, no explanation:
                     if post_count >= 6:
                         median_v = baseline.get("median_views") or 0.0
                         multiplier_val = float(os.getenv("CREATOR_OUTLIER_MULTIPLIER", "5.0"))
-                        if view > multiplier_val * median_v:
+                        if view is not None and view > multiplier_val * median_v:
                             is_outlier_candidate = True
 
-            # If it's not a confirmed outlier, enforce a lower absolute fallback floor
+            # If it's not a confirmed outlier, enforce explicit two-branch floor
             if not is_outlier_candidate:
-                # Lower absolute floor: 2000 views or 50 likes to catch early/baby state signals
-                if view < 2000 and likes < 50:
-                    scrape_stats["low_engagement"] += 1
-                    continue
+                if view is not None:
+                    if view < 2000 and likes < 50:
+                        scrape_stats["low_engagement"] += 1
+                        continue
+                else:
+                    if likes < 50:
+                        scrape_stats["low_engagement"] += 1
+                        continue
 
-            if not (velocity > 0.3 or (view > 15000 and hours_live < 6) or is_outlier_candidate):
+            if not (velocity > 0.3 or (view is not None and view > 15000 and hours_live < 6) or is_outlier_candidate):
                 scrape_stats["velocity_failed"] += 1
                 continue
 
