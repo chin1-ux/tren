@@ -132,7 +132,7 @@ def get_trends(
         for t in trends:
             if user_niche and user_niche not in ["all", "general"]:
                 if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.score_signal(t)
+                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
                 
                 score = t["niche_relevance"].get(user_niche, 0.0)
                 brief = niche_relevance_engine.generate_adaptation_brief(t, user_niche, score)

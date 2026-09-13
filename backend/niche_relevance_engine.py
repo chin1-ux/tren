@@ -414,6 +414,11 @@ def compute_niche_relevance(
     return scores
 
 
+# Alias for backward compatibility
+score_signal = compute_niche_relevance
+
+
+
 def generate_adaptation_brief(
     trend: dict,
     niche_name: str,
