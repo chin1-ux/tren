@@ -428,6 +428,23 @@ def invalidate_cached_user_profile(email: str):
     from plan_enforcement import invalidate_plan_cache
     invalidate_plan_cache(email)
 
+def execute_supabase_get(builder, retries: int = 2, backoff_sec: float = 0.4):
+    """
+    Executes a Supabase / PostgREST read query with exponential backoff retries.
+    Specifically handles transient 502 Bad Gateway and 504 Gateway Timeout errors
+    from Supabase API Gateway. Strictly idempotent and safe (GET/read operations only).
+    """
+    for attempt in range(retries + 1):
+        try:
+            return builder.execute()
+        except Exception as e:
+            err_str = str(e)
+            is_transient = "502" in err_str or "504" in err_str or "Bad Gateway" in err_str or "Gateway Timeout" in err_str
+            if is_transient and attempt < retries:
+                time.sleep(backoff_sec * (2 ** attempt))
+                continue
+            raise
+
 def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     """
     Returns a stable user identifier string (numeric ID or UUID) given an Authorization header.

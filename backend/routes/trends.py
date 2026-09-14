@@ -90,11 +90,9 @@ def get_trends(
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
             q_delayed = q.lte("created_at", time_cutoff)
-            res_delayed = q_delayed.execute()
+            res_delayed = execute_supabase_get(q_delayed)
             if res_delayed.data and len(res_delayed.data) > 0:
                 q = q_delayed
-
-
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
@@ -104,7 +102,7 @@ def get_trends(
             q = q.order("velocity_avg", desc=True)
 
         skipped_local_fallback = True
-        res = q.execute()
+        res = execute_supabase_get(q)
         trends = _normalize_trends(res.data or [])
 
         # Fallback: If delay_hours or strict rising filter returns 0 trends (e.g. fresh breakout trends detected <24h ago),
@@ -114,7 +112,7 @@ def get_trends(
             q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
             if language and language != "all":
                 q_fb = q_fb.eq("language", language)
-            res_fb = q_fb.execute()
+            res_fb = execute_supabase_get(q_fb)
             trends = _normalize_trends(res_fb.data or [])
 
 
@@ -734,7 +732,8 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         # Get trend representative audio_id
-        trend_res = supabase.table("trends").select("audio_id").eq("id", trend_id).execute()
+        q_tr = supabase.table("trends").select("audio_id").eq("id", trend_id)
+        trend_res = execute_supabase_get(q_tr)
         if not trend_res.data or not trend_res.data[0].get("audio_id"):
             return []
 
@@ -743,12 +742,12 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
         from datetime import datetime, timedelta, timezone
         time_threshold = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
 
-        history_res = supabase.table("reel_snapshots") \
+        q_hist = supabase.table("reel_snapshots") \
             .select("snapshotted_at, audio_use_count") \
             .eq("audio_id", audio_id) \
             .gte("snapshotted_at", time_threshold) \
-            .order("snapshotted_at", desc=False) \
-            .execute()
+            .order("snapshotted_at", desc=False)
+        history_res = execute_supabase_get(q_hist)
 
         return history_res.data or []
     except Exception as e:

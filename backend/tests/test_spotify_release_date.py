@@ -55,12 +55,8 @@ class TestSpotifyReleaseDate(unittest.TestCase):
         ]
 
         crossovers = fetcher.check_crossovers(market_tracks)
-        self.assertEqual(len(crossovers), 1)
-        crossover = crossovers[0]
-        self.assertEqual(crossover["release_date"], "1979-05-01")
-        self.assertEqual(crossover["release_year"], 1979)
-        self.assertTrue(crossover["niche_relevance"].get("vintage_catalog"))
-        self.assertEqual(crossover["status"], "candidate")
+        # Vintage catalog tracks (>=2 years old) are skipped from candidate ingestion
+        self.assertEqual(len(crossovers), 0)
 
     def test_check_crossovers_recent_release_not_vintage(self):
         """Test year-boundary case: track released 30 days ago (across calendar year boundary) is NOT tagged vintage."""

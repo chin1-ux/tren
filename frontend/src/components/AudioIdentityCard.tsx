@@ -12,6 +12,7 @@ interface AudioIdentityCardProps {
   trendId?: string | number | null;
   opportunityScore?: number;
   previewUrl?: string | null;
+  index?: number;
 }
 
 export const AudioIdentityCard = ({
@@ -23,24 +24,46 @@ export const AudioIdentityCard = ({
   trendId,
   opportunityScore = 50,
   previewUrl = null,
+  index = 0,
 }: AudioIdentityCardProps) => {
   const [history, setHistory] = useState<number[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [isPlaying, setIsPlaying] = useState(false);
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
-    if (trendId) {
-      setLoadingHistory(true);
-      fetchAudioHistory(trendId)
-        .then((data) => {
-          const counts = data.map((d: any) => d.audio_use_count);
-          setHistory(counts);
-        })
-        .catch(() => {})
-        .finally(() => setLoadingHistory(false));
+    if (!containerRef.current) return;
+    const observer = new IntersectionObserver(
+      (entries) => {
+        if (entries[0].isIntersecting) {
+          setIsVisible(true);
+          observer.disconnect();
+        }
+      },
+      { rootMargin: "100px" }
+    );
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
+  }, []);
+
+  useEffect(() => {
+    if (trendId && isVisible) {
+      const delay = Math.min(1000, (index || 0) * 120);
+      const timer = setTimeout(() => {
+        setLoadingHistory(true);
+        fetchAudioHistory(trendId)
+          .then((data) => {
+            const counts = data.map((d: any) => d.audio_use_count);
+            setHistory(counts);
+          })
+          .catch(() => {})
+          .finally(() => setLoadingHistory(false));
+      }, delay);
+      return () => clearTimeout(timer);
     }
-  }, [trendId]);
+  }, [trendId, isVisible, index]);
 
   const togglePlay = (e: React.MouseEvent) => {
     e.stopPropagation();
@@ -81,7 +104,7 @@ export const AudioIdentityCard = ({
   };
 
   return (
-    <div className="relative overflow-hidden rounded-xl border border-white/10 bg-black/60 p-4 transition-all duration-300 hover:border-white/20">
+    <div ref={containerRef} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/60 p-4 transition-all duration-300 hover:border-white/20">
       {/* Hidden audio element for preview playback */}
       {previewUrl && (
         <audio

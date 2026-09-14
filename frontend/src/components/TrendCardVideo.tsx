@@ -13,9 +13,10 @@ interface TrendCardVideoProps {
   trendId?: string | number | null;
   opportunityScore?: number;
   previewUrl?: string | null;
+  index?: number;
 }
 
-export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50, previewUrl }: TrendCardVideoProps) => {
+export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50, previewUrl, index = 0 }: TrendCardVideoProps) => {
   return (
     <AudioIdentityCard
       audioId={reel.audio_id}
@@ -25,6 +26,7 @@ export const TrendCardVideo = ({ reel, trendId, opportunityScore = 50, previewUr
       trendId={trendId}
       opportunityScore={opportunityScore}
       previewUrl={previewUrl || reel.preview_url}
+      index={index}
     />
   );
 };
