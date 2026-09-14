@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchTrends } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,7 +17,7 @@ export function BottomTabBar() {
   const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
   const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
 
-  const { data: activeTrends } = useQuery({
+  const { data: risingTrends } = useQuery({
     queryKey: ["trends", "all", "velocity", "all"],
     queryFn: () => fetchTrends("all", "velocity", "all"),
     staleTime: 2 * 60_000,
@@ -25,7 +25,15 @@ export function BottomTabBar() {
     enabled: !shouldHide && Boolean(user),
   });
 
-  const activeCount = activeTrends?.length ?? 0;
+  const { data: emergingTrends } = useQuery({
+    queryKey: ["trends-emerging", "all"],
+    queryFn: () => fetchEmergingTrends(),
+    staleTime: 2 * 60_000,
+    gcTime: 10 * 60_000,
+    enabled: !shouldHide && Boolean(user),
+  });
+
+  const activeCount = (risingTrends?.length ?? 0) + (emergingTrends?.length ?? 0);
 
   if (shouldHide) {
     return null;
