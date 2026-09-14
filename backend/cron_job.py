@@ -266,6 +266,18 @@ def run_full_pipeline(stages: list = None):
         except Exception as e:
             logging.warning(f"Step 2b/5 Spotify Ingestion failed (non-fatal): {e}")
 
+    # 2d. Creator Watchlist Poller: poll Tier 1 (10k-100k) & Tier 2 (1k-10k) creators
+    if _stage("scrape") or _stage("watchlist"):
+        try:
+            run_state["stage"] = "creator_watchlist"
+            logging.info("Step 2d/5: Polling Tiered Creator Watchlist...")
+            from creator_watchlist_poller import poll_creator_watchlist
+            sb_poller = _get_supabase()
+            polled = poll_creator_watchlist(sb_poller, limit=15)
+            logging.info(f"Step 2d/5: Creator Watchlist polling complete ({len(polled)} creators selected).")
+        except Exception as e:
+            logging.warning(f"Step 2d/5 Creator Watchlist polling failed (non-fatal): {e}")
+
     # 2b. Audio Backfill: retry reels where Instagram returned no audio metadata
     audio_backfill_filled = 0
     audio_backfill_unrecoverable = 0
