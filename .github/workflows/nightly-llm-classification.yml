@@ -1,9 +1,8 @@
 name: LLM Classification Batch
 
 on:
-#  schedule:
-#    # EMERGENCY POSTURE: 2x/day (was 4x) — revert to 4x post-Sept 1 reset
-#    - cron: '0 0,12 * * *'
+  schedule:
+    - cron: '0 0,12 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 concurrency:

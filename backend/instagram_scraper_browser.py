@@ -2219,6 +2219,10 @@ Return ONLY valid JSON, no markdown, no explanation:
                 .limit(1) \
                 .execute()
                 
+            UNCONFIRMED_JUMP_THRESHOLD_USES = 500_000
+            UNCONFIRMED_JUMP_MIN_HOURS = 2.0
+            COARSE_BUCKET_STALE_ZERO_HOURS = 6.0
+
             velocity = 0.0
             now = datetime.now(timezone.utc)
             velocity_is_null = False
@@ -2237,7 +2241,16 @@ Return ONLY valid JSON, no markdown, no explanation:
                         time_diff_hours = (now - prev_time).total_seconds() / 3600.0
                         if time_diff_hours > 0.05: # avoid division by zero / super small windows
                             count_diff = count - prev_count
-                            if count_diff == 0 and precision_bucket == prev_bucket and precision_bucket != 'exact':
+                            if count_diff < 0:
+                                velocity_is_null = True
+                            elif count_diff == 0:
+                                if precision_bucket == 'exact':
+                                    velocity = 0.0
+                                elif time_diff_hours >= COARSE_BUCKET_STALE_ZERO_HOURS:
+                                    velocity = 0.0
+                                else:
+                                    velocity_is_null = True
+                            elif count_diff > UNCONFIRMED_JUMP_THRESHOLD_USES and time_diff_hours < UNCONFIRMED_JUMP_MIN_HOURS:
                                 velocity_is_null = True
                             else:
                                 velocity = count_diff / time_diff_hours

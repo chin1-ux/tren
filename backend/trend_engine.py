@@ -1065,7 +1065,7 @@ class TrendEngine:
 
                 max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
 
-                has_strong_official_velocity = False
+                official_velocity_val = None
                 if representative_audio_id:
                     try:
                         official_res = self.supabase.table("audio_official_counts") \
@@ -1075,9 +1075,7 @@ class TrendEngine:
                             .limit(1) \
                             .execute()
                         if official_res.data:
-                            vel = official_res.data[0].get("official_count_velocity")
-                            if vel and vel > 100.0:
-                                has_strong_official_velocity = True
+                            official_velocity_val = official_res.data[0].get("official_count_velocity")
                     except Exception as _auc_err:
                         logging.debug(f"detect_trends: could not fetch official audio velocity for audio_id={representative_audio_id}: {_auc_err}")
 

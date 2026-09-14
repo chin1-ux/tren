@@ -344,8 +344,30 @@ def run_full_pipeline(stages: list = None):
             run_state["stage"] = "audio_watchlist"
             sb = _get_supabase()
 
-            # Pick audio_ids seen in last 48h, prioritising those least-recently checked.
-            # LEFT JOIN against audio_official_counts so recently-unchecked IDs surface first.
+            # Priority 1a: High-priority trends from 'trends' table (emerging, resurging, rising)
+            high_priority_trends = sb.table("trends") \
+                .select("audio_id") \
+                .in_("status", ["emerging", "resurging", "rising"]) \
+                .not_.is_("audio_id", "null") \
+                .limit(50) \
+                .execute()
+
+            priority_audio_ids = [r["audio_id"] for r in (high_priority_trends.data or []) if r.get("audio_id")]
+
+            # Priority 1b: Spotify candidates from 'content_trends' (forward-compatible when matched to IG audio_id)
+            spotify_candidates = sb.table("content_trends") \
+                .select("audio_id") \
+                .eq("status", "candidate") \
+                .not_.is_("audio_id", "null") \
+                .limit(50) \
+                .execute()
+
+            for r in (spotify_candidates.data or []):
+                aid = r.get("audio_id")
+                if aid and aid not in priority_audio_ids:
+                    priority_audio_ids.append(aid)
+
+            # Priority 2: Recency fallback from reels table (last 48h)
             recent_audio_res = sb.table("reels") \
                 .select("audio_id") \
                 .not_.is_("audio_id", "null") \
@@ -356,17 +378,23 @@ def run_full_pipeline(stages: list = None):
 
             seen_ids: list[str] = []
             seen_set: set[str] = set()
+
+            for aid in priority_audio_ids:
+                if aid not in seen_set:
+                    seen_set.add(aid)
+                    seen_ids.append(aid)
+
             for row in (recent_audio_res.data or []):
                 aid = row.get("audio_id")
                 if aid and aid not in seen_set:
                     seen_set.add(aid)
                     seen_ids.append(aid)
 
-            # Exclude IDs checked in the last 4h (avoid hammering the same audio repeatedly)
+            # Exclude IDs checked in the last 4h (Pass full seen_ids list across entire candidate pool)
             if seen_ids:
                 already_checked_res = sb.table("audio_official_counts") \
                     .select("audio_id") \
-                    .in_("audio_id", seen_ids[:50]) \
+                    .in_("audio_id", seen_ids) \
                     .gte("checked_at", (datetime.now(timezone.utc) - timedelta(hours=4)).isoformat()) \
                     .execute()
                 recently_checked = {r["audio_id"] for r in (already_checked_res.data or [])}

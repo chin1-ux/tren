@@ -1,9 +1,8 @@
 name: Pending Trends Monitor
 
 on:
-#  schedule:
-#    # EMERGENCY POSTURE: 3x/day (was 6x) — revert to 4h post-Sept 1 reset
-#    - cron: '0 0,8,16 * * *'
+  schedule:
+    - cron: '0 0,8,16 * * *'
   workflow_dispatch: # Allows manual trigger from GitHub UI
 
 jobs:
