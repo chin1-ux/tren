@@ -1,7 +1,7 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn } from "lucide-react";
 import { useQuery } from "@tanstack/react-query";
-import { fetchEmergingTrends } from "@/lib/api";
+import { fetchTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,15 +17,15 @@ export function BottomTabBar() {
   const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
   const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
 
-  const { data: emergingTrends } = useQuery({
-    queryKey: ["trends-emerging", "all"],
-    queryFn: () => fetchEmergingTrends(),
-    staleTime: 5 * 60_000,
-    refetchInterval: 5 * 60_000,
-    enabled: !shouldHide && Boolean(user) && userPlan === "pro",
+  const { data: activeTrends } = useQuery({
+    queryKey: ["trends", "all", "velocity", "all"],
+    queryFn: () => fetchTrends("all", "velocity", "all"),
+    staleTime: 2 * 60_000,
+    gcTime: 10 * 60_000,
+    enabled: !shouldHide && Boolean(user),
   });
 
-  const emergingCount = emergingTrends?.length ?? 0;
+  const activeCount = activeTrends?.length ?? 0;
 
   if (shouldHide) {
     return null;
@@ -94,10 +94,10 @@ export function BottomTabBar() {
                 >
                   {/* All tabs use their Icon for consistent active-state colour */}
                   <Icon className="h-5 w-5" />
-                  {/* Emerging count badge on Trends tab */}
-                  {label === "Trends" && emergingCount > 0 && (
-                    <span className="absolute -right-2 -top-2 flex h-4 w-4 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-extrabold text-white animate-pulse">
-                      {emergingCount}
+                  {/* Active trends count badge on Trends tab */}
+                  {label === "Trends" && activeCount > 0 && (
+                    <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff006e] px-1 text-[8px] font-extrabold text-white animate-pulse shadow-[0_0_8px_rgba(255,0,110,0.5)]">
+                      {activeCount > 99 ? "99+" : activeCount}
                     </span>
                   )}
                 </motion.div>
