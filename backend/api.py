@@ -516,9 +516,14 @@ def startup_event():
     os.makedirs(uploads_path, exist_ok=True)
     os.makedirs(outputs_path, exist_ok=True)
     logger.info("Trendrop API v2.0 started.")
-    threading.Thread(target=start_cron_thread, daemon=True).start()
+    if not os.getenv("VERCEL") and not os.getenv("VERCEL_ENV"):
+        threading.Thread(target=start_cron_thread, daemon=True).start()
+    else:
+        logger.info("Running in Vercel Serverless environment. In-process cron thread disabled (managed via GHA).")
 
 def start_cron_thread():
+    if os.getenv("VERCEL") or os.getenv("VERCEL_ENV"):
+        return
     try:
         from cron_job import run_full_pipeline
         
