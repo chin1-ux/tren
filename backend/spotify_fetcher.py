@@ -222,6 +222,8 @@ class SpotifyFetcher:
                     niche_rel = {"dance": 0.9, "lifestyle": 0.7, "remix": 0.95}
                     if is_vintage:
                         niche_rel["vintage_catalog"] = True
+                        logger.debug(f"Skipping vintage track '{track['title']}' ({rel_date}) from crossover candidate ingestion.")
+                        continue
 
                     crossover = {
                         "trend_type": "audio",

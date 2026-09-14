@@ -256,9 +256,13 @@ def run_full_pipeline(stages: list = None):
             run_state["stage"] = "spotify_scrape"
             logging.info("Step 2b/5: Ingesting Spotify Viral 50 & Trending Search audios...")
             from spotify_fetcher import SpotifyFetcher
+            from spotify_seeder import bind_spotify_candidates_to_scraped_audio
             sf = SpotifyFetcher()
             sf.run_sync()
             logging.info("Step 2b/5: Spotify Viral Radar ingestion complete.")
+
+            sb_seeder = _get_supabase()
+            bind_spotify_candidates_to_scraped_audio(sb_seeder)
         except Exception as e:
             logging.warning(f"Step 2b/5 Spotify Ingestion failed (non-fatal): {e}")
 
