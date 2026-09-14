@@ -54,6 +54,18 @@ def test_outlier_virality_evaluation_exact_floor_boundary():
     assert evaluate_creator_outlier_virality(reel_floor_below, baseline) is False
 
 
+def test_outlier_virality_evaluation_zero_median_views():
+    """Creators with median_views <= 0 (insufficient baseline data) MUST return False."""
+    baseline_zero = {"median_views": 0.0}
+    baseline_none = {"median_views": None}
+
+    reel_high_views = {"view_count": 50000}
+
+    # Must return False (insufficient baseline data to compute multiplier)
+    assert evaluate_creator_outlier_virality(reel_high_views, baseline_zero) is False
+    assert evaluate_creator_outlier_virality(reel_high_views, baseline_none) is False
+
+
 def test_watchlist_slot_allocation_with_spillover_tier1_shortfall():
     """
     Slot Spillover Test 1: Tier 1 has 3 creators due, Tier 2 has 20 creators due.

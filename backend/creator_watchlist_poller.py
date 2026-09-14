@@ -147,13 +147,13 @@ def evaluate_creator_outlier_virality(reel_data: dict, creator_baseline: dict) -
     views = float(reel_data.get("view_count") or reel_data.get("views") or 0)
     median_views = float(creator_baseline.get("median_views") or 0.0)
 
+    # Baseline guard: If creator has no valid median_views baseline (<= 0), skip outlier check (insufficient data)
+    if median_views <= 0:
+        return False
+
     # Floor guard: Reel views must meet or exceed CREATOR_OUTLIER_MIN_VIEWS (1,000 views)
     if views < CREATOR_OUTLIER_MIN_VIEWS:
         return False
 
     # Multiplier guard: Reel views must meet or exceed 3.0x creator's median views
-    if median_views <= 0:
-        # If creator has no median_views baseline yet, fallback to floor check
-        return views >= CREATOR_OUTLIER_MIN_VIEWS
-
     return views >= (CREATOR_OUTLIER_VIEW_MULTIPLIER * median_views)
