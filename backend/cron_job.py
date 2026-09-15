@@ -1236,31 +1236,37 @@ if __name__ == "__main__":
     except Exception as e:
         logging.error(f"Startup milestone reminders check failed: {e}", exc_info=True)
 
-    # Schedule main scraper pipeline every 4 hours (gives 4h gap between Instagram scraping sessions to prevent 429 rate limits)
-    logging.info("Scheduling main pipeline to run every 4 hours...")
-    schedule.every(4).hours.do(run_full_pipeline)
+    # Check if process should run as a persistent daemon or exit cleanly for GHA
+    if os.getenv("ENABLE_DAEMON_LOOP") == "1":
+        # Schedule main scraper pipeline every 4 hours
+        logging.info("ENABLE_DAEMON_LOOP=1: Scheduling main pipeline to run every 4 hours...")
+        schedule.every(4).hours.do(run_full_pipeline)
 
-    # Schedule audio counts check every 8 hours (staggered from main pipeline)
-    logging.info("Scheduling audio counts check to run every 8 hours...")
-    schedule.every(8).hours.do(run_audio_count_check)
+        # Schedule audio counts check every 8 hours
+        logging.info("Scheduling audio counts check to run every 8 hours...")
+        schedule.every(8).hours.do(run_audio_count_check)
 
-    # Schedule every 12 hours for milestone reminders check
-    logging.info("Scheduling milestone reminders check to run every 12 hours...")
-    schedule.every(12).hours.do(check_and_send_milestone_reminders)
+        # Schedule every 12 hours for milestone reminders check
+        logging.info("Scheduling milestone reminders check to run every 12 hours...")
+        schedule.every(12).hours.do(check_and_send_milestone_reminders)
 
-    # Schedule daily creator sync job
-    logging.info("Scheduling daily creator sync job...")
-    schedule.every().day.at("01:00").do(run_creator_sync_job)
+        # Schedule daily creator sync job
+        logging.info("Scheduling daily creator sync job...")
+        schedule.every().day.at("01:00").do(run_creator_sync_job)
 
-    # Schedule daily at 2:00 AM IST
-    logging.info("Scheduling daily data retention cleanup at 02:00 AM IST...")
-    schedule.every().day.at("02:00").do(run_data_retention_job)
+        # Schedule daily at 2:00 AM IST
+        logging.info("Scheduling daily data retention cleanup at 02:00 AM IST...")
+        schedule.every().day.at("02:00").do(run_data_retention_job)
 
-    try:
-        while True:
-            schedule.run_pending()
-            time.sleep(60)
-    except KeyboardInterrupt:
-        logging.info("Cron job stopped by user (KeyboardInterrupt).")
+        try:
+            while True:
+                schedule.run_pending()
+                time.sleep(60)
+        except KeyboardInterrupt:
+            logging.info("Cron job stopped by user (KeyboardInterrupt).")
+    else:
+        logging.info("One-shot pipeline run complete. Exiting cleanly (ENABLE_DAEMON_LOOP != 1).")
+        sys.exit(0)
+
 
 
