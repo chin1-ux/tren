@@ -387,8 +387,24 @@ class InstagramScraper:
                 elif "graphql/query" in url:
                     try:
                         res_json = await response.json()
-                        if "xdt_api__v1__clips__user__connection_v2" in str(res_json):
+                        res_str = str(res_json)
+                        if "xdt_api__v1__clips__user__connection_v2" in res_str or "fetch__XDTUserDict" in res_str or "clips_connection" in res_str:
                             captured_data["feed"] = res_json
+                            # Normalize into profile payload format if profile is missing
+                            data_dict = res_json.get("data", {})
+                            user_dict = data_dict.get("fetch__XDTUserDict") or data_dict.get("user") or {}
+                            clips_conn = user_dict.get("clips_connection") or user_dict.get("edge_felix_video_timeline") or {}
+                            if clips_conn and not captured_data.get("profile"):
+                                captured_data["profile"] = {
+                                    "data": {
+                                        "user": {
+                                            "username": username,
+                                            "clips_connection": clips_conn,
+                                            "edge_felix_video_timeline": clips_conn,
+                                            "edge_owner_to_timeline_media": clips_conn
+                                        }
+                                    }
+                                }
                     except Exception:
                         pass
 
@@ -399,21 +415,12 @@ class InstagramScraper:
             logger.info(f"Navigating Camoufox to profile reels page: {url}...")
             try:
                 await page.goto(url, wait_until="domcontentloaded", timeout=20000)
-                await page.wait_for_timeout(6000)
+                await page.wait_for_timeout(3000)
+                # Gentle scroll to trigger Instagram SPA GraphQL lazy-loading
+                await page.evaluate("window.scrollTo(0, 1500);")
+                await page.wait_for_timeout(4000)
             except Exception as e:
                 logger.warning(f"Navigation issue for @{username} profile reels: {e}")
-
-            if not captured_data["profile"]:
-                logger.warning(f"XHR profile not captured for @{username} — trying direct API endpoint inside page context...")
-                try:
-                    direct_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
-                    await page.goto(direct_url, wait_until="domcontentloaded", timeout=15000)
-                    body_text = await page.inner_text("body")
-                    if body_text.startswith("for (;;);"):
-                        body_text = body_text[9:]
-                    captured_data["profile"] = json.loads(body_text)
-                except Exception as e:
-                    logger.error(f"Direct API fetch in page context failed for @{username}: {e}")
 
             return captured_data
 
@@ -467,43 +474,46 @@ class InstagramScraper:
                 if not user_data:
                     continue
 
+                clips_edges = user_data.get("clips_connection", {}).get("edges", [])
                 reels_edges = user_data.get("edge_felix_video_timeline", {}).get("edges", [])
                 posts_edges = user_data.get("edge_owner_to_timeline_media", {}).get("edges", [])
 
                 seen = set()
-                for edge in reels_edges + posts_edges:
-                    node = edge.get("node", {})
-                    nid = node.get("id") or node.get("shortcode")
+                for edge in clips_edges + reels_edges + posts_edges:
+                    node = edge.get("media") or edge.get("node") or edge
+                    nid = node.get("code") or node.get("shortcode") or node.get("id") or node.get("pk")
                     if not nid or nid in seen:
                         continue
                     seen.add(nid)
 
-                    caps = node.get("edge_media_to_caption", {}).get("edges", [])
-                    caption = caps[0].get("node", {}).get("text", "") if caps else ""
+                    caption_val = (node.get("caption") or {}).get("text") if isinstance(node.get("caption"), dict) else ""
+                    if not caption_val:
+                        caps = node.get("edge_media_to_caption", {}).get("edges", [])
+                        caption_val = caps[0].get("node", {}).get("text", "") if caps else ""
 
                     clips = node.get("clips_metadata", {}) or {}
                     audio_info = clips.get("audio_ranking_info", {}) or clips.get("music_info", {}) or {}
-                    music_c = clips.get("music_info", {}).get("music_asset_info", {}) or {}
+                    music_c = (clips.get("music_info") or {}).get("music_asset_info", {}) or {}
 
                     audio_title = music_c.get("title") or audio_info.get("audio_title") or node.get("title") or "Original Audio"
                     audio_artist = music_c.get("display_artist") or audio_info.get("display_artist") or ""
                     audio_id = str(music_c.get("audio_cluster_id") or music_c.get("id") or audio_info.get("audio_asset_id") or "")
 
-                    view_count = node.get("video_view_count") or node.get("play_count") or 0
-                    like_count = node.get("edge_media_preview_like", {}).get("count") or node.get("like_count") or 0
-                    comment_count = node.get("edge_media_to_comment", {}).get("count") or 0
+                    view_count = node.get("play_count") or node.get("video_view_count") or node.get("view_count") or 0
+                    like_count = node.get("like_count") or node.get("edge_media_preview_like", {}).get("count") or 0
+                    comment_count = node.get("comment_count") or node.get("edge_media_to_comment", {}).get("count") or 0
 
                     extracted_reels.append({
                         "reel_id": str(nid),
                         "owner_username": username,
-                        "caption": caption,
+                        "caption": caption_val,
                         "audio_title": audio_title,
                         "audio_artist": audio_artist,
                         "audio_id": audio_id or None,
                         "view_count": view_count,
                         "like_count": like_count,
                         "comment_count": comment_count,
-                        "shortcode": node.get("shortcode"),
+                        "shortcode": node.get("shortcode") or node.get("code") or str(nid),
                     })
             except Exception as e:
                 logger.warning(f"Error checking creator @{username} in watchlist: {e}")
