@@ -380,23 +380,26 @@ class InstagramScraper:
             async def handle_response(response):
                 url = response.url
                 status = response.status
-                if "api/v1/users/web_profile_info" in url or "graphql/query" in url:
-                    logger.info(f"[GHA DIAG XHR] @{username} url={url[:70]} status={status} headers_keys={list(response.headers.keys())[:5]}")
                 if "api/v1/users/web_profile_info" in url:
                     try:
                         captured_data["profile"] = await response.json()
-                        logger.info(f"[GHA DIAG MATCH] Captured web_profile_info for @{username}")
+                        user_keys = list(captured_data["profile"].get("data", {}).get("user", {}).keys())
+                        logger.info(f"[GHA DIAG SCHEMA web_profile_info] @{username} status={status} user_keys={user_keys}")
                     except Exception as json_err:
                         logger.warning(f"[GHA DIAG ERR] web_profile_info json parse error @{username}: {json_err}")
                 elif "graphql/query" in url:
                     try:
                         res_json = await response.json()
+                        data_dict = res_json.get("data", {}) if isinstance(res_json, dict) else {}
+                        data_keys = list(data_dict.keys())
+                        user_dict = data_dict.get("fetch__XDTUserDict") or data_dict.get("user") or data_dict.get("xdt_api__v1__clips__user__connection_v2") or {}
+                        user_keys = list(user_dict.keys()) if isinstance(user_dict, dict) else []
+                        
+                        logger.info(f"[GHA DIAG SCHEMA graphql] @{username} status={status} data_keys={data_keys} user_keys={user_keys}")
+
                         res_str = str(res_json)
                         if "xdt_api__v1__clips__user__connection_v2" in res_str or "fetch__XDTUserDict" in res_str or "clips_connection" in res_str:
                             captured_data["feed"] = res_json
-                            # Normalize into profile payload format if profile is missing
-                            data_dict = res_json.get("data", {})
-                            user_dict = data_dict.get("fetch__XDTUserDict") or data_dict.get("user") or {}
                             clips_conn = user_dict.get("clips_connection") or user_dict.get("edge_felix_video_timeline") or {}
                             if clips_conn and not captured_data.get("profile"):
                                 captured_data["profile"] = {
@@ -409,7 +412,7 @@ class InstagramScraper:
                                         }
                                     }
                                 }
-                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username}")
+                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username} with user_keys={user_keys}")
                     except Exception as json_err:
                         logger.warning(f"[GHA DIAG ERR] graphql json parse error @{username}: {json_err}")
 
