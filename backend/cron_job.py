@@ -507,14 +507,13 @@ def run_full_pipeline(stages: list = None):
                             "view_count": r.get("view_count", 0),
                             "like_count": r.get("like_count", 0),
                             "comment_count": r.get("comment_count", 0),
-                            "shortcode": r.get("shortcode"),
                             "scraped_at": now_str,
                         }
                         try:
                             sb.table("reels").upsert(reel_payload, on_conflict="reel_id").execute()
                             creator_watchlist_found += 1
                         except Exception as _ingest_err:
-                            logging.debug(f"Step 2d: Reel ingestion error for reel_id={r['reel_id']}: {_ingest_err}")
+                            logging.warning(f"Step 2d: Reel ingestion error for reel_id={r['reel_id']}: {_ingest_err}")
 
                     new_reels_count += creator_watchlist_found
                     reels_scraped += creator_watchlist_found
