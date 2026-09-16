@@ -927,11 +927,12 @@ class TrendEngine:
                 # re-surfacing as "emerging" just because one scrape finds them with high velocity.
                 # Crossplatform breakout (TikTok migration signal) bypasses age/use-count rules.
                 single_reel_age_ok = oldest_age_hours <= 36
+                unique_creators = len({r.get("owner_username") for r in (all_reels or []) if r.get("owner_username")})
                 is_breakout_single_reel = (
-                    (max_group_v > 5000.0 and single_reel_age_ok)
-                    or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok)
-                    or is_crossplatform_breakout
-                )
+                    ((max_group_v > 5000.0 and single_reel_age_ok)
+                     or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok))
+                    and unique_creators >= 2
+                ) or is_crossplatform_breakout
 
                 # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
                 if len(high_velocity_reels) < 3 and not is_breakout_single_reel:
