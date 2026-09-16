@@ -1476,32 +1476,43 @@ class TrendEngine:
                 .gte("posted_at", threshold_7d) \
                 .execute()
             reels = res.data or []
-        
-        def parse_utc_dt(dt_str):
-            if not dt_str:
-                return None
-            if isinstance(dt_str, datetime):
-                dt = dt_str
-            else:
-                if dt_str.endswith("Z"):
-                    dt_str = dt_str[:-1] + "+00:00"
-                dt = datetime.fromisoformat(dt_str)
-            if dt.tzinfo is not None:
-                return dt.astimezone(timezone.utc).replace(tzinfo=None)
-            return dt
+    def classify_lifecycle(self, audio_id: str, reels: list, percentile_80: float = 0.0, existing_audio_ids: set | None = None) -> dict:
+        """
+        Classifies an audio track into a lifecycle stage based on 3-hour time buckets.
+        buckets[0]: 0-3 hours ago (current)
+        buckets[1]: 3-6 hours ago (previous)
+        buckets[2]: 6-9 hours ago (baseline)
+        ...
+        """
+        if not reels:
+            return {
+                "lifecycle_stage": "INSUFFICIENT_DATA",
+                "reel_count": 0,
+                "unique_creator_count": 0,
+                "creator_velocity": None,
+                "reel_velocity": None
+            }
 
-        buckets = []
-        for i in range(58):
-            buckets.append({"reels": [], "creators": set()})
-        
-        max_bucket_idx = -1
+        now = datetime.now(timezone.utc)
+
+        # 3-hour buckets (0 to 57)
+        buckets = [{"reels": [], "creators": set()} for _ in range(58)]
+        max_bucket_idx = 0
+
         for r in reels:
-            posted_str = r.get("posted_at")
-            posted_dt = parse_utc_dt(posted_str)
-            if not posted_dt:
+            posted_at_str = r.get("posted_at")
+            if not posted_at_str:
                 continue
-            
-            diff_seconds = (now - posted_dt).total_seconds()
+            try:
+                if posted_at_str.endswith("Z"):
+                    posted_at_str = posted_at_str[:-1] + "+00:00"
+                posted_at = datetime.fromisoformat(posted_at_str)
+                if posted_at.tzinfo is None:
+                    posted_at = posted_at.replace(tzinfo=timezone.utc)
+            except Exception:
+                continue
+
+            diff_seconds = (now - posted_at).total_seconds()
             if diff_seconds < 0:
                 diff_seconds = 0
             
@@ -1519,17 +1530,20 @@ class TrendEngine:
         total_unique_creators = len(all_creators)
         
         # Check if there is a previous record in audio_trend_scores
-        has_previous = False
-        try:
-            prev_res = self.supabase.table("audio_trend_scores") \
-                .select("id") \
-                .eq("audio_id", audio_id) \
-                .limit(1) \
-                .execute()
-            if prev_res.data:
-                has_previous = True
-        except Exception as e:
-            logging.warning(f"Error checking previous trend scores for {audio_id}: {e}")
+        if existing_audio_ids is not None:
+            has_previous = audio_id in existing_audio_ids
+        else:
+            has_previous = False
+            try:
+                prev_res = self.supabase.table("audio_trend_scores") \
+                    .select("id") \
+                    .eq("audio_id", audio_id) \
+                    .limit(1) \
+                    .execute()
+                if prev_res.data:
+                    has_previous = True
+            except Exception as e:
+                logging.warning(f"Error checking previous trend scores for {audio_id}: {e}")
 
         reel_count_0 = len(buckets[0]["reels"])
         reel_count_1 = len(buckets[1]["reels"])
@@ -1641,10 +1655,24 @@ class TrendEngine:
                 logging.info("No reels with audio_id found in the last 7 days.")
                 return
             
+            # Pre-fetch existing historical audio IDs in target batch using chunked .in_() queries
+            all_target_aids = list(audio_groups.keys())
+            existing_audio_ids = set()
+            for i in range(0, len(all_target_aids), 200):
+                chunk = all_target_aids[i:i+200]
+                try:
+                    res = self.supabase.table("audio_trend_scores").select("audio_id").in_("audio_id", chunk).execute()
+                    if res.data:
+                        existing_audio_ids.update(r["audio_id"] for r in res.data if r.get("audio_id"))
+                except Exception as e:
+                    logging.warning(f"Error pre-fetching existing audio_ids chunk: {e}")
+
+            logging.info(f"Pre-fetched {len(existing_audio_ids)} matching historical audio IDs from audio_trend_scores")
+
             creator_velocities = []
             for aid, group in audio_groups.items():
                 try:
-                    res = self.classify_lifecycle(aid, reels=group, percentile_80=0.0)
+                    res = self.classify_lifecycle(aid, reels=group, percentile_80=0.0, existing_audio_ids=existing_audio_ids)
                     v = res.get("creator_velocity")
                     if v is not None:
                         creator_velocities.append(v)
@@ -1661,6 +1689,7 @@ class TrendEngine:
             logging.info(f"80th percentile of creator velocity: {percentile_80:.4f}")
             
             scrape_cycle_at = datetime.now(timezone.utc).isoformat()
+            scores_to_insert = []
             for aid, group in audio_groups.items():
                 if time.monotonic() - started_at >= max_seconds:
                     budget_state.cutoff_reason = f"audio scoring stopped at {max_seconds:.0f}s cutoff"
@@ -1672,7 +1701,7 @@ class TrendEngine:
                     )
                     break
                 try:
-                    res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80)
+                    res = self.classify_lifecycle(aid, reels=group, percentile_80=percentile_80, existing_audio_ids=existing_audio_ids)
                     
                     # Rank reels by velocity score descending
                     sorted_reels = sorted(group, key=lambda r: r.get("velocity_score") or 0.0, reverse=True)
@@ -1701,13 +1730,23 @@ class TrendEngine:
                         "top_reels": top_reels_serialized
                     }
                     
-                    self.supabase.table("audio_trend_scores").insert(score_data).execute()
+                    scores_to_insert.append(score_data)
                     c_vel_val = res.get("creator_velocity")
                     c_vel_str = f"{c_vel_val:.4f}" if c_vel_val is not None else "None"
-                    logging.info(f"Saved audio trend score for {aid}: stage={res['lifecycle_stage']}, total_creators={res['unique_creator_count']}, c_vel={c_vel_str}")
+                    logging.info(f"Prepared audio trend score for {aid}: stage={res['lifecycle_stage']}, total_creators={res['unique_creator_count']}, c_vel={c_vel_str}")
                 except Exception as e:
                     logging.error(f"Error processing audio trend score for audio_id {aid}: {e}", exc_info=True)
                 
+            if scores_to_insert:
+                logging.info(f"Batch inserting {len(scores_to_insert)} audio trend score records...")
+                for i in range(0, len(scores_to_insert), 100):
+                    chunk = scores_to_insert[i:i+100]
+                    try:
+                        self.supabase.table("audio_trend_scores").insert(chunk).execute()
+                    except Exception as e:
+                        logging.error(f"Error batch inserting audio_trend_scores chunk: {e}")
+                logging.info(f"Successfully batch-inserted {len(scores_to_insert)} audio trend score records.")
+
         except Exception as e:
             logging.error(f"Critical error in calculate_audio_trend_scores: {e}", exc_info=True)
 
