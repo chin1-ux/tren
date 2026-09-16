@@ -35,7 +35,8 @@ except Exception as _fh_err:
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=log_handlers
+    handlers=log_handlers,
+    force=True
 )
 
 # Imports for pipeline

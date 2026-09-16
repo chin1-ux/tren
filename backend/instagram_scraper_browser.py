@@ -411,16 +411,26 @@ class InstagramScraper:
             page = await ctx.new_page()
             page.on("response", handle_response)
 
-            url = f"https://www.instagram.com/{username}/reels/"
-            logger.info(f"Navigating Camoufox to profile reels page: {url}...")
+            main_url = f"https://www.instagram.com/{username}/"
+            logger.info(f"Navigating Camoufox to main profile page: {main_url}...")
             try:
-                await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                await page.goto(main_url, wait_until="domcontentloaded", timeout=20000)
                 await page.wait_for_timeout(3000)
-                # Gentle scroll to trigger Instagram SPA GraphQL lazy-loading
                 await page.evaluate("window.scrollTo(0, 1500);")
-                await page.wait_for_timeout(4000)
+                await page.wait_for_timeout(3000)
             except Exception as e:
-                logger.warning(f"Navigation issue for @{username} profile reels: {e}")
+                logger.warning(f"Navigation issue for @{username} main profile page: {e}")
+
+            if not captured_data.get("profile"):
+                reels_url = f"https://www.instagram.com/{username}/reels/"
+                logger.info(f"Profile payload not captured on main page for @{username} — attempting reels fallback: {reels_url}...")
+                try:
+                    await page.goto(reels_url, wait_until="domcontentloaded", timeout=20000)
+                    await page.wait_for_timeout(3000)
+                    await page.evaluate("window.scrollTo(0, 1500);")
+                    await page.wait_for_timeout(3000)
+                except Exception as e:
+                    logger.warning(f"Navigation issue for @{username} reels fallback: {e}")
 
             return captured_data
 
