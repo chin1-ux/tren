@@ -141,7 +141,12 @@ def get_trends(
                         t["adaptation_briefs"] = {}
                     t["adaptation_briefs"][user_niche] = brief
 
-        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+        if sort == "newest":
+            trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
+        elif sort == "time_left":
+            trends.sort(key=lambda t: t.get("window_hours_remaining") or 0)
+        else:
+            trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
