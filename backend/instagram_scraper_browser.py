@@ -377,6 +377,22 @@ class InstagramScraper:
                 "feed": None
             }
 
+            candidate_root_keys = [
+                "fetch__XDTUserDict",
+                "xdt_api__v1__feed__user_timeline_graphql_connection",
+                "xdt_api__v1__feed__timeline__connection",
+                "xdt_api__v1__clips__user__connection_v2",
+                "user",
+            ]
+            candidate_feed_keys = [
+                "clips_connection",
+                "edge_felix_video_timeline",
+                "edge_owner_to_timeline_media",
+                "profile_grid",
+                "edges",
+                "items",
+            ]
+
             async def handle_response(response):
                 url = response.url
                 status = response.status
@@ -391,28 +407,38 @@ class InstagramScraper:
                     try:
                         res_json = await response.json()
                         data_dict = res_json.get("data", {}) if isinstance(res_json, dict) else {}
-                        data_keys = list(data_dict.keys())
-                        user_dict = data_dict.get("fetch__XDTUserDict") or data_dict.get("user") or data_dict.get("xdt_api__v1__clips__user__connection_v2") or {}
-                        user_keys = list(user_dict.keys()) if isinstance(user_dict, dict) else []
                         
-                        logger.info(f"[GHA DIAG SCHEMA graphql] @{username} status={status} data_keys={data_keys} user_keys={user_keys}")
+                        user_dict = None
+                        for rk in candidate_root_keys:
+                            if rk in data_dict:
+                                user_dict = data_dict[rk]
+                                break
+                        
+                        if user_dict and not captured_data.get("profile"):
+                            feed_container = None
+                            for fk in candidate_feed_keys:
+                                if fk in user_dict:
+                                    feed_container = user_dict[fk]
+                                    break
+                            
+                            # If user_dict itself contains edges directly
+                            if not feed_container and ("edges" in user_dict or "items" in user_dict):
+                                feed_container = user_dict
 
-                        res_str = str(res_json)
-                        if "xdt_api__v1__clips__user__connection_v2" in res_str or "fetch__XDTUserDict" in res_str or "clips_connection" in res_str:
-                            captured_data["feed"] = res_json
-                            clips_conn = user_dict.get("clips_connection") or user_dict.get("edge_felix_video_timeline") or {}
-                            if clips_conn and not captured_data.get("profile"):
+                            if feed_container:
                                 captured_data["profile"] = {
                                     "data": {
                                         "user": {
                                             "username": username,
-                                            "clips_connection": clips_conn,
-                                            "edge_felix_video_timeline": clips_conn,
-                                            "edge_owner_to_timeline_media": clips_conn
+                                            "clips_connection": feed_container,
+                                            "edge_felix_video_timeline": feed_container,
+                                            "edge_owner_to_timeline_media": feed_container
                                         }
                                     }
                                 }
-                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username} with user_keys={user_keys}")
+                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username}")
+                            else:
+                                logger.warning(f"Unrecognized GraphQL feed schema for @{username}: user_keys={list(user_dict.keys()) if isinstance(user_dict, dict) else []}")
                     except Exception as json_err:
                         logger.warning(f"[GHA DIAG ERR] graphql json parse error @{username}: {json_err}")
 
@@ -504,12 +530,29 @@ class InstagramScraper:
                 if not user_data:
                     continue
 
-                clips_edges = user_data.get("clips_connection", {}).get("edges", [])
-                reels_edges = user_data.get("edge_felix_video_timeline", {}).get("edges", [])
-                posts_edges = user_data.get("edge_owner_to_timeline_media", {}).get("edges", [])
+                candidate_feed_keys = [
+                    "clips_connection",
+                    "edge_felix_video_timeline",
+                    "edge_owner_to_timeline_media",
+                    "profile_grid",
+                    "edges",
+                    "items",
+                ]
+                all_edges = []
+                for fk in candidate_feed_keys:
+                    val = user_data.get(fk)
+                    if isinstance(val, list):
+                        all_edges.extend(val)
+                    elif isinstance(val, dict):
+                        sub = val.get("edges") or val.get("items") or []
+                        if isinstance(sub, list):
+                            all_edges.extend(sub)
+
+                if not all_edges:
+                    logger.warning(f"Watchlist unwrapper: no media edges extracted for @{username} from keys={list(user_data.keys() if isinstance(user_data, dict) else [])}")
 
                 seen = set()
-                for edge in clips_edges + reels_edges + posts_edges:
+                for edge in all_edges:
                     node = edge.get("media") or edge.get("node") or edge
                     nid = node.get("code") or node.get("shortcode") or node.get("id") or node.get("pk")
                     if not nid or nid in seen:
