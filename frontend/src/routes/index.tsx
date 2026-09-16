@@ -67,7 +67,7 @@ function TrendsFeed() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<string>("all");
   const [feedTab, setFeedTab] = useState<FeedTab>("rising");
-  const [sortMode] = useState<any>("velocity");
+  const [sortMode] = useState<any>("newest");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);

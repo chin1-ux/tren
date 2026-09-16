@@ -15,7 +15,7 @@ router = APIRouter()
 def get_trends(
     request: Request,
     language: Optional[str] = None,
-    sort: Optional[str] = "velocity",
+    sort: Optional[str] = "newest",
     niche: Optional[str] = None,
     current_user: str = Depends(get_current_user)
 ):
@@ -96,10 +96,11 @@ def get_trends(
 
         if sort == "time_left":
             q = q.order("window_hours_remaining", desc=False)
-        elif sort == "newest":
-            q = q.order("first_detected_at", desc=True)
-        else:
+        elif sort == "velocity":
             q = q.order("velocity_avg", desc=True)
+        else:
+            # Default: newest audio detected by Trendrop pipeline on top
+            q = q.order("first_detected_at", desc=True)
 
         skipped_local_fallback = True
         res = execute_supabase_get(q)
