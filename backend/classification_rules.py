@@ -130,8 +130,9 @@ def classify_niche(caption: str, hashtags: list[str], source_hashtag_pool: str |
     scores = Counter()
     for niche, terms in NICHE_KEYWORDS.items():
         for term in terms:
-            if term in text:
-                scores[niche] += 1
+            if " " in term:
+                if re.search(r"\b" + re.escape(term) + r"\b", text):
+                    scores[niche] += 1
         for word in words:
             if word in terms:
                 scores[niche] += 1
