@@ -318,6 +318,20 @@ class TrendRefresher:
                 )
                 high_confidence = creator_count >= 5
 
+                # Option C: Hold newly created emerging trends (<3h old) in "emerging" status for at least
+                # one 3h pipeline window before evaluating lifecycle promotion to "rising".
+                if current_status == "emerging" and age_hours < 3.0:
+                    logger.info(f"[EMERGING_HOLD] '{audio_title}' (id={trend_id}, age={age_hours:.2f}h < 3.0h) — holding in emerging for initial 3h window")
+                    self._update_status(trend_id, "emerging", {
+                        "window_hours_remaining": new_window,
+                        "velocity_avg": velocity_for_check,
+                        "peak_velocity": max(velocity_for_check, peak_velocity),
+                        "reel_count": total_reels_count,
+                        "high_confidence": high_confidence,
+                    }, previous_status=current_status)
+                    local_summary["emerged"] = local_summary.get("emerged", 0) + 1
+                    return local_summary
+
                 trend_state = calculate_trend_state(
                     velocity_avg=velocity_for_check,
                     global_saturation_pct=trend.get("global_saturation_pct", 0.0),

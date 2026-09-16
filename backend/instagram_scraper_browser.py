@@ -841,7 +841,7 @@ class InstagramScraper:
                 # Pass audio_id so _extract_audio_use_count can query audio_official_counts
                 use_cnt = self._extract_audio_use_count(media, audio_id=str(audio_id))
                 is_orig = True
-                if use_cnt >= 50:
+                if use_cnt is not None and use_cnt >= 50:
                     is_orig = False
                 return str(audio_id), audio_title, audio_artist, is_orig
         except Exception as e:
