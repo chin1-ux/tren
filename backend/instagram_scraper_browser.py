@@ -379,11 +379,15 @@ class InstagramScraper:
 
             async def handle_response(response):
                 url = response.url
+                status = response.status
+                if "api/v1/users/web_profile_info" in url or "graphql/query" in url:
+                    logger.info(f"[GHA DIAG XHR] @{username} url={url[:70]} status={status} headers_keys={list(response.headers.keys())[:5]}")
                 if "api/v1/users/web_profile_info" in url:
                     try:
                         captured_data["profile"] = await response.json()
-                    except Exception:
-                        pass
+                        logger.info(f"[GHA DIAG MATCH] Captured web_profile_info for @{username}")
+                    except Exception as json_err:
+                        logger.warning(f"[GHA DIAG ERR] web_profile_info json parse error @{username}: {json_err}")
                 elif "graphql/query" in url:
                     try:
                         res_json = await response.json()
@@ -405,8 +409,9 @@ class InstagramScraper:
                                         }
                                     }
                                 }
-                    except Exception:
-                        pass
+                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username}")
+                    except Exception as json_err:
+                        logger.warning(f"[GHA DIAG ERR] graphql json parse error @{username}: {json_err}")
 
             page = await ctx.new_page()
             page.on("response", handle_response)
@@ -414,7 +419,10 @@ class InstagramScraper:
             main_url = f"https://www.instagram.com/{username}/"
             logger.info(f"Navigating Camoufox to main profile page: {main_url}...")
             try:
-                await page.goto(main_url, wait_until="domcontentloaded", timeout=20000)
+                resp = await page.goto(main_url, wait_until="domcontentloaded", timeout=20000)
+                status_main = resp.status if resp else 0
+                title_main = await page.title()
+                logger.info(f"[GHA DIAG PAGE] @{username} main_url status={status_main} final_url={page.url} title='{title_main}'")
                 await page.wait_for_timeout(3000)
                 await page.evaluate("window.scrollTo(0, 1500);")
                 await page.wait_for_timeout(3000)
@@ -425,12 +433,21 @@ class InstagramScraper:
                 reels_url = f"https://www.instagram.com/{username}/reels/"
                 logger.info(f"Profile payload not captured on main page for @{username} — attempting reels fallback: {reels_url}...")
                 try:
-                    await page.goto(reels_url, wait_until="domcontentloaded", timeout=20000)
+                    resp_fb = await page.goto(reels_url, wait_until="domcontentloaded", timeout=20000)
+                    status_fb = resp_fb.status if resp_fb else 0
+                    title_fb = await page.title()
+                    logger.info(f"[GHA DIAG PAGE] @{username} reels_fallback status={status_fb} final_url={page.url} title='{title_fb}'")
                     await page.wait_for_timeout(3000)
                     await page.evaluate("window.scrollTo(0, 1500);")
                     await page.wait_for_timeout(3000)
                 except Exception as e:
                     logger.warning(f"Navigation issue for @{username} reels fallback: {e}")
+
+            if not captured_data.get("profile"):
+                final_title = await page.title()
+                logger.warning(f"[GHA DIAG SUMMARY FAILED] @{username} failed to capture profile payload. Final URL: {page.url} | Title: '{final_title}'")
+            else:
+                logger.info(f"[GHA DIAG SUMMARY SUCCESS] @{username} profile payload successfully captured!")
 
             return captured_data
 
