@@ -1,6 +1,8 @@
 """
-Deterministic, rule-based classifier for Reels/Trends niche tagging and content tone.
-Designed to eliminate LLM dependencies for basic tagging and tone analysis.
+DEPRECATED / UNUSED:
+This module is deprecated. The single authoritative source of truth for deterministic
+niche classification, content tone analysis, and pool mapping is `backend/classification_rules.py`.
+Do NOT import or modify this file for pipeline classification.
 """
 import re
 
