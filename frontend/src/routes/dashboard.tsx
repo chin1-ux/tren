@@ -66,7 +66,7 @@ function Dashboard() {
             <h1 className="text-xl font-bold font-display mt-0.5">
               {isCurrentAffairsCreator
                 ? "Breaking stories & commentary windows"
-                : "Your personalised trend feed"}
+                : "Curated short-form trend feed"}
             </h1>
           </div>
           <Button

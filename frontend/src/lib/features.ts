@@ -4,8 +4,8 @@
  * Set to true to re-enable.
  */
 export const FEATURES = {
-  GENERATE_ENABLED: true,
-  IDEAS_ENABLED: true,
+  GENERATE_ENABLED: false,
+  IDEAS_ENABLED: false,
   DEALS_ENABLED: false,
   MARKETPLACE_ENABLED: false,
   INSTAGRAM_OAUTH_ENABLED: false,

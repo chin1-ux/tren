@@ -55,19 +55,7 @@ function IdeasPage() {
   
   // Feature disabled check
   if (!FEATURES.IDEAS_ENABLED) {
-    return (
-      <div className="flex flex-col items-center justify-center min-h-screen px-4 pb-28 pt-6">
-        <div className="text-center space-y-4">
-          <div className="h-16 w-16 rounded-2xl bg-muted/60 flex items-center justify-center text-muted-foreground mx-auto">
-            <Lightbulb className="h-8 w-8" />
-          </div>
-          <h1 className="text-xl font-bold text-foreground">Feature Temporarily Disabled</h1>
-          <p className="text-sm text-muted-foreground max-w-xs">
-            The Ideation Hub is currently unavailable. Focus on the core trend detection dashboard for now.
-          </p>
-        </div>
-      </div>
-    );
+    return <Navigate to="/dashboard" replace />;
   }
 
   const [activeTab, setActiveTab] = useState<"daily" | "score" | "hooks" | "calendar">("daily");

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Navigate } from "@tanstack/react-router";
 import { useEffect, useRef, useState } from "react";
 import { 
   Upload, X, Download, Share2, Flame, AlertTriangle, Play, Pause, Volume2, 
@@ -13,8 +13,8 @@ import {
 import { Button } from "@/components/ui/button";
 import { PlanGate } from "@/components/PlanGate";
 import { useUserStore } from "@/store/useAppStore";
-
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { FEATURES } from "@/lib/features";
 
 const searchSchema = z.object({ trendId: z.string().optional() });
 
@@ -63,6 +63,9 @@ const NARRATIVE_PRESETS = {
 };
 
 function GeneratePage() {
+  if (!FEATURES.GENERATE_ENABLED) {
+    return <Navigate to="/dashboard" replace />;
+  }
   const { trendId } = Route.useSearch();
   const navigate = useNavigate();
   const userPlan = useUserStore((s) => s.plan) || 'free';
