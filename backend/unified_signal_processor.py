@@ -54,8 +54,8 @@ class UnifiedSignalProcessor:
         logger.info(f"Processing format trends for last {hours} hours...")
         try:
             detector = FormatTrendDetector()
-            # Assuming FormatTrendDetector has a method to get active patterns
-            patterns = detector.detect_trending_patterns(hours_lookback=hours)
+            res = detector.run()
+            patterns = res.get("trends", []) if isinstance(res, dict) else []
             
             signals = []
             for p in patterns:
