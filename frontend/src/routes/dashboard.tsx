@@ -4,11 +4,10 @@ import { AIContentGenerator } from "@/components/AIContentGenerator";
 import { PlanGate } from "@/components/PlanGate";
 import { EarlyDetectionPanel } from "@/components/EarlyDetectionPanel";
 import { NewsFeedPanel } from "@/components/NewsFeedPanel";
-import { RegionalFestivalPanel } from "@/components/RegionalFestivalPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Newspaper, Calendar, Music2, BarChart3, Sparkles } from "lucide-react";
+import { HelpCircle, Newspaper, Music2, BarChart3, Sparkles } from "lucide-react";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useUserStore } from "@/store/useAppStore";
 
@@ -85,17 +84,12 @@ function Dashboard() {
             <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1 h-11 gap-1.5 bg-muted/60 rounded-xl">
               <TabsTrigger value="early-detection" className="shrink-0 flex items-center gap-1.5">
                 <Music2 className="h-3.5 w-3.5" />
-                Early Audio
+                Spotify Viral
               </TabsTrigger>
 
               <TabsTrigger value="breaking-news" className="shrink-0 flex items-center gap-1.5">
                 <Newspaper className="h-3.5 w-3.5" />
                 Viral News
-              </TabsTrigger>
-
-              <TabsTrigger value="festivals" className="shrink-0 flex items-center gap-1.5">
-                <Calendar className="h-3.5 w-3.5" />
-                Live Festivals
               </TabsTrigger>
 
               <TabsTrigger value="analytics" className="shrink-0 flex items-center gap-1.5">
@@ -111,10 +105,6 @@ function Dashboard() {
 
           <TabsContent value="breaking-news" className="mt-6">
             <NewsFeedPanel />
-          </TabsContent>
-
-          <TabsContent value="festivals" className="mt-6">
-            <RegionalFestivalPanel />
           </TabsContent>
 
           <TabsContent value="analytics" className="mt-6 space-y-6">

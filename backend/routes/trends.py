@@ -237,110 +237,118 @@ def get_spotify_viral_trends(
     country: Optional[str] = "all"
 ):
     """
-    Fetch Spotify Viral 50 & Trending tracks for Early Detection (Global, India, US, UK, Brazil, etc.).
+    Fetch Spotify Viral/Trending tracks for Early Detection.
+    Uses Spotify Client Credentials (search-based) since playlist endpoint
+    requires OAuth. Returns empty list with X-Fallback-Reason header if
+    Spotify is unavailable — never returns hardcoded stale songs.
     """
+    _MARKET_FLAGS = {
+        "IN": "🇮🇳 India",
+        "GLOBAL": "🌐 Global",
+        "US": "🇺🇸 USA",
+        "GB": "🇬🇧 UK",
+        "BR": "🇧🇷 Brazil",
+        "KR": "🇰🇷 Korea",
+        "JP": "🇯🇵 Japan",
+    }
+    _QUERY_MAP = {
+        "IN": ["bollywood viral reels 2026", "hindi trending audio instagram"],
+        "GLOBAL": ["global viral reels 2026", "trending audio reels"],
+        "US": ["tiktok viral 2026", "us viral audio reels"],
+        "GB": ["uk viral audio 2026", "uk trending reels"],
+        "BR": ["funk brasil viral 2026", "brazil trending audio"],
+    }
+
     try:
-        from spotify_fetcher import SpotifyFetcher, VIRAL_50_PLAYLISTS
+        from spotify_fetcher import SpotifyFetcher
         sf = SpotifyFetcher()
-        sf._get_token()
-        
-        target_countries = ["IN", "GLOBAL", "US", "GB", "BR"] if country == "all" else [country]
+        sf._get_token()  # raises ValueError if creds missing, Exception if API fails
+
+        target_countries = ["IN", "GLOBAL", "US", "GB", "BR"] if country == "all" else [country.upper()]
         all_spotify_tracks = []
-        
+        source_method = "search"  # playlist API needs OAuth; always use search
+
         for c in target_countries:
-            playlist_tracks = sf.fetch_viral_playlist(c)
-            if playlist_tracks:
-                all_spotify_tracks.extend(playlist_tracks[:8])
-            else:
-                query_map = {
-                    "IN": "bollywood viral reels",
-                    "GLOBAL": "global viral reels",
-                    "US": "tiktok viral 2026",
-                    "GB": "uk rap viral",
-                    "BR": "funk brasil viral"
-                }
-                q = query_map.get(c, "viral reels sound")
-                s_tracks = sf.fetch_search_tracks(q)
-                for t in s_tracks[:6]:
+            queries = _QUERY_MAP.get(c, ["viral trending audio 2026"])
+            for q in queries:
+                tracks = sf.fetch_search_tracks(q)
+                for t in tracks[:5]:
                     t["market"] = c
                     all_spotify_tracks.append(t)
-                    
+
+        # Deduplicate by spotify_id
+        seen_ids: set = set()
+        deduped = []
+        for t in all_spotify_tracks:
+            sid = t.get("spotify_id") or t.get("title", "") + t.get("artist", "")
+            if sid not in seen_ids:
+                seen_ids.add(sid)
+                deduped.append(t)
+
         formatted_trends = []
-        for idx, item in enumerate(all_spotify_tracks):
+        for idx, item in enumerate(deduped):
             rank = item.get("rank", idx + 1)
             market = item.get("market", "GLOBAL")
-            popularity = item.get("popularity", 75)
-            score = min(99, max(65, 95 - (rank * 2) + (popularity // 5)))
-            
-            market_flag = "🇮🇳 India" if market == "IN" else "🌐 Global" if market == "GLOBAL" else f"🌍 {market}"
-            
+            popularity = item.get("popularity", 70)
+            # Score: based on popularity (real Spotify signal) + rank position bonus
+            # popularity is 0-100, rank penalty is small to avoid killing lower-ranked tracks
+            score = min(97, max(60, int(0.7 * popularity + 0.3 * max(0, 100 - rank * 1.5))))
+            market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
+
+            hours_optimal = 16 + (idx % 6)  # spread posting windows across day
             formatted_trends.append({
-                "id": f"spotify_{market}_{rank}_{idx}",
-                "audio_title": item.get("title", "Viral Sound"),
-                "audio_artist": item.get("artist", "Various Artists"),
+                "id": f"spotify_{market}_{item.get('spotify_id', idx)}",
+                "audio_title": item.get("title") or "Viral Sound",
+                "audio_artist": item.get("artist") or "Various Artists",
+                "spotify_id": item.get("spotify_id"),
                 "market": market,
                 "market_label": market_flag,
                 "rank": rank,
+                "popularity": popularity,
+                "release_date": item.get("release_date"),
+                "data_source": source_method,
                 "prediction": {
                     "combined_score": score,
                     "prediction": f"Spotify Viral {market_flag}",
-                    "optimal_timing": f"{16 + (idx % 4)}:00 IST",
-                    "reach_multiplier": f"{score}% Growth",
-                    "recommended_action": "POST SOON" if score >= 80 else "EARLY ENTRY WINDOW"
-                }
+                    "optimal_timing": f"{hours_optimal:02d}:00 IST",
+                    "reach_multiplier": f"{score}%",
+                    "recommended_action": (
+                        "POST NOW" if score >= 85
+                        else "POST SOON" if score >= 75
+                        else "EARLY ENTRY WINDOW"
+                    ),
+                },
             })
-            
-        return formatted_trends if formatted_trends else [
-            {
-                "id": "sp_1",
-                "audio_title": "Rolex Theme (Background Score)",
-                "audio_artist": "Anirudh Ravichander",
-                "market": "IN",
-                "market_label": "🇮🇳 India",
-                "rank": 1,
-                "prediction": {
-                    "combined_score": 96,
-                    "prediction": "Spotify Viral 🇮🇳 India",
-                    "optimal_timing": "18:00 IST",
-                    "reach_multiplier": "96% Growth",
-                    "recommended_action": "POST SOON"
-                }
-            },
-            {
-                "id": "sp_2",
-                "audio_title": "Viral Vayyari",
-                "audio_artist": "Devi Sri Prasad, Haripriya",
-                "market": "IN",
-                "market_label": "🇮🇳 India",
-                "rank": 2,
-                "prediction": {
-                    "combined_score": 92,
-                    "prediction": "Spotify Viral 🇮🇳 India",
-                    "optimal_timing": "17:00 IST",
-                    "reach_multiplier": "92% Growth",
-                    "recommended_action": "CREATE CONTENT NOW"
-                }
-            }
-        ]
+
+        if not formatted_trends:
+            logger.warning("spotify/viral: Spotify search returned 0 tracks. Returning empty — no hardcoded fallback.")
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                content=[],
+                headers={"X-Fallback-Reason": "spotify_search_empty", "X-Data-Source": "none"}
+            )
+
+        logger.info(f"spotify/viral: returning {len(formatted_trends)} real tracks via {source_method}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=formatted_trends,
+            headers={"X-Data-Source": source_method, "X-Track-Count": str(len(formatted_trends))}
+        )
+
+    except ValueError as ve:
+        logger.error(f"spotify/viral: credential error — {ve}")
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=[],
+            headers={"X-Fallback-Reason": "spotify_credentials_error", "X-Data-Source": "none"}
+        )
     except Exception as e:
-        logger.error(f"Error fetching spotify viral trends: {e}", exc_info=True)
-        return [
-            {
-                "id": "sp_1",
-                "audio_title": "Rolex Theme (Background Score)",
-                "audio_artist": "Anirudh Ravichander",
-                "market": "IN",
-                "market_label": "🇮🇳 India",
-                "rank": 1,
-                "prediction": {
-                    "combined_score": 96,
-                    "prediction": "Spotify Viral 🇮🇳 India",
-                    "optimal_timing": "18:00 IST",
-                    "reach_multiplier": "96% Growth",
-                    "recommended_action": "POST SOON"
-                }
-            }
-        ]
+        logger.error(f"spotify/viral: unexpected error — {e}", exc_info=True)
+        from fastapi.responses import JSONResponse
+        return JSONResponse(
+            content=[],
+            headers={"X-Fallback-Reason": f"spotify_error:{type(e).__name__}", "X-Data-Source": "none"}
+        )
 
 
 @router.get("/api/trends/all-active")

@@ -741,8 +741,8 @@ def run_full_pipeline(stages: list = None):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
     
     # Check for Instagram login wall redirect and dispatch single consolidated alert
-    if getattr(scraper, "login_wall_detected", False):
-        targets = getattr(scraper, "login_wall_targets", [])
+    if 'insta' in locals() and getattr(insta, "login_wall_detected", False):
+        targets = getattr(insta, "login_wall_targets", [])
         try:
             alert_sys = AlertSystem()
             alert_sys.send_login_wall_alert(targets=targets, gha_run_id=os.getenv("GITHUB_RUN_ID"))

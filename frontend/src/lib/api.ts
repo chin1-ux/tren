@@ -491,6 +491,53 @@ export function setAuthToken(token: string | null) {
   inMemoryToken = token;
 }
 
+export function isJwtExpired(token: string): boolean {
+  try {
+    const parts = token.split(".");
+    if (parts.length !== 3) return false;
+    const base64Url = parts[1];
+    const base64 = base64Url.replace(/-/g, "+").replace(/_/g, "/");
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split("")
+        .map((c) => "%" + ("00" + c.charCodeAt(0).toString(16)).slice(-2))
+        .join("")
+    );
+    const payload = JSON.parse(jsonPayload);
+    if (payload && typeof payload.exp === "number") {
+      // Consider expired if within 60 seconds of expiration
+      return Date.now() / 1000 >= payload.exp - 60;
+    }
+  } catch (e) {
+    // If not a parseable JWT, fallback to standard check
+  }
+  return false;
+}
+
+export async function ensureValidToken(): Promise<string | null> {
+  let token = getAuthToken();
+  if (!token) return null;
+
+  // Bypass hardcoded demo tokens
+  if (token.startsWith("demo_")) return token;
+
+  if (isJwtExpired(token)) {
+    try {
+      const { data, error } = await supabase.auth.getSession();
+      if (!error && data?.session?.access_token) {
+        token = data.session.access_token;
+        setAuthToken(token);
+        if (typeof window !== "undefined") {
+          localStorage.setItem("trendrop_session_token", token);
+        }
+      }
+    } catch (err) {
+      console.warn("[auth] Failed to proactively refresh expired token:", err);
+    }
+  }
+  return token;
+}
+
 export function getAuthToken(): string | null {
   if (!inMemoryToken && typeof window !== "undefined") {
     inMemoryToken = localStorage.getItem("trendrop_session_token") || localStorage.getItem("trendrop_token");
@@ -514,7 +561,7 @@ export function getAuthToken(): string | null {
 }
 
 async function http<T>(path: string, init?: RequestInit): Promise<T> {
-  const token = getAuthToken();
+  const token = await ensureValidToken();
   const headers = new Headers(init?.headers);
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -527,22 +574,22 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     signal: controller.signal,
   });
   clearTimeout(timeout);
-  if (res.status === 401) {
-    // Dispatch a soft event — AuthWrapper will redirect via React Router.
-    // Do NOT wipe the session token or hard-redirect here: if the 401 is
-    // from a plan-gated endpoint (e.g. early_detection), we should not
-    // destroy the session for the user.
+
+  const tokenStatus = res.headers.get("X-Token-Status") || res.headers.get("x-token-status");
+  if (tokenStatus === "expired" || tokenStatus === "invalid" || res.status === 401) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
     }
-    throw new Error(`401 Unauthorized`);
+    if (res.status === 401) {
+      throw new Error(`401 Unauthorized`);
+    }
   }
   if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
   return res.json() as Promise<T>;
 }
 
 export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
-  const token = getAuthToken();
+  const token = await ensureValidToken();
   const headers = new Headers(init?.headers);
   if (token) {
     headers.set("Authorization", `Bearer ${token}`);
@@ -555,10 +602,9 @@ export async function apiFetch(path: string, init?: RequestInit): Promise<Respon
     signal: controller.signal,
   });
   clearTimeout(timeout);
-  if (res.status === 401) {
-    // Dispatch a soft event — AuthWrapper will redirect via React Router.
-    // Do NOT wipe the session token or hard-redirect here: if the 401 is
-    // from a plan-gated endpoint, we should not destroy the session.
+
+  const tokenStatus = res.headers.get("X-Token-Status") || res.headers.get("x-token-status");
+  if (tokenStatus === "expired" || tokenStatus === "invalid" || res.status === 401) {
     if (typeof window !== "undefined") {
       window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
     }

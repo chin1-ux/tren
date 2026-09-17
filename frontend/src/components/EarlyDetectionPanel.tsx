@@ -1,17 +1,26 @@
 import React, { useState, useEffect } from "react";
 import { motion } from "framer-motion";
-import { Sparkles, TrendingUp, Clock, AlertCircle, CheckCircle, Calendar, Flame, Zap, Music2, Newspaper, PartyPopper, Layout } from "lucide-react";
+import {
+  Sparkles, TrendingUp, Clock, AlertCircle, Zap,
+  Music2, ExternalLink, RefreshCw, Info
+} from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { PlanGate } from "./PlanGate";
-import { FEATURES } from "@/lib/features";
 import { apiFetch } from "@/lib/api";
 import { useUserStore } from "@/store/useAppStore";
 
-interface EarlyDetectionTrend {
-  id: number;
+interface SpotifyTrack {
+  id: string;
   audio_title: string;
   audio_artist: string;
+  spotify_id?: string;
+  market: string;
+  market_label: string;
+  rank: number;
+  popularity?: number;
+  release_date?: string;
+  data_source?: string;
   prediction: {
     combined_score: number;
     prediction: string;
@@ -21,362 +30,330 @@ interface EarlyDetectionTrend {
   };
 }
 
-interface CulturalEvent {
-  name: string;
-  date: string;
-  days_until: number;
-  content_themes: string[];
-  hashtags: string[];
-}
-
-// The /trends/emerging endpoint returns a flat trend shape (creator_fit_score,
-// hook_retention_score, saturation_penalty, window_hours_remaining,
-// optimal_post_hour_ist) — not the nested `prediction` object this panel
-// renders. Derive the display fields from the real values instead of
-// filtering everything out.
-function mapEarlyTrend(t: any): EarlyDetectionTrend | null {
+// Map raw API shape (emerging trend) → SpotifyTrack shape
+function mapEarlyTrend(t: any): SpotifyTrack | null {
   if (!t || t.id == null) return null;
-  if (t?.prediction?.combined_score != null) return t as EarlyDetectionTrend;
-  if (t.status !== 'emerging' && t.status !== 'rising') return null;
-  const fit = typeof t.creator_fit_score === 'number' ? t.creator_fit_score : null;
-  const hook = typeof t.hook_retention_score === 'number' ? t.hook_retention_score : null;
-  const sat = typeof t.saturation_penalty === 'number' ? t.saturation_penalty : null;
+  // Already in correct shape (from /api/spotify/viral)
+  if (t?.prediction?.combined_score != null && t.audio_title) return t as SpotifyTrack;
+  // Map from /api/trends/emerging shape
+  if (t.status !== "emerging" && t.status !== "rising") return null;
+  const fit = typeof t.creator_fit_score === "number" ? t.creator_fit_score : null;
+  const hook = typeof t.hook_retention_score === "number" ? t.hook_retention_score : null;
+  const sat = typeof t.saturation_penalty === "number" ? t.saturation_penalty : null;
   if (fit == null || hook == null || sat == null) return null;
   const score = Math.round(100 * Math.min(1, Math.max(0, 0.4 * fit + 0.35 * hook + 0.25 * (1 - sat))));
-  const hoursLeft = Number.isFinite(t.window_hours_remaining) ? Math.max(0, Math.round(t.window_hours_remaining)) : null;
+  const hoursLeft = Number.isFinite(t.window_hours_remaining)
+    ? Math.max(0, Math.round(t.window_hours_remaining))
+    : null;
   const timing = Number.isFinite(t.optimal_post_hour_ist)
-    ? `${String(Math.floor(t.optimal_post_hour_ist)).padStart(2, '0')}:00 IST`
-    : 'N/A';
+    ? `${String(Math.floor(t.optimal_post_hour_ist)).padStart(2, "0")}:00 IST`
+    : "N/A";
   return {
     id: t.id,
-    audio_title: t.audio_title ?? 'Unknown audio',
-    audio_artist: t.audio_artist ?? '',
+    audio_title: t.audio_title ?? "Unknown audio",
+    audio_artist: t.audio_artist ?? "",
+    market: "IN",
+    market_label: "🇮🇳 India",
+    rank: 0,
     prediction: {
       combined_score: score,
-      prediction: t.status ?? '',
+      prediction: t.status ?? "",
       optimal_timing: timing,
-      reach_multiplier: hoursLeft != null ? `${hoursLeft}h` : '—',
+      reach_multiplier: `${score}%`,
       recommended_action:
-        hoursLeft == null || hoursLeft <= 0 ? 'WINDOW CLOSED' : hoursLeft < 12 ? 'POST SOON' : 'CREATE CONTENT NOW',
+        hoursLeft == null || hoursLeft <= 0
+          ? "WINDOW CLOSED"
+          : hoursLeft < 12
+          ? "POST SOON"
+          : "CREATE CONTENT NOW",
     },
   };
 }
 
+// Filter: only show tracks that are not clearly vintage (>= 3 years old)
+function isRecentEnough(track: SpotifyTrack): boolean {
+  if (!track.release_date) return true; // unknown date — let it through
+  try {
+    const releaseYear = parseInt(track.release_date.split("-")[0], 10);
+    const currentYear = new Date().getFullYear();
+    return currentYear - releaseYear <= 3;
+  } catch {
+    return true;
+  }
+}
+
+const ACTION_COLOR: Record<string, string> = {
+  "POST NOW": "text-green-400",
+  "POST SOON": "text-yellow-400",
+  "EARLY ENTRY WINDOW": "text-blue-400",
+  "CREATE CONTENT NOW": "text-green-400",
+  "WINDOW CLOSED": "text-muted-foreground line-through",
+};
+
 export function EarlyDetectionPanel() {
-  const [earlyTrends, setEarlyTrends] = useState<EarlyDetectionTrend[]>([]);
-  const [culturalEvents, setCulturalEvents] = useState<CulturalEvent[]>([]);
+  const [tracks, setTracks] = useState<SpotifyTrack[]>([]);
   const [loading, setLoading] = useState(true);
-  const [activeTab, setActiveTab] = useState<'trends' | 'events'>('trends');
-  // Signal type filter (E9 — Notification Center filter)
-  type SignalFilter = 'all' | 'audio' | 'format' | 'news' | 'festival';
-  const [signalFilter, setSignalFilter] = useState<SignalFilter>('all');
-  // Read plan and niche from the Zustand store — same source as the rest of the app.
-  const userPlan = useUserStore((s) => s.plan) || 'free';
-  const userNiche = useUserStore((s) => s.niche) || 'all';
+  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
+  const [dataSource, setDataSource] = useState<string>("none");
+  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
+
+  const userPlan = useUserStore((s) => s.plan) || "free";
 
   useEffect(() => {
-    fetchEarlyTrends();
-    fetchCulturalEvents();
+    fetchTracks();
   }, []);
 
-  const fetchEarlyTrends = async () => {
+  const fetchTracks = async () => {
+    setLoading(true);
+    setFallbackReason(null);
     try {
-      const res = await apiFetch('/api/spotify/viral');
+      const res = await apiFetch("/api/spotify/viral");
+
+      // Read quality headers
+      const fallback = res.headers.get("X-Fallback-Reason");
+      const source = res.headers.get("X-Data-Source") ?? "search";
+      setDataSource(source);
+      if (fallback) setFallbackReason(fallback);
+
       if (res.ok) {
-        const data = await res.json();
-        if (data && data.length > 0) {
-          setEarlyTrends(data);
+        const data: SpotifyTrack[] = await res.json();
+        if (Array.isArray(data) && data.length > 0) {
+          const filtered = data.filter(isRecentEnough);
+          setTracks(filtered);
+          setLastRefreshed(new Date());
           setLoading(false);
           return;
         }
       }
-      
-      const resEmerging = await apiFetch('/api/trends/emerging');
-      if (resEmerging.ok) {
-        const dataFb = await resEmerging.json();
-        setEarlyTrends((dataFb || []).map(mapEarlyTrend).filter(Boolean));
-      }
     } catch (err) {
-      console.error('Error fetching early trends:', err);
-      toast.error("Could not load early trend data");
-    } finally {
-      setLoading(false);
+      console.error("spotify/viral fetch error:", err);
     }
-  };
 
-  const fetchCulturalEvents = async () => {
+    // Fallback: try /api/trends/emerging
     try {
-      const res = await apiFetch('/api/india/cultural-events?days_ahead=90');
-      if (res.ok) {
-        const data = await res.json();
-        if (data.events && data.events.length > 0) {
-          setCulturalEvents(data.events);
-          return;
-        }
+      const res2 = await apiFetch("/api/trends/emerging");
+      if (res2.ok) {
+        const data2 = await res2.json();
+        const mapped = (data2 || []).map(mapEarlyTrend).filter(Boolean) as SpotifyTrack[];
+        setTracks(mapped.filter(isRecentEnough));
+        setDataSource("emerging");
+        setLastRefreshed(new Date());
       }
-    } catch (err) {
-      console.error('Error fetching cultural events:', err);
-      toast.error("Could not load cultural events");
+    } catch (err2) {
+      console.error("trends/emerging fetch error:", err2);
     }
-    
-    // Localized Indian festivals fallback content calendar — days_until computed dynamically
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const calcDays = (monthDay: string, year?: number) => {
-      const d = new Date(`${monthDay}, ${year ?? today.getFullYear()}`);
-      return Math.max(0, Math.ceil((d.getTime() - today.getTime()) / 86400000));
-    };
-    const festivals = [
-      { name: "Independence Day Celebration", monthDay: "August 15", content_themes: ["Patriotic edits", "Freedom transitions", "Indian flag colors styling"], hashtags: ["independenceday", "india", "harghartiranga"] },
-      { name: "Raksha Bandhan", monthDay: "August 28", content_themes: ["Sibling comedy reels", "Gift unboxings", "Traditional outfits transitions"], hashtags: ["rakshabandhan", "siblings", "festivevibes"] },
-      { name: "Krishna Janmashtami", monthDay: "September 4", content_themes: ["Dahi Handi celebrations", "Krishna bhajan transition audio", "Ethnic wear styling"], hashtags: ["janmashtami", "krishna", "festive"] },
-      { name: "Ganesh Chaturthi", monthDay: "September 15", content_themes: ["Ganesha welcome reels", "Modak making recipe", "Aarti singing challenge"], hashtags: ["ganeshchaturthi", "ganpati", "morya"] },
-    ];
-    setCulturalEvents(
-      festivals
-        .map((f) => ({
-          ...f,
-          date: `${f.monthDay}, ${today.getFullYear()}`,
-          days_until: calcDays(f.monthDay),
-        }))
-        .sort((a, b) => a.days_until - b.days_until)
-        .filter((f) => f.days_until >= 0)
-    );
+
+    setLoading(false);
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 80) return 'text-green-500';
-    if (score >= 60) return 'text-yellow-500';
-    return 'text-red-500';
+    if (score >= 80) return "text-green-400";
+    if (score >= 65) return "text-yellow-400";
+    return "text-orange-400";
   };
 
   const getScoreBg = (score: number) => {
-    if (score >= 80) return 'bg-green-500/10';
-    if (score >= 60) return 'bg-yellow-500/10';
-    return 'bg-red-500/10';
-  };
-
-  const getUrgencyBadge = (days: number) => {
-    if (days <= 7) return { text: 'URGENT', color: 'bg-red-500' };
-    if (days <= 30) return { text: 'SOON', color: 'bg-yellow-500' };
-    return { text: 'UPCOMING', color: 'bg-blue-500' };
+    if (score >= 80) return "bg-green-500/10 border-green-500/20";
+    if (score >= 65) return "bg-yellow-500/10 border-yellow-500/20";
+    return "bg-orange-500/10 border-orange-500/20";
   };
 
   if (loading) {
     return (
       <div className="space-y-4">
-        {[1, 2, 3].map((i) => (
-          <div key={i} className="h-32 bg-card/50 border border-border/50 animate-pulse rounded-2xl" />
+        {[1, 2, 3, 4].map((i) => (
+          <div key={i} className="h-28 bg-card/50 border border-border/50 animate-pulse rounded-2xl" />
         ))}
       </div>
     );
   }
 
   return (
-    <PlanGate 
-      feature="Early Detection" 
-      requiredPlan="pro" 
+    <PlanGate
+      feature="Early Detection"
+      requiredPlan="pro"
       currentPlan={userPlan}
-      onUpgrade={() => window.location.href = '/pricing'}
+      onUpgrade={() => (window.location.href = "/pricing")}
     >
       <div className="space-y-6">
         {/* Header */}
-        <div className="flex items-center justify-between">
+        <div className="flex items-start justify-between gap-4">
           <div>
             <h2 className="text-lg font-bold font-display flex items-center gap-2">
-              <Sparkles className="h-5 w-5 text-primary" />
-              Early Detection
-            </h2>
-            <p className="text-xs text-muted-foreground">
-              Trends before they go viral
-            </p>
-          </div>
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              variant={activeTab === 'trends' ? 'default' : 'outline'}
-              onClick={() => setActiveTab('trends')}
-              className="rounded-full text-xs"
-            >
-              <TrendingUp className="h-3 w-3 mr-1" />
-              Trends
-            </Button>
-            {FEATURES.CALENDAR_ENABLED && (
-              <Button
-                size="sm"
-                variant={activeTab === 'events' ? 'default' : 'outline'}
-                onClick={() => setActiveTab('events')}
-                className="rounded-full text-xs"
-              >
-                <Calendar className="h-3 w-3 mr-1" />
-                Events
-              </Button>
-            )}
-          </div>
-        </div>
-
-        {/* Signal Type Filter Pills */}
-        {activeTab === 'trends' && (
-          <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-1">
-            {([
-              { key: 'all',      label: 'All Signals', icon: <Sparkles className="h-3 w-3" /> },
-              { key: 'audio',    label: 'Spotify Viral', icon: <Music2 className="h-3 w-3" /> },
-              { key: 'news',     label: 'Live News',     icon: <Newspaper className="h-3 w-3" /> },
-              { key: 'festival', label: 'Festivals',     icon: <PartyPopper className="h-3 w-3" /> },
-            ] as { key: SignalFilter; label: string; icon: React.ReactNode }[]).map((f) => (
-              <button
-                key={f.key}
-                onClick={() => setSignalFilter(f.key)}
-                className={`shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-full text-[11px] font-semibold border transition-all ${
-                  signalFilter === f.key
-                    ? 'bg-primary text-white border-primary shadow-sm shadow-primary/20'
-                    : 'bg-muted/50 text-muted-foreground border-border/40 hover:bg-muted hover:text-foreground'
+              <Music2 className="h-5 w-5 text-green-500" />
+              Spotify Viral Tracks
+              {/* Live / stale indicator */}
+              <span
+                className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${
+                  fallbackReason
+                    ? "bg-yellow-500/10 border-yellow-500/30 text-yellow-400"
+                    : "bg-green-500/10 border-green-500/30 text-green-400"
                 }`}
               >
-                {f.icon}
-                {f.label}
-              </button>
-            ))}
+                {fallbackReason ? "⚠ Cached" : "🟢 Live"}
+              </span>
+            </h2>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              {tracks.length > 0
+                ? `${tracks.length} trending audios — use before they saturate`
+                : "No tracks available right now"}
+              {lastRefreshed && (
+                <span className="ml-2 opacity-60">
+                  · refreshed {lastRefreshed.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })}
+                </span>
+              )}
+            </p>
+          </div>
+          <Button
+            size="sm"
+            variant="outline"
+            className="rounded-full gap-1.5 text-xs h-8 shrink-0"
+            onClick={fetchTracks}
+          >
+            <RefreshCw className="h-3 w-3" />
+            Refresh
+          </Button>
+        </div>
+
+        {/* Fallback warning banner */}
+        {fallbackReason && (
+          <div className="flex items-start gap-3 p-3 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
+            <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
+            <div>
+              <p className="text-xs font-semibold text-yellow-300">Spotify data temporarily unavailable</p>
+              <p className="text-[11px] text-muted-foreground mt-0.5">
+                {fallbackReason === "spotify_credentials_error"
+                  ? "API credentials need renewal. Showing cached tracks from trends database."
+                  : fallbackReason === "spotify_search_empty"
+                  ? "Spotify returned no results for current queries. Check back in a few minutes."
+                  : "Spotify connection issue. Data may be slightly delayed."}
+              </p>
+            </div>
           </div>
         )}
 
-      {activeTab === 'trends' ? (() => {
-        const filtered = signalFilter === 'all' ? earlyTrends : earlyTrends.filter((t: any) => {
-          if (signalFilter === 'audio')    return (t.content_type ?? '').toLowerCase().includes('audio') || t.niche_tag == null;
-          if (signalFilter === 'format')   return (t.content_type ?? '').toLowerCase().includes('format') || (t.niche_tag ?? '').includes('format');
-          if (signalFilter === 'news')     return (t.niche_tag ?? '').includes('news') || (t.content_type ?? '').includes('news');
-          if (signalFilter === 'festival') return (t.niche_tag ?? '').includes('festival') || (t.niche_tag ?? '').includes('cultural');
-          return true;
-        });
-        return (
-        <div className="space-y-3">
-          {filtered.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <TrendingUp className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">
-                {signalFilter === 'all' ? 'No early trends detected' : `No ${signalFilter} trends right now`}
+        {/* Empty state */}
+        {tracks.length === 0 ? (
+          <div className="flex flex-col items-center justify-center py-16 text-center">
+            <Music2 className="h-12 w-12 text-muted-foreground mb-3" />
+            <p className="text-sm font-semibold text-muted-foreground">No viral tracks right now</p>
+            <p className="text-xs text-muted-foreground mt-1 max-w-xs">
+              Our Spotify pipeline refreshes every hour. Try refreshing or check back soon.
+            </p>
+            <Button
+              size="sm"
+              variant="outline"
+              className="mt-4 rounded-full gap-1.5 text-xs"
+              onClick={fetchTracks}
+            >
+              <RefreshCw className="h-3 w-3" />
+              Try Again
+            </Button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {tracks.map((track, index) => {
+              const score = track.prediction?.combined_score ?? 0;
+              return (
+                <motion.div
+                  key={track.id}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  transition={{ delay: index * 0.06 }}
+                  className="bg-card border border-border p-4 rounded-2xl hover:border-primary/30 transition-all hover:shadow-md"
+                >
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      {/* Title + badges row */}
+                      <div className="flex items-center gap-2 mb-1 flex-wrap">
+                        <h3 className="text-sm font-semibold font-display truncate">
+                          {track.audio_title}
+                        </h3>
+                        {track.market_label && (
+                          <span className="px-2 py-0.5 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full shrink-0">
+                            {track.market_label}
+                          </span>
+                        )}
+                        <span
+                          className={`px-2 py-0.5 text-[10px] font-bold ${getScoreBg(score)} ${getScoreColor(score)} rounded-full border`}
+                        >
+                          {score}% viral score
+                        </span>
+                      </div>
+
+                      {/* Artist */}
+                      <p className="text-xs text-muted-foreground mb-2 truncate">
+                        {track.audio_artist}
+                        {track.release_date && (
+                          <span className="ml-2 opacity-60">· {track.release_date.split("-")[0]}</span>
+                        )}
+                      </p>
+
+                      {/* Timing */}
+                      <div className="flex items-center gap-3 text-[10px] text-muted-foreground flex-wrap">
+                        <span className="flex items-center gap-1">
+                          <Clock className="h-3 w-3" />
+                          Best time: {track.prediction?.optimal_timing ?? "N/A"}
+                        </span>
+                        {track.popularity != null && (
+                          <span className="flex items-center gap-1">
+                            <TrendingUp className="h-3 w-3" />
+                            Spotify popularity: {track.popularity}/100
+                          </span>
+                        )}
+                        {track.spotify_id && (
+                          <a
+                            href={`https://open.spotify.com/track/${track.spotify_id}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-green-500 hover:text-green-400 transition-colors"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Open in Spotify
+                          </a>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Right panel */}
+                    <div className="flex flex-col items-end gap-2 shrink-0">
+                      <div
+                        className={`w-12 h-12 rounded-full ${getScoreBg(score)} border flex items-center justify-center ${getScoreColor(score)} font-bold text-sm`}
+                      >
+                        {score}
+                      </div>
+                      <span
+                        className={`text-[9px] font-bold text-right ${
+                          ACTION_COLOR[track.prediction?.recommended_action] ?? "text-muted-foreground"
+                        }`}
+                      >
+                        {track.prediction?.recommended_action}
+                      </span>
+                    </div>
+                  </div>
+                </motion.div>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Info banner */}
+        <div className="bg-gradient-to-r from-green-500/5 to-primary/5 border border-green-500/10 p-4 rounded-2xl">
+          <div className="flex items-start gap-3">
+            <div className="w-8 h-8 rounded-full bg-green-500/15 flex items-center justify-center text-green-500 shrink-0">
+              <Zap className="h-4 w-4" />
+            </div>
+            <div>
+              <h4 className="text-sm font-semibold font-display mb-1">Why use trending audio early?</h4>
+              <p className="text-xs text-muted-foreground leading-relaxed">
+                Reels that use audio in the first 48h of virality get{" "}
+                <span className="text-green-400 font-semibold">3–5× more reach</span> than those who
+                join after saturation. These are real Spotify viral searches — not curated suggestions.
               </p>
             </div>
-          ) : (
-            filtered.map((trend, index) => (
-              <motion.div
-                key={trend.id}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-card border border-border p-4 rounded-2xl hover:border-primary/20 transition-all"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-sm font-semibold font-display truncate">
-                        {trend.audio_title}
-                      </h3>
-                      {(trend as any).market_label && (
-                        <span className="px-2 py-0.5 text-[10px] font-bold bg-primary/10 text-primary border border-primary/20 rounded-full shrink-0">
-                          {(trend as any).market_label}
-                        </span>
-                      )}
-                      <span className={`px-2 py-0.5 text-[10px] font-bold ${getScoreBg(trend.prediction?.combined_score ?? 0)} ${getScoreColor(trend.prediction?.combined_score ?? 0)} rounded-full`}>
-                        {(trend.prediction?.combined_score ?? 0).toFixed(0)}%
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {trend.audio_artist}
-                    </p>
-                    <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
-                      <Clock className="h-3 w-3" />
-                      <span>{trend.prediction?.optimal_timing ?? 'N/A'}</span>
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <div className={`w-10 h-10 rounded-full ${getScoreBg(trend.prediction.combined_score)} flex items-center justify-center ${getScoreColor(trend.prediction.combined_score)} font-bold font-display text-sm`}>
-                      {trend.prediction.reach_multiplier}
-                    </div>
-                    <span className={`text-[9px] font-bold ${trend.prediction.recommended_action === 'CREATE CONTENT NOW' ? 'text-green-500' : 'text-yellow-500'}`}>
-                      {trend.prediction.recommended_action}
-                    </span>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-        );
-      })() : FEATURES.CALENDAR_ENABLED ? (
-        <div className="space-y-3">
-          {culturalEvents.length === 0 ? (
-            <div className="flex flex-col items-center justify-center py-12 text-center">
-              <Calendar className="h-12 w-12 text-muted-foreground mb-3" />
-              <p className="text-sm text-muted-foreground">No upcoming cultural events</p>
-            </div>
-          ) : (
-            culturalEvents.map((event, index) => (
-              <motion.div
-                key={event.name}
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ delay: index * 0.1 }}
-                className="bg-card border border-border p-4 rounded-2xl hover:border-primary/20 transition-all"
-              >
-                <div className="flex items-start justify-between gap-4">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-2">
-                      <h3 className="text-sm font-semibold font-display">
-                        {event.name}
-                      </h3>
-                      <span className={`px-2 py-0.5 text-[10px] font-bold ${getUrgencyBadge(event.days_until).color} text-white rounded-full`}>
-                        {getUrgencyBadge(event.days_until).text}
-                      </span>
-                    </div>
-                    <p className="text-xs text-muted-foreground mb-2">
-                      {event.date} ({event.days_until} days away)
-                    </p>
-                    <div className="flex flex-wrap gap-1">
-                      {event.content_themes.slice(0, 3).map((theme, idx) => (
-                        <span
-                          key={idx}
-                          className="px-2 py-0.5 text-[10px] bg-primary/10 text-primary rounded-full"
-                        >
-                          {theme}
-                        </span>
-                      ))}
-                    </div>
-                  </div>
-                  <div className="flex flex-col items-end gap-2">
-                    <Button
-                      size="sm"
-                      variant="outline"
-                      onClick={() => toast.info(`Content ideas for ${event.name} coming soon!`)}
-                      className="rounded-full text-xs"
-                    >
-                      <Flame className="h-3 w-3 mr-1" />
-                      Ideas
-                    </Button>
-                  </div>
-                </div>
-              </motion.div>
-            ))
-          )}
-        </div>
-      ) : null}
-
-      {/* Info Banner */}
-      <div className="bg-gradient-to-r from-primary/10 to-primary/10 border border-primary/20 p-4 rounded-2xl">
-        <div className="flex items-start gap-3">
-          <div className="w-8 h-8 rounded-full bg-primary/20 flex items-center justify-center text-primary shrink-0">
-            <Zap className="h-4 w-4" />
-          </div>
-          <div>
-            <h4 className="text-sm font-semibold font-display mb-1">Why Early Detection Matters</h4>
-            <p className="text-xs text-muted-foreground leading-relaxed">
-              Joining trends early while they're still rising gives you 3x more reach. 
-              Most tools only show trends AFTER they're viral - we predict them BEFORE.
-            </p>
           </div>
         </div>
       </div>
-    </div>
     </PlanGate>
   );
 }

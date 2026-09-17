@@ -460,6 +460,9 @@ async def security_headers_and_limits_middleware(request: Request, call_next):
 
     response = await call_next(request)
     
+    if getattr(request.state, "invalid_auth_token", False):
+        response.headers["X-Token-Status"] = "expired"
+
     # Security Headers
     response.headers["X-Content-Type-Options"] = "nosniff"
     response.headers["X-Frame-Options"] = "DENY"

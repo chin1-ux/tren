@@ -110,6 +110,14 @@ def run_nightly_batch(limit: int | None = None) -> dict:
                 logger.warning("Trend %s failed on attempt %d: %s", tid, attempt, err)
                 if attempt < MAX_RETRIES_PER_TREND:
                     _sleep_backoff(attempt)
+
+        if isinstance(result, list) and len(result) > 0 and isinstance(result[0], dict):
+            logger.warning("Trend %s (%s) returned list-wrapped LLM JSON; coercing result[0]", tid, title)
+            result = result[0]
+        elif result is not None and not isinstance(result, dict):
+            logger.warning("Trend %s (%s) returned non-dict LLM payload type: %s", tid, title, type(result).__name__)
+            result = None
+
         if not result:
             unavailable += 1
             sb.table("trends").update({

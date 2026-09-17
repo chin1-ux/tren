@@ -46,12 +46,16 @@ def _check_user_locked(email: str) -> None:
     except Exception:
         pass  # If we can't check, don't block — but log it
 
-def get_current_user(authorization: str = Header(None)) -> str:
+def get_current_user(request: Request = None, authorization: str = Header(None)) -> str:
     """
     Validate the Supabase JWT or custom auth_token in the Authorization header.
     Returns the user's email if valid. Falls back to guest@trendrop.app if invalid or missing.
     Raises 403 if the resolved account has status == 'locked'.
+    Sets request.state.invalid_auth_token = True if an Authorization header was explicitly provided but failed validation.
     """
+    if request and hasattr(request, "state"):
+        request.state.invalid_auth_token = False
+
     if not supabase:
         return "guest@trendrop.app"
     
@@ -101,6 +105,10 @@ def get_current_user(authorization: str = Header(None)) -> str:
         raise
     except Exception:
         pass
+
+    # Token was explicitly provided but failed all validation checks
+    if request and hasattr(request, "state"):
+        request.state.invalid_auth_token = True
 
     return "guest@trendrop.app"
 
