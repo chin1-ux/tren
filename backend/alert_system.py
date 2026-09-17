@@ -545,3 +545,56 @@ class AlertSystem:
         </body>
         </html>
         """
+
+    def send_login_wall_alert(self, targets: list[str] | None = None, gha_run_id: str | None = None) -> bool:
+        """
+        Fires a single consolidated alert when Instagram login wall is detected.
+        Supports Telegram Bot API (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) or Discord Webhook (DISCORD_WEBHOOK_URL).
+        """
+        targets_str = ", ".join(targets) if targets else "Multiple scrape targets"
+        run_id_str = f"Run ID: {gha_run_id}" if gha_run_id else "Local/Manual Run"
+        
+        msg = (
+            f"🚨 <b>INSTAGRAM LOGIN WALL DETECTED</b> 🚨\n\n"
+            f"• <b>Status</b>: Instagram redirected Playwright navigation to /accounts/login/\n"
+            f"• <b>Affected Targets</b>: {targets_str}\n"
+            f"• <b>Context</b>: {run_id_str}\n"
+            f"• <b>Action Required</b>: Update INSTAGRAM_COOKIES_B64 in GitHub repository secrets with a fresh logged-in session cookie.\n"
+        )
+        
+        logging.warning(f"[LOGIN WALL ALERT] {msg.replace('<b>', '').replace('</b>', '')}")
+        
+        telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+        telegram_chat = os.getenv("TELEGRAM_CHAT_ID")
+        discord_webhook = os.getenv("DISCORD_WEBHOOK_URL")
+        
+        sent = False
+        if telegram_token and telegram_chat:
+            try:
+                import requests
+                tg_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+                payload = {"chat_id": telegram_chat, "text": msg, "parse_mode": "HTML"}
+                res = requests.post(tg_url, json=payload, timeout=10)
+                if res.status_code == 200:
+                    logging.info("[ALERT] Successfully sent Telegram login-wall alert.")
+                    sent = True
+                else:
+                    logging.warning(f"[ALERT] Telegram API returned status {res.status_code}: {res.text}")
+            except Exception as e:
+                logging.error(f"[ALERT] Failed to send Telegram alert: {e}")
+                
+        if discord_webhook:
+            try:
+                import requests
+                discord_msg = msg.replace("<b>", "**").replace("</b>", "**")
+                payload = {"content": discord_msg}
+                res = requests.post(discord_webhook, json=payload, timeout=10)
+                if res.status_code in (200, 204):
+                    logging.info("[ALERT] Successfully sent Discord login-wall alert.")
+                    sent = True
+                else:
+                    logging.warning(f"[ALERT] Discord Webhook returned status {res.status_code}: {res.text}")
+            except Exception as e:
+                logging.error(f"[ALERT] Failed to send Discord alert: {e}")
+                
+        return sent

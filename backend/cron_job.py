@@ -739,6 +739,16 @@ def run_full_pipeline(stages: list = None):
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
+    
+    # Check for Instagram login wall redirect and dispatch single consolidated alert
+    if getattr(scraper, "login_wall_detected", False):
+        targets = getattr(scraper, "login_wall_targets", [])
+        try:
+            alert_sys = AlertSystem()
+            alert_sys.send_login_wall_alert(targets=targets, gha_run_id=os.getenv("GITHUB_RUN_ID"))
+        except Exception as alert_err:
+            logging.error(f"Failed to dispatch login wall alert: {alert_err}")
+
     _send_cron_heartbeat()
     # Immediately purge the Redis trends cache so the next API request
     # serves the freshly-written data, not a stale 5-minute window.

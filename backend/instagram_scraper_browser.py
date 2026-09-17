@@ -250,6 +250,9 @@ class InstagramScraper:
                 if tag.lower() not in self._hashtag_pool_lookup:
                     self._hashtag_pool_lookup[tag.lower()] = pool_name
 
+        self.login_wall_detected = False
+        self.login_wall_targets = []
+
     def _source_hashtag_pool_for_hashtags(self, hashtags: list[str], scraped_tag: str | None = None) -> str | None:
         if scraped_tag:
             pool = self._hashtag_pool_lookup.get(scraped_tag.lower().lstrip("#"))
@@ -475,6 +478,11 @@ class InstagramScraper:
             if not captured_data.get("profile"):
                 final_title = await page.title()
                 logger.warning(f"[GHA DIAG SUMMARY FAILED] @{username} failed to capture profile payload. Final URL: {page.url} | Title: '{final_title}'")
+                if page and ("/accounts/login" in page.url or "/challenge/" in page.url):
+                    self.login_wall_detected = True
+                    target_name = f"@{username}"
+                    if target_name not in self.login_wall_targets:
+                        self.login_wall_targets.append(target_name)
             else:
                 logger.info(f"[GHA DIAG SUMMARY SUCCESS] @{username} profile payload successfully captured!")
 
