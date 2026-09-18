@@ -1,6 +1,8 @@
 import socket
 _orig = socket.getaddrinfo
-def _patched(host, port, *a, **kw):
+def _patched(host, port=0, *a, **kw):
+    if host in ("testserver", "localhost", "127.0.0.1"):
+        return [(socket.AF_INET, socket.SOCK_STREAM, 6, "", ("127.0.0.1", port))]
     return _orig(host, port, *a, **kw)
 socket.getaddrinfo = _patched
 

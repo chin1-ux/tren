@@ -63,9 +63,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
       const validUrls = (data || [])
         .map((r: any) => r.reel_id)
         .filter(Boolean)
-        .map((reelId: string) => /^\d+$/.test(reelId)
-          ? `https://www.instagram.com/reels/audio/${reelId}/`
-          : `https://www.instagram.com/reel/${reelId}/`) as string[];
+        .map((reelId: string) => `https://www.instagram.com/reel/${reelId}/`);
 
       if (validUrls.length === 0) {
         toast.error("No Instagram deep-links are currently available for this audio trend yet.");
