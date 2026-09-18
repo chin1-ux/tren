@@ -1,7 +1,7 @@
 import socket
 _orig = socket.getaddrinfo
 def _patched(host, port, *a, **kw):
-    return _orig(host, port, socket.AF_INET, *a, **kw)
+    return _orig(host, port, *a, **kw)
 socket.getaddrinfo = _patched
 
 import sys

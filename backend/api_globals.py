@@ -41,8 +41,12 @@ logger = logging.getLogger(__name__)
 # Force IPv4 — IPv6 broken on Windows, causes hangs on Supabase/LLM calls
 import socket
 _orig_gai = socket.getaddrinfo
-def _ipv4_only(*a, **kw):
-    return [r for r in _orig_gai(*a, **kw) if r[0] == socket.AF_INET]
+def _ipv4_only(host, port, family=0, type=0, proto=0, flags=0):
+    res = _orig_gai(host, port, family, type, proto, flags)
+    if host in ("testserver", "localhost", "127.0.0.1"):
+        return res
+    ipv4_res = [r for r in res if r[0] == socket.AF_INET]
+    return ipv4_res if ipv4_res else res
 socket.getaddrinfo = _ipv4_only
 
 try:

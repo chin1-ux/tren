@@ -10,7 +10,11 @@ logger = logging.getLogger("llm")
 # Force IPv4 — IPv6 is broken on some environments causing hangs
 _orig_getaddrinfo = socket.getaddrinfo
 def _ipv4_only(*args, **kwargs):
-    return [r for r in _orig_getaddrinfo(*args, **kwargs) if r[0] == socket.AF_INET]
+    res = _orig_getaddrinfo(*args, **kwargs)
+    if args and args[0] in ("testserver", "localhost", "127.0.0.1"):
+        return res
+    ipv4_res = [r for r in res if r[0] == socket.AF_INET]
+    return ipv4_res if ipv4_res else res
 socket.getaddrinfo = _ipv4_only
 
 # Available Gemini models (verified 2026-08-24):
