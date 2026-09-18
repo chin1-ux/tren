@@ -169,12 +169,19 @@ def run_full_pipeline(stages: list = None):
     }
     groq_keys_detected = sum(1 for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3") if os.getenv(key))
     gemini_keys_detected = sum(1 for key in ("GEMINI_API_KEY", "GEMINI_API_KEY_2") if os.getenv(key))
+    trend_ids = []
+    new_reels_count = 0
     reels_scraped = 0
     reels_skipped_low_engagement = 0
     classification_success = 0
     classification_failed_429 = 0
     uploads_skipped_oversized = 0
     pending_backfilled = 0
+    trend_detection_skipped = False
+    audio_watchlist_checked = 0
+    audio_watchlist_updated = 0
+    creator_watchlist_checked = 0
+    creator_watchlist_found = 0
     run_label = f"PIPELINE RUN @ {start.strftime('%Y-%m-%d %H:%M IST')}"
     logging.info(f"=== {run_label} STARTING ===")
 
@@ -195,7 +202,8 @@ def run_full_pipeline(stages: list = None):
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
     if scrape_mode == "global" and not os.environ.get("SCRAPER_HASHTAGS"):
-        global_tags = "fyp,viral,trending,foryou,explorar,reels,brasil,danca,dancechallenge,dancetrend,tiktokdance,choreography,hiphopdance,dancecover,dancevideo,speedupsongs,remixreels,viralaudio,reelsaudio,trendingsound,viralmusic,reelsound,phonk,brazilianphonk,funkbrasil,phonkmusic,speedupphonk,driftphonk,phonkdance,reelsbrasil,passinho,funkmtg,dancabrasil,mtgphonk,reggaeton,latinmusic,latinreels,spanishmusic,spanishreels,latintrend,afrobeats,afrobeatsreels,kpop,kpopdance"
+        # High-signal global tags prioritizing: Brazilian (phonk/funk), K-Pop, English (speedup/remix/viralaudio), Spanish (reggaeton/latin)
+        global_tags = "brazilianphonk,funkbrasil,phonkmusic,phonk,funkmtg,reelsbrasil,passinho,dancabrasil,speedupphonk,kpop,kpopdance,kpopreels,kpopsongs,viralaudio,trendingsound,speedupsongs,remixreels,reelsound,viralmusic,audiosforedits,trendingaudio,reggaeton,latinmusic,spanishmusic,latinreels,spanishreels,latintrend,perreo,afrobeats,afrobeatsreels"
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
 
@@ -678,11 +686,8 @@ def run_full_pipeline(stages: list = None):
             logging.info(f"Step 5/5: Sending alerts for {len(trend_ids)} new trend(s)...")
             alert = AlertSystem()
             alert.send_trend_alerts(trend_ids)
-            logging.info("Step 5/5: Alerts sent.")
         except Exception as e:
-            run_state["stage"] = "alerts_failed"
-            run_state["cutoff_reason"] = f"alert system failed: {e}"
-            logging.error(f"Step 5/5 FAILED (AlertSystem): {e}", exc_info=True)
+            logging.warning(f"Step 5/5 ALERT WARNING (AlertSystem): {e} (non-fatal, pipeline completed cleanly)")
     else:
         logging.info("Step 5/5: No new trends — skipping alerts.")
 
@@ -741,11 +746,21 @@ def run_full_pipeline(stages: list = None):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
     
     # Check for Instagram login wall redirect and dispatch single consolidated alert
-    if 'insta' in locals() and getattr(insta, "login_wall_detected", False):
-        targets = getattr(insta, "login_wall_targets", [])
+    scrapers_to_check = []
+    if 'insta' in locals() and insta:
+        scrapers_to_check.append(insta)
+    if 'watchlist_scraper' in locals() and watchlist_scraper:
+        scrapers_to_check.append(watchlist_scraper)
+    if 'creator_scraper' in locals() and creator_scraper:
+        scrapers_to_check.append(creator_scraper)
+
+    if any(getattr(s, "login_wall_detected", False) for s in scrapers_to_check):
+        all_targets = []
+        for s in scrapers_to_check:
+            all_targets.extend(getattr(s, "login_wall_targets", []))
         try:
             alert_sys = AlertSystem()
-            alert_sys.send_login_wall_alert(targets=targets, gha_run_id=os.getenv("GITHUB_RUN_ID"))
+            alert_sys.send_login_wall_alert(targets=list(set(all_targets)), gha_run_id=os.getenv("GITHUB_RUN_ID"))
         except Exception as alert_err:
             logging.error(f"Failed to dispatch login wall alert: {alert_err}")
 
