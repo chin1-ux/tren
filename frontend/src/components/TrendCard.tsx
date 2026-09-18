@@ -217,9 +217,9 @@ function TrialReelBadge({
 
 /** Audio deep-link builder */
 function buildAudioUrl(audioId?: string | null, audioName?: string): string {
-  if (audioId) return `https://www.instagram.com/reels/audio/${audioId}/`;
-  const q = encodeURIComponent(audioName || "");
-  return `https://www.instagram.com/explore/search/keyword/?q=${q}`;
+  if (audioId && audioId !== "null") return `https://www.instagram.com/reels/audio/${audioId}/`;
+  const cleanTag = (audioName || "reels").replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "reels";
+  return `https://www.instagram.com/explore/tags/${cleanTag}/`;
 }
 
 // ── Main Component ─────────────────────────────────────────────────────────────

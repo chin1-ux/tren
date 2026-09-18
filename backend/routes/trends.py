@@ -74,7 +74,7 @@ def get_trends(
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None]).gt("window_hours_remaining", 0)
 
         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -110,7 +110,7 @@ def get_trends(
         # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
         if not trends:
             skipped_local_fallback = False
-            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"]).gt("window_hours_remaining", 0)
+            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None]).gt("window_hours_remaining", 0)
             if language and language != "all":
                 q_fb = q_fb.eq("language", language)
             res_fb = execute_supabase_get(q_fb)
@@ -194,7 +194,7 @@ def get_emerging_trends(
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None])
         
         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
@@ -208,6 +208,22 @@ def get_emerging_trends(
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
+
+        # Fallback blending: if emerging count is below 5, blend in fresh rising/resurging trends detected in last 48h
+        if len(trends) < 5:
+            try:
+                q_blend = supabase.table("trends").select("*").in_("status", ["rising", "resurging"]).eq("is_voiceover", False).eq("is_seed_data", False).gte("first_detected_at", emerging_cutoff)
+                if language and language != "all":
+                    q_blend = q_blend.eq("language", language)
+                res_blend = q_blend.order("first_detected_at", desc=True).limit(10 - len(trends)).execute()
+                blended = _normalize_trends(res_blend.data or [])
+                existing_ids = {t.get("id") for t in trends}
+                for b in blended:
+                    if b.get("id") not in existing_ids:
+                        b["is_recently_promoted_fallback"] = True
+                        trends.append(b)
+            except Exception as _blend_err:
+                logger.warning(f"Emerging fallback blending error: {_blend_err}")
 
         # --- 70/30 Distribution for Emerging tab ---
         if not language or language == "all":
@@ -321,14 +337,18 @@ def get_spotify_viral_trends(
             })
 
         if not formatted_trends:
-            logger.warning("spotify/viral: Spotify search returned 0 tracks. Returning empty — no hardcoded fallback.")
+            logger.warning("spotify/viral: Spotify search returned 0 tracks. Falling back to Supabase audio trends.")
+            formatted_trends = _get_db_audio_trends_fallback()
+            source_method = "supabase_cache"
+
+        if not formatted_trends:
             from fastapi.responses import JSONResponse
             return JSONResponse(
                 content=[],
                 headers={"X-Fallback-Reason": "spotify_search_empty", "X-Data-Source": "none"}
             )
 
-        logger.info(f"spotify/viral: returning {len(formatted_trends)} real tracks via {source_method}")
+        logger.info(f"spotify/viral: returning {len(formatted_trends)} tracks via {source_method}")
         from fastapi.responses import JSONResponse
         return JSONResponse(
             content=formatted_trends,
@@ -336,18 +356,20 @@ def get_spotify_viral_trends(
         )
 
     except ValueError as ve:
-        logger.error(f"spotify/viral: credential error — {ve}")
+        logger.error(f"spotify/viral: credential error — {ve}. Falling back to Supabase DB.")
+        db_fallback = _get_db_audio_trends_fallback()
         from fastapi.responses import JSONResponse
         return JSONResponse(
-            content=[],
-            headers={"X-Fallback-Reason": "spotify_credentials_error", "X-Data-Source": "none"}
+            content=db_fallback,
+            headers={"X-Fallback-Reason": "spotify_credentials_error", "X-Data-Source": "supabase_cache" if db_fallback else "none"}
         )
     except Exception as e:
-        logger.error(f"spotify/viral: unexpected error — {e}", exc_info=True)
+        logger.error(f"spotify/viral: unexpected error — {e}. Falling back to Supabase DB.", exc_info=True)
+        db_fallback = _get_db_audio_trends_fallback()
         from fastapi.responses import JSONResponse
         return JSONResponse(
-            content=[],
-            headers={"X-Fallback-Reason": f"spotify_error:{type(e).__name__}", "X-Data-Source": "none"}
+            content=db_fallback,
+            headers={"X-Fallback-Reason": f"spotify_error:{type(e).__name__}", "X-Data-Source": "supabase_cache" if db_fallback else "none"}
         )
 
 
