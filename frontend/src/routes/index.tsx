@@ -157,20 +157,6 @@ function TrendsFeed() {
     staleTime: 10_000,
   });
 
-  const emergingCount = emergingData?.length ?? 0;
-
-  // Notify on new emerging trends
-  useEffect(() => {
-    if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
-      const diff = emergingCount - prevCountRef.current;
-      toast(`🚨 ${diff} new emerging trend${diff > 1 ? "s" : ""} just detected!`, {
-        description: "Switch to the Emerging tab to see them first.",
-        action: { label: "View", onClick: () => setFeedTab("emerging") }
-      });
-    }
-    prevCountRef.current = emergingCount;
-  }, [emergingCount]);
-
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
   // Priority: rising > emerging > peaked > expired
   const deduplicatedTrends = useMemo(() => {
@@ -209,6 +195,20 @@ function TrendsFeed() {
       expired: deduplicatedExpired,
     };
   }, [risingData, emergingData, peakedData, expiredData]);
+
+  const emergingCount = deduplicatedTrends.emerging.length;
+
+  // Notify on new emerging trends
+  useEffect(() => {
+    if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
+      const diff = emergingCount - prevCountRef.current;
+      toast(`🚨 ${diff} new emerging trend${diff > 1 ? "s" : ""} just detected!`, {
+        description: "Switch to the Emerging tab to see them first.",
+        action: { label: "View", onClick: () => setFeedTab("emerging") }
+      });
+    }
+    prevCountRef.current = emergingCount;
+  }, [emergingCount]);
 
   // When rising tab is empty but peaked has data, fall back to peaked so the app isn't empty
   const risingFallbackToPeaked =
@@ -263,10 +263,10 @@ function TrendsFeed() {
     if (isRisingLoading || isEmergingLoading) {
       return lastTotalActiveRef.current;
     }
-    const count = (risingData?.length ?? 0) + (emergingData?.length ?? 0);
+    const count = deduplicatedTrends.rising.length + deduplicatedTrends.emerging.length;
     lastTotalActiveRef.current = count;
     return count;
-  }, [risingData, emergingData, risingLoading, emergingLoading]);
+  }, [deduplicatedTrends, risingLoading, emergingLoading, risingData, emergingData]);
 
   return (
     <div className="flex flex-col gap-0 pb-24">
