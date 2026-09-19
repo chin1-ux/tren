@@ -119,6 +119,43 @@ def health_check():
     }
 
 
+class ClientErrorLogPayload(BaseModel):
+    message: Optional[str] = None
+    stack: Optional[str] = None
+    route: Optional[str] = None
+    timestamp: Optional[str] = None
+    source: Optional[str] = "client"
+
+@router.post("/api/client-errors")
+@limiter.limit("15/minute")
+def receive_client_error(request: Request, payload: ClientErrorLogPayload):
+    """Receive and persist client-side error telemetry to backend logs and audit table."""
+    client_ip = request.client.host if request.client else "unknown"
+    user_agent = request.headers.get("user-agent", "unknown")
+    logger.error(
+        f"[ClientErrorCaptured] Source: {payload.source} | Route: {payload.route} | "
+        f"Message: {payload.message} | Stack: {payload.stack}"
+    )
+    if supabase:
+        try:
+            supabase.table("admin_audit_log_enhanced").insert({
+                "admin_email": "client_telemetry@trendrop.app",
+                "action": "client_error_captured",
+                "details": {
+                    "source": payload.source,
+                    "route": payload.route,
+                    "message": payload.message,
+                    "stack": payload.stack,
+                    "client_timestamp": payload.timestamp,
+                },
+                "ip_address": client_ip,
+                "user_agent": user_agent,
+            }).execute()
+        except Exception as err:
+            logger.warning(f"Failed to persist client error to admin_audit_log_enhanced: {err}")
+    return {"status": "persisted"}
+
+
 @router.post("/api/subscribe")
 @limiter.limit("5/hour")
 def subscribe(request: Request, req: SubscribeRequest):
