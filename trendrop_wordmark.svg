@@ -1,0 +1,96 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 480 150" width="480" height="150">
+  <defs>
+    <style>
+      @import url('https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@800&amp;display=swap');
+      
+      .text-black {
+        font-family: 'Bricolage Grotesque', system-ui, -apple-system, sans-serif;
+        font-weight: 800;
+        font-size: 78px;
+        fill: #0E0E10;
+        letter-spacing: -3px;
+      }
+      
+      @keyframes wm-letters-in {
+        0% { opacity: 0; transform: translateY(10px); }
+        100% { opacity: 1; transform: translateY(0); }
+      }
+      
+      @keyframes wm-play-pop {
+        0% { transform: scale(0.3); opacity: 0; }
+        70% { transform: scale(1.15); opacity: 1; }
+        100% { transform: scale(1); opacity: 1; }
+      }
+      
+      @keyframes wm-arrow-draw {
+        0% { stroke-dashoffset: 200; opacity: 0; }
+        30% { opacity: 1; }
+        100% { stroke-dashoffset: 0; opacity: 1; }
+      }
+      
+      @keyframes wm-drop-fall {
+        0% { opacity: 0; transform: translateY(-20px) scale(0.6); }
+        60% { opacity: 1; transform: translateY(4px) scale(1.1); }
+        80% { transform: translateY(-2px) scale(0.95); }
+        100% { opacity: 1; transform: translateY(0) scale(1); }
+      }
+      
+      .arrow-path {
+        stroke: #FF4D3D;
+        stroke-width: 7.5;
+        stroke-linecap: round;
+        stroke-linejoin: round;
+        fill: none;
+        stroke-dasharray: 200;
+        stroke-dashoffset: 0;
+        animation: wm-arrow-draw 1.2s cubic-bezier(0.65, 0, 0.35, 1) forwards;
+      }
+      
+      .play-circle {
+        fill: #FF4D3D;
+        transform-origin: 262px -22px;
+        animation: wm-play-pop 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) 0.3s forwards;
+      }
+      
+      .drop-icon {
+        fill: #C7F23A;
+        transform-origin: 328px 8px;
+        animation: wm-drop-fall 1s cubic-bezier(0.34, 1.4, 0.64, 1) 0.6s forwards;
+      }
+      
+      .animate-text {
+        animation: wm-letters-in 0.8s ease-out forwards;
+      }
+    </style>
+  </defs>
+
+  <!-- Warm Background Card -->
+  <rect x="0" y="0" width="480" height="150" rx="18" fill="#FAF7F2"/>
+
+  <!-- Trending Arrow Top-Left -->
+  <g transform="translate(24, 10)">
+    <path class="arrow-path" d="M 8 36 L 28 24 L 48 29 L 75 8" />
+    <path class="arrow-path" d="M 60 8 L 76 8 L 76 24" />
+  </g>
+
+  <!-- Main Wordmark Group -->
+  <g transform="translate(24, 108)">
+    <!-- "trendr" -->
+    <text x="0" y="0" class="text-black animate-text">trendr</text>
+    
+    <!-- Coral Play Button "o" (Moved further right to cx=262px while p stays at x=290px) -->
+    <g class="play-circle">
+      <circle cx="262" cy="-22" r="28"/>
+      <!-- Play Triangle -->
+      <polygon points="257,-31 271,-22 257,-13" fill="#FFFFFF"/>
+    </g>
+
+    <!-- "p" (Kept fixed at x=290px) -->
+    <text x="290" y="0" class="text-black animate-text">p</text>
+
+    <!-- Lime Drop under "p" -->
+    <g class="drop-icon">
+      <path d="M 316 8 C 316 -1, 328 -10, 328 -20 C 328 -10, 340 -1, 340 8 C 340 15, 335 21, 328 21 C 321 21, 316 15, 316 8 Z" />
+    </g>
+  </g>
+</svg>

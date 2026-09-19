@@ -161,3 +161,6 @@ DYNAMIC_THRESHOLD_DEPLOYMENT.md
 !frontend/**/*.png
 add_github_secrets.sh
 frontend/audit_script.js
+
+frontend.zip
+test-results/
