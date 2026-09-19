@@ -7,6 +7,12 @@ export function RouteErrorBoundary({ error, reset }: { error: Error; reset: () =
   const router = useRouter();
   
   useEffect(() => {
+    console.error("[RouteErrorBoundaryCaptured]", {
+      message: error?.message,
+      stack: error?.stack,
+      route: typeof window !== "undefined" ? window.location.pathname : "unknown",
+      timestamp: new Date().toISOString(),
+    });
     reportLovableError(error, { boundary: "tanstack_route_error_component" });
   }, [error]);
 
