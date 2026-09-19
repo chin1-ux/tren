@@ -16,6 +16,11 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [performanceData, setPerformanceData] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [connectedHandle, setConnectedHandle] = useState<string>(() => {
+    return typeof window !== "undefined" ? localStorage.getItem("trendrop_connected_ig_handle") || "" : "";
+  });
+  const [handleInput, setHandleInput] = useState("");
+  const [isConnecting, setIsConnecting] = useState(false);
   const userPlan = useUserStore((s) => s.plan) || "free";
 
   React.useEffect(() => {
@@ -32,7 +37,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           getContentPerformanceOverTime(30).catch(() => ({ performance_data: [], days_analyzed: 0 }))
         ]);
         setMetrics(metricsData);
-        setRecommendations(recsData.recommendations);
+        setRecommendations(recsData?.recommendations || []);
         setPerformanceData(perfData?.performance_data || []);
       } catch (error) {
         console.error("Error loading analytics:", error);
@@ -63,17 +68,23 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
   }
 
   const displayMetrics = metrics || {
-    avg_reach_per_post: 14200,
-    reach_growth_rate: 0.42,
-    audio_roi_boost: "+42% reach boost using Trendrop audios",
-    trend_alignment_score: "88%",
-    optimal_posting_window: "07:00 PM IST",
-    total_posts_analyzed: 18,
-    engagement_rate: "5.8%"
+    creator_email: creatorEmail,
+    total_reels_analyzed: 0,
+    total_views: 0,
+    total_likes: 0,
+    total_comments: 0,
+    total_shares: 0,
+    avg_engagement_rate: 0,
+    avg_velocity_score: 0,
+    top_performing_content: [],
+    content_categories: {},
+    trend_adoption_rate: 0,
+    viral_content_count: 0,
+    growth_trend: "stable",
+    peak_performance_hours: [],
+    optimal_posting_times: [],
+    is_connected: false
   };
-
-  // Instagram OAuth not available in beta — show analytics with whatever data exists
-  // instead of blocking with a "Coming Soon" dead-end
 
   const getGrowthIcon = (trend: string) => {
     if (trend === "growing") return <TrendingUp className="h-4 w-4 text-emerald-500" />;
@@ -110,12 +121,6 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
     avgViews: d.avg_views
   }));
 
-  const [connectedHandle, setConnectedHandle] = useState<string>(() => {
-    return typeof window !== "undefined" ? localStorage.getItem("trendrop_connected_ig_handle") || "" : "";
-  });
-  const [handleInput, setHandleInput] = useState("");
-  const [isConnecting, setIsConnecting] = useState(false);
-
   const handleConnectAccount = (e: React.FormEvent) => {
     e.preventDefault();
     if (!handleInput.trim()) return;
@@ -137,12 +142,12 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           <div>
             <h3 className="text-sm font-bold flex items-center gap-2">
               <Users className="h-4 w-4 text-primary" />
-              Instagram Account Connection
+              Instagram Account Connection <Badge variant="outline" className="text-[10px] py-0 px-1.5 border-primary/40 text-primary">Manual Handle Sync • Beta</Badge>
             </h3>
             <p className="text-xs text-muted-foreground mt-0.5">
               {connectedHandle
-                ? `Connected to @${connectedHandle} — Syncing audience metrics & reel performance`
-                : "Connect your Instagram handle to sync reel reach, engagement rates, and optimal post windows."}
+                ? `Connected to @${connectedHandle} — Syncing public reel performance & channel analytics`
+                : "Enter your Instagram handle to manually sync reel reach, engagement rates, and optimal post windows (OAuth API direct connection coming soon)."}
             </p>
           </div>
           {connectedHandle ? (
@@ -172,7 +177,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
                 className="px-3 py-1.5 rounded-xl bg-black/40 border border-border text-xs focus:outline-none focus:border-primary w-full sm:w-56"
               />
               <Button type="submit" size="sm" disabled={isConnecting} className="rounded-xl text-xs shrink-0">
-                {isConnecting ? "Connecting..." : "Connect Account"}
+                {isConnecting ? "Connecting..." : "Connect Handle"}
               </Button>
             </form>
           )}
@@ -182,12 +187,12 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Creator Analytics</h2>
-          <p className="text-sm text-muted-foreground">Track your performance and growth</p>
+          <h2 className="text-2xl font-bold font-display">Creator Analytics</h2>
+          <p className="text-sm text-muted-foreground">Track your performance and channel growth</p>
         </div>
-        <Button variant="outline" size="sm">
-          <Clock className="h-4 w-4 mr-2" />
-          Last 30 Days
+        <Button variant="outline" size="sm" className="cursor-default bg-muted/30 border-primary/20 text-xs font-semibold">
+          <Clock className="h-3.5 w-3.5 mr-1.5 text-primary" />
+          Last 30 Days (Active)
         </Button>
       </div>
 
@@ -198,10 +203,10 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <CardTitle className="text-sm font-medium text-muted-foreground">Total Views</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.total_views.toLocaleString()}</div>
+            <div className="text-2xl font-bold">{(displayMetrics.total_views ?? 0).toLocaleString()}</div>
             <div className="flex items-center mt-1 text-xs text-muted-foreground">
               <Video className="h-3 w-3 mr-1" />
-              {metrics.total_reels_analyzed} reels
+              {displayMetrics.total_reels_analyzed ?? 0} reels
             </div>
           </CardContent>
         </Card>
@@ -211,10 +216,10 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <CardTitle className="text-sm font-medium text-muted-foreground">Avg Engagement</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.avg_engagement_rate.toFixed(2)}%</div>
+            <div className="text-2xl font-bold">{(displayMetrics.avg_engagement_rate ?? 0).toFixed(2)}%</div>
             <div className="flex items-center mt-1 text-xs text-muted-foreground">
               <Heart className="h-3 w-3 mr-1" />
-              {metrics.total_likes.toLocaleString()} likes
+              {(displayMetrics.total_likes ?? 0).toLocaleString()} likes
             </div>
           </CardContent>
         </Card>
@@ -225,14 +230,14 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           </CardHeader>
           <CardContent>
             <div className="flex items-center gap-2">
-              {getGrowthIcon(metrics.growth_trend)}
-              <span className={`text-2xl font-bold capitalize ${getGrowthColor(metrics.growth_trend)}`}>
-                {metrics.growth_trend}
+              {getGrowthIcon(displayMetrics.growth_trend ?? "stable")}
+              <span className={`text-2xl font-bold capitalize ${getGrowthColor(displayMetrics.growth_trend ?? "stable")}`}>
+                {displayMetrics.growth_trend ?? "stable"}
               </span>
             </div>
             <div className="flex items-center mt-1 text-xs text-muted-foreground">
               <TrendingUp className="h-3 w-3 mr-1" />
-              Avg velocity: {metrics.avg_velocity_score.toFixed(1)}
+              Avg velocity: {(displayMetrics.avg_velocity_score ?? 0).toFixed(1)}
             </div>
           </CardContent>
         </Card>
@@ -242,7 +247,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <CardTitle className="text-sm font-medium text-muted-foreground">Viral Content</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{metrics.viral_content_count}</div>
+            <div className="text-2xl font-bold">{displayMetrics.viral_content_count ?? 0}</div>
             <div className="flex items-center mt-1 text-xs text-muted-foreground">
               <Award className="h-3 w-3 mr-1" />
               High-velocity pieces
@@ -272,7 +277,13 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
               </LineChart>
             </ResponsiveContainer>
           ) : (
-            <p className="text-sm text-muted-foreground text-center py-12">Not enough data yet</p>
+            <div className="text-center py-12 text-muted-foreground">
+              <Clock className="h-8 w-8 mx-auto mb-2 opacity-40 text-primary" />
+              <p className="text-sm font-medium">No performance history recorded yet</p>
+              <p className="text-xs text-muted-foreground mt-1 max-w-sm mx-auto">
+                Connect your Instagram handle above to start tracking 30-day reach and view trends.
+              </p>
+            </div>
           )}
         </CardContent>
       </Card>
@@ -285,9 +296,9 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <CardDescription>When your content performs best</CardDescription>
           </CardHeader>
           <CardContent>
-            {metrics.peak_performance_hours.length > 0 ? (
+            {(displayMetrics.peak_performance_hours?.length ?? 0) > 0 ? (
               <div className="flex flex-wrap gap-2">
-                {metrics.peak_performance_hours.map((hour: number) => (
+                {displayMetrics.peak_performance_hours.map((hour: number) => (
                   <Badge key={hour} variant="secondary">
                     {hour}:00 IST
                   </Badge>
@@ -305,9 +316,9 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <CardDescription>Recommended times to post</CardDescription>
           </CardHeader>
           <CardContent>
-            {metrics.optimal_posting_times.length > 0 ? (
+            {(displayMetrics.optimal_posting_times?.length ?? 0) > 0 ? (
               <div className="space-y-2">
-                {metrics.optimal_posting_times.map((time: string, i: number) => (
+                {displayMetrics.optimal_posting_times.map((time: string, i: number) => (
                   <div key={i} className="flex items-center gap-2 text-sm">
                     <Clock className="h-4 w-4 text-muted-foreground" />
                     {time}
@@ -328,10 +339,10 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
           <CardDescription>Your most successful content types</CardDescription>
         </CardHeader>
         <CardContent>
-          {Object.keys(metrics.content_categories).length > 0 ? (
+          {Object.keys(displayMetrics.content_categories || {}).length > 0 ? (
             <Suspense fallback={<div className="h-[200px] bg-muted rounded animate-pulse" />}>
               <ResponsiveContainer width="100%" height={200}>
-                <BarChart data={Object.entries(metrics.content_categories).map(([name, count]) => ({ name, count }))}>
+                <BarChart data={Object.entries(displayMetrics.content_categories).map(([name, count]) => ({ name, count }))}>
                   <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
                   <XAxis dataKey="name" className="text-xs" />
                   <YAxis className="text-xs" />

@@ -544,7 +544,7 @@ h1, h2, h3, h4, h5, h6 {
   width: 0.86em; height: 0.86em;
   border-radius: 50%;
   background: var(--wm-play);
-  margin: 0 -0.03em -0.04em -0.03em;
+  margin: 0 0.05em -0.04em 0.12em;
 }
 .trendrop-wordmark .tr-play::after {
   content: "";
