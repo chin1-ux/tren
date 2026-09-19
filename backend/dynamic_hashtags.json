@@ -1,0 +1,156 @@
+{
+  "updated_at": "2026-09-19T08:37:31.115035+00:00",
+  "cadence_hours": 3,
+  "promoted_hashtags": [
+    {
+      "hashtag": "#beautyreels",
+      "score": 0.3333,
+      "recent_count": 1,
+      "baseline_count": 1,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#waheguru",
+      "score": 0.2857,
+      "recent_count": 1,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#zumba",
+      "score": 0.2143,
+      "recent_count": 0,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#judas",
+      "score": 0.2143,
+      "recent_count": 0,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#btsarmy",
+      "score": 0.2143,
+      "recent_count": 0,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#bloodyparadise",
+      "score": 0.2143,
+      "recent_count": 0,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#tamil",
+      "score": 0.2143,
+      "recent_count": 0,
+      "baseline_count": 2,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 2,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#tiktokdance",
+      "score": 0.1875,
+      "recent_count": 0,
+      "baseline_count": 3,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 3,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#enhypen",
+      "score": 0.1875,
+      "recent_count": 0,
+      "baseline_count": 3,
+      "relevance_reason": "CREATOR_DIVERSITY_PASSED",
+      "unique_creators": 3,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#doglover",
+      "score": 0.1667,
+      "recent_count": 0,
+      "baseline_count": 1,
+      "relevance_reason": "SINGLE_CREATOR_HIGH_VELOCITY_OVERRIDE",
+      "unique_creators": 1,
+      "promoted_at": "2026-09-19T08:17:24.886017+00:00",
+      "expires_at": "2026-09-22T08:17:24.886017+00:00"
+    },
+    {
+      "hashtag": "#addiction",
+      "score": 1.0,
+      "recent_count": 0,
+      "baseline_count": 0,
+      "relevance_reason": "EXTERNAL_SPOTIFY_VIRAL_SEED ('Addiction' by Ryan Leslie)",
+      "unique_creators": 0,
+      "promoted_at": "2026-09-19T08:37:31.109346+00:00",
+      "expires_at": "2026-09-22T08:37:31.109346+00:00"
+    },
+    {
+      "hashtag": "#ryanleslie",
+      "score": 1.0,
+      "recent_count": 0,
+      "baseline_count": 0,
+      "relevance_reason": "EXTERNAL_SPOTIFY_VIRAL_SEED ('Addiction' by Ryan Leslie)",
+      "unique_creators": 0,
+      "promoted_at": "2026-09-19T08:37:31.109346+00:00",
+      "expires_at": "2026-09-22T08:37:31.109346+00:00"
+    },
+    {
+      "hashtag": "#upsidedown",
+      "score": 1.0,
+      "recent_count": 0,
+      "baseline_count": 0,
+      "relevance_reason": "EXTERNAL_SPOTIFY_VIRAL_SEED ('Upside Down' by Diana Ross)",
+      "unique_creators": 0,
+      "promoted_at": "2026-09-19T08:37:31.109346+00:00",
+      "expires_at": "2026-09-22T08:37:31.109346+00:00"
+    },
+    {
+      "hashtag": "#dianaross",
+      "score": 1.0,
+      "recent_count": 0,
+      "baseline_count": 0,
+      "relevance_reason": "EXTERNAL_SPOTIFY_VIRAL_SEED ('Upside Down' by Diana Ross)",
+      "unique_creators": 0,
+      "promoted_at": "2026-09-19T08:37:31.109346+00:00",
+      "expires_at": "2026-09-22T08:37:31.109346+00:00"
+    },
+    {
+      "hashtag": "#pasoori",
+      "score": 1.0,
+      "recent_count": 0,
+      "baseline_count": 0,
+      "relevance_reason": "EXTERNAL_SPOTIFY_VIRAL_SEED ('Pasoori' by Ali Sethi)",
+      "unique_creators": 0,
+      "promoted_at": "2026-09-19T08:37:31.109346+00:00",
+      "expires_at": "2026-09-22T08:37:31.109346+00:00"
+    }
+  ]
+}
