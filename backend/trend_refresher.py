@@ -1,6 +1,7 @@
 import logging
 import os
 import statistics
+import time
 from datetime import datetime, timezone, timedelta
 
 from dotenv import load_dotenv
@@ -49,6 +50,29 @@ class TrendRefresher:
             raise ValueError("Supabase credentials missing from .env")
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
 
+    def _retry_supabase_call(self, fn, max_retries: int = 3, delay: float = 0.5):
+        """
+        Executes a Supabase query function with exponential backoff on HTTP/2 network or connection drops.
+        """
+        for attempt in range(1, max_retries + 1):
+            try:
+                return fn()
+            except Exception as e:
+                err_str = str(e).lower()
+                is_network_err = any(kw in err_str for kw in [
+                    "server disconnected", "remoteprotocolerror", "connection closed",
+                    "connection reset", "timeout"
+                ])
+                if is_network_err and attempt < max_retries:
+                    sleep_time = delay * (2 ** (attempt - 1))
+                    logger.warning(
+                        f"[SUPABASE_RETRY] Attempt {attempt}/{max_retries} failed: {e}. "
+                        f"Retrying in {sleep_time:.1f}s..."
+                    )
+                    time.sleep(sleep_time)
+                else:
+                    raise
+
     def refresh_all(self) -> dict:
         """
         Main entry point. Fetches all non-expired trends and refreshes their status.
@@ -91,7 +115,7 @@ class TrendRefresher:
             try:
                 trend_id = trend["id"]
                 audio_title = trend.get("audio_title", "?")
-                created_at_str = trend.get("first_detected_at")
+                created_at_str = trend.get("first_detected_at") or trend.get("created_at")
                 current_status = trend.get("status", "rising")
                 current_velocity = trend.get("velocity_avg", 0.0)
                 peak_velocity = trend.get("peak_velocity") or current_velocity
@@ -126,8 +150,6 @@ class TrendRefresher:
                     if created_at.tzinfo is None:
                         created_at = created_at.replace(tzinfo=timezone.utc)
                 else:
-                    # Defensive fallback: If first_detected_at is ever NULL, treat the trend
-                    # as newly born (now) rather than pre-decayed (12 hours ago).
                     created_at = now
 
                 age_hours = (now - created_at).total_seconds() / 3600
@@ -155,16 +177,16 @@ class TrendRefresher:
                 stored_reel_count = trend.get("reel_count") or 0
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
-                # Unqualify orphan/single-reel tracks with 0 usage count
+                # Unqualify orphan/single-reel tracks with 0 usage count only after 24h age gate
                 clean_use_cnt = int(trend.get("audio_use_count") or 0)
-                if clean_use_cnt == 0 and total_reels_count <= 1:
+                if clean_use_cnt == 0 and total_reels_count <= 1 and age_hours > 24.0:
                     self._update_status(trend_id, "unqualified", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,
                         "high_confidence": False,
                         "promotion_reason": "unqualified_single_reel_zero_count",
                     })
-                    logger.info(f"[UNQUALIFY_SINGLE_REEL] '{audio_title}' (id={trend_id}) has 0 use_count and {total_reels_count} reels.")
+                    logger.info(f"[UNQUALIFY_SINGLE_REEL] '{audio_title}' (id={trend_id}) has 0 use_count and {total_reels_count} reels (age={age_hours:.1f}h).")
                     local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
                     return local_summary
 
@@ -223,7 +245,8 @@ class TrendRefresher:
                     local_summary["expired"] += 1
                     return local_summary
 
-                velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
+                # Fallback velocity floor: Protect active tracks from zeroing out on scraper sampling misses
+                velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 500.0 if clean_use_cnt >= 10000 else 0.0)
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
 
                 # Peaked/Expired recovery MUST pass the Resurgence Gate
@@ -281,7 +304,7 @@ class TrendRefresher:
 
                 if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     # Anti-flicker: require 2 consecutive low-velocity snapshots before demoting.
-                    # A single low reading (e.g. no new reels in window) is too noisy to trust.
+                    # Fail-safe: Require explicit snapshot history before demoting to peaked.
                     try:
                         snaps_res = self.supabase.table("trend_snapshots") \
                             .select("velocity_avg") \
@@ -297,7 +320,7 @@ class TrendRefresher:
                         )
                     except Exception as _snap_err:
                         logger.debug(f"Anti-flicker snapshot check failed for trend_id={trend_id}: {_snap_err}")
-                        two_dip_confirmed = True  # fail-open: demote if snapshots unavailable
+                        two_dip_confirmed = False  # Fail-safe: Hold current status if snapshots unavailable
 
                     if two_dip_confirmed:
                         self._update_status(trend_id, "peaked", {
@@ -311,17 +334,17 @@ class TrendRefresher:
                         local_summary["peaked"] += 1
                         return local_summary
                     else:
-                        logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but only 1 dip — holding current status ({current_status})")
+                        logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but held — protecting active feed ({current_status})")
 
                 creator_count = self._count_unique_creators(
                     trend.get("audio_title"), trend.get("audio_artist"), now
                 )
                 high_confidence = creator_count >= 5
 
-                # Option C: Hold newly created emerging trends (<3h old) in "emerging" status for at least
-                # one 3h pipeline window before evaluating lifecycle promotion to "rising".
-                if current_status == "emerging" and age_hours < 3.0:
-                    logger.info(f"[EMERGING_HOLD] '{audio_title}' (id={trend_id}, age={age_hours:.2f}h < 3.0h) — holding in emerging for initial 3h window")
+                # 24-hour Hold Window: Give newly created emerging trends a 24h immunity window in "emerging" status
+                # before allowing lifecycle re-evaluation to prevent premature eviction from Emerging tab.
+                if current_status == "emerging" and age_hours < 24.0:
+                    logger.info(f"[EMERGING_HOLD] '{audio_title}' (id={trend_id}, age={age_hours:.2f}h < 24.0h) — holding in emerging for 24h window")
                     self._update_status(trend_id, "emerging", {
                         "window_hours_remaining": new_window,
                         "velocity_avg": velocity_for_check,
@@ -388,7 +411,7 @@ class TrendRefresher:
             "decision_metrics": decision_metrics or extra or {}
         }
         payload["status_reason"] = status_reason
-        self.supabase.table("trends").update(payload).eq("id", trend_id).execute()
+        self._retry_supabase_call(lambda: self.supabase.table("trends").update(payload).eq("id", trend_id).execute())
 
     def _refresh_opportunity_score(self, trend: dict, *, confidence: float | None = None, window_hours_remaining: float | None = None) -> float:
         score = calculate_opportunity_score(
@@ -397,7 +420,7 @@ class TrendRefresher:
             confidence=confidence if confidence is not None else trend.get("confidence") or 0.0,
         )
         try:
-            self.supabase.table("trends").update({"opportunity_score": score}).eq("id", trend["id"]).execute()
+            self._retry_supabase_call(lambda: self.supabase.table("trends").update({"opportunity_score": score}).eq("id", trend["id"]).execute())
         except Exception as e:
             logger.warning(f"Could not refresh opportunity_score for trend_id={trend.get('id')}: {e}")
         return score
@@ -410,18 +433,20 @@ class TrendRefresher:
         
         try:
             # Get snapshots for this trend
-            snapshots_res = self.supabase.table('trend_snapshots') \
-                .select('velocity_avg, captured_at') \
-                .eq('trend_id', trend_id) \
-                .order('captured_at', desc=True) \
-                .limit(10) \
+            snapshots_res = self._retry_supabase_call(
+                lambda: self.supabase.table('trend_snapshots')
+                .select('velocity_avg, captured_at')
+                .eq('trend_id', trend_id)
+                .order('captured_at', desc=True)
+                .limit(10)
                 .execute()
+            )
             
             snapshots = snapshots_res.data or []
             peaking_score = calculate_realistic_peaking_score(trend, snapshots)
             
             # Update the peaking score in database
-            self.supabase.table("trends").update({"peaking_score": peaking_score}).eq("id", trend_id).execute()
+            self._retry_supabase_call(lambda: self.supabase.table("trends").update({"peaking_score": peaking_score}).eq("id", trend_id).execute())
             
             return peaking_score
         except Exception as e:
@@ -468,11 +493,11 @@ class TrendRefresher:
             live_count = int(float(raw) * multiplier)
 
             # Read current value before updating
-            res = self.supabase.table("trends").select("audio_use_count").eq("id", trend_id).limit(1).execute()
+            res = self._retry_supabase_call(lambda: self.supabase.table("trends").select("audio_use_count").eq("id", trend_id).limit(1).execute())
             stored = (res.data or [{}])[0].get("audio_use_count") or 0
 
             if live_count > stored:
-                self.supabase.table("trends").update({"audio_use_count": live_count}).eq("id", trend_id).execute()
+                self._retry_supabase_call(lambda: self.supabase.table("trends").update({"audio_use_count": live_count}).eq("id", trend_id).execute())
                 logger.info(f"[AUDIO_PAGE] trend_id={trend_id} audio_id={audio_id}: {stored} -> {live_count}")
                 return True
             return False
@@ -496,16 +521,20 @@ class TrendRefresher:
 
         try:
             if audio_id:
-                res = self.supabase.table("reels") \
-                    .select("audio_use_count") \
-                    .eq("audio_id", audio_id) \
+                res = self._retry_supabase_call(
+                    lambda: self.supabase.table("reels")
+                    .select("audio_use_count")
+                    .eq("audio_id", audio_id)
                     .execute()
+                )
             elif audio_title and audio_artist:
                 normalized_title = normalize_audio_title(audio_title)
-                res = self.supabase.table("reels") \
-                    .select("audio_use_count, audio_title") \
-                    .eq("audio_artist", audio_artist) \
+                res = self._retry_supabase_call(
+                    lambda: self.supabase.table("reels")
+                    .select("audio_use_count, audio_title")
+                    .eq("audio_artist", audio_artist)
                     .execute()
+                )
                 matching = [
                     r for r in (res.data or [])
                     if normalize_audio_title(r.get("audio_title", "") or "") == normalized_title
@@ -524,10 +553,12 @@ class TrendRefresher:
 
             live_max = max(counts)
             if live_max > stored_count:
-                self.supabase.table("trends") \
-                    .update({"audio_use_count": live_max}) \
-                    .eq("id", trend_id) \
+                self._retry_supabase_call(
+                    lambda: self.supabase.table("trends")
+                    .update({"audio_use_count": live_max})
+                    .eq("id", trend_id)
                     .execute()
+                )
                 logger.info(
                     f"[AUDIO_USE_COUNT] trend_id={trend_id} '{audio_title}': "
                     f"{stored_count} -> {live_max} (delta={live_max - stored_count:+,})"
@@ -543,11 +574,13 @@ class TrendRefresher:
         try:
             normalized_title = normalize_audio_title(audio_title)
             threshold = (now - timedelta(hours=24)).isoformat()
-            res = self.supabase.table("reels") \
-                .select("velocity_score, audio_title") \
-                .eq("audio_artist", audio_artist) \
-                .gte("created_at", threshold) \
+            res = self._retry_supabase_call(
+                lambda: self.supabase.table("reels")
+                .select("velocity_score, audio_title")
+                .eq("audio_artist", audio_artist)
+                .gte("created_at", threshold)
                 .execute()
+            )
             matching = [
                 r for r in (res.data or [])
                 if normalize_audio_title(r.get("audio_title", "") or "") == normalized_title
@@ -563,11 +596,13 @@ class TrendRefresher:
         try:
             normalized_title = normalize_audio_title(audio_title)
             threshold = (now - timedelta(hours=48)).isoformat()
-            res = self.supabase.table("reels") \
-                .select("owner_username, audio_title") \
-                .eq("audio_artist", audio_artist) \
-                .gte("created_at", threshold) \
+            res = self._retry_supabase_call(
+                lambda: self.supabase.table("reels")
+                .select("owner_username, audio_title")
+                .eq("audio_artist", audio_artist)
+                .gte("created_at", threshold)
                 .execute()
+            )
             matching = [
                 r for r in (res.data or [])
                 if normalize_audio_title(r.get("audio_title", "") or "") == normalized_title
@@ -584,11 +619,13 @@ class TrendRefresher:
         This is broader than the active-only median and less sensitive to tiny samples.
         """
         try:
-            res = self.supabase.table("trends") \
-                .select("velocity_avg") \
-                .eq("is_seed_data", False) \
-                .gte("first_detected_at", (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()) \
+            res = self._retry_supabase_call(
+                lambda: self.supabase.table("trends")
+                .select("velocity_avg")
+                .eq("is_seed_data", False)
+                .gte("first_detected_at", (datetime.now(timezone.utc) - timedelta(days=7)).isoformat())
                 .execute()
+            )
             velocities = [
                 float(r.get("velocity_avg"))
                 for r in (res.data or [])
