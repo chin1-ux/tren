@@ -121,9 +121,9 @@ def get_trends(
         # Prioritise local trends but keep global variety.
         # Only applied when no specific language filter is active.
         if not language or language == "all":
-            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
+            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or", "", None}
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
-                      or (t.get("discovery_source") or "") == "regional"]
+                      or (t.get("discovery_source") or "regional") != "global"]
             english = [t for t in trends if t not in indian]
             trends = indian + english
 
@@ -141,12 +141,15 @@ def get_trends(
                         t["adaptation_briefs"] = {}
                     t["adaptation_briefs"][user_niche] = brief
 
-        if sort == "newest":
-            trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
+        if sort == "opportunity":
+            trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
         elif sort == "time_left":
             trends.sort(key=lambda t: t.get("window_hours_remaining") or 0)
+        elif sort == "velocity":
+            trends.sort(key=lambda t: t.get("velocity_avg") or 0.0, reverse=True)
         else:
-            trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+            # Default or sort=="newest": strictly newest audio detected on top
+            trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
