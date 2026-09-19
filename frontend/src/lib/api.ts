@@ -523,16 +523,33 @@ export async function ensureValidToken(): Promise<string | null> {
 
   if (isJwtExpired(token)) {
     try {
-      const { data, error } = await supabase.auth.getSession();
+      const { data, error } = await supabase.auth.refreshSession();
       if (!error && data?.session?.access_token) {
         token = data.session.access_token;
         setAuthToken(token);
         if (typeof window !== "undefined") {
           localStorage.setItem("trendrop_session_token", token);
         }
+      } else {
+        // Refresh token expired or failed — clear invalid token to prevent 401 loops
+        console.warn("[auth] Supabase session refresh failed:", error?.message);
+        setAuthToken(null);
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("trendrop_session_token");
+          localStorage.removeItem("trendrop_token");
+          window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
+        }
+        return null;
       }
     } catch (err) {
       console.warn("[auth] Failed to proactively refresh expired token:", err);
+      setAuthToken(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("trendrop_session_token");
+        localStorage.removeItem("trendrop_token");
+        window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
+      }
+      return null;
     }
   }
   return token;

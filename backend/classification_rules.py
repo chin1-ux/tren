@@ -4,24 +4,30 @@ from collections import Counter
 HASHTAG_POOL_MAP = {
     "INDIA_TRENDING": {
         "trendingindia", "reelsindia", "instagramindia", "indiansong",
-        "reelkarofeelkaro", "desimemes", "exploreindia",
+        "reelkarofeelkaro", "desimemes", "exploreindia", "desibeats",
     },
     "INDIA_VERNACULAR": {
-        "hindireels", "punjabisongs", "tamilreels", "telugureels",
-        "kannadareels", "bhojpurisong", "marathireels",
+        "hindireels", "hindisongs", "bollywoodsongs", "bollywoodreels",
+        "telugureels", "telugusongs", "tollywood", "telugutrending",
+        "tamilreels", "tamilsongs", "kollywood", "tamilaudio",
+        "malayalamreels", "malayalamsongs", "mollywood", "mallureels",
     },
     "GLOBAL_NICHES": {
         "fitnessreels", "foodreels", "comedyreels", "fashionreels",
         "travelreels", "beautyreels", "artreels",
     },
     "GLOBAL_DISCOVERY": {
-        "trending", "viral", "reels", "fyp", "explore", "instareels",
-        "viralreels", "reelsviral", "tiktok", "aesthetic", "music",
-        "travel", "fashion", "beauty", "art",
+        "brazilianphonk", "funkbrasil", "phonkmusic", "phonk", "funkmtg",
+        "reelsbrasil", "passinho", "dancabrasil", "speedupphonk",
+        "kpop", "kpopdance", "kpopreels", "kpopsongs",
+        "viralaudio", "trendingsound", "speedupsongs", "remixreels",
+        "reelsound", "viralmusic", "audiosforedits", "trendingaudio",
+        "reggaeton", "latinmusic", "spanishmusic", "latinreels",
+        "spanishreels", "latintrend", "perreo", "afrobeats",
     },
     "MICRO_DANCE": {
         "microdance", "trendingdance", "viralchallenge", "dancehacks",
-        "indiandance", "southdance", "bangaloredance", "punjabidance"
+        "indiandance", "southdance", "bangaloredance"
     },
     "MICRO_FOOD": {
         "foodcreators", "microfood", "tastyfood", "indianfood",

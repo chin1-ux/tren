@@ -249,6 +249,78 @@ def get_emerging_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+
+def _get_db_audio_trends_fallback() -> list:
+    """
+    Fallback query when Spotify API is unconfigured or unavailable.
+    Fetches high-quality active audio trends from Supabase DB, filtered by:
+    - status IN ('emerging', 'rising')
+    - is_seed_data = False
+    - llm_classification_status IN ('completed', 'not_needed', 'skipped_local_fallback')
+    - saturation_penalty < 0.7 (filters out over-saturated tracks)
+    Returns formatted SpotifyTrack-compatible dicts with prediction scores.
+    """
+    if not supabase:
+        return []
+    try:
+        res = (
+            supabase.table("trends")
+            .select("id, audio_title, audio_artist, status, velocity_avg, creator_fit_score, hook_retention_score, saturation_penalty, window_hours_remaining, optimal_post_hour_ist, created_at, first_detected_at")
+            .in_("status", ["emerging", "rising"])
+            .eq("is_seed_data", False)
+            .in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback"])
+            .order("velocity_avg", desc=True)
+            .limit(30)
+            .execute()
+        )
+        data = res.data or []
+        fallback_tracks = []
+        for idx, t in enumerate(data):
+            fit = t.get("creator_fit_score") if isinstance(t.get("creator_fit_score"), (int, float)) else 0.8
+            hook = t.get("hook_retention_score") if isinstance(t.get("hook_retention_score"), (int, float)) else 0.75
+            sat = t.get("saturation_penalty") if isinstance(t.get("saturation_penalty"), (int, float)) else 0.2
+            
+            # Recency / Saturation Filter: filter out over-saturated tracks
+            if sat >= 0.7:
+                continue
+
+            score = int(100 * min(1.0, max(0.0, 0.4 * fit + 0.35 * hook + 0.25 * (1.0 - sat))))
+            hours_left = t.get("window_hours_remaining")
+            post_hour = t.get("optimal_post_hour_ist") or (16 + (idx % 6))
+            timing = f"{int(post_hour):02d}:00 IST" if post_hour else "18:00 IST"
+
+            rec_action = (
+                "WINDOW CLOSED" if hours_left is not None and hours_left <= 0
+                else "CREATE CONTENT NOW" if score >= 80
+                else "POST SOON" if score >= 65
+                else "EARLY ENTRY WINDOW"
+            )
+
+            fallback_tracks.append({
+                "id": t.get("id"),
+                "audio_title": t.get("audio_title") or "Emerging Audio",
+                "audio_artist": t.get("audio_artist") or "Creator Sound",
+                "spotify_id": None,
+                "market": "IN",
+                "market_label": "🇮🇳 India",
+                "rank": idx + 1,
+                "popularity": score,
+                "release_date": None,
+                "data_source": "supabase_cache",
+                "prediction": {
+                    "combined_score": score,
+                    "prediction": f"Emerging {t.get('status', 'rising').capitalize()}",
+                    "optimal_timing": timing,
+                    "reach_multiplier": f"{score}%",
+                    "recommended_action": rec_action,
+                }
+            })
+        return fallback_tracks
+    except Exception as e:
+        logger.error(f"Error executing _get_db_audio_trends_fallback: {e}", exc_info=True)
+        return []
+
+
 @router.get("/api/spotify/viral")
 @limiter.limit("60/minute")
 def get_spotify_viral_trends(

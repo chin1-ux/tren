@@ -261,12 +261,16 @@ class PlanEnforcement:
             return 999_999
         if PlanEnforcement.is_demo_allowlisted(user_email):
             return 999_999
-        user_res = supabase.table('users') \
-            .select('credits_remaining') \
-            .eq('email', user_email).single().execute()
-        if not user_res.data:
+        try:
+            user_res = supabase.table('users') \
+                .select('credits_remaining') \
+                .eq('email', user_email).limit(1).execute()
+            if not user_res.data:
+                return 0
+            return user_res.data[0].get('credits_remaining', 0) or 0
+        except Exception as e:
+            logger.warning(f"Error checking credit balance for {user_email}: {e}")
             return 0
-        return user_res.data.get('credits_remaining', 0) or 0
 
     # ── Usage logging ──────────────────────────────────────────────────────────
 
