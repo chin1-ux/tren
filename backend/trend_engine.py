@@ -902,6 +902,8 @@ class TrendEngine:
                 
                 max_group_v = max((r.get("velocity_score", 0) for r in high_velocity_reels), default=0.0)
                 max_group_use = max((r.get("audio_use_count") or 0 for r in high_velocity_reels), default=0)
+                max_group_views = max((r.get("view_count") or 0 for r in high_velocity_reels), default=0)
+                max_group_likes = max((r.get("like_count") or 0 for r in high_velocity_reels), default=0)
 
                 # Calculate oldest_age_hours for high_velocity_reels
                 now_utc = datetime.now(timezone.utc)
@@ -923,15 +925,21 @@ class TrendEngine:
 
                 # Single-reel breakout guard:
                 # Reel must be recent (<=36h) AND audio must not be evergreen (use_count < 100K).
-                # Prevents old high-use audios (e.g. 300K-use santoor/devotional tracks) from
-                # re-surfacing as "emerging" just because one scrape finds them with high velocity.
-                # Crossplatform breakout (TikTok migration signal) bypasses age/use-count rules.
+                # Controlled Single-Creator High-Velocity Override WITH Engagement Sanity Floor:
+                # Allows 1-creator breakout if max_views >= 20,000 AND max_likes >= max(10, 0.0005 * max_views)
                 single_reel_age_ok = oldest_age_hours <= 36
                 unique_creators = len({r.get("owner_username") for r in (all_reels or []) if r.get("owner_username")})
+                min_likes_required = max(10, int(0.0005 * max_group_views))
+                is_valid_single_creator_breakout = (
+                    unique_creators == 1
+                    and max_group_views >= 20000
+                    and max_group_likes >= min_likes_required
+                )
+
                 is_breakout_single_reel = (
                     ((max_group_v > 5000.0 and single_reel_age_ok)
                      or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok))
-                    and unique_creators >= 2
+                    and (unique_creators >= 2 or is_valid_single_creator_breakout)
                 ) or is_crossplatform_breakout
 
                 # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
