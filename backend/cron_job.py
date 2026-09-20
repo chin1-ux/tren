@@ -636,6 +636,27 @@ def run_full_pipeline(stages: list = None):
         except Exception as _reg_err:
             logging.warning(f"Regional filter pass warning: {_reg_err}")
 
+    # 3c. Format & Caption Pattern Trend Detection
+    # Runs after TrendEngine — detects visual format trends (POV, GRWM, transitions, challenges)
+    # and writes them to the content_trends table. Additive, non-fatal.
+    if _stage("detect") and not trend_detection_skipped:
+        try:
+            run_state["stage"] = "format_trend_detection"
+            logging.info("Step 3c: Running FormatTrendDetector for caption/visual/challenge patterns...")
+            from format_trend_detector import FormatTrendDetector
+            fmt_detector = FormatTrendDetector()
+            fmt_result = fmt_detector.run()
+            fmt_saved = fmt_result.get("detected", 0)
+            logging.info(
+                f"Step 3c: FormatTrendDetector complete. "
+                f"Detected={fmt_saved} "
+                f"(caption={fmt_result.get('caption_patterns', 0)}, "
+                f"visual={fmt_result.get('visual_formats', 0)}, "
+                f"challenge={fmt_result.get('challenge_trends', 0)})"
+            )
+        except Exception as _fmt_err:
+            logging.warning(f"Step 3c FormatTrendDetector failed (non-fatal): {_fmt_err}")
+
     # 4. Trend Refresher: update lifecycle of existing trends
     if _stage("refresh"):
         try:

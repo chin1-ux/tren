@@ -74,6 +74,21 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
                 except Exception as te_err:
                     logger.warning(f"TrendEngine detection warning: {te_err}")
 
+                # Step 2b: Format & Caption Pattern Trend Detection (writes to content_trends)
+                try:
+                    from format_trend_detector import FormatTrendDetector
+                    fmt_detector = FormatTrendDetector()
+                    fmt_result = fmt_detector.run()
+                    logger.info(
+                        f"Completed FormatTrendDetector. "
+                        f"Detected={fmt_result.get('detected', 0)} "
+                        f"(caption={fmt_result.get('caption_patterns', 0)}, "
+                        f"visual={fmt_result.get('visual_formats', 0)}, "
+                        f"challenge={fmt_result.get('challenge_trends', 0)})"
+                    )
+                except Exception as fmt_err:
+                    logger.warning(f"FormatTrendDetector warning (non-fatal): {fmt_err}")
+
                 # Step 3: Trend Refresher status updates
                 try:
                     if TrendRefresher:
