@@ -359,101 +359,131 @@ def get_spotify_viral_trends(
         all_spotify_tracks = []
         source_method = "search"  # playlist API needs OAuth; always use search
 
-        for c in target_countries:
-            queries = _QUERY_MAP.get(c, ["viral trending audio 2026"])
-            for q in queries:
-                tracks = sf.fetch_search_tracks(q)
-                for t in tracks[:5]:
-                    t["market"] = c
-                    all_spotify_tracks.append(t)
+        # Seed Spotify search from active DB trends (rising + emerging ordered by velocity)
+        db_seeded_cards = []
+        seen_spotify_ids = set()
 
-        # Deduplicate by spotify_id
-        seen_ids: set = set()
-        deduped = []
-        for t in all_spotify_tracks:
-            sid = t.get("spotify_id") or t.get("title", "") + t.get("artist", "")
-            if sid not in seen_ids:
-                seen_ids.add(sid)
-                deduped.append(t)
-
-        # Build normalized DB trends lookup for strict IG audio cross-matching
-        ig_audio_lookup = {}
         if supabase:
             try:
-                db_tr = supabase.table("trends").select("audio_id, audio_title, audio_artist, display_title, shazam_canonical_title, shazam_canonical_artist, commercial_song_alias").execute()
-                for tr in (db_tr.data or []):
-                    aid = tr.get("audio_id")
-                    if not aid:
+                res_active = supabase.table("trends") \
+                    .select("id, audio_id, audio_title, audio_artist, status, velocity_avg") \
+                    .in_("status", ["rising", "emerging"]) \
+                    .order("velocity_avg", desc=True) \
+                    .limit(40).execute()
+                
+                active_trends = res_active.data or []
+                for trend in active_trends:
+                    aid = trend.get("audio_id")
+                    title = (trend.get("audio_title") or "").strip()
+                    artist = (trend.get("audio_artist") or "").strip()
+                    if not title:
                         continue
-                    titles = [tr.get("audio_title"), tr.get("display_title"), tr.get("shazam_canonical_title"), tr.get("commercial_song_alias")]
-                    artists = [tr.get("audio_artist"), tr.get("shazam_canonical_artist")]
-                    for t_raw in titles:
-                        if not t_raw:
-                            continue
-                        clean_t = re.sub(r'[^a-zA-Z0-9]', '', re.sub(r'\(.*?\)|\[.*?\]', '', t_raw).lower())
-                        if len(clean_t) > 3:
-                            for a_raw in artists:
-                                if not a_raw:
-                                    continue
-                                clean_a = re.sub(r'[^a-zA-Z0-9]', '', a_raw.lower())
-                                if len(clean_a) > 2:
-                                    ig_audio_lookup[(clean_t, clean_a)] = aid
+                    
+                    clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
+                    clean_a = re.sub(r'\(.*?\)|\[.*?\]', '', artist).strip()
+                    query = f"{clean_t} {clean_a}".strip() if clean_a else clean_t
+                    
+                    sp_results = sf.fetch_search_tracks(query)
+                    if not sp_results and clean_t:
+                        sp_results = sf.fetch_search_tracks(clean_t)
+                        
+                    if sp_results:
+                        best = sp_results[0]
+                        sp_id = best.get("spotify_id") or best.get("title")
+                        if sp_id not in seen_spotify_ids:
+                            seen_spotify_ids.add(sp_id)
+                            rank = len(db_seeded_cards) + 1
+                            score = max(45, 98 - (rank - 1) * 2)
+                            hours_opt = 16 + (rank % 6)
+                            
+                            db_seeded_cards.append({
+                                "id": f"spotify_ig_{aid or rank}",
+                                "audio_title": best.get("title") or title,
+                                "audio_artist": best.get("artist") or artist,
+                                "spotify_id": best.get("spotify_id"),
+                                "instagram_audio_id": aid,
+                                "instagram_audio_url": f"https://www.instagram.com/reels/audio/{aid}/" if aid else None,
+                                "market": "IN",
+                                "market_label": "🇮🇳 India",
+                                "rank": rank,
+                                "popularity": best.get("popularity"),
+                                "score_basis": "ig_seeded",
+                                "release_date": best.get("release_date"),
+                                "data_source": "ig_trends_seeded",
+                                "prediction": {
+                                    "combined_score": score,
+                                    "score_basis": "ig_seeded",
+                                    "prediction": "Spotify Viral (IG Cross-Seeded)",
+                                    "optimal_timing": f"{hours_opt:02d}:00 IST",
+                                    "reach_multiplier": f"{score}%",
+                                    "recommended_action": (
+                                        "POST NOW" if score >= 85
+                                        else "POST SOON" if score >= 75
+                                        else "EARLY ENTRY WINDOW"
+                                    ),
+                                },
+                            })
             except Exception as e:
-                logger.warning(f"Error building IG audio lookup: {e}")
+                logger.error(f"Error seeding Spotify search from DB trends: {e}")
 
-        formatted_trends = []
-        for idx, item in enumerate(deduped):
-            rank = item.get("rank", idx + 1)
-            market = item.get("market", "GLOBAL")
-            pop_val = item.get("popularity")
-            if pop_val is not None:
-                score = min(97, max(40, int(0.7 * pop_val + 0.3 * max(0, 100 - (rank - 1) * 2))))
-                score_basis = "popularity"
-            else:
-                score = max(40, 98 - (rank - 1) * 2)
-                score_basis = "rank_only"
-            market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
+        # Top-Up Strategy: If DB trends yield fewer than 30 cards, top-up using generic search terms
+        formatted_trends = list(db_seeded_cards)
+        if len(formatted_trends) < 30:
+            logger.info(f"Top-up required: DB trends produced {len(formatted_trends)} cards. Fetching filler search tracks.")
+            filler_tracks = []
+            for c in target_countries:
+                queries = _QUERY_MAP.get(c, ["viral trending audio 2026"])
+                for q in queries:
+                    tracks = sf.fetch_search_tracks(q)
+                    for t in tracks[:5]:
+                        t["market"] = c
+                        filler_tracks.append(t)
 
-            clean_sp_t = re.sub(r'[^a-zA-Z0-9]', '', re.sub(r'\(.*?\)|\[.*?\]', '', item.get("title") or "").lower())
-            clean_sp_a = re.sub(r'[^a-zA-Z0-9]', '', (item.get("artist") or "").lower())
-            
-            matched_ig_audio_id = None
-            if clean_sp_t and clean_sp_a:
-                for (norm_t, norm_a), aid in ig_audio_lookup.items():
-                    if norm_t == clean_sp_t and (norm_a in clean_sp_a or clean_sp_a in norm_a):
-                        matched_ig_audio_id = aid
-                        break
-
-            ig_audio_url = f"https://www.instagram.com/reels/audio/{matched_ig_audio_id}/" if matched_ig_audio_id else None
-
-            hours_optimal = 16 + (idx % 6)  # spread posting windows across day
-            formatted_trends.append({
-                "id": f"spotify_{market}_{item.get('spotify_id', idx)}",
-                "audio_title": item.get("title") or "Viral Sound",
-                "audio_artist": item.get("artist") or "Various Artists",
-                "spotify_id": item.get("spotify_id"),
-                "market": market,
-                "market_label": market_flag,
-                "rank": rank,
-                "popularity": pop_val,
-                "score_basis": score_basis,
-                "instagram_audio_id": matched_ig_audio_id,
-                "instagram_audio_url": ig_audio_url,
-                "release_date": item.get("release_date"),
-                "data_source": source_method,
-                "prediction": {
-                    "combined_score": score,
-                    "score_basis": score_basis,
-                    "prediction": f"Spotify Viral {market_flag}",
-                    "optimal_timing": f"{hours_optimal:02d}:00 IST",
-                    "reach_multiplier": f"{score}%",
-                    "recommended_action": (
-                        "POST NOW" if score >= 85
-                        else "POST SOON" if score >= 75
-                        else "EARLY ENTRY WINDOW"
-                    ),
-                },
-            })
+            for idx, item in enumerate(filler_tracks):
+                if len(formatted_trends) >= 30:
+                    break
+                sid = item.get("spotify_id") or item.get("title", "") + item.get("artist", "")
+                if sid not in seen_spotify_ids:
+                    seen_spotify_ids.add(sid)
+                    rank = len(formatted_trends) + 1
+                    pop_val = item.get("popularity")
+                    if pop_val is not None:
+                        score = min(97, max(40, int(0.7 * pop_val + 0.3 * max(0, 100 - (rank - 1) * 2))))
+                        score_basis = "popularity"
+                    else:
+                        score = max(40, 98 - (rank - 1) * 2)
+                        score_basis = "rank_only"
+                    market = item.get("market", "GLOBAL")
+                    market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
+                    hours_opt = 16 + (rank % 6)
+                    
+                    formatted_trends.append({
+                        "id": f"spotify_{market}_{item.get('spotify_id', idx)}",
+                        "audio_title": item.get("title") or "Viral Sound",
+                        "audio_artist": item.get("artist") or "Various Artists",
+                        "spotify_id": item.get("spotify_id"),
+                        "instagram_audio_id": None,
+                        "instagram_audio_url": None,
+                        "market": market,
+                        "market_label": market_flag,
+                        "rank": rank,
+                        "popularity": pop_val,
+                        "score_basis": score_basis,
+                        "release_date": item.get("release_date"),
+                        "data_source": "search_filler",
+                        "prediction": {
+                            "combined_score": score,
+                            "score_basis": score_basis,
+                            "prediction": f"Spotify Viral {market_flag}",
+                            "optimal_timing": f"{hours_opt:02d}:00 IST",
+                            "reach_multiplier": f"{score}%",
+                            "recommended_action": (
+                                "POST NOW" if score >= 85
+                                else "POST SOON" if score >= 75
+                                else "EARLY ENTRY WINDOW"
+                            ),
+                        },
+                    })
 
         if not formatted_trends:
             logger.warning("spotify/viral: Spotify search returned 0 tracks. Falling back to Supabase audio trends.")
