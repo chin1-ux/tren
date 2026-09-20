@@ -265,11 +265,16 @@ class TrendRefresher:
                     snapshots = snaps_res.data or []
                     
                     from trend_constants import RESURGENCE_VELOCITY_THRESHOLD
+                    clean_use_cnt = int(trend.get("audio_use_count") or 0)
+                    is_valid_breakout_resurgence = (
+                        unique_creators >= 1 and (velocity_for_check >= RESURGENCE_VELOCITY_THRESHOLD * 2 or clean_use_cnt >= 10000)
+                    )
+                    creator_gate_passed = (unique_creators >= 3 or is_valid_breakout_resurgence)
+
                     has_sustained_signal = (
                         len(snapshots) >= 2 and
-                        unique_creators >= 3 and
+                        creator_gate_passed and
                         all((s.get("velocity_avg") or 0) >= RESURGENCE_VELOCITY_THRESHOLD for s in snapshots) and
-                        all((s.get("creator_count") or 0) >= 3 for s in snapshots) and
                         velocity_for_check >= RESURGENCE_VELOCITY_THRESHOLD
                     )
                     
