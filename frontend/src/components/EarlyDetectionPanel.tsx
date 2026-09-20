@@ -15,6 +15,8 @@ interface SpotifyTrack {
   audio_title: string;
   audio_artist: string;
   spotify_id?: string;
+  instagram_audio_id?: string;
+  instagram_audio_url?: string;
   market: string;
   market_label: string;
   rank: number;
@@ -310,6 +312,17 @@ export function EarlyDetectionPanel() {
                           >
                             <ExternalLink className="h-3 w-3" />
                             Open in Spotify
+                          </a>
+                        )}
+                        {track.instagram_audio_url && (
+                          <a
+                            href={track.instagram_audio_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-1 text-purple-400 hover:text-purple-300 transition-colors font-medium"
+                          >
+                            <ExternalLink className="h-3 w-3" />
+                            Use Audio on Instagram
                           </a>
                         )}
                       </div>

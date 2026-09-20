@@ -376,6 +376,31 @@ def get_spotify_viral_trends(
                 seen_ids.add(sid)
                 deduped.append(t)
 
+        # Build normalized DB trends lookup for strict IG audio cross-matching
+        ig_audio_lookup = {}
+        if supabase:
+            try:
+                db_tr = supabase.table("trends").select("audio_id, audio_title, audio_artist, display_title, shazam_canonical_title, shazam_canonical_artist, commercial_song_alias").execute()
+                for tr in (db_tr.data or []):
+                    aid = tr.get("audio_id")
+                    if not aid:
+                        continue
+                    titles = [tr.get("audio_title"), tr.get("display_title"), tr.get("shazam_canonical_title"), tr.get("commercial_song_alias")]
+                    artists = [tr.get("audio_artist"), tr.get("shazam_canonical_artist")]
+                    for t_raw in titles:
+                        if not t_raw:
+                            continue
+                        clean_t = re.sub(r'[^a-zA-Z0-9]', '', re.sub(r'\(.*?\)|\[.*?\]', '', t_raw).lower())
+                        if len(clean_t) > 3:
+                            for a_raw in artists:
+                                if not a_raw:
+                                    continue
+                                clean_a = re.sub(r'[^a-zA-Z0-9]', '', a_raw.lower())
+                                if len(clean_a) > 2:
+                                    ig_audio_lookup[(clean_t, clean_a)] = aid
+            except Exception as e:
+                logger.warning(f"Error building IG audio lookup: {e}")
+
         formatted_trends = []
         for idx, item in enumerate(deduped):
             rank = item.get("rank", idx + 1)
@@ -389,6 +414,18 @@ def get_spotify_viral_trends(
                 score_basis = "rank_only"
             market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
 
+            clean_sp_t = re.sub(r'[^a-zA-Z0-9]', '', re.sub(r'\(.*?\)|\[.*?\]', '', item.get("title") or "").lower())
+            clean_sp_a = re.sub(r'[^a-zA-Z0-9]', '', (item.get("artist") or "").lower())
+            
+            matched_ig_audio_id = None
+            if clean_sp_t and clean_sp_a:
+                for (norm_t, norm_a), aid in ig_audio_lookup.items():
+                    if norm_t == clean_sp_t and (norm_a in clean_sp_a or clean_sp_a in norm_a):
+                        matched_ig_audio_id = aid
+                        break
+
+            ig_audio_url = f"https://www.instagram.com/reels/audio/{matched_ig_audio_id}/" if matched_ig_audio_id else None
+
             hours_optimal = 16 + (idx % 6)  # spread posting windows across day
             formatted_trends.append({
                 "id": f"spotify_{market}_{item.get('spotify_id', idx)}",
@@ -400,6 +437,8 @@ def get_spotify_viral_trends(
                 "rank": rank,
                 "popularity": pop_val,
                 "score_basis": score_basis,
+                "instagram_audio_id": matched_ig_audio_id,
+                "instagram_audio_url": ig_audio_url,
                 "release_date": item.get("release_date"),
                 "data_source": source_method,
                 "prediction": {
