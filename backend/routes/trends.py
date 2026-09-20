@@ -369,10 +369,12 @@ def get_spotify_viral_trends(
                     .select("id, audio_id, audio_title, audio_artist, status, velocity_avg") \
                     .in_("status", ["rising", "emerging"]) \
                     .order("velocity_avg", desc=True) \
-                    .limit(40).execute()
+                    .limit(25).execute()
                 
                 active_trends = res_active.data or []
                 for trend in active_trends:
+                    if len(db_seeded_cards) >= 25:
+                        break
                     aid = trend.get("audio_id")
                     title = (trend.get("audio_title") or "").strip()
                     artist = (trend.get("audio_artist") or "").strip()
@@ -384,7 +386,7 @@ def get_spotify_viral_trends(
                     query = f"{clean_t} {clean_a}".strip() if clean_a else clean_t
                     
                     sp_results = sf.fetch_search_tracks(query)
-                    if not sp_results and clean_t:
+                    if not sp_results and clean_t and clean_t != query:
                         sp_results = sf.fetch_search_tracks(clean_t)
                         
                     if sp_results:
@@ -426,21 +428,21 @@ def get_spotify_viral_trends(
             except Exception as e:
                 logger.error(f"Error seeding Spotify search from DB trends: {e}")
 
-        # Top-Up Strategy: If DB trends yield fewer than 30 cards, top-up using generic search terms
+        # Top-Up Strategy: If DB trends yield fewer than 25 cards, top-up using generic search terms
         formatted_trends = list(db_seeded_cards)
-        if len(formatted_trends) < 30:
+        if len(formatted_trends) < 25:
             logger.info(f"Top-up required: DB trends produced {len(formatted_trends)} cards. Fetching filler search tracks.")
             filler_tracks = []
             for c in target_countries:
                 queries = _QUERY_MAP.get(c, ["viral trending audio 2026"])
                 for q in queries:
                     tracks = sf.fetch_search_tracks(q)
-                    for t in tracks[:5]:
+                    for t in tracks[:3]:
                         t["market"] = c
                         filler_tracks.append(t)
 
             for idx, item in enumerate(filler_tracks):
-                if len(formatted_trends) >= 30:
+                if len(formatted_trends) >= 25:
                     break
                 sid = item.get("spotify_id") or item.get("title", "") + item.get("artist", "")
                 if sid not in seen_spotify_ids:
