@@ -1427,30 +1427,36 @@ class TrendEngine:
                 }
 
                 try:
-                    res = self.supabase.table("trends").insert(trend_data).execute()
-                    if res.data:
-                        tid = res.data[0].get("id")
-                        new_trend_ids.append(tid)
-                        logging.info(f"Saved '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
-                        
-                        # Try to calculate initial peaking score if we have snapshot data
-                        # This is for existing trends that might already have snapshots
+                    # Non-clobbering update for existing trends vs insert for new trends
+                    target_audio_id = trend_data.get("audio_id")
+                    existing_t_data = None
+                    if target_audio_id:
                         try:
-                            initial_snapshots_res = self.supabase.table('trend_snapshots') \
-                                .select('velocity_avg, captured_at') \
-                                .eq('trend_id', tid) \
-                                .order('captured_at', desc=True) \
-                                .limit(10) \
-                                .execute()
-                            
-                            initial_snapshots = initial_snapshots_res.data or []
-                            if initial_snapshots and calculate_realistic_peaking_score:
-                                initial_peaking = calculate_realistic_peaking_score(trend_data, initial_snapshots)
-                                self.supabase.table("trends").update({"peaking_score": initial_peaking}).eq("id", tid).execute()
-                                logging.info(f"Set initial peaking_score={initial_peaking} for trend {tid}")
-                        except Exception as peaking_err:
-                            logging.warning(f"Could not set initial peaking_score for trend {tid}: {peaking_err}")
-                            
+                            ex_res = self.supabase.table("trends").select("id, status").eq("audio_id", target_audio_id).limit(1).execute()
+                            if ex_res.data:
+                                existing_t_data = ex_res.data[0]
+                        except Exception as _ex_err:
+                            logging.debug(f"Error checking existing trend audio_id={target_audio_id}: {_ex_err}")
+
+                    if existing_t_data:
+                        tid = existing_t_data["id"]
+                        update_payload = {k: v for k, v in trend_data.items() if k not in ("status", "status_reason", "first_detected_at", "created_at")}
+                        self.supabase.table("trends").update(update_payload).eq("id", tid).execute()
+                        logging.info(f"Updated metrics for existing trend '{trend['audio_title']}' (id={tid}, status={existing_t_data.get('status')}) without clobbering status")
+                    else:
+                        try:
+                            res = self.supabase.table("trends").insert(trend_data).execute()
+                            if res.data:
+                                tid = res.data[0].get("id")
+                                new_trend_ids.append(tid)
+                                logging.info(f"Saved new trend '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
+                        except Exception as insert_err:
+                            if "23505" in str(insert_err) or "duplicate key" in str(insert_err).lower():
+                                logging.warning(f"Race condition caught on insert for '{trend['audio_title']}': {insert_err}. Falling back to non-clobbering update.")
+                                update_payload = {k: v for k, v in trend_data.items() if k not in ("status", "status_reason", "first_detected_at", "created_at")}
+                                self.supabase.table("trends").update(update_payload).eq("audio_id", target_audio_id).execute()
+                            else:
+                                raise insert_err
                 except Exception as e:
                     logging.error(f"Failed to save '{trend['audio_title']}': {e}", exc_info=True)
 
