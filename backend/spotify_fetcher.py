@@ -104,7 +104,7 @@ class SpotifyFetcher:
                     "title": track.get("name"),
                     "artist": ", ".join([a.get("name") for a in track.get("artists", [])]),
                     "spotify_id": track.get("id"),
-                    "popularity": track.get("popularity", 0),
+                    "popularity": track.get("popularity") if track.get("popularity") is not None else None,
                     "query": query,
                     "release_date": rel_date,
                     "release_year": rel_year

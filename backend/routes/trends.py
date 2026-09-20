@@ -380,10 +380,13 @@ def get_spotify_viral_trends(
         for idx, item in enumerate(deduped):
             rank = item.get("rank", idx + 1)
             market = item.get("market", "GLOBAL")
-            popularity = item.get("popularity", 70)
-            # Score: based on popularity (real Spotify signal) + rank position bonus
-            # popularity is 0-100, rank penalty is small to avoid killing lower-ranked tracks
-            score = min(97, max(60, int(0.7 * popularity + 0.3 * max(0, 100 - rank * 1.5))))
+            pop_val = item.get("popularity")
+            if pop_val is not None:
+                score = min(97, max(40, int(0.7 * pop_val + 0.3 * max(0, 100 - (rank - 1) * 2))))
+                score_basis = "popularity"
+            else:
+                score = max(40, 98 - (rank - 1) * 2)
+                score_basis = "rank_only"
             market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
 
             hours_optimal = 16 + (idx % 6)  # spread posting windows across day
@@ -395,11 +398,13 @@ def get_spotify_viral_trends(
                 "market": market,
                 "market_label": market_flag,
                 "rank": rank,
-                "popularity": popularity,
+                "popularity": pop_val,
+                "score_basis": score_basis,
                 "release_date": item.get("release_date"),
                 "data_source": source_method,
                 "prediction": {
                     "combined_score": score,
+                    "score_basis": score_basis,
                     "prediction": f"Spotify Viral {market_flag}",
                     "optimal_timing": f"{hours_optimal:02d}:00 IST",
                     "reach_multiplier": f"{score}%",
