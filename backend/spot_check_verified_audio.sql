@@ -10,12 +10,12 @@
 
 SELECT
     'trends' AS source_table,
-    id,
+    id::text AS id,
     audio_title,
     audio_artist,
     status,
     velocity_avg,
-    use_count,
+    reel_count,
     created_at
 FROM trends
 WHERE
@@ -32,7 +32,7 @@ SELECT
     audio_artist,
     'n/a' AS status,
     NULL::float AS velocity_avg,
-    NULL::int AS use_count,
+    NULL::int AS reel_count,
     scraped_at AS created_at
 FROM reels
 WHERE
@@ -53,12 +53,12 @@ ORDER BY source_table, created_at DESC;
 
 SELECT
     'trends' AS source_table,
-    id,
+    id::text AS id,
     audio_title,
     audio_artist,
     status,
     velocity_avg,
-    use_count,
+    reel_count,
     created_at
 FROM trends
 WHERE
@@ -75,7 +75,7 @@ SELECT
     audio_artist,
     'n/a' AS status,
     NULL::float AS velocity_avg,
-    NULL::int AS use_count,
+    NULL::int AS reel_count,
     scraped_at AS created_at
 FROM reels
 WHERE
@@ -88,3 +88,4 @@ ORDER BY source_table, created_at DESC;
 -- audio+format signal. Worth keeping as a regression test case.
 
 -- ─────────────────────────────────────────────────────────────────────────────
+
