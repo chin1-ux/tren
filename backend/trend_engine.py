@@ -1091,7 +1091,7 @@ class TrendEngine:
                 # Mandatory Creator Diversity Gate:
                 # Require at least 2 distinct creator accounts for emerging, and at least 3 distinct creators for rising.
                 # Single-creator self-promotional audios (e.g. speechplaninc with 12 reels from 1 account) are strictly skipped.
-                if creator_count < 2 and not (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0):
+                if creator_count < 2 and not (is_valid_single_creator_breakout or (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0)):
                     logging.debug(f"Creator diversity gate: skipping '{title}' | {artist} — only {creator_count} distinct creator account(s)")
                     continue
 
