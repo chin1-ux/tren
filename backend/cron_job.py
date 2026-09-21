@@ -109,7 +109,7 @@ def _rebuild_spotify_feed_cache():
         # Fetch top 25 active trends from `trends` table
         # Filters: is_voiceover=False, is_seed_data=False, window_hours_remaining>0
         res_active = sb.table("trends") \
-            .select("id, audio_id, audio_title, audio_artist, status, velocity_avg, is_voiceover, is_seed_data, window_hours_remaining") \
+            .select("id, audio_id, audio_title, audio_artist, status, velocity_avg, is_voiceover, is_seed_data, window_hours_remaining, created_at, first_detected_at") \
             .eq("is_voiceover", False) \
             .eq("is_seed_data", False) \
             .gt("window_hours_remaining", 0) \
@@ -122,7 +122,7 @@ def _rebuild_spotify_feed_cache():
         if len(active_trends) == 0:
             logging.warning("spotify_feed_cache: No trends matched strict filters. Falling back to top active trends by velocity.")
             res_active = sb.table("trends") \
-                .select("id, audio_id, audio_title, audio_artist, status, velocity_avg") \
+                .select("id, audio_id, audio_title, audio_artist, status, velocity_avg, created_at, first_detected_at") \
                 .order("velocity_avg", desc=True) \
                 .limit(25).execute()
             active_trends = res_active.data or []
@@ -139,6 +139,7 @@ def _rebuild_spotify_feed_cache():
             audio_id = trend.get("audio_id")
             title = (trend.get("audio_title") or "").strip()
             artist = (trend.get("audio_artist") or "").strip()
+            trend_created_at = trend.get("created_at") or trend.get("first_detected_at") or built_at.isoformat()
             if not title:
                 title = "Emerging Audio"
 
@@ -149,7 +150,6 @@ def _rebuild_spotify_feed_cache():
             spotify_id = None
             popularity = None
             release_date = None
-            data_source = "ig_trends_seeded"
 
             if sf.access_token and query:
                 sp_results = sf.fetch_search_tracks(query)
@@ -165,12 +165,12 @@ def _rebuild_spotify_feed_cache():
                         seen_spotify_ids.add(sp_id)
                         popularity = best.get("popularity")
                         release_date = best.get("release_date")
-                        data_source = "spotify_search"
 
             rank = len(cards) + 1
             score = max(45, 98 - (rank - 1) * 2)
             timing = f"{16 + (rank % 6)}h window"
-            score_basis = "velocity_avg"
+            score_basis = "ig_seeded"
+            data_source = "ig_trends_seeded"
 
             prediction = {
                 "combined_score": score,
@@ -193,6 +193,7 @@ def _rebuild_spotify_feed_cache():
                 "data_source": data_source,
                 "prediction": prediction,
                 "built_at": built_at.isoformat(),
+                "trend_created_at": trend_created_at,
             })
 
         # Clear existing cache and insert new batch
@@ -207,6 +208,7 @@ def _rebuild_spotify_feed_cache():
     except Exception as err:
         logging.error(f"spotify_feed_cache: Rebuild failed (non-fatal): {err}")
         return 0
+
 
 
 

@@ -27,5 +27,9 @@ CREATE POLICY "Service role full access on spotify_feed_cache"
     FOR ALL
     USING (auth.role() = 'service_role');
 
--- Add index on built_at for fast cache freshness lookup
+-- Add trend_created_at column to support accurate 24h delay gating for Free tier
+ALTER TABLE public.spotify_feed_cache ADD COLUMN IF NOT EXISTS trend_created_at TIMESTAMPTZ;
+
+-- Add index on built_at and trend_created_at for fast cache freshness & gating lookup
 CREATE INDEX IF NOT EXISTS idx_spotify_feed_cache_built_at ON public.spotify_feed_cache (built_at DESC);
+CREATE INDEX IF NOT EXISTS idx_spotify_feed_cache_trend_created_at ON public.spotify_feed_cache (trend_created_at DESC);

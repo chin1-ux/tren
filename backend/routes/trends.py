@@ -353,10 +353,10 @@ def get_spotify_viral_trends(
     try:
         q = supabase.table("spotify_feed_cache").select("*").order("rank", desc=False)
 
-        # Plan gating delay filter for Free users
+        # Plan gating delay filter for Free users: filter by when the IG trend was created/detected
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
-            q = q.lte("built_at", time_cutoff)
+            q = q.lte("trend_created_at", time_cutoff)
 
         res = execute_supabase_get(q) if 'execute_supabase_get' in globals() else q.execute()
         cached_items = res.data or []
