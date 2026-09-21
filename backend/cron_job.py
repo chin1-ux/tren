@@ -118,14 +118,8 @@ def _rebuild_spotify_feed_cache():
 
         active_trends = res_active.data or []
 
-        # Fallback if filters return < 10 trends due to test/seed DB constraints
         if len(active_trends) == 0:
-            logging.warning("spotify_feed_cache: No trends matched strict filters. Falling back to top active trends by velocity.")
-            res_active = sb.table("trends") \
-                .select("id, audio_id, audio_title, audio_artist, status, velocity_avg, created_at, first_detected_at") \
-                .order("velocity_avg", desc=True) \
-                .limit(25).execute()
-            active_trends = res_active.data or []
+            logging.warning("spotify_feed_cache: No trends matched strict filters (is_voiceover=False, is_seed_data=False, window_hours_remaining>0). Cache rebuild yielded 0 cards.")
 
         built_at = datetime.now(timezone.utc)
         cards = []
