@@ -132,31 +132,6 @@ function LoginPage() {
               {loading ? "Logging in..." : "Login"}
               {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
             </Button>
-
-            {/* Instant Demo Access Button */}
-            <Button
-              type="button"
-              variant="outline"
-              className="w-full mt-2 border-emerald-500/40 text-emerald-600 dark:text-emerald-400 hover:bg-emerald-50 dark:hover:bg-emerald-950/30 font-medium"
-              onClick={() => {
-                localStorage.setItem("trendrop_session_token", "demo_guest_token");
-                localStorage.setItem("trendrop_user_email", "demo@trendrop.app");
-                localStorage.setItem("trendrop_user_plan", "pro");
-                localStorage.setItem("trendrop_user_niche", "all");
-                localStorage.setItem("trendrop_user_language", "all");
-                useUserStore.getState().setUser({
-                  email: "demo@trendrop.app",
-                  niche: "all",
-                  language: "all",
-                  plan: "pro",
-                  authToken: "demo_guest_token"
-                });
-                window.location.replace("/");
-              }}
-
-            >
-              ⚡ Explore Live Trends (Demo Mode)
-            </Button>
           </form>
 
 

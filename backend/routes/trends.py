@@ -325,203 +325,97 @@ def _get_db_audio_trends_fallback() -> list:
 @limiter.limit("60/minute")
 def get_spotify_viral_trends(
     request: Request,
-    country: Optional[str] = "all"
+    country: Optional[str] = "all",
+    current_user: str = Depends(get_current_user)
 ):
     """
-    Fetch Spotify Viral/Trending tracks for Early Detection.
-    Uses Spotify Client Credentials (search-based) since playlist endpoint
-    requires OAuth. Returns empty list with X-Fallback-Reason header if
-    Spotify is unavailable — never returns hardcoded stale songs.
+    Fetch Spotify Viral/Trending tracks from the cache-backed spotify_feed_cache table.
+    Applies user authentication and plan gating (24h delay for Free tier, real-time for Pro tier).
+    Sets dynamic X-Data-Source header matching the returned items' data_source.
     """
-    _MARKET_FLAGS = {
-        "IN": "🇮🇳 India",
-        "GLOBAL": "🌐 Global",
-        "US": "🇺🇸 USA",
-        "GB": "🇬🇧 UK",
-        "BR": "🇧🇷 Brazil",
-        "KR": "🇰🇷 Korea",
-        "JP": "🇯🇵 Japan",
-    }
-    _QUERY_MAP = {
-        "IN": ["bollywood viral reels 2026", "hindi trending audio instagram"],
-        "GLOBAL": ["global viral reels 2026", "trending audio reels"],
-        "US": ["tiktok viral 2026", "us viral audio reels"],
-        "GB": ["uk viral audio 2026", "uk trending reels"],
-        "BR": ["funk brasil viral 2026", "brazil trending audio"],
-    }
+    user_plan = "free"
+    if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
+        try:
+            user_data = get_cached_user_profile(current_user)
+            if user_data:
+                user_plan = user_data.get("plan") or "free"
+        except Exception as e:
+            logger.warning(f"Error querying user profile for Spotify viral gating: {e}")
+
+    delay_hours = get_cached_tier_delay(user_plan)
+
+    if not supabase:
+        return JSONResponse(
+            content=[],
+            headers={"X-Fallback-Reason": "supabase_not_configured", "X-Data-Source": "none"}
+        )
 
     try:
-        from spotify_fetcher import SpotifyFetcher
-        sf = SpotifyFetcher()
-        sf._get_token()  # raises ValueError if creds missing, Exception if API fails
+        q = supabase.table("spotify_feed_cache").select("*").order("rank", desc=False)
 
-        target_countries = ["IN", "GLOBAL", "US", "GB", "BR"] if country == "all" else [country.upper()]
-        all_spotify_tracks = []
-        source_method = "search"  # playlist API needs OAuth; always use search
+        # Plan gating delay filter for Free users
+        if delay_hours > 0:
+            time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
+            q = q.lte("built_at", time_cutoff)
 
-        # Seed Spotify search from active DB trends (rising + emerging ordered by velocity)
-        db_seeded_cards = []
-        seen_spotify_ids = set()
+        res = execute_supabase_get(q) if 'execute_supabase_get' in globals() else q.execute()
+        cached_items = res.data or []
 
-        if supabase:
-            try:
-                res_active = supabase.table("trends") \
-                    .select("id, audio_id, audio_title, audio_artist, status, velocity_avg") \
-                    .in_("status", ["rising", "emerging"]) \
-                    .order("velocity_avg", desc=True) \
-                    .limit(25).execute()
-                
-                active_trends = res_active.data or []
-                for trend in active_trends:
-                    if len(db_seeded_cards) >= 25:
-                        break
-                    aid = trend.get("audio_id")
-                    title = (trend.get("audio_title") or "").strip()
-                    artist = (trend.get("audio_artist") or "").strip()
-                    if not title:
-                        continue
-                    
-                    clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
-                    clean_a = re.sub(r'\(.*?\)|\[.*?\]', '', artist).strip()
-                    query = f"{clean_t} {clean_a}".strip() if clean_a else clean_t
-                    
-                    sp_results = sf.fetch_search_tracks(query)
-                    if not sp_results and clean_t and clean_t != query:
-                        sp_results = sf.fetch_search_tracks(clean_t)
-                        
-                    if sp_results:
-                        best = sp_results[0]
-                        sp_id = best.get("spotify_id") or best.get("title")
-                        if sp_id not in seen_spotify_ids:
-                            seen_spotify_ids.add(sp_id)
-                            rank = len(db_seeded_cards) + 1
-                            score = max(45, 98 - (rank - 1) * 2)
-                            hours_opt = 16 + (rank % 6)
-                            
-                            db_seeded_cards.append({
-                                "id": f"spotify_ig_{aid or rank}",
-                                "audio_title": best.get("title") or title,
-                                "audio_artist": best.get("artist") or artist,
-                                "spotify_id": best.get("spotify_id"),
-                                "instagram_audio_id": aid,
-                                "instagram_audio_url": f"https://www.instagram.com/reels/audio/{aid}/" if aid else None,
-                                "market": "IN",
-                                "market_label": "🇮🇳 India",
-                                "rank": rank,
-                                "popularity": best.get("popularity"),
-                                "score_basis": "ig_seeded",
-                                "release_date": best.get("release_date"),
-                                "data_source": "ig_trends_seeded",
-                                "prediction": {
-                                    "combined_score": score,
-                                    "score_basis": "ig_seeded",
-                                    "prediction": "Spotify Viral (IG Cross-Seeded)",
-                                    "optimal_timing": f"{hours_opt:02d}:00 IST",
-                                    "reach_multiplier": f"{score}%",
-                                    "recommended_action": (
-                                        "POST NOW" if score >= 85
-                                        else "POST SOON" if score >= 75
-                                        else "EARLY ENTRY WINDOW"
-                                    ),
-                                },
-                            })
-            except Exception as e:
-                logger.error(f"Error seeding Spotify search from DB trends: {e}")
+        formatted_tracks = []
+        for item in cached_items:
+            aid = item.get("audio_id")
+            pred = item.get("prediction")
+            if isinstance(pred, str):
+                try:
+                    pred = json.loads(pred)
+                except Exception:
+                    pred = {}
+            if not isinstance(pred, dict):
+                pred = {}
 
-        # Top-Up Strategy: If DB trends yield fewer than 25 cards, top-up using generic search terms
-        formatted_trends = list(db_seeded_cards)
-        if len(formatted_trends) < 25:
-            logger.info(f"Top-up required: DB trends produced {len(formatted_trends)} cards. Fetching filler search tracks.")
-            filler_tracks = []
-            for c in target_countries:
-                queries = _QUERY_MAP.get(c, ["viral trending audio 2026"])
-                for q in queries:
-                    tracks = sf.fetch_search_tracks(q)
-                    for t in tracks[:3]:
-                        t["market"] = c
-                        filler_tracks.append(t)
+            score = pred.get("combined_score") or max(45, 98 - ((item.get("rank") or 1) - 1) * 2)
 
-            for idx, item in enumerate(filler_tracks):
-                if len(formatted_trends) >= 25:
-                    break
-                sid = item.get("spotify_id") or item.get("title", "") + item.get("artist", "")
-                if sid not in seen_spotify_ids:
-                    seen_spotify_ids.add(sid)
-                    rank = len(formatted_trends) + 1
-                    pop_val = item.get("popularity")
-                    if pop_val is not None:
-                        score = min(97, max(40, int(0.7 * pop_val + 0.3 * max(0, 100 - (rank - 1) * 2))))
-                        score_basis = "popularity"
-                    else:
-                        score = max(40, 98 - (rank - 1) * 2)
-                        score_basis = "rank_only"
-                    market = item.get("market", "GLOBAL")
-                    market_flag = _MARKET_FLAGS.get(market, f"🌍 {market}")
-                    hours_opt = 16 + (rank % 6)
-                    
-                    formatted_trends.append({
-                        "id": f"spotify_{market}_{item.get('spotify_id', idx)}",
-                        "audio_title": item.get("title") or "Viral Sound",
-                        "audio_artist": item.get("artist") or "Various Artists",
-                        "spotify_id": item.get("spotify_id"),
-                        "instagram_audio_id": None,
-                        "instagram_audio_url": None,
-                        "market": market,
-                        "market_label": market_flag,
-                        "rank": rank,
-                        "popularity": pop_val,
-                        "score_basis": score_basis,
-                        "release_date": item.get("release_date"),
-                        "data_source": "search_filler",
-                        "prediction": {
-                            "combined_score": score,
-                            "score_basis": score_basis,
-                            "prediction": f"Spotify Viral {market_flag}",
-                            "optimal_timing": f"{hours_opt:02d}:00 IST",
-                            "reach_multiplier": f"{score}%",
-                            "recommended_action": (
-                                "POST NOW" if score >= 85
-                                else "POST SOON" if score >= 75
-                                else "EARLY ENTRY WINDOW"
-                            ),
-                        },
-                    })
+            formatted_tracks.append({
+                "id": f"spotify_ig_{aid or item.get('id')}",
+                "audio_title": item.get("audio_title") or "Emerging Sound",
+                "audio_artist": item.get("audio_artist") or "Creator Sound",
+                "spotify_id": item.get("spotify_id"),
+                "instagram_audio_id": aid,
+                "instagram_audio_url": f"https://www.instagram.com/reels/audio/{aid}/" if aid else None,
+                "market": "IN",
+                "market_label": "🇮🇳 India",
+                "rank": item.get("rank"),
+                "popularity": item.get("popularity"),
+                "score_basis": item.get("score_basis") or "velocity_avg",
+                "release_date": item.get("release_date"),
+                "data_source": item.get("data_source") or "ig_trends_seeded",
+                "prediction": pred or {
+                    "combined_score": score,
+                    "prediction": "Emerging Rising",
+                    "optimal_timing": "18h window",
+                    "reach_multiplier": f"{score}%",
+                    "recommended_action": "Use Audio on Instagram"
+                }
+            })
 
-        if not formatted_trends:
-            logger.warning("spotify/viral: Spotify search returned 0 tracks. Falling back to Supabase audio trends.")
-            formatted_trends = _get_db_audio_trends_fallback()
-            source_method = "supabase_cache"
+        data_source_header = formatted_tracks[0]["data_source"] if formatted_tracks else ("ig_trends_seeded" if delay_hours == 0 else "delayed")
 
-        if not formatted_trends:
-            from fastapi.responses import JSONResponse
-            return JSONResponse(
-                content=[],
-                headers={"X-Fallback-Reason": "spotify_search_empty", "X-Data-Source": "none"}
-            )
-
-        logger.info(f"spotify/viral: returning {len(formatted_trends)} tracks via {source_method}")
-        from fastapi.responses import JSONResponse
         return JSONResponse(
-            content=formatted_trends,
-            headers={"X-Data-Source": source_method, "X-Track-Count": str(len(formatted_trends))}
+            content=formatted_tracks,
+            headers={
+                "X-Data-Source": data_source_header,
+                "X-Track-Count": str(len(formatted_tracks)),
+                "X-User-Plan": user_plan
+            }
         )
 
-    except ValueError as ve:
-        logger.error(f"spotify/viral: credential error — {ve}. Falling back to Supabase DB.")
-        db_fallback = _get_db_audio_trends_fallback()
-        from fastapi.responses import JSONResponse
-        return JSONResponse(
-            content=db_fallback,
-            headers={"X-Fallback-Reason": "spotify_credentials_error", "X-Data-Source": "supabase_cache" if db_fallback else "none"}
-        )
     except Exception as e:
-        logger.error(f"spotify/viral: unexpected error — {e}. Falling back to Supabase DB.", exc_info=True)
-        db_fallback = _get_db_audio_trends_fallback()
-        from fastapi.responses import JSONResponse
+        logger.error(f"spotify/viral: unexpected error — {e}", exc_info=True)
         return JSONResponse(
-            content=db_fallback,
-            headers={"X-Fallback-Reason": f"spotify_error:{type(e).__name__}", "X-Data-Source": "supabase_cache" if db_fallback else "none"}
+            content=[],
+            headers={"X-Fallback-Reason": f"error:{type(e).__name__}", "X-Data-Source": "none"}
         )
+
 
 
 @router.get("/api/trends/all-active")

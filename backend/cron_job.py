@@ -90,6 +90,126 @@ def _invalidate_trends_cache():
         logging.error(f'Cache invalidation failed (non-fatal): {cache_err}')
 
 
+def _rebuild_spotify_feed_cache():
+    """
+    Rebuild the spotify_feed_cache table from top active IG trends enriched with Spotify metadata.
+    Non-fatal helper called at the end of the pipeline run.
+    """
+    import re
+    import json
+    try:
+        sb = _get_supabase()
+        from spotify_fetcher import SpotifyFetcher
+        sf = SpotifyFetcher()
+        try:
+            sf._get_token()
+        except Exception as tok_err:
+            logging.warning(f"spotify_feed_cache: Spotify token fetch failed: {tok_err}")
+
+        # Fetch top 25 active trends from `trends` table
+        # Filters: is_voiceover=False, is_seed_data=False, window_hours_remaining>0
+        res_active = sb.table("trends") \
+            .select("id, audio_id, audio_title, audio_artist, status, velocity_avg, is_voiceover, is_seed_data, window_hours_remaining") \
+            .eq("is_voiceover", False) \
+            .eq("is_seed_data", False) \
+            .gt("window_hours_remaining", 0) \
+            .order("velocity_avg", desc=True) \
+            .limit(25).execute()
+
+        active_trends = res_active.data or []
+
+        # Fallback if filters return < 10 trends due to test/seed DB constraints
+        if len(active_trends) == 0:
+            logging.warning("spotify_feed_cache: No trends matched strict filters. Falling back to top active trends by velocity.")
+            res_active = sb.table("trends") \
+                .select("id, audio_id, audio_title, audio_artist, status, velocity_avg") \
+                .order("velocity_avg", desc=True) \
+                .limit(25).execute()
+            active_trends = res_active.data or []
+
+        built_at = datetime.now(timezone.utc)
+        cards = []
+        seen_spotify_ids = set()
+
+        for idx, trend in enumerate(active_trends):
+            if len(cards) >= 25:
+                break
+
+            trend_id = trend.get("id")
+            audio_id = trend.get("audio_id")
+            title = (trend.get("audio_title") or "").strip()
+            artist = (trend.get("audio_artist") or "").strip()
+            if not title:
+                title = "Emerging Audio"
+
+            clean_t = re.sub(r'\(.*?\)|\[.*?\]', '', title).strip()
+            clean_a = re.sub(r'\(.*?\)|\[.*?\]', '', artist).strip()
+            query = f"{clean_t} {clean_a}".strip() if clean_a else clean_t
+
+            spotify_id = None
+            popularity = None
+            release_date = None
+            data_source = "ig_trends_seeded"
+
+            if sf.access_token and query:
+                sp_results = sf.fetch_search_tracks(query)
+                if not sp_results and clean_t and clean_t != query:
+                    sp_results = sf.fetch_search_tracks(clean_t)
+
+                if sp_results:
+                    best = sp_results[0]
+                    # Explicitly capture spotify_id from best.get("id") or best.get("spotify_id")
+                    sp_id = best.get("id") or best.get("spotify_id")
+                    if sp_id and sp_id not in seen_spotify_ids:
+                        spotify_id = sp_id
+                        seen_spotify_ids.add(sp_id)
+                        popularity = best.get("popularity")
+                        release_date = best.get("release_date")
+                        data_source = "spotify_search"
+
+            rank = len(cards) + 1
+            score = max(45, 98 - (rank - 1) * 2)
+            timing = f"{16 + (rank % 6)}h window"
+            score_basis = "velocity_avg"
+
+            prediction = {
+                "combined_score": score,
+                "prediction": f"Emerging {trend.get('status', 'rising').capitalize()}",
+                "optimal_timing": timing,
+                "reach_multiplier": f"{score}%",
+                "recommended_action": "Use Audio on Instagram",
+            }
+
+            cards.append({
+                "trend_id": trend_id,
+                "audio_id": audio_id,
+                "audio_title": title,
+                "audio_artist": artist,
+                "spotify_id": spotify_id,
+                "popularity": popularity,
+                "score_basis": score_basis,
+                "release_date": release_date,
+                "rank": rank,
+                "data_source": data_source,
+                "prediction": prediction,
+                "built_at": built_at.isoformat(),
+            })
+
+        # Clear existing cache and insert new batch
+        sb.table("spotify_feed_cache").delete().neq("id", 0).execute()
+
+        if cards:
+            sb.table("spotify_feed_cache").insert(cards).execute()
+
+        logging.info(f"spotify_feed_cache: Successfully rebuilt cache with {len(cards)} cards.")
+        return len(cards)
+
+    except Exception as err:
+        logging.error(f"spotify_feed_cache: Rebuild failed (non-fatal): {err}")
+        return 0
+
+
+
 def _send_cron_heartbeat():
     """
     Emit a direct operator heartbeat after a successful pipeline run.
@@ -789,6 +909,7 @@ def run_full_pipeline(stages: list = None):
     # Immediately purge the Redis trends cache so the next API request
     # serves the freshly-written data, not a stale 5-minute window.
     _invalidate_trends_cache()
+    _rebuild_spotify_feed_cache()
 
 
 from datetime import timedelta
