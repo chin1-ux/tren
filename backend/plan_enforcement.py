@@ -96,10 +96,28 @@ class PlanEnforcement:
         'brand_enterprise': {'delay_hours': 0, 'max_deals': None},
     }
 
+    @staticmethod
+    def get_brand_deals_config(user_email: str) -> dict:
+        try:
+            from api_globals import PRO_UNLOCK_ALL
+            if PRO_UNLOCK_ALL:
+                return {'delay_hours': 0, 'max_deals': None}
+        except Exception:
+            pass
+        plan = PlanEnforcement.get_user_plan(user_email)
+        return PlanEnforcement.BRAND_DEALS_CONFIG.get(plan, PlanEnforcement.BRAND_DEALS_CONFIG['free'])
+
+
     # ── Plan resolution ────────────────────────────────────────────────────────
 
     @staticmethod
     def get_user_plan(user_email: str) -> str:
+        try:
+            from api_globals import PRO_UNLOCK_ALL
+            if PRO_UNLOCK_ALL:
+                return 'pro'
+        except Exception:
+            pass
         if not user_email or user_email == "guest@trendrop.app":
             return 'free'
         import time
@@ -111,6 +129,7 @@ class PlanEnforcement:
         plan = PlanEnforcement._get_user_plan_db(user_email)
         _PLAN_CACHE[user_email] = {'time': now_ts, 'plan': plan}
         return plan
+
 
     @staticmethod
     def _get_user_plan_db(user_email: str) -> str:

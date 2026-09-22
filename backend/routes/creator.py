@@ -55,14 +55,21 @@ def get_user_plan(request: Request, current_user: str = Depends(require_auth)):
         raise HTTPException(status_code=500, detail="Database not configured.")
     try:
         res = supabase.table("users").select("plan, credits_remaining, credits_used_this_month").eq("email", email).execute()
-        if not res.data:
-            return {"plan": "free", "credits_remaining": 100, "credits_used_this_month": 0}
-        row = res.data[0]
+        credits_rem = 100
+        credits_used = 0
+        user_db_plan = "free"
+        if res.data:
+            row = res.data[0]
+            credits_rem = row.get("credits_remaining", 100)
+            credits_used = row.get("credits_used_this_month", 0)
+            user_db_plan = row.get("plan", "free")
         return {
-            "plan": row.get("plan", "free"),
-            "credits_remaining": row.get("credits_remaining", 100),
-            "credits_used_this_month": row.get("credits_used_this_month", 0),
+            "plan": "pro" if PRO_UNLOCK_ALL else user_db_plan,
+            "credits_remaining": credits_rem,
+            "credits_used_this_month": credits_used,
         }
+
+
     except Exception as e:
         logger.error(f"get_user_plan failed for {email}: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

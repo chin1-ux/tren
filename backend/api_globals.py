@@ -537,6 +537,24 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=[
+        "http://localhost:8081",
+        "http://localhost:5173",
+        "http://localhost:3000",
+        "http://127.0.0.1:8081",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:3000",
+        "https://trendrop-black.vercel.app",
+        "https://*.vercel.app",
+    ],
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
 
 
 # ── Trends Feed ────────────────────────────────────────────────────────────────
@@ -689,10 +707,16 @@ def get_cached_tiers():
                 logger.error(f"Error fetching subscription tiers for cache: {e}")
     return TIERS_CACHE
 
+# Pre-Monetization Global Pro Unlock Master Toggle
+PRO_UNLOCK_ALL = os.getenv("PRO_UNLOCK_ALL", "1").lower() in ("1", "true", "yes")
+
 def get_cached_tier_delay(plan_name: str) -> int:
+    if PRO_UNLOCK_ALL:
+        return 0
     tiers = get_cached_tiers()
     tier = tiers.get(plan_name)
     if tier:
         return tier.get("data_delay_hours", 6)
     return 6
+
 

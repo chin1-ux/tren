@@ -74,7 +74,8 @@ def get_trends(
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None]).gt("window_hours_remaining", 0)
+        _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed),llm_classification_status.is.null"
+        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
 
         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
@@ -110,7 +111,7 @@ def get_trends(
         # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
         if not trends:
             skipped_local_fallback = False
-            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None]).gt("window_hours_remaining", 0)
+            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
             if language and language != "all":
                 q_fb = q_fb.eq("language", language)
             res_fb = execute_supabase_get(q_fb)
@@ -197,7 +198,8 @@ def get_emerging_trends(
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "pending", "failed", None])
+        _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed),llm_classification_status.is.null"
+        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
         
         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
@@ -496,6 +498,52 @@ def get_peaked_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+@router.get("/api/trends/resurging")
+@limiter.limit("60/minute")
+def get_resurging_trends(
+    request: Request,
+    language: Optional[str] = None,
+    limit: Optional[int] = None,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Fetch RESURGING trends — audio that previously peaked or expired and has
+    come back with sustained new signal. Sorted by status_changed_at DESC (most recent resurgence on top).
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        resurging_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+        valid_llm_statuses = ["completed", "not_needed", "skipped_local_fallback", "pending", "failed"]
+        date_filter = (
+            f"first_detected_at.gte.{resurging_cutoff},"
+            f"and(first_detected_at.is.null,created_at.gte.{resurging_cutoff})"
+        )
+        q = (
+            supabase.table("trends")
+            .select("*")
+            .eq("status", "resurging")
+            .eq("is_seed_data", False)
+            .or_(
+                f"llm_classification_status.in.({','.join(valid_llm_statuses)}),llm_classification_status.is.null"
+            )
+            .or_(date_filter)
+        )
+        if language and language != "all":
+            q = q.eq("language", language)
+        q = q.order("status_changed_at", desc=True)
+        if limit:
+            q = q.limit(limit)
+        res = q.execute()
+        trends = _normalize_trends(res.data or [])
+        trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
+        headers = {"Cache-Control": "public, max-age=120", "X-Status-Filter": "resurging"}
+        return JSONResponse(content=trends, headers=headers)
+    except Exception as e:
+        logger.error(f"Error fetching resurging trends: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
 @router.get("/api/trends/expired")
 @limiter.limit("60/minute")
 def get_expired_trends(
@@ -519,7 +567,6 @@ def get_expired_trends(
             f"first_detected_at.gte.{expired_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{expired_cutoff})"
         )
-
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("first_detected_at", desc=True)

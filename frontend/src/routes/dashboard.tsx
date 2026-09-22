@@ -7,7 +7,7 @@ import { NewsFeedPanel } from "@/components/NewsFeedPanel";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Newspaper, Music2, BarChart3, Sparkles } from "lucide-react";
+import { HelpCircle, Newspaper, Flame, BarChart3, Sparkles } from "lucide-react";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useUserStore } from "@/store/useAppStore";
 
@@ -83,8 +83,8 @@ function Dashboard() {
           <div className="w-full overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
             <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1 h-11 gap-1.5 bg-muted/60 rounded-xl">
               <TabsTrigger value="early-detection" className="shrink-0 flex items-center gap-1.5">
-                <Music2 className="h-3.5 w-3.5" />
-                Spotify Viral
+                <Flame className="h-3.5 w-3.5" />
+                Trending Audio
               </TabsTrigger>
 
               <TabsTrigger value="breaking-news" className="shrink-0 flex items-center gap-1.5">

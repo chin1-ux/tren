@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, fetchResurgingTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -60,7 +60,7 @@ const NICHES = [
   { id: "romance_relationship", label: "💕 Romance" },
 ];
 
-type FeedTab = "rising" | "emerging" | "peaked" | "expired" | "workspace";
+type FeedTab = "rising" | "emerging" | "resurging" | "peaked" | "expired" | "workspace";
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
@@ -147,6 +147,18 @@ function TrendsFeed() {
   });
 
   const {
+    data: resurgingData,
+    isLoading: resurgingLoading,
+    isError: resurgingError,
+    refetch: refetchResurging,
+  } = useQuery({
+    queryKey: ["trends-resurging", language],
+    queryFn: () => fetchResurgingTrends(language),
+    staleTime: 5 * 60_000, // 5 min — resurging changes less often than rising
+    refetchInterval: 10 * 60_000,
+  });
+
+  const {
     data: targetedData,
     isLoading: targetedLoading,
     isError: targetedError,
@@ -158,13 +170,13 @@ function TrendsFeed() {
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
-  // Priority: rising > emerging > peaked > expired
+  // Priority: rising > emerging > resurging > peaked > expired
   const deduplicatedTrends = useMemo(() => {
     const audioToTrend = new Map<string, { trend: UiTrend; priority: number }>();
-    const statusPriority: Record<string, number> = { rising: 4, emerging: 3, peaked: 2, expired: 1 };
+    const statusPriority: Record<string, number> = { rising: 5, emerging: 4, resurging: 3, peaked: 2, expired: 1 };
 
     // Collect all trends and assign priority
-    [...(risingData || []), ...(emergingData || []), ...(peakedData || []), ...(expiredData || [])].forEach(t => {
+    [...(risingData || []), ...(emergingData || []), ...(resurgingData || []), ...(peakedData || []), ...(expiredData || [])].forEach(t => {
       const audioId = (t.audioId && t.audioId !== "null") ? t.audioId : (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song" ? `${t.song}-${t.artist}` : `trend-${t.id}`);
       const priority = statusPriority[t.status || "rising"] || 0;
       const existing = audioToTrend.get(audioId);
@@ -178,12 +190,14 @@ function TrendsFeed() {
     // Separate back into tabs
     const deduplicatedRising: UiTrend[] = [];
     const deduplicatedEmerging: UiTrend[] = [];
+    const deduplicatedResurging: UiTrend[] = [];
     const deduplicatedPeaked: UiTrend[] = [];
     const deduplicatedExpired: UiTrend[] = [];
 
     audioToTrend.forEach(({ trend }) => {
       if (trend.status === "rising") deduplicatedRising.push(trend);
       else if (trend.status === "emerging") deduplicatedEmerging.push(trend);
+      else if (trend.status === "resurging") deduplicatedResurging.push(trend);
       else if (trend.status === "peaked") deduplicatedPeaked.push(trend);
       else if (trend.status === "expired") deduplicatedExpired.push(trend);
     });
@@ -191,10 +205,11 @@ function TrendsFeed() {
     return {
       rising: deduplicatedRising,
       emerging: deduplicatedEmerging,
+      resurging: deduplicatedResurging,
       peaked: deduplicatedPeaked,
       expired: deduplicatedExpired,
     };
-  }, [risingData, emergingData, peakedData, expiredData]);
+  }, [risingData, emergingData, resurgingData, peakedData, expiredData]);
 
   const emergingCount = deduplicatedTrends.emerging.length;
 
@@ -220,23 +235,27 @@ function TrendsFeed() {
   const activeData = feedTab === "rising"
     ? (risingFallbackToPeaked ? deduplicatedTrends.peaked : deduplicatedTrends.rising)
     : feedTab === "emerging" ? deduplicatedTrends.emerging
+    : feedTab === "resurging" ? deduplicatedTrends.resurging
     : feedTab === "peaked" ? deduplicatedTrends.peaked
     : feedTab === "expired" ? deduplicatedTrends.expired
     : targetedData;
-  const isLoading = feedTab === "rising" ? risingLoading 
-    : feedTab === "emerging" ? emergingLoading 
-    : feedTab === "peaked" ? peakedLoading 
+  const isLoading = feedTab === "rising" ? risingLoading
+    : feedTab === "emerging" ? emergingLoading
+    : feedTab === "resurging" ? resurgingLoading
+    : feedTab === "peaked" ? peakedLoading
     : feedTab === "expired" ? expiredLoading
     : targetedLoading;
-  const isError = feedTab === "rising" ? risingError 
-    : feedTab === "emerging" ? emergingError 
-    : feedTab === "peaked" ? peakedError 
+  const isError = feedTab === "rising" ? risingError
+    : feedTab === "emerging" ? emergingError
+    : feedTab === "resurging" ? resurgingError
+    : feedTab === "peaked" ? peakedError
     : feedTab === "expired" ? expiredError
     : targetedError;
 
-  const refetch = feedTab === "rising" ? refetchRising 
-    : feedTab === "emerging" ? refetchEmerging 
-    : feedTab === "peaked" ? refetchPeaked 
+  const refetch = feedTab === "rising" ? refetchRising
+    : feedTab === "emerging" ? refetchEmerging
+    : feedTab === "resurging" ? refetchResurging
+    : feedTab === "peaked" ? refetchPeaked
     : feedTab === "expired" ? refetchExpired
     : refetchTargeted;
 
@@ -345,6 +364,13 @@ function TrendsFeed() {
             urgent
           />
           <TabButton
+            active={feedTab === "resurging"}
+            onClick={() => setFeedTab("resurging")}
+            icon={<span className="text-xs">🔁</span>}
+            label="Comeback"
+            count={deduplicatedTrends.resurging.length}
+          />
+          <TabButton
             active={feedTab === "workspace"}
             onClick={() => setFeedTab("workspace")}
             icon={<Target className="h-3.5 w-3.5" />}
@@ -401,6 +427,13 @@ function TrendsFeed() {
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
             <p className="text-xs text-[#ff006e] font-semibold">
               ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
+            </p>
+          </div>
+        )}
+        {feedTab === "resurging" && (
+          <div className="rounded-xl border border-violet-500/30 bg-[rgba(139,92,246,0.05)] p-3">
+            <p className="text-xs text-violet-400 font-semibold">
+              🔁 <strong>Comeback Feed</strong> — These audios previously peaked or faded, then came back with fresh momentum detected by Trendrop's scraper. The audio already proved itself once — audience familiarity is built in. Use it for nostalgia, remix, or reaction content before the second peak saturates.
             </p>
           </div>
         )}

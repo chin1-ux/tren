@@ -690,7 +690,21 @@ export async function fetchExpiredTrends(language?: string, niche?: string): Pro
   }
 }
 
-// ── Instagram Algorithm Insights API ─────────────────────────────────────
+export async function fetchResurgingTrends(language?: string, niche?: string): Promise<UiTrend[]> {
+  const params = new URLSearchParams();
+  if (language && language !== "all") params.set("language", language);
+  if (niche && niche !== "all") params.set("niche", niche);
+  try {
+    const data = await http<ApiTrend[]>(`/api/trends/resurging?${params.toString()}`);
+    return (data || []).map(adaptTrend);
+  } catch (e: any) {
+    const msg = String(e?.message || "");
+    if (msg.startsWith("401") || msg.startsWith("403")) return [];
+    throw e;
+  }
+}
+
+
 
 export interface ContentAnalysisData {
   views?: number;
