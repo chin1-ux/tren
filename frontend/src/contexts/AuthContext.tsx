@@ -260,6 +260,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     checkAuth();
+
+    const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.access_token) {
+        const token = session.access_token;
+        const email = session.user.email || "";
+        setAuthToken(token);
+        localStorage.setItem("trendrop_session_token", token);
+        localStorage.setItem("trendrop_user_email", email);
+        if (!localStorage.getItem("trendrop_user_niche")) {
+          localStorage.setItem("trendrop_user_niche", "all");
+        }
+        if (!localStorage.getItem("trendrop_user_language")) {
+          localStorage.setItem("trendrop_user_language", "en");
+        }
+        if (!localStorage.getItem("trendrop_user_plan")) {
+          localStorage.setItem("trendrop_user_plan", "pro");
+        }
+        setUser({
+          email,
+          niche: localStorage.getItem("trendrop_user_niche") || "all",
+          language: localStorage.getItem("trendrop_user_language") || "en",
+          plan: localStorage.getItem("trendrop_user_plan") || "pro",
+        });
+        useUserStore.getState().setUser({
+          email,
+          niche: localStorage.getItem("trendrop_user_niche") || "all",
+          language: localStorage.getItem("trendrop_user_language") || "en",
+          plan: localStorage.getItem("trendrop_user_plan") || "pro",
+          authToken: token,
+        });
+      }
+    });
+
+    return () => {
+      authListener.subscription.unsubscribe();
+    };
   }, []);
 
   return (
