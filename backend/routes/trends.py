@@ -82,7 +82,7 @@ def get_trends(
         q = q.gte("created_at", rising_cutoff)
 
         if language and language != "all":
-            q = q.eq("language", language)
+            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
 
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
@@ -113,7 +113,7 @@ def get_trends(
             skipped_local_fallback = False
             q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
             if language and language != "all":
-                q_fb = q_fb.eq("language", language)
+                q_fb = q_fb.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
             res_fb = execute_supabase_get(q_fb)
             trends = _normalize_trends(res_fb.data or [])
 
@@ -209,7 +209,7 @@ def get_emerging_trends(
         )
 
         if language and language != "all":
-            q = q.eq("language", language)
+            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
@@ -219,7 +219,7 @@ def get_emerging_trends(
             try:
                 q_blend = supabase.table("trends").select("*").in_("status", ["rising", "resurging"]).eq("is_voiceover", False).eq("is_seed_data", False).gte("first_detected_at", emerging_cutoff)
                 if language and language != "all":
-                    q_blend = q_blend.eq("language", language)
+                    q_blend = q_blend.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
                 res_blend = q_blend.order("first_detected_at", desc=True).limit(10 - len(trends)).execute()
                 blended = _normalize_trends(res_blend.data or [])
                 existing_ids = {t.get("id") for t in trends}
@@ -480,7 +480,7 @@ def get_peaked_trends(
         )
 
         if language and language != "all":
-            q = q.eq("language", language)
+            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
         q = q.order("first_detected_at", desc=True)
         if limit:
             q = q.limit(limit)
@@ -531,7 +531,7 @@ def get_resurging_trends(
             .or_(date_filter)
         )
         if language and language != "all":
-            q = q.eq("language", language)
+            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
         q = q.order("status_changed_at", desc=True)
         limit_val = min(limit or 50, 50)
         q = q.limit(limit_val)
