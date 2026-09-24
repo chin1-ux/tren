@@ -22,12 +22,21 @@ const NICHES = [
 
 const LANGUAGES = [
   { code: "hi", emoji: "🇮🇳", label: "Hindi" },
-  { code: "kn", emoji: "🎯", label: "Kannada" },
+  { code: "pa", emoji: "🌾", label: "Punjabi" },
   { code: "ta", emoji: "🌴", label: "Tamil" },
   { code: "te", emoji: "🌟", label: "Telugu" },
+  { code: "ml", emoji: "🥥", label: "Malayalam" },
+  { code: "kn", emoji: "🎯", label: "Kannada" },
   { code: "bn", emoji: "🐯", label: "Bengali" },
   { code: "mr", emoji: "🦁", label: "Marathi" },
   { code: "en", emoji: "🌐", label: "English" },
+  { code: "gu", emoji: "🪔", label: "Gujarati" },
+  { code: "ne", emoji: "🏔️", label: "Nepali" },
+  { code: "es", emoji: "🇪🇸", label: "Spanish" },
+  { code: "pt", emoji: "🇧🇷", label: "Portuguese" },
+  { code: "ko", emoji: "🇰🇷", label: "Korean" },
+  { code: "instrumental", emoji: "🎼", label: "Instrumental" },
+  { code: "other", emoji: "🌐", label: "Other" },
 ];
 
 type Step = 1 | 2 | 3 | 4;

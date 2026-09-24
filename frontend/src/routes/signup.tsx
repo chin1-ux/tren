@@ -26,11 +26,20 @@ const NICHES = [
 const LANGUAGES = [
   { code: "en", label: "English" },
   { code: "hi", label: "Hindi" },
-  { code: "kn", label: "Kannada" },
+  { code: "pa", label: "Punjabi" },
   { code: "ta", label: "Tamil" },
   { code: "te", label: "Telugu" },
+  { code: "ml", label: "Malayalam" },
+  { code: "kn", label: "Kannada" },
   { code: "bn", label: "Bengali" },
   { code: "mr", label: "Marathi" },
+  { code: "gu", label: "Gujarati" },
+  { code: "ne", label: "Nepali" },
+  { code: "es", label: "Spanish" },
+  { code: "pt", label: "Portuguese" },
+  { code: "ko", label: "Korean" },
+  { code: "instrumental", label: "Instrumental" },
+  { code: "other", label: "Other" },
 ];
 
 export const Route = createFileRoute("/signup")({

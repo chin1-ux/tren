@@ -23,11 +23,20 @@ export const Route = createFileRoute("/settings")({
 const ALL_LANGUAGES = [
   { code: "en", label: "English", emoji: "🇬🇧" },
   { code: "hi", label: "Hindi", emoji: "🇮🇳" },
-  { code: "kn", label: "Kannada", emoji: "🎯" },
+  { code: "pa", label: "Punjabi", emoji: "🌾" },
   { code: "ta", label: "Tamil", emoji: "🌴" },
   { code: "te", label: "Telugu", emoji: "🌟" },
+  { code: "ml", label: "Malayalam", emoji: "🥥" },
+  { code: "kn", label: "Kannada", emoji: "🎯" },
   { code: "bn", label: "Bengali", emoji: "🐯" },
-  { code: "mr", label: "Marathi", emoji: "🦁" }
+  { code: "mr", label: "Marathi", emoji: "🦁" },
+  { code: "gu", label: "Gujarati", emoji: "🪔" },
+  { code: "ne", label: "Nepali", emoji: "🏔️" },
+  { code: "es", label: "Spanish", emoji: "🇪🇸" },
+  { code: "pt", label: "Portuguese", emoji: "🇧🇷" },
+  { code: "ko", label: "Korean", emoji: "🇰🇷" },
+  { code: "instrumental", label: "Instrumental", emoji: "🎼" },
+  { code: "other", label: "Other", emoji: "🌐" }
 ];
 
 const NICHES = [

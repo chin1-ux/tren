@@ -217,6 +217,13 @@ const LANGUAGE_INFO: Record<string, { emoji: string; label: string }> = {
   mr: { emoji: "🦁", label: "Marathi" },
   ml: { emoji: "🌴", label: "Malayalam" },
   en: { emoji: "🌐", label: "English" },
+  es: { emoji: "🇪🇸", label: "Spanish" },
+  pt: { emoji: "🇧🇷", label: "Portuguese" },
+  ko: { emoji: "🇰🇷", label: "Korean" },
+  gu: { emoji: "🪔", label: "Gujarati" },
+  ne: { emoji: "🏔️", label: "Nepali" },
+  instrumental: { emoji: "🎼", label: "Instrumental" },
+  other: { emoji: "🌐", label: "Other" },
 };
 
 // ── UiTrend adapter ────────────────────────────────────────────────────────────
