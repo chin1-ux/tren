@@ -64,93 +64,10 @@ function LoginPage() {
             </p>
           </div>
 
-          {/* Form */}
-          <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email */}
-            <div className="space-y-2">
-              <label htmlFor="email" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                Email
-              </label>
-              <div className="relative">
-                <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
-                  className="pl-10"
-                  style={{ paddingLeft: '2.5rem' }}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Password */}
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <label htmlFor="password" className="text-sm font-medium text-slate-700 dark:text-slate-300">
-                  Password
-                </label>
-                <button
-                  type="button"
-                  onClick={() => navigate({ to: "/reset-password" })}
-                  className="text-sm text-primary dark:text-primary hover:underline font-medium"
-                >
-                  Forgot password?
-                </button>
-              </div>
-              <div className="relative">
-                <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-slate-400" />
-                <Input
-                  id="password"
-                  type="password"
-                  placeholder="•••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                  className="pl-10"
-                  style={{ paddingLeft: '2.5rem' }}
-                  required
-                />
-              </div>
-            </div>
-
-            {/* Error */}
-            {error && (
-              <div className="flex items-center gap-2 p-3 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-sm">
-                <AlertCircle className="h-4 w-4 flex-shrink-0" />
-                <span>{error}</span>
-              </div>
-            )}
-
-            {/* Submit Button */}
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={loading}
-            >
-              {loading ? "Logging in..." : "Login"}
-              {!loading && <ArrowRight className="ml-2 h-4 w-4" />}
-            </Button>
-          </form>
-
-          {/* Divider */}
-          <div className="relative my-6">
-            <div className="absolute inset-0 flex items-center">
-              <span className="w-full border-t border-slate-200 dark:border-slate-700" />
-            </div>
-            <div className="relative flex justify-center text-xs uppercase">
-              <span className="bg-white dark:bg-slate-800 px-2 text-slate-500">
-                Or continue with
-              </span>
-            </div>
-          </div>
-
-          {/* Google Login Button */}
+          {/* Primary Google Login Button */}
           <Button
             type="button"
-            variant="outline"
-            className="w-full border-slate-300 dark:border-slate-600 hover:bg-slate-50 dark:hover:bg-slate-700"
+            className="w-full bg-[#4285F4] hover:bg-[#3367D6] text-white py-6 text-base font-semibold shadow-md flex items-center justify-center gap-3 mb-6 transition-all rounded-xl"
             onClick={async () => {
               try {
                 await loginWithGoogle();
@@ -159,7 +76,7 @@ function LoginPage() {
               }
             }}
           >
-            <svg className="mr-2 h-4 w-4" viewBox="0 0 24 24">
+            <svg className="h-5 w-5 bg-white rounded-full p-0.5" viewBox="0 0 24 24">
               <path
                 d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
                 fill="#4285F4"
@@ -177,16 +94,91 @@ function LoginPage() {
                 fill="#EA4335"
               />
             </svg>
-            Continue with Google
+            Sign in with Google
           </Button>
 
+          {/* Collapsible/Secondary Email Form */}
+          <details className="group">
+            <summary className="text-xs text-center text-slate-500 cursor-pointer hover:text-slate-700 dark:hover:text-slate-300 py-2 select-none font-medium">
+              Or sign in with email credentials ▸
+            </summary>
+            
+            <form onSubmit={handleSubmit} className="space-y-4 pt-4 border-t border-slate-200 dark:border-slate-700 mt-2">
+              {/* Email */}
+              <div className="space-y-1.5">
+                <label htmlFor="email" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                  Email
+                </label>
+                <div className="relative">
+                  <Mail className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="email"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    className="pl-9 text-sm"
+                    style={{ paddingLeft: '2.25rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Password */}
+              <div className="space-y-1.5">
+                <div className="flex items-center justify-between">
+                  <label htmlFor="password" className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                    Password
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => navigate({ to: "/reset-password" })}
+                    className="text-xs text-primary dark:text-primary hover:underline font-medium"
+                  >
+                    Forgot?
+                  </button>
+                </div>
+                <div className="relative">
+                  <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />
+                  <Input
+                    id="password"
+                    type="password"
+                    placeholder="•••••••••"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    className="pl-9 text-sm"
+                    style={{ paddingLeft: '2.25rem' }}
+                  />
+                </div>
+              </div>
+
+              {/* Error */}
+              {error && (
+                <div className="flex items-center gap-2 p-2.5 bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg text-red-600 dark:text-red-400 text-xs">
+                  <AlertCircle className="h-4 w-4 flex-shrink-0" />
+                  <span>{error}</span>
+                </div>
+              )}
+
+              {/* Submit Button */}
+              <Button
+                type="submit"
+                variant="outline"
+                className="w-full text-sm"
+                disabled={loading}
+              >
+                {loading ? "Logging in..." : "Login with Email"}
+                {!loading && <ArrowRight className="ml-2 h-3.5 w-3.5" />}
+              </Button>
+            </form>
+          </details>
+
           {/* Footer */}
-          <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400">
+          <div className="mt-6 text-center text-sm text-slate-600 dark:text-slate-400 border-t border-slate-100 dark:border-slate-800/60 pt-4">
             Don't have an account?{" "}
             <button
               type="button"
               onClick={() => navigate({ to: "/signup" })}
-              className="text-primary dark:text-primary hover:underline font-medium"
+              className="text-primary dark:text-primary hover:underline font-semibold"
             >
               Sign up
             </button>
