@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from "react";
-import { Music, ExternalLink, Play, Pause, Volume2 } from "lucide-react";
+import { Music, ExternalLink, Volume2 } from "lucide-react";
 import { SparklineChart } from "./SparklineChart";
 import { fetchAudioHistory } from "../lib/api";
 
@@ -28,10 +28,8 @@ export const AudioIdentityCard = ({
 }: AudioIdentityCardProps) => {
   const [history, setHistory] = useState<number[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const audioRef = useRef<HTMLAudioElement | null>(null);
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -65,17 +63,6 @@ export const AudioIdentityCard = ({
     }
   }, [trendId, isVisible, index]);
 
-  const togglePlay = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    if (!audioRef.current) return;
-    if (isPlaying) {
-      audioRef.current.pause();
-      setIsPlaying(false);
-    } else {
-      audioRef.current.play().then(() => setIsPlaying(true)).catch(() => setIsPlaying(false));
-    }
-  };
-
   const instagramUrl = audioId
     ? `https://www.instagram.com/reels/audio/${audioId}/`
     : audioTitle
@@ -105,45 +92,22 @@ export const AudioIdentityCard = ({
 
   return (
     <div ref={containerRef} className="relative overflow-hidden rounded-xl border border-white/10 bg-black/60 p-4 transition-all duration-300 hover:border-white/20">
-      {/* Hidden audio element for preview playback */}
-      {previewUrl && (
-        <audio
-          ref={audioRef}
-          src={previewUrl}
-          onEnded={() => setIsPlaying(false)}
-          onPause={() => setIsPlaying(false)}
-          onPlay={() => setIsPlaying(true)}
-        />
-      )}
-
       {/* Header Row: Waveform & Growth Sparkline */}
       <div className="mb-4 flex items-center justify-between">
         <div className="flex items-center gap-2">
-          {/* Play/Pause Button if audio sample is available */}
-          {previewUrl ? (
-            <button
-              onClick={togglePlay}
-              className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20 text-primary border border-primary/40 hover:bg-primary hover:text-white transition-all active:scale-95"
-              aria-label={isPlaying ? "Pause audio preview" : "Play audio preview"}
-            >
-              {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4 ml-0.5" />}
-            </button>
-          ) : (
-            <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5 text-white/60">
-              <Music className="h-4 w-4" />
-            </div>
-          )}
+          {/* Audio Icon Badge */}
+          <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/10 text-primary border border-primary/20">
+            <Music className="h-4 w-4" />
+          </div>
 
-          {/* Equalizer Bars - Animates ONLY when isPlaying is true */}
+          {/* Equalizer Bars */}
           <div className="flex items-center gap-1 h-6">
-            {[1.2, 0.6, 1.5, 0.9, 1.4, 0.7, 1.1].map((delay, idx) => (
+            {[1.2, 0.6, 1.5, 0.9, 1.4, 0.7, 1.1].map((_, idx) => (
               <div
                 key={idx}
-                className={`w-0.5 rounded-full ${getWaveformColor()} transition-all duration-200`}
+                className={`w-0.5 rounded-full ${getWaveformColor()}`}
                 style={{
-                  height: isPlaying ? "100%" : "30%",
-                  animation: isPlaying ? `pulse 1.2s ease-in-out infinite` : "none",
-                  animationDelay: `${delay}s`,
+                  height: `${30 + (idx % 4) * 20}%`,
                 }}
               />
             ))}
