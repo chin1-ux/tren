@@ -711,6 +711,12 @@ def get_cached_tiers():
 PRO_UNLOCK_ALL = os.getenv("PRO_UNLOCK_ALL", "1").lower() in ("1", "true", "yes")
 
 def get_cached_tier_delay(plan_name: str) -> int:
+    if not plan_name or plan_name in ("guest@trendrop.app", "free"):
+        tiers = get_cached_tiers()
+        tier = tiers.get("free")
+        if tier:
+            return tier.get("data_delay_hours", 24)
+        return 24
     if PRO_UNLOCK_ALL:
         return 0
     tiers = get_cached_tiers()

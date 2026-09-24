@@ -98,6 +98,8 @@ class PlanEnforcement:
 
     @staticmethod
     def get_brand_deals_config(user_email: str) -> dict:
+        if not user_email or user_email == "guest@trendrop.app":
+            return PlanEnforcement.BRAND_DEALS_CONFIG['free']
         try:
             from api_globals import PRO_UNLOCK_ALL
             if PRO_UNLOCK_ALL:
@@ -112,14 +114,14 @@ class PlanEnforcement:
 
     @staticmethod
     def get_user_plan(user_email: str) -> str:
+        if not user_email or user_email == "guest@trendrop.app":
+            return 'free'
         try:
             from api_globals import PRO_UNLOCK_ALL
             if PRO_UNLOCK_ALL:
                 return 'pro'
         except Exception:
             pass
-        if not user_email or user_email == "guest@trendrop.app":
-            return 'free'
         import time
         now_ts = time.time()
         if user_email in _PLAN_CACHE:
