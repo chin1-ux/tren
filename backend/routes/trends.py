@@ -55,9 +55,8 @@ def get_trends(
         # Airtight guest bypass guard: Must be valid email containing @ and not default guest
         if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
             try:
+                user_plan = PlanEnforcement.get_user_plan(current_user)
                 user_data = get_cached_user_profile(current_user)
-                if user_data:
-                    user_plan = user_data.get("plan") or "free"
                     
                 # Query user_preferences DB for personalized feed
                 prefs_res = supabase.table("user_preferences").select("niches, languages, regions, state").eq("email", current_user).execute()
@@ -338,9 +337,7 @@ def get_spotify_viral_trends(
     user_plan = "free"
     if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
         try:
-            user_data = get_cached_user_profile(current_user)
-            if user_data:
-                user_plan = user_data.get("plan") or "free"
+            user_plan = PlanEnforcement.get_user_plan(current_user)
         except Exception as e:
             logger.warning(f"Error querying user profile for Spotify viral gating: {e}")
 

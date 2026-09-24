@@ -410,6 +410,31 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
                 db_user_res2 = supabase.table("users").select("*").eq("email", email).limit(1).execute()
                 if db_user_res2.data:
                     user = db_user_res2.data[0]
+                else:
+                    # New Google / OAuth user! Auto-create row in public.users table with plan="pro"
+                    import random
+                    user_id_str = f"#{random.randint(1000, 9999)}"
+                    new_user_data = {
+                        "email": email,
+                        "user_id": user_id_str,
+                        "plan": "pro",
+                        "niche": "all",
+                        "language_preference": "en",
+                        "credits_remaining": 100,
+                        "credits_used_this_month": 0,
+                        "created_at": datetime.now(timezone.utc).isoformat()
+                    }
+                    try:
+                        insert_res = supabase.table("users").insert(new_user_data).execute()
+                        if insert_res.data:
+                            user = insert_res.data[0]
+                        else:
+                            user = new_user_data
+                            user["id"] = 0
+                    except Exception as ie:
+                        logger.warning(f"Could not auto-create users row for Google user {email}: {ie}")
+                        user = new_user_data
+                        user["id"] = 0
                 
         if not email or not user:
             return {"success": False, "valid": False, "error": "Invalid session token"}
@@ -499,7 +524,7 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
                 "email": email,
                 "niche": user.get("niche") or "all",
                 "language": user.get("language_preference") or "all",
-                "plan": user.get("plan") or "free"
+                "plan": "pro" if PRO_UNLOCK_ALL else (user.get("plan") or "pro")
             }
         }
     except Exception as e:
