@@ -524,6 +524,7 @@ def get_resurging_trends(
             .select("*")
             .eq("status", "resurging")
             .eq("is_seed_data", False)
+            .gte("reel_count", 3)
             .or_(
                 f"llm_classification_status.in.({','.join(valid_llm_statuses)}),llm_classification_status.is.null"
             )
@@ -532,8 +533,8 @@ def get_resurging_trends(
         if language and language != "all":
             q = q.eq("language", language)
         q = q.order("status_changed_at", desc=True)
-        if limit:
-            q = q.limit(limit)
+        limit_val = min(limit or 50, 50)
+        q = q.limit(limit_val)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
