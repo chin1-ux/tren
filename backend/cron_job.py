@@ -840,6 +840,7 @@ def run_full_pipeline(stages: list = None):
             "duration_seconds": round(elapsed, 3),
             "new_reels_count": new_reels_count,
             "new_trends_found": len(trend_ids),
+            "new_trends_count": len(trend_ids),
             "trend_ids": trend_ids,
             "status": status,
             "stage": run_state.get("stage"),
