@@ -11,7 +11,7 @@ logger = logging.getLogger("llm")
 _orig_getaddrinfo = socket.getaddrinfo
 def _ipv4_only(*args, **kwargs):
     res = _orig_getaddrinfo(*args, **kwargs)
-    if args and args[0] in ("testserver", "localhost", "127.0.0.1"):
+    if args and any(domain in str(args[0]) for domain in ("testserver", "localhost", "127.0.0.1", "googleapis.com")):
         return res
     ipv4_res = [r for r in res if r[0] == socket.AF_INET]
     return ipv4_res if ipv4_res else res

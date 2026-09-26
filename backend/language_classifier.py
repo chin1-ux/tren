@@ -29,9 +29,20 @@ ALLOWED_LANGUAGES = {
     "en", "es", "pt", "ko", "instrumental", "other", "unknown"
 }
 
-TARGET_GEMINI_MODEL = "gemini-3.5-flash"
+TARGET_GEMINI_MODEL = "gemini-3.8-flash"
+
+_GLOBAL_GEMINI_KEYS = None
+_LAST_GEMINI_CALL_TIME = 0.0
+
+def _get_gemini_keys():
+    global _GLOBAL_GEMINI_KEYS
+    if _GLOBAL_GEMINI_KEYS is None:
+        _GLOBAL_GEMINI_KEYS = _collect_env_keys(("GEMINI_API_KEY",))
+        _GLOBAL_GEMINI_KEYS.reverse()
+    return _GLOBAL_GEMINI_KEYS
 
 def classify_audio(title: str, artist: str, captions: str = "") -> dict:
+    global _LAST_GEMINI_CALL_TIME
     """
     Classify the SUNG vocal language of an audio track using Gemini 3.5 Flash.
     Returns: {
@@ -67,6 +78,9 @@ def classify_audio(title: str, artist: str, captions: str = "") -> dict:
         (r'[\u0D00-\u0D7F]', "ml", "Malayalam script in title/artist"),
         (r'[\u0C00-\u0C7F]', "te", "Telugu script in title/artist"),
         (r'[\u0C80-\u0CFF]', "kn", "Kannada script in title/artist"),
+        (r'[\u0900-\u097F]', "hi", "Devanagari script in title/artist"),
+        (r'[\u0A80-\u0AFF]', "gu", "Gujarati script in title/artist"),
+        (r'[\u0980-\u09FF]', "bn", "Bengali script in title/artist"),
         (r'[\uAC00-\uD7AF\u1100-\u11FF\u3130-\u318F]', "ko", "Hangul script in title/artist")
     ]
 
@@ -121,21 +135,30 @@ Pick EXACTLY ONE language code from: [hi, pa, ta, te, kn, ml, mr, bn, gu, ne, en
 Return JSON format: {{"language": "code", "confidence": 0.85, "vocal_evidence": "exact lyric/title evidence", "context_evidence": "hashtag/reel context"}}
 """
 
-    gemini_keys = _collect_env_keys(("GEMINI_API_KEY",))
+    gemini_keys = _get_gemini_keys()
     res = None
 
-    # Step 3a: Strict Gemini ONLY call using gemini-3.5-flash with rate limit retry
+    # Step 3a: Strict Gemini ONLY call using gemini-3.8-flash with rate limit retry
     if gemini_keys:
         for attempt in range(3):
-            for gkey in gemini_keys:
+            for gkey in list(gemini_keys):
                 try:
-                    res = call_gemini(system_prompt, user_prompt, gemini_key=gkey, response_mime_type="application/json", timeout=30, model=TARGET_GEMINI_MODEL)
+                    now = time.time()
+                    elapsed = now - _LAST_GEMINI_CALL_TIME
+                    if elapsed < 2.0:
+                        time.sleep(2.0 - elapsed)
+                    res = call_gemini(system_prompt, user_prompt, gemini_key=gkey, response_mime_type="application/json", timeout=10, model=TARGET_GEMINI_MODEL)
+                    _LAST_GEMINI_CALL_TIME = time.time()
                     if res:
                         break
                 except Exception as ge:
                     logger.warning("Gemini key attempt error: %s", ge)
                     if ("429" in str(ge) or "RESOURCE_EXHAUSTED" in str(ge) or "503" in str(ge)):
-                        time.sleep(62.0)
+                        # Move failing key to end of list so active key is tried first on next track
+                        if gkey in gemini_keys:
+                            gemini_keys.remove(gkey)
+                            gemini_keys.append(gkey)
+                        time.sleep(1.5)
             if res is not None:
                 break
 
