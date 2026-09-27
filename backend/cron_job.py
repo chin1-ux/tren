@@ -283,8 +283,8 @@ def run_full_pipeline(stages: list = None):
         "stage": "initializing",
         "cutoff_reason": None,
     }
-    groq_keys_detected = sum(1 for key in ("GROQ_API_KEY", "GROQ_API_KEY_2", "GROQ_API_KEY_3") if os.getenv(key))
-    gemini_keys_detected = sum(1 for key in ("GEMINI_API_KEY", "GEMINI_API_KEY_2") if os.getenv(key))
+    groq_keys_detected = sum(1 for key in os.environ if key.startswith("GROQ_API_KEY") and os.environ[key].strip())
+    gemini_keys_detected = sum(1 for key in os.environ if key.startswith("GEMINI_API_KEY") and os.environ[key].strip())
     trend_ids = []
     new_reels_count = 0
     reels_scraped = 0

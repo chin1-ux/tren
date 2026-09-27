@@ -33,7 +33,8 @@ class VideoVisualAnalyzer:
     """
 
     def __init__(self):
-        self.api_key = os.getenv("GEMINI_API_KEY") or os.getenv("GEMINI_API_KEY_2")
+        keys = [os.getenv(k) for k in os.environ if k.startswith("GEMINI_API_KEY") and os.environ[k].strip()]
+        self.api_key = keys[0] if keys else None
         self.model = None
         if _GENAI_AVAILABLE and self.api_key:
             try:
