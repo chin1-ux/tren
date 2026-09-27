@@ -160,15 +160,11 @@ def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str,
         "   - voiceover: Background audio for storytelling, vlogs, commentary, quotes\n"
         "   - outfit-showcase: Fashion, OOTD, aesthetic visuals, lookbooks\n"
         "   - tutorial: Educational, how-to, fitness demos, cooking recipes\n"
-        "   - storytime: Personal anecdotes, POV scenarios, text-on-screen stories, family/relational edits\n"
+        "   - storytime: Personal anecdotes, POV scenarios, text-on-screen stories\n"
         "   - other: Format not fitting the above categories\n"
-        "2. VERBATIM SONG LYRICS GUARD:\n"
-        "   - If 'caption_text' consists of verbatim song lyrics or emotional song lines without creator commentary or dialogue markers, do NOT classify as 'lip-sync' by default.\n"
-        "   - Classify as 'lip-sync' ONLY if creator hashtags explicitly contain lip-sync signals (e.g. #lipsync, #dialogue, #acting, #lipsyncing).\n"
-        "   - If hashtags indicate situational, personal, or niche storytelling (e.g. #tamilakkathambi, #relatable, #family, #pov, #story), prioritize 'storytime', 'meme', or 'other'.\n"
-        "3. Provide a 'note': ONE short sentence (max 12 words) explaining why creators use this audio.\n"
-        "4. You MUST return an entry for EVERY SINGLE input track in the batch.\n"
-        "5. Output MUST be a JSON array of objects with EXACT keys:\n"
+        "2. Provide a 'note': ONE short sentence (max 12 words) explaining why creators use this audio.\n"
+        "3. You MUST return an entry for EVERY SINGLE input track in the batch.\n"
+        "4. Output MUST be a JSON array of objects with EXACT keys:\n"
         '   [{"id": 1234, "used_for": "category", "note": "One short sentence explanation."}]\n'
     )
 
@@ -177,16 +173,11 @@ def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str,
         sent_ids = {item["id"] for item in batch}
         batch_input = []
         for item in batch:
-            raw_caps = item.get("sample_captions") or "(none)"
-            hashtags = [word for word in raw_caps.split() if word.startswith("#")]
-            clean_text = " ".join([word for word in raw_caps.split() if not word.startswith("#")]).strip()
-
             batch_input.append({
                 "id": item["id"],
                 "title": item.get("audio_title") or "",
                 "artist": item.get("audio_artist") or "",
-                "caption_text": clean_text if clean_text else "(none)",
-                "creator_hashtags": hashtags if hashtags else []
+                "sample_captions": item.get("sample_captions") or "(none)"
             })
 
         user_prompt = (
