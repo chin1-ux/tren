@@ -27,7 +27,7 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 
 from supabase import create_client
 from artist_language_map import get_artist_language
-from llm import call_llm
+from llm import call_gemini_only
 
 logger = logging.getLogger("cron_auto_classifier")
 
@@ -105,7 +105,7 @@ Rules:
 - Use "other" for languages not in the list.
 """
         try:
-            resp = call_llm(system_prompt, user_prompt, timeout=15)
+            resp = call_gemini_only(system_prompt, user_prompt, timeout=15)
             if isinstance(resp, str):
                 try:
                     resp = json.loads(resp)
@@ -187,7 +187,7 @@ def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str,
         )
 
         try:
-            resp = call_llm(system_prompt, user_prompt, response_mime_type="application/json", timeout=25)
+            resp = call_gemini_only(system_prompt, user_prompt, response_mime_type="application/json", timeout=25)
             if isinstance(resp, str):
                 try:
                     resp = json.loads(resp)

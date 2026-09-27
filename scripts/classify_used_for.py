@@ -13,7 +13,7 @@ if os.path.exists(env_path):
     load_dotenv(env_path)
 
 from api_globals import supabase
-from llm import call_llm
+from llm import call_gemini_only
 
 ALLOWED_USED_FOR = {
     "dance", "transition", "lip-sync", "meme", "voiceover",
@@ -139,7 +139,7 @@ def run_used_for_classification():
         res_json = None
         try:
             time.sleep(0.5)
-            res_json = call_llm(system_prompt, user_prompt, response_mime_type="application/json", timeout=30)
+            res_json = call_gemini_only(system_prompt, user_prompt, response_mime_type="application/json", timeout=30)
         except Exception as e:
             out.append(f"Batch {batch_num} API error: {e}")
 
