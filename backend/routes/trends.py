@@ -9,21 +9,36 @@ from schemas import *
 import niche_relevance_engine
 router = APIRouter()
 
+def _apply_languages_filter(q, language: Optional[str] = None, languages: Optional[str] = None):
+    lang_list = []
+    if languages and languages.strip():
+        lang_list = [l.strip().lower() for l in languages.split(",") if l.strip()]
+    elif language and language.strip() and language.lower() != "all":
+        lang_list = [language.strip().lower()]
+
+    if not lang_list:
+        return q
+
+    filter_or = f"language_final.in.({','.join(lang_list)}),and(language_final.is.null,language.in.({','.join(lang_list)}))"
+    return q.or_(filter_or)
+
+
 @router.get("/api/trends")
 @router.get("/api/trends/rising")
 @limiter.limit("60/minute")
 def get_trends(
     request: Request,
     language: Optional[str] = None,
+    languages: Optional[str] = None,
     sort: Optional[str] = "newest",
     niche: Optional[str] = None,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch RISING trends from Supabase.
-    Optional filters: ?language=hi&sort=velocity|time_left|newest&niche=fitness
+    Optional filters: ?language=hi & ?languages=hi,pa,en & sort=velocity|time_left|newest & niche=fitness
     """
-    lang_key = language or "all"
+    lang_key = languages or language or "all"
     niche_key = niche or "all"
     user_email = current_user if current_user else "guest"
     cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_email}"
@@ -59,14 +74,14 @@ def get_trends(
                 user_data = get_cached_user_profile(current_user)
                     
                 # Query user_preferences DB for personalized feed
-                prefs_res = supabase.table("user_preferences").select("niches, languages, regions, state").eq("email", current_user).execute()
+                prefs_res = supabase.table("user_preferences").select("niches, languages, preferred_languages, regions, state").eq("email", current_user).execute()
                 if prefs_res.data:
                     prefs = prefs_res.data[0]
-                    # Convert list to string for current logic or use first element
                     if prefs.get("niches") and len(prefs["niches"]) > 0:
-                        user_niche = prefs["niches"][0] # Focus on primary niche for sort
-                    if prefs.get("languages") and len(prefs["languages"]) > 0:
-                        user_lang = prefs["languages"][0]
+                        user_niche = prefs["niches"][0]
+                    pref_langs = prefs.get("preferred_languages") or prefs.get("languages")
+                    if not languages and not language and pref_langs and len(pref_langs) > 0:
+                        languages = ",".join(pref_langs)
             except Exception as e:
                 logger.warning(f"Error querying user profile/preferences for personalization: {e}")
 
@@ -80,8 +95,7 @@ def get_trends(
         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
         q = q.gte("created_at", rising_cutoff)
 
-        if language and language != "all":
-            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+        q = _apply_languages_filter(q, language, languages)
 
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
@@ -173,7 +187,8 @@ def get_trends(
 @limiter.limit("60/minute")
 def get_emerging_trends(
     request: Request, 
-    language: Optional[str] = None, 
+    language: Optional[str] = None,
+    languages: Optional[str] = None, 
     current_user: str = Depends(get_current_user)
 ):
     """
@@ -207,8 +222,7 @@ def get_emerging_trends(
             f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff})"
         )
 
-        if language and language != "all":
-            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+        q = _apply_languages_filter(q, language, languages)
         q = q.order("velocity_avg", desc=True)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
@@ -217,8 +231,7 @@ def get_emerging_trends(
         if len(trends) < 5:
             try:
                 q_blend = supabase.table("trends").select("*").in_("status", ["rising", "resurging"]).eq("is_voiceover", False).eq("is_seed_data", False).gte("first_detected_at", emerging_cutoff)
-                if language and language != "all":
-                    q_blend = q_blend.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+                q_blend = _apply_languages_filter(q_blend, language, languages)
                 res_blend = q_blend.order("first_detected_at", desc=True).limit(10 - len(trends)).execute()
                 blended = _normalize_trends(res_blend.data or [])
                 existing_ids = {t.get("id") for t in trends}
@@ -444,6 +457,7 @@ def get_all_active_trends(
 def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
+    languages: Optional[str] = None,
     limit: Optional[int] = None,
     current_user: str = Depends(get_current_user)
 ):
@@ -454,7 +468,7 @@ def get_peaked_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
         
-    lang_key = language or "all"
+    lang_key = languages or language or "all"
     cache_key = f"peaked:{lang_key}:{limit}"
     
     # Check in-memory cache (5 minute TTL)
@@ -476,8 +490,7 @@ def get_peaked_trends(
             f"and(first_detected_at.is.null,created_at.gte.{peaked_cutoff})"
         )
 
-        if language and language != "all":
-            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+        q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
         if limit:
             q = q.limit(limit)
@@ -500,6 +513,7 @@ def get_peaked_trends(
 def get_resurging_trends(
     request: Request,
     language: Optional[str] = None,
+    languages: Optional[str] = None,
     limit: Optional[int] = None,
     current_user: str = Depends(get_current_user)
 ):
@@ -527,8 +541,7 @@ def get_resurging_trends(
             )
             .or_(date_filter)
         )
-        if language and language != "all":
-            q = q.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+        q = _apply_languages_filter(q, language, languages)
         q = q.order("status_changed_at", desc=True)
         limit_val = min(limit or 50, 50)
         q = q.limit(limit_val)

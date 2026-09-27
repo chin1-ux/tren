@@ -11,10 +11,20 @@ class SubscribeRequest(BaseModel):
     niche: str
     language: str
 
-class FeedbackRequest(BaseModel):
-    trend_id: int
-    feedback_type: str  # "too_late" | "too_early" | "perfect" | "stale"
-    comment: Optional[str] = None
+class UserPreferencesRequest(BaseModel):
+    niches: Optional[List[str]] = []
+    languages: Optional[List[str]] = []
+    regions: Optional[List[str]] = []
+    creator_language: Optional[str] = "en"
+    state: Optional[str] = None
+    global_enabled: Optional[bool] = False
+    notification_triggers: Optional[dict] = {}
+    creator_tier: Optional[str] = "nano"
+    platform_focus: Optional[List[str]] = ["instagram"]
+
+class UserLanguagePreferencesRequest(BaseModel):
+    languages: List[str]
+
 
 
 class PrePostRequest(BaseModel):

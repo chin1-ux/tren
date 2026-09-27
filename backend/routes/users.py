@@ -1,9 +1,9 @@
-from fastapi import APIRouter, HTTPException, Depends
+from fastapi import APIRouter, HTTPException, Depends, Body
 from typing import List, Optional
 import logging
 from datetime import datetime, timezone
 from api_globals import supabase, require_auth
-from schemas import UserPreferencesRequest
+from schemas import UserPreferencesRequest, UserLanguagePreferencesRequest
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
@@ -84,6 +84,64 @@ def update_user_preferences(
         }
     except Exception as e:
         logger.error(f"Error updating user preferences for {current_user}: {e}")
+        raise HTTPException(status_code=500, detail="Internal server error")
+
+
+ALLOWED_LANGUAGES = {
+    "hi", "pa", "ta", "te", "kn", "ml", "mr", "bn", "gu", "ne",
+    "en", "es", "pt", "ko", "instrumental", "other"
+}
+
+@router.put("/api/users/language-preferences")
+def update_user_language_preferences(
+    req: UserLanguagePreferencesRequest = Body(...),
+    current_user: str = Depends(require_auth)
+):
+    """
+    Update preferred languages for authenticated user.
+    Validates against ALLOWED_LANGUAGES, rejecting with HTTP 400 if invalid.
+    """
+    try:
+        if not supabase:
+            raise HTTPException(status_code=500, detail="Database not configured")
+
+        valid_langs = []
+        for code in req.languages:
+            clean_code = str(code).strip().lower()
+            if clean_code not in ALLOWED_LANGUAGES:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Invalid language code: '{code}'. Allowed languages: {sorted(list(ALLOWED_LANGUAGES))}"
+                )
+            if clean_code not in valid_langs:
+                valid_langs.append(clean_code)
+
+        data = {
+            "email": current_user,
+            "preferred_languages": valid_langs,
+            "languages": valid_langs,
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }
+
+        # Upsert preferences
+        res = supabase.table("user_preferences").upsert(data).execute()
+        
+        # Optional: sync to users table if exists
+        try:
+            supabase.table("users").update({"preferred_languages": valid_langs}).eq("email", current_user).execute()
+        except Exception as _ue:
+            logger.debug(f"users table sync optional: {_ue}")
+
+        return {
+            "success": True,
+            "message": "Language preferences updated successfully",
+            "preferred_languages": valid_langs,
+            "preferences": res.data[0] if res.data else data
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.error(f"Error updating language preferences for {current_user}: {e}")
         raise HTTPException(status_code=500, detail="Internal server error")
 
 
