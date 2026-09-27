@@ -227,13 +227,13 @@ def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str,
             # Fallback missing IDs in this batch to 'other'
             missing = sent_ids - set(results.keys())
             for mid in missing:
-                results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification."}
+                results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification.", "is_fallback": True}
 
         except Exception as err:
             logger.warning(f"used_for batch Gemini call failed: {err}")
             for mid in sent_ids:
                 if mid not in results:
-                    results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification."}
+                    results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification.", "is_fallback": True}
 
     return results
 
@@ -287,10 +287,11 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
     if used_for_map:
         for tid, data in used_for_map.items():
             try:
+                is_fb = data.get("is_fallback", False)
                 sb.table("trends").update({
                     "used_for": data["used_for"],
                     "used_for_note": data["used_for_note"],
-                    "used_for_classified_at": now_iso
+                    "used_for_classified_at": None if is_fb else now_iso
                 }).eq("id", tid).execute()
                 used_for_updated_cnt += 1
             except Exception as e:
@@ -306,14 +307,14 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
 
 def run_unclassified_safety_net_pass(limit: int = 50) -> Dict[str, Any]:
     """
-    Safety net step: finds active trends with NULL language_final or NULL used_for
-    and runs the auto-classifier against them.
+    Safety net step: finds active trends with NULL language_final, NULL used_for,
+    un-cleared fallback notes, or NULL classified_at timestamps and re-classifies them.
     """
     sb = get_supabase()
     res = sb.table("trends") \
         .select("id") \
         .neq("status", "unqualified") \
-        .or_("language_final.is.null,used_for.is.null") \
+        .or_("language_final.is.null,used_for.is.null,used_for_note.eq.Automated fallback classification.,used_for_classified_at.is.null") \
         .limit(limit) \
         .execute()
 
