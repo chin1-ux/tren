@@ -167,6 +167,8 @@ def populate_spotify_feed_cache() -> Dict[str, Any]:
             "preview_url": track["preview_url"],
             "image_url": track["image_url"],
             "spotify_url": track["spotify_url"],
+            "popularity": track.get("popularity", 0),
+            "data_source": "spotify_search",
             "is_spotted_on_instagram": is_spotted,
             "ig_reel_count": ig_count,
             "updated_at": now_iso

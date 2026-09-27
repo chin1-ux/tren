@@ -416,9 +416,13 @@ def get_spotify_viral_trends(
             })
 
         # --- Section 2: New on Spotify (max 25) ---
-        q_sp = supabase.table("spotify_feed_cache").select("*").order("release_date", desc=True).limit(60)
+        q_sp = supabase.table("spotify_feed_cache").select("*").eq("data_source", "spotify_search").order("release_date", desc=True).limit(60)
         res_sp = execute_supabase_get(q_sp) if 'execute_supabase_get' in globals() else q_sp.execute()
         sp_items = res_sp.data or []
+        if not sp_items:
+            q_sp_fallback = supabase.table("spotify_feed_cache").select("*").order("release_date", desc=True).limit(60)
+            res_sp = execute_supabase_get(q_sp_fallback) if 'execute_supabase_get' in globals() else q_sp_fallback.execute()
+            sp_items = res_sp.data or []
 
         new_on_spotify = []
         for item in sp_items:
@@ -437,7 +441,7 @@ def get_spotify_viral_trends(
                 "audio_artist": artist,
                 "spotify_id": sp_id,
                 "spotify_url": item.get("spotify_url") or (f"https://open.spotify.com/track/{sp_id}" if sp_id else None),
-                "cover_art_url": item.get("cover_art_url"),
+                "cover_art_url": item.get("image_url") or item.get("cover_art_url"),
                 "release_date": item.get("release_date"),
                 "ig_reel_count": item.get("ig_reel_count") or 0,
                 "popularity": item.get("popularity") or 0,
