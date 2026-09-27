@@ -722,6 +722,15 @@ def run_full_pipeline(stages: list = None):
                 classification_success = int(engine.last_run_stats.get("classification_success", 0) or 0)
                 classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
                 logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
+
+                # Order 35: Auto-classify newly created trends (language_final + used_for)
+                if trend_ids:
+                    try:
+                        from cron_auto_classifier import auto_classify_trends
+                        logging.info(f"Step 3a-2: Auto-classifying {len(trend_ids)} newly created trends...")
+                        auto_classify_trends(trend_ids)
+                    except Exception as _ac_err:
+                        logging.warning(f"Step 3a-2 Auto-classification hook failed (non-fatal): {_ac_err}")
             except Exception as e:
                 run_state["stage"] = "trend_engine_failed"
                 run_state["cutoff_reason"] = f"trend engine failed: {e}"
@@ -827,6 +836,13 @@ def run_full_pipeline(stages: list = None):
             logging.warning(f"Step 5/5 ALERT WARNING (AlertSystem): {e} (non-fatal, pipeline completed cleanly)")
     else:
         logging.info("Step 5/5: No new trends — skipping alerts.")
+
+    # Order 35: Safety-net classification pass for any unclassified active trends
+    try:
+        from cron_auto_classifier import run_unclassified_safety_net_pass
+        run_unclassified_safety_net_pass(limit=30)
+    except Exception as _sn_err:
+        logging.warning(f"Safety-net classification pass failed (non-fatal): {_sn_err}")
 
     # Log run record to Supabase
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
