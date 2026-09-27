@@ -17,6 +17,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
+import { ActiveLanguageBadge } from "@/components/ActiveLanguageBadge";
 import { useUserStore } from "@/store/useAppStore";
 import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
@@ -108,7 +109,9 @@ function TrendsFeed() {
 
   // Compute active language filter array: explicit header filter > saved user preferences > undefined (all)
   const activeLanguages = useMemo(() => {
-    if (language && language !== "all") return [language];
+    if (language && language !== "all") {
+      return language.includes(",") ? language.split(",").map(s => s.trim()).filter(Boolean) : [language];
+    }
     if (preferredLanguages && preferredLanguages.length > 0) return preferredLanguages;
     return undefined;
   }, [language, preferredLanguages]);
@@ -438,6 +441,21 @@ function TrendsFeed() {
 
       {/* ── Feed ──────────────────────────────────────────────────────────────── */}
       <div className="space-y-4 px-4 pt-4">
+        {/* Active Language Filter Indicator Badge */}
+        <ActiveLanguageBadge
+          activeLanguages={activeLanguages}
+          languagesMap={LANGUAGES}
+          onClear={() => {
+            setLanguage("all");
+            setPreferredLanguages([]);
+            if (typeof window !== "undefined") {
+              localStorage.removeItem("trendrop_pref_language");
+              localStorage.removeItem("trendrop_preferred_languages");
+            }
+            toast.success("Language filter reset to All");
+          }}
+        />
+
         {feedTab === "rising" && risingFallbackToPeaked && (
           <div className="rounded-xl border border-primary/30 bg-[rgba(230,57,70,0.06)] p-3">
             <p className="text-xs text-primary font-semibold">
