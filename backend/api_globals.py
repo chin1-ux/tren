@@ -578,29 +578,32 @@ def _normalize_trends(trends: list) -> list:
 
     from audio_title_normalize import normalize_audio_title
 
-    # Batch query reels for all trend titles/artists in a single DB round-trip
-    titles = list(set(t.get("audio_title") for t in trends if t.get("audio_title")))
-    reels_by_track = {}
-    if titles and supabase:
+    # Batch query reels by audio_id (primary) and (audio_title, audio_artist) fallback in single DB round-trips
+    audio_ids = list(set(str(t.get("audio_id")) for t in trends if t.get("audio_id")))
+    fallback_titles = list(set(t.get("audio_title") for t in trends if not t.get("audio_id") and t.get("audio_title")))
+
+    reels_by_audio_id = {}
+    reels_by_title_artist = {}
+    chunk_size = 50
+
+    if audio_ids and supabase:
         try:
-            chunk_size = 50
-            for i in range(0, len(titles), chunk_size):
-                chunk = titles[i:i + chunk_size]
+            for i in range(0, len(audio_ids), chunk_size):
+                chunk = audio_ids[i:i + chunk_size]
                 res_reels = supabase.table("reels") \
-                    .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score, view_count, like_count, owner_username, thumbnail_url") \
-                    .in_("audio_title", chunk) \
+                    .select("reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url") \
+                    .in_("audio_id", chunk) \
                     .order("view_count", desc=True) \
                     .limit(500) \
                     .execute()
-                
+
                 for r in (res_reels.data or []):
-                    norm_title = normalize_audio_title(r.get("audio_title", "") or "")
-                    key = (norm_title, r.get("audio_artist"))
-                    if key not in reels_by_track:
-                        reels_by_track[key] = []
-                    if len(reels_by_track[key]) < 3:
+                    aid_key = str(r.get("audio_id"))
+                    if aid_key not in reels_by_audio_id:
+                        reels_by_audio_id[aid_key] = []
+                    if len(reels_by_audio_id[aid_key]) < 3:
                         rid = r.get("reel_id")
-                        reels_by_track[key].append({
+                        reels_by_audio_id[aid_key].append({
                             "reel_id": rid,
                             "reel_url": f"https://www.instagram.com/reel/{rid}/" if rid else None,
                             "owner_username": r.get("owner_username"),
@@ -609,7 +612,36 @@ def _normalize_trends(trends: list) -> list:
                             "thumbnail_url": r.get("thumbnail_url")
                         })
         except Exception as e:
-            logger.warning(f"Failed to pre-fetch reels info: {e}")
+            logger.warning(f"Failed to pre-fetch reels by audio_id: {e}")
+
+    if fallback_titles and supabase:
+        try:
+            for i in range(0, len(fallback_titles), chunk_size):
+                chunk = fallback_titles[i:i + chunk_size]
+                res_reels = supabase.table("reels") \
+                    .select("reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url") \
+                    .in_("audio_title", chunk) \
+                    .order("view_count", desc=True) \
+                    .limit(500) \
+                    .execute()
+
+                for r in (res_reels.data or []):
+                    norm_title = normalize_audio_title(r.get("audio_title", "") or "")
+                    ta_key = (norm_title, r.get("audio_artist"))
+                    if ta_key not in reels_by_title_artist:
+                        reels_by_title_artist[ta_key] = []
+                    if len(reels_by_title_artist[ta_key]) < 3:
+                        rid = r.get("reel_id")
+                        reels_by_title_artist[ta_key].append({
+                            "reel_id": rid,
+                            "reel_url": f"https://www.instagram.com/reel/{rid}/" if rid else None,
+                            "owner_username": r.get("owner_username"),
+                            "view_count": r.get("view_count") or 0,
+                            "like_count": r.get("like_count") or 0,
+                            "thumbnail_url": r.get("thumbnail_url")
+                        })
+        except Exception as e:
+            logger.warning(f"Failed to pre-fetch reels by title_artist: {e}")
 
     for t in trends:
         t["song"]   = t.get("audio_title")
@@ -637,10 +669,15 @@ def _normalize_trends(trends: list) -> list:
         else:
             t["song"] = t.get("audio_title")
             
-        # Inject matching top_reels array from pre-fetched lookup using normalized title
-        norm_title = normalize_audio_title(t.get("audio_title", "") or "")
-        key = (norm_title, t.get("audio_artist"))
-        top_reels = reels_by_track.get(key, [])
+        # Primary lookup by audio_id, fallback to (audio_title, audio_artist)
+        aid = str(t.get("audio_id")) if t.get("audio_id") else None
+        if aid and aid in reels_by_audio_id:
+            top_reels = reels_by_audio_id[aid]
+        else:
+            norm_title = normalize_audio_title(t.get("audio_title", "") or "")
+            ta_key = (norm_title, t.get("audio_artist"))
+            top_reels = reels_by_title_artist.get(ta_key, [])
+
         t["top_reels"] = top_reels
         if top_reels:
             t["reel_id"] = top_reels[0].get("reel_id")
