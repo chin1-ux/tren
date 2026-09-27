@@ -112,7 +112,7 @@ function SettingsPage() {
   const [notifyWeeklyReport, setNotifyWeeklyReport] = useState(true);
 
   // Preference state
-  const [selectedLanguage, setSelectedLanguage] = useState("all");
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
   const [selectedNiche, setSelectedNiche] = useState("all");
   const [selectedState, setSelectedState] = useState("");
   const [selectedTier, setSelectedTier] = useState("nano");
@@ -144,7 +144,19 @@ function SettingsPage() {
     if (nb !== null) setNotifyBrandDeals(nb === "true");
     if (nw !== null) setNotifyWeeklyReport(nw === "true");
 
-    setSelectedLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
+    const savedPrefLangs = localStorage.getItem("trendrop_preferred_languages");
+    if (savedPrefLangs) {
+      try {
+        const parsed = JSON.parse(savedPrefLangs);
+        if (Array.isArray(parsed)) setSelectedLanguages(parsed);
+      } catch (e) {}
+    } else {
+      const legacyLang = localStorage.getItem("trendrop_pref_language");
+      if (legacyLang && legacyLang !== "all") {
+        setSelectedLanguages(legacyLang.split(",").map(s => s.trim()).filter(Boolean));
+      }
+    }
+
     const savedNiche = localStorage.getItem("trendrop_pref_niche") ?? "all";
     setSelectedNiche(savedNiche);
     setCustomNiche(savedNiche === "all" ? "" : savedNiche);
@@ -238,6 +250,14 @@ function SettingsPage() {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const toggleLanguage = (code: string) => {
+    if (selectedLanguages.includes(code)) {
+      setSelectedLanguages(selectedLanguages.filter(c => c !== code));
+    } else {
+      setSelectedLanguages([...selectedLanguages, code]);
+    }
+  };
+
   const saveSettings = async () => {
     localStorage.setItem("trendrop_user_email", email);
     localStorage.setItem("trendrop_instagram_handle", instagramHandle);
@@ -249,22 +269,28 @@ function SettingsPage() {
     localStorage.setItem("trendrop_notify_weekly_report", String(notifyWeeklyReport));
 
     const finalNiche = customNiche.trim() || selectedNiche || "all";
-    localStorage.setItem("trendrop_pref_language", selectedLanguage);
+    localStorage.setItem("trendrop_preferred_languages", JSON.stringify(selectedLanguages));
+    localStorage.setItem("trendrop_pref_language", selectedLanguages.length === 1 ? selectedLanguages[0] : (selectedLanguages.length > 0 ? selectedLanguages.join(",") : "all"));
     localStorage.setItem("trendrop_pref_niche", finalNiche);
     localStorage.setItem("trendrop_user_state", selectedState);
     localStorage.setItem("trendrop_creator_tier", selectedTier);
 
-    // Persist to backend so alerts + regional feed work correctly
+    // Persist to backend
     setSavingPrefs(true);
     try {
+      await apiFetch("/api/users/language-preferences", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ languages: selectedLanguages }),
+      });
       await apiFetch("/api/users/preferences", {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           niches: finalNiche !== "all" ? [finalNiche] : [],
-          languages: selectedLanguage !== "all" ? [selectedLanguage] : ["en"],
+          languages: selectedLanguages,
           regions: ["IN"],
-          creator_language: selectedLanguage !== "all" ? selectedLanguage : "en",
+          creator_language: selectedLanguages.length === 1 ? selectedLanguages[0] : "en",
           state: selectedState || null,
           creator_tier: selectedTier,
           global_enabled: false,
@@ -293,7 +319,12 @@ function SettingsPage() {
     (l.label ?? "").toLowerCase().includes(langSearch.toLowerCase())
   );
 
-  const activeLangObj = ALL_LANGUAGES.find(l => l.code === selectedLanguage);
+  const activeLangsSummary = selectedLanguages.length === 0
+    ? "🌐 All Languages (Unfiltered)"
+    : `${selectedLanguages.length} selected: ` + ALL_LANGUAGES
+        .filter(l => selectedLanguages.includes(l.code))
+        .map(l => `${l.emoji} ${l.label}`)
+        .join(", ");
 
   return (
     <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
@@ -307,23 +338,34 @@ function SettingsPage() {
         </div>
       </div>
 
-      {/* ── 1. Preferences & Filters (Searchable) ── */}
+      {/* ── 1. Preferences & Filters (Multi-Language Support) ── */}
       <div className="glass-card p-5 space-y-4">
         <h2 className="font-display text-sm font-bold flex items-center gap-2 text-foreground uppercase tracking-wider">
           <SlidersHorizontal className="h-4 w-4 text-primary" /> Feed Preferences
         </h2>
 
-        {/* Searchable Language Selection */}
-        <div className="space-y-1.5" ref={langRef}>
-          <label className="text-xs font-semibold text-muted-foreground block">Default Trend Language</label>
+        {/* Multi-Language Selection */}
+        <div className="space-y-2" ref={langRef}>
+          <div className="flex items-center justify-between">
+            <label className="text-xs font-semibold text-muted-foreground block">Preferred Languages (Multi-Select)</label>
+            {selectedLanguages.length > 0 && (
+              <button
+                type="button"
+                onClick={() => setSelectedLanguages([])}
+                className="text-[10px] text-primary hover:underline font-medium"
+              >
+                Clear Filters (Show All)
+              </button>
+            )}
+          </div>
           <div className="relative">
             <button
               type="button"
               onClick={() => setShowLangDropdown(!showLangDropdown)}
               className="w-full rounded-xl bg-muted/40 border border-border px-3.5 py-2.5 text-left text-xs font-medium text-foreground flex items-center justify-between hover:bg-muted/60 transition-colors"
             >
-              <span>{activeLangObj ? `${activeLangObj.emoji} ${activeLangObj.label}` : "🌐 All Languages"}</span>
-              <ChevronRight className={`h-4 w-4 text-muted-foreground transform transition-transform ${showLangDropdown ? "rotate-90" : ""}`} />
+              <span className="truncate pr-2">{activeLangsSummary}</span>
+              <ChevronRight className={`h-4 w-4 shrink-0 text-muted-foreground transform transition-transform ${showLangDropdown ? "rotate-90" : ""}`} />
             </button>
 
             {showLangDropdown && (
@@ -338,27 +380,61 @@ function SettingsPage() {
                     className="w-full rounded-lg bg-muted/60 py-1.5 pl-8 pr-3 text-xs text-foreground placeholder:text-muted-foreground focus:outline-none"
                   />
                 </div>
-                <div className="max-h-40 overflow-y-auto space-y-1">
+                <div className="max-h-48 overflow-y-auto space-y-1">
                   <button
-                    onClick={() => { setSelectedLanguage("all"); setShowLangDropdown(false); }}
-                    className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
+                    onClick={() => setSelectedLanguages([])}
+                    className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between font-semibold"
                   >
-                    <span>🌐 All Languages</span>
-                    {selectedLanguage === "all" && <Check className="h-3.5 w-3.5 text-primary" />}
+                    <span>🌐 All Languages (Unfiltered)</span>
+                    {selectedLanguages.length === 0 && <Check className="h-3.5 w-3.5 text-primary" />}
                   </button>
-                  {filteredLanguages.map(l => (
-                    <button
-                      key={l.code}
-                      onClick={() => { setSelectedLanguage(l.code); setShowLangDropdown(false); }}
-                      className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
-                    >
-                      <span>{l.emoji} {l.label}</span>
-                      {selectedLanguage === l.code && <Check className="h-3.5 w-3.5 text-primary" />}
-                    </button>
-                  ))}
+                  {filteredLanguages.map(l => {
+                    const isSelected = selectedLanguages.includes(l.code);
+                    return (
+                      <button
+                        key={l.code}
+                        type="button"
+                        onClick={() => toggleLanguage(l.code)}
+                        className="w-full text-left px-3 py-2 text-xs rounded-lg hover:bg-muted transition-colors flex items-center justify-between"
+                      >
+                        <span className="flex items-center gap-2">
+                          <input
+                            type="checkbox"
+                            checked={isSelected}
+                            onChange={() => {}}
+                            className="rounded border-border text-primary focus:ring-0"
+                          />
+                          <span>{l.emoji} {l.label}</span>
+                        </span>
+                        {isSelected && <Check className="h-3.5 w-3.5 text-primary" />}
+                      </button>
+                    );
+                  })}
                 </div>
               </div>
             )}
+          </div>
+
+          {/* Language chips quick selector */}
+          <div className="flex flex-wrap gap-1.5 pt-1">
+            {ALL_LANGUAGES.map((l) => {
+              const active = selectedLanguages.includes(l.code);
+              return (
+                <button
+                  key={l.code}
+                  type="button"
+                  onClick={() => toggleLanguage(l.code)}
+                  className={`rounded-full px-2.5 py-1 text-[11px] font-semibold border transition-all flex items-center gap-1 ${
+                    active
+                      ? "bg-primary/15 text-primary border-primary/40 shadow-sm"
+                      : "bg-muted/40 text-muted-foreground border-border/40 hover:bg-muted"
+                  }`}
+                >
+                  <span>{l.emoji}</span>
+                  <span>{l.label}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
 

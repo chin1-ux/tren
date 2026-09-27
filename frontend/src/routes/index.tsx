@@ -84,6 +84,7 @@ function TrendsFeed() {
 
   // Niche filter — read from preferences
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
+  const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
   const userEmail = useUserStore((s) => s.email);
@@ -93,10 +94,24 @@ function TrendsFeed() {
   // Load preferences from localStorage
   useEffect(() => {
     if (typeof window !== "undefined") {
+      const savedLangs = localStorage.getItem("trendrop_preferred_languages");
+      if (savedLangs) {
+        try {
+          const parsed = JSON.parse(savedLangs);
+          if (Array.isArray(parsed)) setPreferredLanguages(parsed);
+        } catch (e) {}
+      }
       setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
       setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
     }
   }, []);
+
+  // Compute active language filter array: explicit header filter > saved user preferences > undefined (all)
+  const activeLanguages = useMemo(() => {
+    if (language && language !== "all") return [language];
+    if (preferredLanguages && preferredLanguages.length > 0) return preferredLanguages;
+    return undefined;
+  }, [language, preferredLanguages]);
 
   // Tick every minute for countdown timers
   useEffect(() => {
@@ -110,8 +125,8 @@ function TrendsFeed() {
     isError: risingError,
     refetch: refetchRising,
   } = useQuery({
-    queryKey: ["trends", language, sortMode, selectedNiche],
-    queryFn: () => fetchTrends(language, sortMode, selectedNiche),
+    queryKey: ["trends", language, sortMode, selectedNiche, activeLanguages],
+    queryFn: () => fetchTrends(language, sortMode, selectedNiche, activeLanguages),
     staleTime: 30_000,
     refetchInterval: 5 * 60_000,
   });
@@ -122,8 +137,8 @@ function TrendsFeed() {
     isError: emergingError,
     refetch: refetchEmerging,
   } = useQuery({
-    queryKey: ["trends-emerging", language],
-    queryFn: () => fetchEmergingTrends(language),
+    queryKey: ["trends-emerging", language, activeLanguages],
+    queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
     enabled: !isAuthLoading && userPlan === "pro",
@@ -135,8 +150,8 @@ function TrendsFeed() {
     isError: peakedError,
     refetch: refetchPeaked,
   } = useQuery({
-    queryKey: ["trends-peaked", language],
-    queryFn: () => fetchPeakedTrends(language),
+    queryKey: ["trends-peaked", language, activeLanguages],
+    queryFn: () => fetchPeakedTrends(language, selectedNiche, activeLanguages),
     staleTime: 15 * 60_000, // 15 min stale time for peaked trends
     refetchInterval: 30 * 60_000, // 30 min polling
   });
@@ -147,8 +162,8 @@ function TrendsFeed() {
     isError: expiredError,
     refetch: refetchExpired,
   } = useQuery({
-    queryKey: ["trends-expired", language],
-    queryFn: () => fetchExpiredTrends(language),
+    queryKey: ["trends-expired", language, activeLanguages],
+    queryFn: () => fetchExpiredTrends(language, selectedNiche, activeLanguages),
     staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
     refetchInterval: 60 * 60_000, // 60 min polling
   });
@@ -159,8 +174,8 @@ function TrendsFeed() {
     isError: resurgingError,
     refetch: refetchResurging,
   } = useQuery({
-    queryKey: ["trends-resurging", language],
-    queryFn: () => fetchResurgingTrends(language),
+    queryKey: ["trends-resurging", language, activeLanguages],
+    queryFn: () => fetchResurgingTrends(language, selectedNiche, activeLanguages),
     staleTime: 5 * 60_000, // 5 min — resurging changes less often than rising
     refetchInterval: 10 * 60_000,
   });

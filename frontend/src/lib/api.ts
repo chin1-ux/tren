@@ -667,9 +667,14 @@ export async function fetchAudioHistory(trendId: string | number): Promise<Array
   return http<Array<{ snapshotted_at: string; audio_use_count: number }>>(`/api/trends/${encodeURIComponent(trendId)}/audio-history`);
 }
 
-export async function fetchTrends(language?: string, sort?: string, niche?: string): Promise<UiTrend[]> {
+export async function fetchTrends(language?: string, sort?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
-  if (language && language !== "all") params.set("language", language);
+  if (languages) {
+    const langStr = Array.isArray(languages) ? languages.join(",") : languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (language && language !== "all") {
+    params.set("language", language);
+  }
   if (sort) params.set("sort", sort);
   if (niche && niche !== "all") params.set("niche", niche);
   const data = await http<ApiTrend[] | { trends: ApiTrend[] }>(`/api/trends?${params.toString()}`);
@@ -677,26 +682,33 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
   return list.map(adaptTrend);
 }
 
-export async function fetchEmergingTrends(language?: string, niche?: string): Promise<UiTrend[]> {
+export async function fetchEmergingTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
-  if (language && language !== "all") params.set("language", language);
+  if (languages) {
+    const langStr = Array.isArray(languages) ? languages.join(",") : languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (language && language !== "all") {
+    params.set("language", language);
+  }
   if (niche && niche !== "all") params.set("niche", niche);
   try {
     const data = await http<ApiTrend[]>(`/api/trends/emerging?${params.toString()}`);
     return (data || []).map(adaptTrend);
   } catch (e: any) {
-    // 401 / 403 = auth/plan restriction — return empty array so UI shows upgrade modal
     const msg = String(e?.message || "");
-    if (msg.startsWith("401") || msg.startsWith("403")) {
-      return [];
-    }
+    if (msg.startsWith("401") || msg.startsWith("403")) return [];
     throw e;
   }
 }
 
-export async function fetchPeakedTrends(language?: string, niche?: string): Promise<UiTrend[]> {
+export async function fetchPeakedTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
-  if (language && language !== "all") params.set("language", language);
+  if (languages) {
+    const langStr = Array.isArray(languages) ? languages.join(",") : languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (language && language !== "all") {
+    params.set("language", language);
+  }
   if (niche && niche !== "all") params.set("niche", niche);
   try {
     const data = await http<ApiTrend[]>(`/api/trends/peaked?${params.toString()}`);
@@ -708,9 +720,14 @@ export async function fetchPeakedTrends(language?: string, niche?: string): Prom
   }
 }
 
-export async function fetchExpiredTrends(language?: string, niche?: string): Promise<UiTrend[]> {
+export async function fetchExpiredTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
-  if (language && language !== "all") params.set("language", language);
+  if (languages) {
+    const langStr = Array.isArray(languages) ? languages.join(",") : languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (language && language !== "all") {
+    params.set("language", language);
+  }
   if (niche && niche !== "all") params.set("niche", niche);
   try {
     const data = await http<ApiTrend[]>(`/api/trends/expired?${params.toString()}`);
@@ -722,9 +739,14 @@ export async function fetchExpiredTrends(language?: string, niche?: string): Pro
   }
 }
 
-export async function fetchResurgingTrends(language?: string, niche?: string): Promise<UiTrend[]> {
+export async function fetchResurgingTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
-  if (language && language !== "all") params.set("language", language);
+  if (languages) {
+    const langStr = Array.isArray(languages) ? languages.join(",") : languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (language && language !== "all") {
+    params.set("language", language);
+  }
   if (niche && niche !== "all") params.set("niche", niche);
   try {
     const data = await http<ApiTrend[]>(`/api/trends/resurging?${params.toString()}`);
@@ -734,6 +756,13 @@ export async function fetchResurgingTrends(language?: string, niche?: string): P
     if (msg.startsWith("401") || msg.startsWith("403")) return [];
     throw e;
   }
+}
+
+export async function updateLanguagePreferences(languages: string[]): Promise<{ success: boolean; preferred_languages: string[] }> {
+  return http<{ success: boolean; preferred_languages: string[] }>("/api/users/language-preferences", {
+    method: "PUT",
+    body: JSON.stringify({ languages }),
+  });
 }
 
 
