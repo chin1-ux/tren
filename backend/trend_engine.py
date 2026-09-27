@@ -431,9 +431,11 @@ _DANCE_WORDS = [
 
 def classify_single_trend(trend):
     reels = trend["reels"]
-    captions = [r.get("caption") for r in reels if r.get("caption")]
-    all_hashtags = [tag for r in reels for tag in (r.get("hashtags") or [])]
-    source_pool = _dominant_source_hashtag_pool(reels)
+    # Sort reels by engagement (view_count DESC, like_count DESC) so top-engagement captions take priority
+    sorted_reels = sorted(reels, key=lambda r: (r.get("view_count") or 0, r.get("like_count") or 0), reverse=True)
+    captions = [r.get("caption") for r in sorted_reels if r.get("caption")]
+    all_hashtags = [tag for r in sorted_reels for tag in (r.get("hashtags") or [])]
+    source_pool = _dominant_source_hashtag_pool(sorted_reels)
 
     # Fix #4: Always run keyword analysis — don't short-circuit on INDIA_TRENDING pool.
     # classify_niche() is updated to fall through for Indian pools instead of returning "general".
