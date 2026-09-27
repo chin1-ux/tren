@@ -578,29 +578,44 @@ def _normalize_trends(trends: list) -> list:
 
     from audio_title_normalize import normalize_audio_title
 
-    # Batch query reels for all trend artists in a single DB round-trip
-    artists = list(set(t.get("audio_artist") for t in trends if t.get("audio_artist")))
-    reels_lookup = {}
-    if artists and supabase:
+    # Batch query reels for all trend titles/artists in a single DB round-trip
+    titles = list(set(t.get("audio_title") for t in trends if t.get("audio_title")))
+    reels_by_track = {}
+    if titles and supabase:
         try:
-            res_reels = supabase.table("reels") \
-                .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score") \
-                .in_("audio_artist", artists) \
-                .execute()
-            
-            for r in (res_reels.data or []):
-                norm_title = normalize_audio_title(r.get("audio_title", "") or "")
-                key = (norm_title, r.get("audio_artist"))
-                velocity = float(r.get("velocity_score") or 0.0)
-                existing = reels_lookup.get(key)
-                if not existing or velocity > float(existing.get("velocity_score") or 0.0):
-                    reels_lookup[key] = r
+            chunk_size = 50
+            for i in range(0, len(titles), chunk_size):
+                chunk = titles[i:i + chunk_size]
+                res_reels = supabase.table("reels") \
+                    .select("reel_id, views_delta_last_run, audio_title, audio_artist, velocity_score, view_count, like_count, owner_username, thumbnail_url") \
+                    .in_("audio_title", chunk) \
+                    .order("view_count", desc=True) \
+                    .limit(500) \
+                    .execute()
+                
+                for r in (res_reels.data or []):
+                    norm_title = normalize_audio_title(r.get("audio_title", "") or "")
+                    key = (norm_title, r.get("audio_artist"))
+                    if key not in reels_by_track:
+                        reels_by_track[key] = []
+                    if len(reels_by_track[key]) < 3:
+                        rid = r.get("reel_id")
+                        reels_by_track[key].append({
+                            "reel_id": rid,
+                            "reel_url": f"https://www.instagram.com/reel/{rid}/" if rid else None,
+                            "owner_username": r.get("owner_username"),
+                            "view_count": r.get("view_count") or 0,
+                            "like_count": r.get("like_count") or 0,
+                            "thumbnail_url": r.get("thumbnail_url")
+                        })
         except Exception as e:
             logger.warning(f"Failed to pre-fetch reels info: {e}")
 
     for t in trends:
         t["song"]   = t.get("audio_title")
         t["artist"] = t.get("audio_artist")
+        t["used_for"] = t.get("used_for")
+        t["used_for_note"] = t.get("used_for_note")
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         
@@ -622,13 +637,15 @@ def _normalize_trends(trends: list) -> list:
         else:
             t["song"] = t.get("audio_title")
             
-        # Inject matching reel details from lookup using normalized title
+        # Inject matching top_reels array from pre-fetched lookup using normalized title
         norm_title = normalize_audio_title(t.get("audio_title", "") or "")
         key = (norm_title, t.get("audio_artist"))
-        match = reels_lookup.get(key)
-        if match:
-            t["reel_id"] = match.get("reel_id")
-            t["views_delta_last_run"] = match.get("views_delta_last_run") or 0
+        top_reels = reels_by_track.get(key, [])
+        t["top_reels"] = top_reels
+        if top_reels:
+            t["reel_id"] = top_reels[0].get("reel_id")
+            t["views_delta_last_run"] = top_reels[0].get("views_delta_last_run") or 0
+
 
         # Mandatory Shazam / iTunes Music Catalog Language Pass
         curr_lang = t.get("detected_language") or t.get("language") or "en"
