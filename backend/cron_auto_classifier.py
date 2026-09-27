@@ -37,17 +37,8 @@ ALLOWED_LANGUAGES = {
 }
 
 ALLOWED_USED_FOR = {
-    "quote / text overlay",
-    "motivational vlog",
-    "dance transition",
-    "comedy skit",
-    "travel / scenic",
-    "fashion / beauty",
-    "food / recipe",
-    "devotional / festival",
-    "lip sync",
-    "fitness / gym",
-    "general / unknown"
+    "dance", "transition", "lip-sync", "meme", "voiceover",
+    "outfit-showcase", "tutorial", "storytime", "other"
 }
 
 def get_supabase():
@@ -81,6 +72,7 @@ def classify_languages_batch(trends: List[Dict[str, Any]]) -> Dict[int, str]:
     # 2. Gemini Batched Classifier Pass (batch size 10)
     for i in range(0, len(unresolved), 10):
         batch = unresolved[i:i + 10]
+        sent_ids = {item["id"] for item in batch}
         items_payload = []
         for item in batch:
             items_payload.append({
@@ -121,25 +113,29 @@ Rules:
                     resp = {}
             if isinstance(resp, list) and len(resp) > 0:
                 resp = resp[0]
-            
+
             classifications = resp.get("classifications", []) if isinstance(resp, dict) else []
             for c in classifications:
                 if isinstance(c, dict):
                     cid = c.get("id")
-                    lang = str(c.get("language") or "").lower().strip()
-                    if cid and lang in ALLOWED_LANGUAGES:
-                        results[cid] = lang
+                    try:
+                        cid = int(cid)
+                    except (ValueError, TypeError):
+                        continue
+                    if cid in sent_ids:
+                        lang = str(c.get("language") or "").lower().strip()
+                        if lang in ALLOWED_LANGUAGES:
+                            results[cid] = lang
 
-            # Retry missing IDs in batch
-            missing = [item for item in batch if item["id"] not in results]
-            if missing:
-                for m_item in missing:
-                    results[m_item["id"]] = "en" # Default fallback for unclassified
+            # Retry missing IDs in batch with default fallback
+            missing = sent_ids - set(results.keys())
+            for mid in missing:
+                results[mid] = "en"
         except Exception as err:
             logger.warning(f"Language batch Gemini call failed: {err}")
-            for item in batch:
-                if item["id"] not in results:
-                    results[item["id"]] = "en"
+            for mid in sent_ids:
+                if mid not in results:
+                    results[mid] = "en"
 
     return results
 
@@ -147,82 +143,97 @@ Rules:
 def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str, str]]:
     """
     Classify used_for category and note for a batch of trends using Gemini.
+    Uses the exact prompt, schema, and allowed list from Order 27.
     Returns map of trend_id -> {"used_for": tag, "used_for_note": note}.
     """
     results: Dict[int, Dict[str, str]] = {}
 
+    system_prompt = (
+        "You are an expert social media trend and reel format classifier.\n"
+        "Your task: Classify the primary creator content format / use-case of each audio track in the batch.\n\n"
+        "CRITICAL RULES:\n"
+        "1. Allowed format categories for 'used_for' (MUST be one of):\n"
+        "   - dance: Dance routines, choreography, rhythmic movements\n"
+        "   - transition: Quick cuts, outfit changes, glow-up transitions, beat drops\n"
+        "   - lip-sync: Lip-syncing to dialogue, lyrics, or funny voice lines\n"
+        "   - meme: Humor, skits, relatable situations, funny reaction reels\n"
+        "   - voiceover: Background audio for storytelling, vlogs, commentary, quotes\n"
+        "   - outfit-showcase: Fashion, OOTD, aesthetic visuals, lookbooks\n"
+        "   - tutorial: Educational, how-to, fitness demos, cooking recipes\n"
+        "   - storytime: Personal anecdotes, POV scenarios, text-on-screen stories\n"
+        "   - other: Format not fitting the above categories\n"
+        "2. Provide a 'note': ONE short sentence (max 12 words) explaining why creators use this audio.\n"
+        "3. You MUST return an entry for EVERY SINGLE input track in the batch.\n"
+        "4. Output MUST be a JSON array of objects with EXACT keys:\n"
+        '   [{"id": 1234, "used_for": "category", "note": "One short sentence explanation."}]\n'
+    )
+
     for i in range(0, len(trends), 10):
         batch = trends[i:i + 10]
-        items_payload = []
+        sent_ids = {item["id"] for item in batch}
+        batch_input = []
         for item in batch:
-            items_payload.append({
+            batch_input.append({
                 "id": item["id"],
                 "title": item.get("audio_title") or "",
                 "artist": item.get("audio_artist") or "",
                 "sample_captions": item.get("sample_captions") or "(none)"
             })
 
-        system_prompt = "You are a Instagram Reel format analyst. Return ONLY valid JSON. No markdown wrappers."
-        user_prompt = f"""
-Classify how creators are using each audio track in Instagram Reels based on title, artist, and sample captions.
+        user_prompt = (
+            f"Classify the reel format use-case of these {len(batch_input)} tracks (Return JSON array with ALL {len(batch_input)} IDs):\n"
+            + json.dumps(batch_input, indent=2, ensure_ascii=False)
+            + "\nReturn ONLY a JSON array of objects."
+        )
 
-Allowed Categories (choose EXACT string):
-- "quote / text overlay"
-- "motivational vlog"
-- "dance transition"
-- "comedy skit"
-- "travel / scenic"
-- "fashion / beauty"
-- "food / recipe"
-- "devotional / festival"
-- "lip sync"
-- "fitness / gym"
-- "general / unknown"
-
-Input Items:
-{json.dumps(items_payload, ensure_ascii=False, indent=2)}
-
-Return ONLY a JSON object with this EXACT structure:
-{{
-  "classifications": [
-    {{
-      "id": 123,
-      "used_for": "quote / text overlay",
-      "used_for_note": "Used primarily behind motivational quote text overlays."
-    }},
-    ...
-  ]
-}}
-"""
         try:
-            resp = call_llm(system_prompt, user_prompt, timeout=15)
+            resp = call_llm(system_prompt, user_prompt, response_mime_type="application/json", timeout=25)
             if isinstance(resp, str):
                 try:
                     resp = json.loads(resp)
                 except Exception:
-                    resp = {}
-            if isinstance(resp, list) and len(resp) > 0:
-                resp = resp[0]
+                    resp = []
+            if isinstance(resp, dict):
+                if "items" in resp and isinstance(resp["items"], list):
+                    resp = resp["items"]
+                elif "classifications" in resp and isinstance(resp["classifications"], list):
+                    resp = resp["classifications"]
+                elif "trends" in resp and isinstance(resp["trends"], list):
+                    resp = resp["trends"]
+                elif "id" in resp:
+                    resp = [resp]
+                else:
+                    resp = []
 
-            classifications = resp.get("classifications", []) if isinstance(resp, dict) else []
-            for c in classifications:
-                if isinstance(c, dict):
-                    cid = c.get("id")
-                    tag = str(c.get("used_for") or "").strip()
-                    note = str(c.get("used_for_note") or "").strip()
-                    if cid:
-                        if tag not in ALLOWED_USED_FOR:
-                            tag = "general / unknown"
-                        results[cid] = {"used_for": tag, "used_for_note": note}
+            if isinstance(resp, list):
+                for item in resp:
+                    if not isinstance(item, dict):
+                        continue
+                    cid = item.get("id")
+                    if cid is None:
+                        continue
+                    try:
+                        cid = int(cid)
+                    except (ValueError, TypeError):
+                        continue
 
-            # Retry missing IDs in batch
-            missing = [item for item in batch if item["id"] not in results]
-            for m_item in missing:
-                results[m_item["id"]] = {"used_for": "general / unknown", "used_for_note": "Automated default classification."}
+                    if cid in sent_ids:
+                        uf = str(item.get("used_for") or "other").lower().strip()
+                        if uf not in ALLOWED_USED_FOR:
+                            uf = "other"
+                        note = str(item.get("note") or item.get("used_for_note") or f"Popular audio for creator {uf} reels.").strip()[:200]
+                        results[cid] = {"used_for": uf, "used_for_note": note}
+
+            # Fallback missing IDs in this batch to 'other'
+            missing = sent_ids - set(results.keys())
+            for mid in missing:
+                results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification."}
+
         except Exception as err:
             logger.warning(f"used_for batch Gemini call failed: {err}")
-            for item in batch:
-                results[item["id"]] = {"used_for": "general / unknown", "used_for_note": "Automated fallback classification."}
+            for mid in sent_ids:
+                if mid not in results:
+                    results[mid] = {"used_for": "other", "used_for_note": "Automated fallback classification."}
 
     return results
 
