@@ -335,6 +335,15 @@ def _get_db_audio_trends_fallback() -> list:
         return []
 
 
+def _canonical_spotify_key(title: str, artist: str) -> str:
+    import re
+    t = re.sub(r'[^\w]', '', (title or "").lower(), flags=re.UNICODE).strip()
+    a = re.sub(r'[^\w]', '', (artist or "").lower(), flags=re.UNICODE).strip()
+    if not t and not a:
+        return f"raw:{title}:{artist}"
+    return f"{t}:{a}"
+
+
 @router.get("/api/spotify/viral")
 @limiter.limit("60/minute")
 def get_spotify_viral_trends(
@@ -343,9 +352,10 @@ def get_spotify_viral_trends(
     current_user: str = Depends(get_current_user)
 ):
     """
-    Fetch Spotify Viral/Trending tracks from the cache-backed spotify_feed_cache table.
-    Applies user authentication and plan gating (24h delay for Free tier, real-time for Pro tier).
-    Sets dynamic X-Data-Source header matching the returned items' data_source.
+    Fetch Spotify Viral trends split into two distinct sections:
+    1. already_trending: Active Instagram audio trends (max 8) with delay gating for free tier.
+    2. new_on_spotify: Fresh search-ingested tracks from Spotify search cache (max 25).
+    Guarantees strict ZERO OVERLAP between the two sections.
     """
     user_plan = "free"
     if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
@@ -358,65 +368,93 @@ def get_spotify_viral_trends(
 
     if not supabase:
         return JSONResponse(
-            content=[],
+            content={"already_trending": [], "new_on_spotify": []},
             headers={"X-Fallback-Reason": "supabase_not_configured", "X-Data-Source": "none"}
         )
 
     try:
-        q = supabase.table("spotify_feed_cache").select("*").order("rank", desc=False)
+        # --- Section 1: Already Trending on Instagram (max 8) ---
+        q_trending = supabase.table("trends").select("*") \
+            .in_("status", ["rising", "emerging", "resurging", "peaked"]) \
+            .eq("is_voiceover", False) \
+            .eq("is_seed_data", False) \
+            .gt("window_hours_remaining", 0)
 
-        # Plan gating delay filter for Free users: filter by when the IG trend was created/detected
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
-            q = q.lte("trend_created_at", time_cutoff)
+            q_trending_delayed = q_trending.lte("created_at", time_cutoff)
+            res_delayed = execute_supabase_get(q_trending_delayed) if 'execute_supabase_get' in globals() else q_trending_delayed.execute()
+            if res_delayed.data and len(res_delayed.data) > 0:
+                q_trending = q_trending_delayed
 
-        res = execute_supabase_get(q) if 'execute_supabase_get' in globals() else q.execute()
-        cached_items = res.data or []
+        q_trending = q_trending.order("velocity_avg", desc=True).limit(8)
+        res_trending = execute_supabase_get(q_trending) if 'execute_supabase_get' in globals() else q_trending.execute()
+        raw_trending = res_trending.data or []
 
-        formatted_tracks = []
-        for item in cached_items:
-            aid = item.get("audio_id")
-            pred = item.get("prediction")
-            if isinstance(pred, str):
-                try:
-                    pred = json.loads(pred)
-                except Exception:
-                    pred = {}
-            if not isinstance(pred, dict):
-                pred = {}
+        already_trending = []
+        trending_keys = set()
 
-            score = pred.get("combined_score") or max(45, 98 - ((item.get("rank") or 1) - 1) * 2)
+        for item in raw_trending:
+            title = item.get("audio_title") or item.get("title") or "Emerging Sound"
+            artist = item.get("audio_artist") or item.get("artist") or "Creator Sound"
+            key = _canonical_spotify_key(title, artist)
+            if key != ":":
+                trending_keys.add(key)
 
-            formatted_tracks.append({
-                "id": f"spotify_ig_{aid or item.get('id')}",
-                "audio_title": item.get("audio_title") or "Emerging Sound",
-                "audio_artist": item.get("audio_artist") or "Creator Sound",
-                "spotify_id": item.get("spotify_id"),
+            aid = item.get("instagram_audio_id") or item.get("audio_id") or item.get("id")
+            already_trending.append({
+                "id": item.get("id"),
+                "audio_title": title,
+                "audio_artist": artist,
                 "instagram_audio_id": aid,
-                "instagram_audio_url": f"https://www.instagram.com/reels/audio/{aid}/" if aid else None,
-                "market": "IN",
-                "market_label": "🇮🇳 India",
-                "rank": item.get("rank"),
-                "popularity": item.get("popularity"),
-                "score_basis": item.get("score_basis") or "velocity_avg",
-                "release_date": item.get("release_date"),
-                "data_source": item.get("data_source") or "ig_trends_seeded",
-                "prediction": pred or {
-                    "combined_score": score,
-                    "prediction": "Emerging Rising",
-                    "optimal_timing": "18h window",
-                    "reach_multiplier": f"{score}%",
-                    "recommended_action": "Use Audio on Instagram"
-                }
+                "instagram_audio_url": item.get("instagram_audio_url") or (f"https://www.instagram.com/reels/audio/{aid}/" if aid else None),
+                "status": item.get("status") or "rising",
+                "velocity_avg": item.get("velocity_avg"),
+                "window_hours_remaining": item.get("window_hours_remaining"),
+                "language": item.get("language_final") or item.get("language"),
+                "data_source": "ig_trends"
             })
 
-        data_source_header = formatted_tracks[0]["data_source"] if formatted_tracks else ("ig_trends_seeded" if delay_hours == 0 else "delayed")
+        # --- Section 2: New on Spotify (max 25) ---
+        q_sp = supabase.table("spotify_feed_cache").select("*").order("release_date", desc=True).limit(60)
+        res_sp = execute_supabase_get(q_sp) if 'execute_supabase_get' in globals() else q_sp.execute()
+        sp_items = res_sp.data or []
+
+        new_on_spotify = []
+        for item in sp_items:
+            title = item.get("title") or item.get("audio_title") or ""
+            artist = item.get("artist") or item.get("audio_artist") or ""
+            key = _canonical_spotify_key(title, artist)
+
+            # ZERO OVERLAP ENFORCEMENT: Skip any track already in Instagram trending!
+            if key in trending_keys:
+                continue
+
+            sp_id = item.get("spotify_id")
+            new_on_spotify.append({
+                "id": item.get("id") or sp_id,
+                "audio_title": title,
+                "audio_artist": artist,
+                "spotify_id": sp_id,
+                "spotify_url": item.get("spotify_url") or (f"https://open.spotify.com/track/{sp_id}" if sp_id else None),
+                "cover_art_url": item.get("cover_art_url"),
+                "release_date": item.get("release_date"),
+                "ig_reel_count": item.get("ig_reel_count") or 0,
+                "popularity": item.get("popularity") or 0,
+                "data_source": item.get("data_source") or "spotify_search"
+            })
+
+            if len(new_on_spotify) >= 25:
+                break
 
         return JSONResponse(
-            content=formatted_tracks,
+            content={
+                "already_trending": already_trending,
+                "new_on_spotify": new_on_spotify
+            },
             headers={
-                "X-Data-Source": data_source_header,
-                "X-Track-Count": str(len(formatted_tracks)),
+                "X-Already-Trending-Count": str(len(already_trending)),
+                "X-New-Spotify-Count": str(len(new_on_spotify)),
                 "X-User-Plan": user_plan
             }
         )
@@ -424,7 +462,7 @@ def get_spotify_viral_trends(
     except Exception as e:
         logger.error(f"spotify/viral: unexpected error — {e}", exc_info=True)
         return JSONResponse(
-            content=[],
+            content={"already_trending": [], "new_on_spotify": []},
             headers={"X-Fallback-Reason": f"error:{type(e).__name__}", "X-Data-Source": "none"}
         )
 

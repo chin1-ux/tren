@@ -243,15 +243,18 @@ def call_gemini_only(system_prompt: str, user_prompt: str, response_mime_type: s
         raise RuntimeError("No Gemini API keys configured.")
     
     last_err = None
+    total_keys = len(gemini_keys)
     for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):
         for gemini_model in _GEMINI_FALLBACK_MODELS:
+            logger.info(f"[CALL_GEMINI_ONLY] Attempting Gemini Key index #{gemini_idx}/{total_keys} ({gemini_model})...")
             try:
                 res = call_gemini(system_prompt, user_prompt, gemini_key, response_mime_type, timeout, model=gemini_model)
+                logger.info(f"[CALL_GEMINI_ONLY] SUCCESS on Gemini Key index #{gemini_idx}/{total_keys} ({gemini_model})")
                 return res
             except Exception as gemini_err:
                 last_err = gemini_err
-                logger.warning(f"Gemini key #{gemini_idx} ({gemini_model}) failed: {gemini_err}")
-    raise RuntimeError(f"All Gemini keys failed ({len(gemini_keys)} keys tried). Last error: {last_err}")
+                logger.warning(f"[CALL_GEMINI_ONLY] Gemini Key index #{gemini_idx}/{total_keys} ({gemini_model}) failed: {gemini_err}")
+    raise RuntimeError(f"All {total_keys} Gemini keys failed across models. Last error: {last_err}")
 
 
 # Verified free models on OpenRouter (2026-08-24)
