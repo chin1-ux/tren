@@ -433,6 +433,12 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
            "📈 Rising"}
         </span>
 
+        {trend.used_for && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider">
+            🎯 Used for: {trend.used_for}
+          </span>
+        )}
+
         {isMegaTrend && (
           <span className="inline-flex items-center gap-1 rounded-full bg-purple-500/10 text-purple-400 border border-purple-500/20 px-2 py-0.5 text-[9px] font-bold">
             🔥 MEGA
@@ -468,7 +474,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       </div>
 
       {/* ── 1. Song info ─────────────────────────────────────────────────── */}
-      <div className="space-y-0.5 min-w-0">
+      <div className="space-y-1 min-w-0">
         <div className="flex items-center justify-between gap-2">
           <h3
             className="font-extrabold text-foreground tracking-tight text-base md:text-lg flex items-center gap-1.5 group hover:text-primary transition-colors truncate"
@@ -484,8 +490,15 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             {isSaved ? <BookmarkCheck className="h-5 w-5 text-primary" /> : <Bookmark className="h-5 w-5" />}
           </button>
         </div>
-        <p className="text-xs text-muted-foreground mt-0.5 truncate">by {trend.artist}</p>
+        <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
         
+        {/* Used For 1-line Creator Format Note */}
+        {trend.used_for_note && (
+          <div className="mt-1.5 rounded-lg bg-primary/10 border border-primary/20 p-2 text-xs text-foreground/90 font-medium leading-snug">
+            💡 <span className="font-bold text-primary">Why this works:</span> {trend.used_for_note}
+          </div>
+        )}
+
         {/* Saturation advice subtitle */}
         {(() => {
           const statusText = getOpportunityScoreStatus(trend.opportunityScore, globalPct);
@@ -510,6 +523,31 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
             )}
             <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount, trend.reelCount)}</span>
           </div>
+        </div>
+      )}
+
+      {/* ── 2.5 Real Reel Examples Chips ─────────────────────────────────────── */}
+      {trend.top_reels && trend.top_reels.length > 0 && (
+        <div className="flex flex-wrap items-center gap-1.5 pt-0.5" onClick={(e) => e.stopPropagation()}>
+          <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
+            <Video className="h-3 w-3 text-primary" /> Creator Reels:
+          </span>
+          {trend.top_reels.slice(0, 3).map((reel, idx) => (
+            <a
+              key={idx}
+              href={reel.reel_url || (reel.reel_id ? `https://www.instagram.com/reel/${reel.reel_id}/` : "#")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md bg-secondary/70 hover:bg-primary/20 hover:text-primary transition-colors border border-border/60 px-2 py-0.5 text-[10px] font-medium text-foreground"
+              title={`View Instagram Reel by @${reel.owner_username || "creator"}`}
+            >
+              <span>@{reel.owner_username || "creator"}</span>
+              {(reel.view_count ?? 0) > 0 && (
+                <span className="text-muted-foreground font-bold">({formatViews(reel.view_count ?? 0)})</span>
+              )}
+              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+            </a>
+          ))}
         </div>
       )}
 

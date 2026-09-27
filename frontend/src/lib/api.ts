@@ -86,6 +86,17 @@ export interface ApiTrend {
   vibe_tag?: string;
   is_voiceover?: boolean;
   saturation_count?: number;
+  // Order 27 format classification & reel chips
+  used_for?: string | null;
+  used_for_note?: string | null;
+  top_reels?: Array<{
+    reel_id?: string;
+    reel_url?: string;
+    owner_username?: string;
+    view_count?: number;
+    like_count?: number;
+    thumbnail_url?: string;
+  }>;
   // v3 classification fields
   reel_id?: string;
   content_tone?: string;
@@ -316,6 +327,17 @@ export interface UiTrend {
   vibeTag?: string;
   isVoiceover?: boolean;
   saturationCount?: number;
+  // Order 27 used_for and top_reels fields
+  used_for?: string | null;
+  used_for_note?: string | null;
+  top_reels?: Array<{
+    reel_id?: string;
+    reel_url?: string;
+    owner_username?: string;
+    view_count?: number;
+    like_count?: number;
+    thumbnail_url?: string;
+  }>;
   // v3 classification fields
   trendClassification?: string;
   velocityPattern?: string;
@@ -408,6 +430,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     // v2 new fields
     audioId: t.audio_id ?? null,
     audioUseCount: t.audio_use_count ?? 0,
+    used_for: t.used_for ?? null,
+    used_for_note: t.used_for_note ?? null,
+    top_reels: t.top_reels ?? [],
     globalSaturationPct: t.global_saturation_pct ?? 0,
     indiaSaturationPct: t.india_saturation_pct ?? 0,
     nicheTag: t.niche_tag ?? "general",
