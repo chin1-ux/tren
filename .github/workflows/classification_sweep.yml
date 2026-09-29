@@ -1,0 +1,53 @@
+name: Classification Sweep
+
+on:
+  workflow_run:
+    workflows:
+      - "Trendrop Scheduled Scraper Pipeline Cron"
+      - "Scraper (Main Account - 6h Fallback)"
+    types: [completed]
+  schedule:
+    - cron: '30 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        default: '40'
+
+concurrency:
+  group: classification-sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sweep:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/checkout@v4
+        with:
+          repository: ch1n-may/trendrop
+          ref: 6f43202a45a3b330234b164d0648a4ed9d1760f0
+          token: ${{ secrets.TRENDROP_READ_PAT }}
+          path: private_core
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install deps (pinned from private requirements.txt)
+        run: pip install fastapi==0.137.1 requests python-dotenv supabase pydantic psycopg2-binary==2.9.12
+      - name: Sweep
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GEMINI_API_KEY_2: ${{ secrets.GEMINI_API_KEY_2 }}
+          GEMINI_API_KEY_3: ${{ secrets.GEMINI_API_KEY_3 }}
+          GEMINI_API_KEY_4: ${{ secrets.GEMINI_API_KEY_4 }}
+          LIMIT: ${{ inputs.limit || '30' }}
+        run: PYTHONPATH=private_core/backend python scripts/classification_sweep.py
