@@ -13,6 +13,7 @@ import { useUserStore } from "@/store/useAppStore";
 import { toast } from "sonner";
 import { z } from "zod";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { useEffectivePlan } from '@/lib/plan';
 
 export const Route = createFileRoute("/trend/$id")({
   head: () => ({
@@ -31,7 +32,7 @@ function TrendDetailPage() {
   const [copiedCaption, setCopiedCaption] = useState<number | null>(null);
   const [copiedHashtags, setCopiedHashtags] = useState(false);
   const [selectedVibe, setSelectedVibe] = useState(0);
-  const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userPlan = useEffectivePlan();
   const userNiche = useUserStore((s) => s.niche) || 'all';
 
   const { data: trend, isLoading: trendLoading } = useQuery({

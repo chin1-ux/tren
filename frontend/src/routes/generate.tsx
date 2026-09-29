@@ -13,6 +13,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { PlanGate } from "@/components/PlanGate";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from '@/lib/plan';
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { FEATURES } from "@/lib/features";
 
@@ -68,7 +69,7 @@ function GeneratePage() {
   }
   const { trendId } = Route.useSearch();
   const navigate = useNavigate();
-  const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userPlan = useEffectivePlan();
 
   const { data: trends } = useQuery<UiTrend[]>({
     queryKey: ["trends"],

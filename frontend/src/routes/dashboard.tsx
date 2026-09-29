@@ -40,11 +40,13 @@ const NICHE_EMOJIS: Record<string, string> = {
   all: "🌐",
 };
 
+import { useEffectivePlan } from "@/lib/plan";
+
 function Dashboard() {
   const { isOpen, startOnboarding, closeOnboarding } = useOnboarding();
   const userEmail = useUserStore((s) => s.email) ?? "";
   const userNiche = useUserStore((s) => s.niche) || "all";
-  const userPlan = useUserStore((s) => s.plan) || "free";
+  const userPlan = useEffectivePlan();
 
   const isCurrentAffairsCreator = userNiche === "current_affairs";
   const defaultTab = isCurrentAffairsCreator ? "breaking-news" : "early-detection";

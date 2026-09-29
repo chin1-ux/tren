@@ -6,13 +6,14 @@ import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 
 export function BottomTabBar() {
   const routerState = useRouterState();
   const currentPath = routerState.location.pathname;
   const navigate = useNavigate();
   const { user, logout } = useAuth();
-  const userPlan = useUserStore((s) => s.plan) || "free";
+  const userPlan = useEffectivePlan();
 
   const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
   const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;

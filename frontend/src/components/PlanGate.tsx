@@ -11,6 +11,8 @@ interface PlanGateProps {
   onUpgrade?: () => void;
 }
 
+import { PRO_UNLOCK_ALL } from '@/lib/plan';
+
 export function PlanGate({
   feature,
   requiredPlan,
@@ -18,12 +20,12 @@ export function PlanGate({
   children,
   onUpgrade
 }: PlanGateProps) {
-  const canAccess = Boolean(currentPlan) && (
+  const canAccess = PRO_UNLOCK_ALL || (Boolean(currentPlan) && (
     currentPlan === 'pro' ||
     currentPlan === 'pro_trial' ||
     currentPlan.startsWith('pro') ||
     currentPlan.startsWith('brand')
-  );
+  ));
 
   if (canAccess) {
     return <>{children}</>;

@@ -8,6 +8,7 @@ import { Button } from "@/components/ui/button";
 import { PlanGate } from "./PlanGate";
 import { apiFetch } from "@/lib/api";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 
 interface AlreadyTrendingTrack {
   id: number | string;
@@ -47,7 +48,7 @@ export function EarlyDetectionPanel() {
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  const userPlan = useUserStore((s) => s.plan) || "free";
+  const userPlan = useEffectivePlan();
 
   useEffect(() => {
     fetchTracks();

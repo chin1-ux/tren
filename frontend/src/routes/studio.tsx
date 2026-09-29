@@ -53,9 +53,11 @@ interface CaptionResponse {
   hashtag_strategy: string;
 }
 
+import { useEffectivePlan } from '@/lib/plan';
+
 function StudioPage() {
   const { user } = useAuth();
-  const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userPlan = useEffectivePlan();
   const [activeTool, setActiveTool] = useState<"prepost" | "hooks" | "seo">("prepost");
 
   // Pre-Post States

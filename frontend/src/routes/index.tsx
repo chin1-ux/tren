@@ -19,6 +19,7 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { ActiveLanguageBadge } from "@/components/ActiveLanguageBadge";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 
@@ -89,7 +90,7 @@ function TrendsFeed() {
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
   const userEmail = useUserStore((s) => s.email);
-  const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userPlan = useEffectivePlan();
   const { loading: isAuthLoading } = useAuth();
 
   // Load preferences from localStorage
@@ -140,7 +141,7 @@ function TrendsFeed() {
     isError: emergingError,
     refetch: refetchEmerging,
   } = useQuery({
-    queryKey: ["trends-emerging", language, activeLanguages],
+    queryKey: ["trends-emerging", language, selectedNiche, activeLanguages],
     queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling

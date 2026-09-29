@@ -49,9 +49,11 @@ export const Route = createFileRoute("/ideas")({
   component: IdeasPage,
 });
 
+import { useEffectivePlan } from '@/lib/plan';
+
 function IdeasPage() {
   const { user } = useAuth();
-  const userPlan = useUserStore((s) => s.plan) || 'free';
+  const userPlan = useEffectivePlan();
   
   // Feature disabled check
   if (!FEATURES.IDEAS_ENABLED) {

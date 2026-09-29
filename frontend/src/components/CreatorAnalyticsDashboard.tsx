@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 import { getCreatorMetrics, getSuccessRecommendations, getContentPerformanceOverTime } from "@/lib/api";
 
 interface CreatorAnalyticsDashboardProps {
@@ -21,7 +22,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
   });
   const [handleInput, setHandleInput] = useState("");
   const [isConnecting, setIsConnecting] = useState(false);
-  const userPlan = useUserStore((s) => s.plan) || "free";
+  const userPlan = useEffectivePlan();
 
   React.useEffect(() => {
     async function loadData() {
