@@ -448,12 +448,14 @@ function TrendsFeed() {
           languagesMap={LANGUAGES}
           onClear={() => {
             setLanguage("all");
+            setSelectedNiche("all");
             setPreferredLanguages([]);
             if (typeof window !== "undefined") {
               localStorage.removeItem("trendrop_pref_language");
               localStorage.removeItem("trendrop_preferred_languages");
+              localStorage.removeItem("trendrop_pref_niche");
             }
-            toast.success("Language filter reset to All");
+            toast.success("Filters reset to All");
           }}
         />
 
