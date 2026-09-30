@@ -51,10 +51,19 @@ jobs:
 
       - name: Install system deps for Camoufox browser
         run: |
+          # Kill any lingering apt/dpkg lock holders (e.g. background unattended-upgrades) before starting
+          sudo pkill -9 -f "apt-get|dpkg|unattended-upgrades" || true
+          sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock
+          sudo dpkg --configure -a || true
+
           if ! timeout 300 python -m playwright install-deps firefox; then
-            echo "First attempt failed â€” clearing apt state and retrying..."
+            echo "First attempt failed — cleaning apt state, updating package lists, and retrying..."
+            sudo pkill -9 -f "apt-get|dpkg|unattended-upgrades" || true
+            sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock
+            sudo dpkg --configure -a || true
             sudo apt-get clean
             sudo rm -rf /var/lib/apt/lists/*
+            sudo apt-get update
             timeout 300 python -m playwright install-deps firefox
           fi
 
