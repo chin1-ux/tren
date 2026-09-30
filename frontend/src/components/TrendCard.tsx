@@ -16,6 +16,7 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
 import { TrendProofSection } from "./TrendProofSection";
+import { formatApiDateIst } from "@/lib/time";
 
 interface Props {
   trend: UiTrend;
@@ -101,25 +102,7 @@ function formatAudioUseCount(count: number, fallbackReelCount?: number): string 
   return countToUse.toString();
 }
 
-/** Format a scraped-at ISO string into a human-readable "Aug 27, 06:21 AM" */
-function formatScrapedAt(iso: string | null | undefined): string | null {
-  if (!iso) return null;
-  try {
-    const d = new Date(iso);
-    if (isNaN(d.getTime())) return null;
-    return d.toLocaleString("en-IN", {
-      day: "2-digit",
-      month: "short",
-      year: "numeric",
-      hour: "2-digit",
-      minute: "2-digit",
-      hour12: true,
-      timeZone: "Asia/Kolkata",
-    });
-  } catch {
-    return null;
-  }
-}
+// formatScrapedAt replaced by shared formatApiDateIst from @/lib/time (IST -5h30m bug fix)
 
 /** Saturation bar component (Global / India) */
 function SaturationBar({
@@ -575,7 +558,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
         {(() => {
-          const scraped = formatScrapedAt(trend.firstDetectedAt);
+          const scraped = formatApiDateIst(trend.firstDetectedAt);
           return scraped ? (
             <span
               title={`First scraped: ${scraped} IST`}
