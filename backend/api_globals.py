@@ -529,6 +529,8 @@ try:
 except Exception as e:
     logger.warning(f"Redis/RQ integration in api_globals disabled: {e}")
 
+from fastapi.middleware.gzip import GZipMiddleware
+
 app = FastAPI(
     title="Trendrop Backend API",
     description="AI-powered trend intelligence for Indian short-form creators",
@@ -537,6 +539,7 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+app.add_middleware(GZipMiddleware, minimum_size=1000)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
