@@ -389,6 +389,13 @@ function TrendsFeed() {
           <TabButton
             active={feedTab === "rising"}
             onClick={() => setFeedTab("rising")}
+            onHover={() => {
+              queryClient.prefetchQuery({
+                queryKey: ["trends", language, sortMode, selectedNiche, activeLanguages],
+                queryFn: () => fetchTrends(language, sortMode, selectedNiche, activeLanguages),
+                staleTime: 30_000,
+              });
+            }}
             icon={<TrendingUp className="h-3.5 w-3.5" />}
             label="Rising"
             count={deduplicatedTrends.rising.length}
@@ -396,6 +403,13 @@ function TrendsFeed() {
           <TabButton
             active={feedTab === "emerging"}
             onClick={() => setFeedTab("emerging")}
+            onHover={() => {
+              queryClient.prefetchQuery({
+                queryKey: ["trends-emerging", language, selectedNiche, activeLanguages],
+                queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
+                staleTime: 30_000,
+              });
+            }}
             icon={<Zap className="h-3.5 w-3.5" />}
             label="Emerging"
             count={deduplicatedTrends.emerging.length}
@@ -404,6 +418,13 @@ function TrendsFeed() {
           <TabButton
             active={feedTab === "resurging"}
             onClick={() => setFeedTab("resurging")}
+            onHover={() => {
+              queryClient.prefetchQuery({
+                queryKey: ["trends-resurging", language, activeLanguages],
+                queryFn: () => fetchResurgingTrends(language, selectedNiche, activeLanguages),
+                staleTime: 5 * 60_000,
+              });
+            }}
             icon={<span className="text-xs">🔁</span>}
             label="Comeback"
             count={deduplicatedTrends.resurging.length}
@@ -418,6 +439,13 @@ function TrendsFeed() {
           <TabButton
             active={feedTab === "peaked"}
             onClick={() => setFeedTab("peaked")}
+            onHover={() => {
+              queryClient.prefetchQuery({
+                queryKey: ["trends-peaked", language, activeLanguages],
+                queryFn: () => fetchPeakedTrends(language, selectedNiche, activeLanguages),
+                staleTime: 15 * 60_000,
+              });
+            }}
             icon={<Clock className="h-3.5 w-3.5" />}
             label="Peaked"
             count={deduplicatedTrends.peaked.length}
@@ -425,6 +453,13 @@ function TrendsFeed() {
           <TabButton
             active={feedTab === "expired"}
             onClick={() => setFeedTab("expired")}
+            onHover={() => {
+              queryClient.prefetchQuery({
+                queryKey: ["trends-expired", language, activeLanguages],
+                queryFn: () => fetchExpiredTrends(language, selectedNiche, activeLanguages),
+                staleTime: 30 * 60_000,
+              });
+            }}
             icon={<AlertCircle className="h-3.5 w-3.5" />}
             label="Expired"
             count={deduplicatedTrends.expired.length}
@@ -594,10 +629,11 @@ function TrendsFeed() {
 }
 
 function TabButton({
-  active, onClick, icon, label, count, urgent,
+  active, onClick, onHover, icon, label, count, urgent,
 }: {
   active: boolean;
   onClick: () => void;
+  onHover?: () => void;
   icon: React.ReactNode;
   label: string;
   count?: number;
@@ -606,6 +642,8 @@ function TabButton({
   return (
     <button
       onClick={onClick}
+      onMouseEnter={onHover}
+      onTouchStart={onHover}
       className={`flex flex-1 min-w-max px-3 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
         active
           ? urgent

@@ -7,7 +7,7 @@ import {
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrendReels, toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
@@ -207,7 +207,7 @@ function buildAudioUrl(audioId?: string | null, audioName?: string): string {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
+export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -851,7 +851,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
       />
     </motion.article>
   );
-}
+});
 
 // ── Sub-components ─────────────────────────────────────────────────────────────
 
