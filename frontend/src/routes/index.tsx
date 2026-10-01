@@ -117,6 +117,13 @@ function TrendsFeed() {
     return undefined;
   }, [language, preferredLanguages]);
 
+  // Progressive rendering limit for fast DOM paint on mobile
+  const [displayLimit, setDisplayLimit] = useState<number>(15);
+
+  useEffect(() => {
+    setDisplayLimit(15);
+  }, [feedTab, language, selectedNiche, sortMode]);
+
   // Tick every minute for countdown timers
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 60_000);
@@ -133,6 +140,7 @@ function TrendsFeed() {
     queryFn: () => fetchTrends(language, sortMode, selectedNiche, activeLanguages),
     staleTime: 30_000,
     refetchInterval: 5 * 60_000,
+    enabled: feedTab === "rising",
   });
 
   const {
@@ -145,7 +153,7 @@ function TrendsFeed() {
     queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
-    enabled: !isAuthLoading && userPlan === "pro",
+    enabled: feedTab === "emerging",
   });
 
   const {
@@ -158,6 +166,7 @@ function TrendsFeed() {
     queryFn: () => fetchPeakedTrends(language, selectedNiche, activeLanguages),
     staleTime: 15 * 60_000, // 15 min stale time for peaked trends
     refetchInterval: 30 * 60_000, // 30 min polling
+    enabled: feedTab === "peaked",
   });
 
   const {
@@ -170,6 +179,7 @@ function TrendsFeed() {
     queryFn: () => fetchExpiredTrends(language, selectedNiche, activeLanguages),
     staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
     refetchInterval: 60 * 60_000, // 60 min polling
+    enabled: feedTab === "expired",
   });
 
   const {
@@ -182,6 +192,7 @@ function TrendsFeed() {
     queryFn: () => fetchResurgingTrends(language, selectedNiche, activeLanguages),
     staleTime: 5 * 60_000, // 5 min — resurging changes less often than rising
     refetchInterval: 10 * 60_000,
+    enabled: feedTab === "resurging",
   });
 
   const {
@@ -193,6 +204,7 @@ function TrendsFeed() {
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
     staleTime: 10_000,
+    enabled: feedTab === "workspace",
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
@@ -539,7 +551,7 @@ function TrendsFeed() {
             onUpgrade={() => window.location.href = '/pricing'}
           >
             <div className="flex flex-col gap-4">
-              {trends.map((t) => (
+              {trends.slice(0, displayLimit).map((t) => (
                 <TrendCard
                   key={t.id}
                   trend={withCountdown(t)}
@@ -550,7 +562,7 @@ function TrendsFeed() {
             </div>
           </PlanGate>
         ) : (
-          trends.map((t) => (
+          trends.slice(0, displayLimit).map((t) => (
             <TrendCard
               key={t.id}
               trend={withCountdown(t)}
@@ -558,6 +570,17 @@ function TrendsFeed() {
               selectedNiche={selectedNiche}
             />
           ))
+        )}
+
+        {displayLimit < trends.length && (
+          <div className="text-center py-4">
+            <button
+              onClick={() => setDisplayLimit((prev) => Math.min(prev + 15, trends.length))}
+              className="rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-4 py-2.5 transition-all shadow-sm"
+            >
+              Load more trends ({trends.length - displayLimit} remaining)
+            </button>
+          </div>
         )}
       </div>
 

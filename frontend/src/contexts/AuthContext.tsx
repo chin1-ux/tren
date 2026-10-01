@@ -32,7 +32,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
 
   const checkAuth = async () => {
-    setLoading(true);
     try {
       const token = localStorage.getItem("trendrop_session_token");
       if (!token) {
@@ -40,6 +39,17 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         setLoading(false);
         return;
       }
+
+      // Seed cached user state immediately so initial render is instant (0ms delay)
+      const cachedEmail = localStorage.getItem("trendrop_user_email");
+      const cachedNiche = localStorage.getItem("trendrop_user_niche") || "all";
+      const cachedLang = localStorage.getItem("trendrop_user_language") || "hi";
+      const cachedPlan = localStorage.getItem("trendrop_user_plan") || "free";
+      if (cachedEmail) {
+        setUser({ email: cachedEmail, niche: cachedNiche, language: cachedLang, plan: cachedPlan });
+        setAuthToken(token);
+      }
+      setLoading(false);
 
       const controller = new AbortController();
       const timeout = setTimeout(() => controller.abort(), 8000);
