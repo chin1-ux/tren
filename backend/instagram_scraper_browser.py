@@ -136,72 +136,79 @@ class InstagramScraper:
         
         self.hashtag_groups = {
             # ── INDIA AUDIO / SONG TRENDS ──────────────────────────────────────────
-            # High-signal for Bollywood & Hindi songs going viral on reels
+            # DB-validated: real creators use these when posting to trending Bollywood audio
+            # Research: top signals for song-driven reel discovery in India
             "INDIA_AUDIO": [
-                "bollywoodreels", "bollywoodsongs", "hindisong", "hindisongs",
-                "newsong", "newsongs", "trending song", "trendingsong", "trendingsongs",
-                "musicreels", "songoftheday", "latestsong", "superhitsong",
-                "instasong", "reelsvideo", "reelsindia", "viralreels",
-                "instamusic", "reelsbollywood", "trendingbollywood"
+                "bollywoodreels", "bollywoodsongs", "bollywoodmusic", "bollywooddance",
+                "hindisongs", "hindisong", "hindimusic", "trendingsong", "trendingsongs",
+                "viralsong", "newsong", "musicreels", "instamusic",
+                "reelitfeelit", "reelsindia", "viralreels", "trendingreels",
+                "reelkarofeelkaro", "filmyreels", "bollywoodvibes"
             ],
-            # ── INDIA TRENDING (general discovery) ────────────────────────────────
+            # ── INDIA TRENDING (general discovery — DB: reelkarofeelkaro #24, viralreels #34)
             "INDIA_TRENDING": [
                 "trendingindia", "exploreindia", "reelkarofeelkaro",
-                "indianreels", "viralvideo", "viralpost", "indiatiktok"
+                "indianreels", "viralvideo", "indiatiktok",
+                "reelsinstagram", "trendingnow", "desivibes"
             ],
-            # ── INDIA VERNACULAR (language-specific, keeps regional audio) ─────────
+            # ── INDIA VERNACULAR (DB-validated: punjabisongs #23, telugureels #11, etc.)
             "INDIA_VERNACULAR": [
                 "telugureels", "tamilreels", "kannadareels", "marathireels",
                 "punjabisongs", "hindireels", "malayalamreels",
-                "telugusongs", "tamilsongs", "punjabireels"
+                "telugusongs", "tamilsongs", "punjabireels",
+                "bhojpurigaane", "gujaratireels"
             ],
-            # ── DANCE (best category for audio discovery — audio drives dance trends)
+            # ── DANCE (DB: dancechallenge #16, dancecover #16, choreography #15, dancereels #8)
+            # Audio drives dance — highest audio-signal category confirmed by DB
             "DANCE": [
                 "dancereels", "dancechallenge", "dancetrend", "choreography",
                 "danceindia", "indiandance", "dancevideo", "dancecover",
-                "bollywoaddance", "bollywoodchoreography", "contemporarydance",
-                "hiphop", "hiphopdance", "streetdance", "danceperformance",
-                "latindance", "salsadance", "kpopchoreography"
+                "bollywooddance", "bollywoodchoreography",
+                "hiphop", "hiphopdance", "streetdance",
+                "latindance", "kpopchoreography", "danceviral",
+                "reelsdance", "dancelife"
             ],
-            # ── FASHION (audio + visual trend signals, high creator diversity) ─────
+            # ── FASHION (grwm / ootd = creators always use trending audio) ─────────
             "FASHION": [
                 "fashionreels", "indianfashion", "ootdindia", "desifashion",
                 "grwm", "getreadywithme", "outfitoftheday", "ootd",
                 "fashiontrends", "streetstyle", "aestheticreels",
-                "fashionbloggerindia", "ethnicwear", "sareelove"
+                "fashionbloggerindia", "ethnicwear", "sareelove",
+                "desicontent", "desiswag"
             ],
-            # ── BEAUTY (lip-syncs to trending audio are extremely common here) ─────
+            # ── BEAUTY (lip-sync capital — most audio reuse per post) ─────────────
             "BEAUTY": [
                 "beautyreels", "makeuptutorial", "glowup", "skincareroutine",
                 "indianmakeup", "desibeauty", "makeupvideos", "makeuplooks",
                 "nykaa", "skincareindia", "beautyhacks", "makeuptransformation",
-                "bridalmakeup", "desiwedding"
+                "bridalmakeup", "desiwedding", "makeuptransition"
             ],
-            # ── COMEDY (audio memes & trending clips — very high audio reuse) ─────
+            # ── COMEDY (DB: funnyreels, trending audio memes) ─────────────────────
             "COMEDY": [
                 "desicomedy", "comedyreels", "indiancomedy", "funnyreels",
                 "relatablereels", "funnyvideo", "comedyvideo", "desimemes",
-                "memesindia", "funnyshorts"
+                "memesindia", "funnyshorts", "trending_comedy"
             ],
-            # ── FITNESS (workout music is a strong audio-trend signal) ────────────
+            # ── FITNESS (workout music = strong audio signal, gymphonk crossover) ──
             "FITNESS": [
                 "fitnessreels", "gymreels", "workoutmotivation", "gymmotivation",
                 "fitindia", "indianfitness", "gymlife", "bodybuildingindia",
-                "yoga", "yogaindia", "desiworkout", "workoutvideo"
+                "yoga", "yogaindia", "desiworkout", "workoutvideo",
+                "gymphonk", "gymedits"
             ],
-            # ── FOOD (trending song + food reels = high reel counts) ──────────────
+            # ── FOOD ──────────────────────────────────────────────────────────────
             "FOOD": [
                 "foodreels", "indianstreetfood", "desifood", "foodbloggerindia",
                 "mumbaifoodie", "delhifoodie", "indianrecipes", "streetfoodindia",
                 "homecooking", "foodporn", "biryani", "paneer"
             ],
-            # ── TRAVEL (trending audio used heavily in travel montages) ───────────
+            # ── TRAVEL ────────────────────────────────────────────────────────────
             "TRAVEL": [
                 "travelreels", "incredibleindia", "travelindia", "wanderlust",
                 "goadiaries", "keralatourism", "rajasthantourism",
                 "solotravel", "indiapictures", "travelvlog"
             ],
-            # ── MOTIVATION / LIFESTYLE ─────────────────────────────────────────────
+            # ── MOTIVATION ────────────────────────────────────────────────────────
             "MOTIVATION": [
                 "motivationreels", "successmindset", "hustle", "entrepreneurindia",
                 "startupindia", "growthmindset", "dailymotivation",
@@ -213,25 +220,29 @@ class InstagramScraper:
                 "footballindia", "badminton", "indiancricket",
                 "sportsreels", "neerajchopra", "kabaddi"
             ],
-            # ── GLOBAL_DISCOVERY (music & audio seeds only — no generic/noisy tags) 
+            # ── GLOBAL_DISCOVERY ─────────────────────────────────────────────────
+            # DB-validated: reggaeton #10, kpop #10, funkbrasil #9, passinho #5, afrobeats #5
+            # Research: tags real creators put on their posts (not curator aggregators)
             "GLOBAL_DISCOVERY": [
-                # Core viral audio seeds
+                # Core: real creators tag their audio-driven posts with these
                 "viralaudio", "trendingsound", "viralmusic", "reelsaudio",
-                "trendingaudio", "reelsound", "trendingsongs", "musicvideo",
-                "speedupsongs", "remixreels",
-                # Dance & challenge (audio-driven)
+                "trendingaudio", "viralsong", "speedupsongs", "remixreels",
+                # Dance/challenge (audio is the reason these get posted)
                 "dancechallenge", "dancetrend", "tiktokdance", "choreography",
-                # Brazilian Phonk & Funk (extremely high audio reuse rate)
-                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
-                "speedupphonk", "driftphonk", "phonkdance",
-                "passinho", "funkmtg", "dancabrasil",
-                # Latin & Spanish
-                "reggaeton", "latinmusic", "latinreels", "spanishmusic",
-                # K-Pop & Afrobeats
-                "afrobeats", "afrobeatsreels", "kpop", "kpopdance", "kpopreels",
-                # Pop / Hip-hop / EDM
-                "popmusic", "hiphopreels", "edmmusic", "hiphop",
-                "rnbmusic", "indiemusic", "alternativemusic"
+                # Brazilian Phonk & Funk — DB confirmed: funkbrasil #9, passinho #5
+                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic",
+                "speedupphonk", "driftphonk", "darkphonk",
+                "passinho", "funkmtg", "montagem",
+                # Amapiano (huge in 2025-26, crossover with afrobeats)
+                "amapiano", "amapianovibes", "amapianodance",
+                # Afrobeats — DB confirmed: afrobeats #5, naijamusic growing
+                "afrobeats", "afrobeatsreels", "amapiano", "afrodance", "naijamusic",
+                # K-Pop — DB confirmed: kpop #10
+                "kpop", "kpopdance", "kpopedit", "kpopchoreography",
+                # Latin/Spanish — DB confirmed: reggaeton #10
+                "reggaeton", "latinmusic", "spanishmusic", "perreo",
+                # Hip-hop / R&B / Pop
+                "hiphop", "hiphopreels", "rnbmusic", "popmusic"
             ]
         }
 
@@ -1911,12 +1922,18 @@ Return ONLY valid JSON, no markdown, no explanation:
             elif scrape_mode == "global":
                 priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             elif scrape_mode == "india":
+                # India mode: audio-first selection
+                # INDIA_AUDIO is the highest-signal group for bollywood/hindi trending audio
+                # DANCE is DB-confirmed top audio category (dancechallenge #16, choreography #15)
+                # VERNACULAR keeps regional audio signals (punjabisongs #23 in DB)
+                # Max ~20 tags total to stay within 15-min SCRAPER_GLOBAL_TIMEOUT
                 priority_pool = (
-                    self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
-                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
-                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
-                    + self.hashtag_groups.get("DANCE", [])[:2]
-                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:4]
+                    self.hashtag_groups.get("INDIA_AUDIO", [])[:6]
+                    + self.hashtag_groups.get("INDIA_TRENDING", [])[:4]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:4]
+                    + self.hashtag_groups.get("DANCE", [])[:3]
+                    + self.hashtag_groups.get("BEAUTY", [])[:2]
+                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:3]
                 )
             else:
                 # 50/50 Mixed Mode (Default): Equal balance between India trends & Global sounds

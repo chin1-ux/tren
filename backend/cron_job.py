@@ -318,8 +318,32 @@ def run_full_pipeline(stages: list = None):
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
     if scrape_mode == "global" and not os.environ.get("SCRAPER_HASHTAGS"):
-        # High-signal global tags prioritizing: Brazilian (phonk/funk), K-Pop, English (speedup/remix/viralaudio), Spanish (reggaeton/latin)
-        global_tags = "brazilianphonk,funkbrasil,phonkmusic,phonk,funkmtg,reelsbrasil,passinho,dancabrasil,speedupphonk,kpop,kpopdance,kpopreels,kpopsongs,viralaudio,trendingsound,speedupsongs,remixreels,reelsound,viralmusic,audiosforedits,trendingaudio,reggaeton,latinmusic,spanishmusic,latinreels,spanishreels,latintrend,perreo,afrobeats,afrobeatsreels"
+        # High-signal global tags — DB-validated + research-validated
+        # Rule: tags real creators PUT ON THEIR OWN POSTS, not curator aggregation tags
+        # DB evidence: reggaeton #10, kpop #10, funkbrasil #9, passinho #5, afrobeats #5, viralaudio #13
+        # Removed: latinreels, spanishreels, latintrend, kpopsongs, reelsbrasil, audiosforedits
+        # Added: amapiano (fastest growing 2025-26), darkphonk, naijamusic, montagem, kpopedit, perreo
+        global_tags = (
+            # Core viral audio signals (creators tag their audio posts with these)
+            "viralaudio,trendingsound,viralmusic,reelsaudio,trendingaudio,viralsong,"
+            "speedupsongs,remixreels,"
+            # Dance/challenge (audio-driven posts) — DB: dancechallenge #16, choreography #15
+            "dancechallenge,dancetrend,tiktokdance,choreography,"
+            # Brazilian Phonk & Funk — DB: funkbrasil #9, passinho #5
+            "brazilianphonk,funkbrasil,phonk,phonkmusic,speedupphonk,driftphonk,darkphonk,"
+            "passinho,funkmtg,montagem,"
+            # Amapiano — fastest growing genre 2025-26, heavy dance/audio content
+            "amapiano,amapianovibes,amapianodance,"
+            # Afrobeats — DB: afrobeats #5, naijamusic growing
+            "afrobeats,afrobeatsreels,afrodance,naijamusic,"
+            # K-Pop — DB: kpop #10, creators use kpopedit heavily
+            "kpop,kpopdance,kpopedit,"
+            # Latin/Spanish — DB: reggaeton #10, perreo is what creators actually use
+            "reggaeton,latinmusic,spanishmusic,perreo,"
+            # Hip-hop / R&B
+            "hiphop,hiphopreels,rnbmusic"
+        )
+        global_tags = global_tags.replace("\n", "").replace(" ", "")
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
 
