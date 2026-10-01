@@ -135,86 +135,103 @@ class InstagramScraper:
         self._camoufox_page = None      # Active page for scraping
         
         self.hashtag_groups = {
+            # ── INDIA AUDIO / SONG TRENDS ──────────────────────────────────────────
+            # High-signal for Bollywood & Hindi songs going viral on reels
+            "INDIA_AUDIO": [
+                "bollywoodreels", "bollywoodsongs", "hindisong", "hindisongs",
+                "newsong", "newsongs", "trending song", "trendingsong", "trendingsongs",
+                "musicreels", "songoftheday", "latestsong", "superhitsong",
+                "instasong", "reelsvideo", "reelsindia", "viralreels",
+                "instamusic", "reelsbollywood", "trendingbollywood"
+            ],
+            # ── INDIA TRENDING (general discovery) ────────────────────────────────
             "INDIA_TRENDING": [
-                "indiansong", "reelkarofeelkaro", "trendingindia", "exploreindia"
+                "trendingindia", "exploreindia", "reelkarofeelkaro",
+                "indianreels", "viralvideo", "viralpost", "indiatiktok"
             ],
+            # ── INDIA VERNACULAR (language-specific, keeps regional audio) ─────────
             "INDIA_VERNACULAR": [
-                "telugureels", "kannadareels", "marathireels", "punjabisongs",
-                "hindireels", "tamilreels", "malayalamreels",
-                "keralagram", "chennaimemes"
+                "telugureels", "tamilreels", "kannadareels", "marathireels",
+                "punjabisongs", "hindireels", "malayalamreels",
+                "telugusongs", "tamilsongs", "punjabireels"
             ],
-            "FITNESS": [
-                "fitnessreels", "gymindia", "workoutmotivation", "desiworkout",
-                "fitindia", "indianfitness", "gymreels", "fitnessjourney",
-                "bodybuildingindia", "yoga", "yogaindia"
+            # ── DANCE (best category for audio discovery — audio drives dance trends)
+            "DANCE": [
+                "dancereels", "dancechallenge", "dancetrend", "choreography",
+                "danceindia", "indiandance", "dancevideo", "dancecover",
+                "bollywoaddance", "bollywoodchoreography", "contemporarydance",
+                "hiphop", "hiphopdance", "streetdance", "danceperformance",
+                "latindance", "salsadance", "kpopchoreography"
             ],
-            "FOOD": [
-                "foodreels", "indianstreetfood", "desifood", "foodbloggerindia",
-                "mumbaifoodie", "delhifoodie", "homecooking", "indianrecipes",
-                "foodporn", "streetfoodindia", "paneer", "biryani"
+            # ── FASHION (audio + visual trend signals, high creator diversity) ─────
+            "FASHION": [
+                "fashionreels", "indianfashion", "ootdindia", "desifashion",
+                "grwm", "getreadywithme", "outfitoftheday", "ootd",
+                "fashiontrends", "streetstyle", "aestheticreels",
+                "fashionbloggerindia", "ethnicwear", "sareelove"
             ],
+            # ── BEAUTY (lip-syncs to trending audio are extremely common here) ─────
+            "BEAUTY": [
+                "beautyreels", "makeuptutorial", "glowup", "skincareroutine",
+                "indianmakeup", "desibeauty", "makeupvideos", "makeuplooks",
+                "nykaa", "skincareindia", "beautyhacks", "makeuptransformation",
+                "bridalmakeup", "desiwedding"
+            ],
+            # ── COMEDY (audio memes & trending clips — very high audio reuse) ─────
             "COMEDY": [
                 "desicomedy", "comedyreels", "indiancomedy", "funnyreels",
-                "relatablereels"
+                "relatablereels", "funnyvideo", "comedyvideo", "desimemes",
+                "memesindia", "funnyshorts"
             ],
-            "DANCE": [
-                "dancechallenge", "choreography", "dancereels", "danceindia",
-                "dancevideo"
+            # ── FITNESS (workout music is a strong audio-trend signal) ────────────
+            "FITNESS": [
+                "fitnessreels", "gymreels", "workoutmotivation", "gymmotivation",
+                "fitindia", "indianfitness", "gymlife", "bodybuildingindia",
+                "yoga", "yogaindia", "desiworkout", "workoutvideo"
             ],
-            "FASHION": [
-                "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",
-                "ethnicwear", "sareelove", "kurtistyle", "fashionbloggerindia",
-                "grwm", "desifashion"
+            # ── FOOD (trending song + food reels = high reel counts) ──────────────
+            "FOOD": [
+                "foodreels", "indianstreetfood", "desifood", "foodbloggerindia",
+                "mumbaifoodie", "delhifoodie", "indianrecipes", "streetfoodindia",
+                "homecooking", "foodporn", "biryani", "paneer"
             ],
+            # ── TRAVEL (trending audio used heavily in travel montages) ───────────
             "TRAVEL": [
-                "travelreels", "incredibleindia", "travelindia", "himalayas",
-                "goadiaries", "keralatourism", "rajasthantourism", "wanderlust",
-                "solotravel", "indiapictures"
+                "travelreels", "incredibleindia", "travelindia", "wanderlust",
+                "goadiaries", "keralatourism", "rajasthantourism",
+                "solotravel", "indiapictures", "travelvlog"
             ],
-            "BEAUTY": [
-                "beautyreels", "indianmakeup", "skincareroutine", "desiwedding",
-                "bridalmakeup", "makeuptutorial", "glowup", "nykaa",
-                "skincareindia", "desibeauty"
-            ],
-            "TECH": [
-                "techreels", "techindia", "gadgets", "coding", "developer",
-                "python", "programmer", "softwareengineer", "techreview",
-                "artificialintelligence", "machinelearning"
-            ],
+            # ── MOTIVATION / LIFESTYLE ─────────────────────────────────────────────
             "MOTIVATION": [
                 "motivationreels", "successmindset", "hustle", "entrepreneurindia",
-                "startupindia", "businessindia", "motivationalquotes",
-                "growthmindset", "leadership", "dailyquotes"
+                "startupindia", "growthmindset", "dailymotivation",
+                "selfimprovement", "mindset", "leadership"
             ],
-            "CURRENT_AFFAIRS": [
-                "currentaffairs", "newsindia", "geopolitics", "upsc", "indiaexplained",
-                "indiannews", "politicsindia", "breakingnews", "stockmarketindia",
-                "financeindia", "economy"
-            ],
+            # ── SPORTS ────────────────────────────────────────────────────────────
             "SPORTS": [
-                "sportsreels", "cricketindia", "ipl", "viratkohli", "msdhoni",
-                "footballindia", "badminton", "kabaddi", "neerajchopra",
-                "indiancricket"
+                "cricketindia", "ipl", "viratkohli", "msdhoni",
+                "footballindia", "badminton", "indiancricket",
+                "sportsreels", "neerajchopra", "kabaddi"
             ],
+            # ── GLOBAL_DISCOVERY (music & audio seeds only — no generic/noisy tags) 
             "GLOBAL_DISCOVERY": [
-                # Broad Humanized Everyday Viral Tags
-                "fyp", "viral", "trending", "foryou", "explorar", "reels", "brasil", "danca",
-                # Global Dance & Challenge Seeds
+                # Core viral audio seeds
+                "viralaudio", "trendingsound", "viralmusic", "reelsaudio",
+                "trendingaudio", "reelsound", "trendingsongs", "musicvideo",
+                "speedupsongs", "remixreels",
+                # Dance & challenge (audio-driven)
                 "dancechallenge", "dancetrend", "tiktokdance", "choreography",
-                "hiphopdance", "dancecover", "dancevideo",
-                # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
-                "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
-                "trendingsound", "viralmusic", "reelsound",
-                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Native Dance Steps)
+                # Brazilian Phonk & Funk (extremely high audio reuse rate)
                 "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
-                "speedupphonk", "driftphonk", "phonkdance", "reelsbrasil",
-                "passinho", "funkmtg", "dancabrasil", "mtgphonk",
-                # Spanish & Latin Seeds
-                "reggaeton", "latinmusic", "latinreels", "spanishmusic", "spanishreels", "latintrend",
-                # K-Pop & Afrobeats Seeds
-                "afrobeats", "afrobeatsreels", "kpop", "kpopdance",
-                # Broad Viral & Music Seeds
-                "music", "trendingaudio", "popmusic", "hiphopreels", "edmmusic", "kpopreels"
+                "speedupphonk", "driftphonk", "phonkdance",
+                "passinho", "funkmtg", "dancabrasil",
+                # Latin & Spanish
+                "reggaeton", "latinmusic", "latinreels", "spanishmusic",
+                # K-Pop & Afrobeats
+                "afrobeats", "afrobeatsreels", "kpop", "kpopdance", "kpopreels",
+                # Pop / Hip-hop / EDM
+                "popmusic", "hiphopreels", "edmmusic", "hiphop",
+                "rnbmusic", "indiemusic", "alternativemusic"
             ]
         }
 
