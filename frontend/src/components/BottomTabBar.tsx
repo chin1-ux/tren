@@ -1,7 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
 import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
-import { fetchTrends, fetchEmergingTrends } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,24 +15,6 @@ export function BottomTabBar() {
 
   const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
   const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
-
-  const { data: risingTrends } = useQuery({
-    queryKey: ["trends", "all", "velocity", "all"],
-    queryFn: () => fetchTrends("all", "velocity", "all"),
-    staleTime: 2 * 60_000,
-    gcTime: 10 * 60_000,
-    enabled: !shouldHide && Boolean(user),
-  });
-
-  const { data: emergingTrends } = useQuery({
-    queryKey: ["trends-emerging", "all"],
-    queryFn: () => fetchEmergingTrends(),
-    staleTime: 2 * 60_000,
-    gcTime: 10 * 60_000,
-    enabled: !shouldHide && Boolean(user),
-  });
-
-  const activeCount = (risingTrends?.length ?? 0) + (emergingTrends?.length ?? 0);
 
   if (shouldHide) {
     return null;
@@ -103,12 +83,6 @@ export function BottomTabBar() {
                 >
                   {/* All tabs use their Icon for consistent active-state colour */}
                   <Icon className="h-5 w-5" />
-                  {/* Active trends count badge on Trends tab */}
-                  {label === "Trends" && activeCount > 0 && (
-                    <span className="absolute -right-2.5 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-[#ff006e] px-1 text-[8px] font-extrabold text-white animate-pulse shadow-[0_0_8px_rgba(255,0,110,0.5)]">
-                      {activeCount > 99 ? "99+" : activeCount}
-                    </span>
-                  )}
                 </motion.div>
                 <span className="text-[10px] sm:text-[11px] font-display mt-0.5">{label}</span>
               </Link>

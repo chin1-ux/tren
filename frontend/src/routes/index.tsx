@@ -109,7 +109,6 @@ function TrendsFeed() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
-  const lastTotalActiveRef = useRef<number>(0);
 
   // Niche filter — read from preferences
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
@@ -357,17 +356,6 @@ function TrendsFeed() {
     hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
   }), []);
 
-  const totalActive = useMemo(() => {
-    const isRisingLoading = risingLoading && !risingData;
-    const isEmergingLoading = emergingLoading && !emergingData;
-    if (isRisingLoading || isEmergingLoading) {
-      return lastTotalActiveRef.current;
-    }
-    const count = deduplicatedTrends.rising.length + deduplicatedTrends.emerging.length + deduplicatedTrends.resurging.length;
-    lastTotalActiveRef.current = count;
-    return count;
-  }, [deduplicatedTrends, risingLoading, emergingLoading, risingData, emergingData]);
-
   return (
     <div className="flex flex-col gap-0 pb-24">
         {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
@@ -415,13 +403,6 @@ function TrendsFeed() {
               </div>
             </button>
           </div>
-        </div>
-
-        {/* Simplified Stats */}
-        <div className="relative z-10 text-center mt-2">
-          <p className="text-xs font-bold tracking-wide uppercase text-muted-foreground">
-            {totalActive.toLocaleString()} active trends tracked
-          </p>
         </div>
       </div>
 
