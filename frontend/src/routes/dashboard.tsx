@@ -57,14 +57,14 @@ function Dashboard() {
   return (
     <>
       <OnboardingTour open={isOpen} onComplete={closeOnboarding} />
-      <div className="container mx-auto py-8 px-4">
+      <div className="container mx-auto py-8 px-4 pb-28">
         {/* Personalized greeting row */}
         <div className="flex items-center justify-between mb-5">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
               {nicheEmoji} {nicheLabel} Dashboard
             </p>
-            <h1 className="text-xl font-bold font-display mt-0.5">
+            <h1 className="text-xl font-bold font-display mt-0.5 text-foreground">
               {isCurrentAffairsCreator
                 ? "Breaking stories & commentary windows"
                 : "Curated short-form trend feed"}
@@ -74,7 +74,7 @@ function Dashboard() {
             variant="ghost"
             size="sm"
             onClick={startOnboarding}
-            className="gap-1.5 text-muted-foreground"
+            className="gap-1.5 text-muted-foreground hover:text-foreground"
           >
             <HelpCircle className="h-4 w-4" />
             Tour
@@ -83,19 +83,28 @@ function Dashboard() {
 
         <Tabs defaultValue={defaultTab} className="w-full">
           <div className="w-full overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
-            <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1 h-11 gap-1.5 bg-muted/60 rounded-xl">
-              <TabsTrigger value="early-detection" className="shrink-0 flex items-center gap-1.5">
-                <Flame className="h-3.5 w-3.5" />
+            <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1.5 h-12 gap-2 bg-muted/70 border border-border/50 rounded-2xl">
+              <TabsTrigger
+                value="early-detection"
+                className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60"
+              >
+                <Flame className="h-3.5 w-3.5 text-primary" />
                 Trending Audio
               </TabsTrigger>
 
-              <TabsTrigger value="breaking-news" className="shrink-0 flex items-center gap-1.5">
-                <Newspaper className="h-3.5 w-3.5" />
+              <TabsTrigger
+                value="breaking-news"
+                className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60"
+              >
+                <Newspaper className="h-3.5 w-3.5 text-blue-400" />
                 Viral News
               </TabsTrigger>
 
-              <TabsTrigger value="analytics" className="shrink-0 flex items-center gap-1.5">
-                <BarChart3 className="h-3.5 w-3.5" />
+              <TabsTrigger
+                value="analytics"
+                className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60"
+              >
+                <BarChart3 className="h-3.5 w-3.5 text-purple-400" />
                 Analytics & AI
               </TabsTrigger>
             </TabsList>

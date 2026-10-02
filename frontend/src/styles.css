@@ -81,6 +81,17 @@
   --primary:      #FF4D3D;   /* = brand-coral */
   --accent:       #C7F23A;   /* = brand-lime */
 
+  /* Base theme mappings */
+  --background:   var(--bg);
+  --foreground:   var(--text);
+  --card:         var(--surface);
+  --card-foreground: var(--text);
+  --popover:      var(--surface);
+  --popover-foreground: var(--text);
+  --muted:        var(--surface-2);
+  --muted-foreground: var(--text-2);
+  --input:        var(--border);
+
   /* Theme variables for compatibility */
   --surface-raised: #EDECE5;
   --text-100: #0B0B0F;
@@ -103,6 +114,17 @@
   --primary:      #FF6B57;   /* = brand-coral-2 */
   --accent:       #D4FF3A;   /* = brand-lime-2 */
 
+  /* Base theme mappings */
+  --background:   var(--bg);
+  --foreground:   var(--text);
+  --card:         var(--surface);
+  --card-foreground: var(--text);
+  --popover:      var(--surface);
+  --popover-foreground: var(--text);
+  --muted:        var(--surface-2);
+  --muted-foreground: var(--text-2);
+  --input:        var(--border);
+
   /* Theme variables for compatibility */
   --surface-raised: #2A2A35;
   --text-100: #F5F1E8;
@@ -118,8 +140,8 @@
   }
 
   html, body {
-    background-color: var(--background);
-    color: var(--foreground);
+    background-color: var(--bg);
+    color: var(--text);
     font-family: var(--font-sans);
     font-size: 16px;
     line-height: 1.5;
