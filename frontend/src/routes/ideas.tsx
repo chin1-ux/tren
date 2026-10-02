@@ -37,12 +37,13 @@ import { FEATURES } from "@/lib/features";
 import { PlanGate } from "@/components/PlanGate";
 import { useUserStore } from "@/store/useAppStore";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { FestiveViralRadar } from "@/components/FestiveViralRadar";
 
 export const Route = createFileRoute("/ideas")({
   head: () => ({
     meta: [
       { title: "Ideation & Scoring Hub — Trendrop" },
-      { name: "description", content: "Personalized daily ideas, reel scoring gauge, hook generator, and content calendar." },
+      { name: "description", content: "Personalized daily ideas, festive viral radar, reel scoring gauge, hook generator, and content calendar." },
     ],
   }),
   errorComponent: RouteErrorBoundary,
@@ -60,7 +61,18 @@ function IdeasPage() {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const [activeTab, setActiveTab] = useState<"daily" | "score" | "hooks" | "calendar">("daily");
+  const [activeTab, setActiveTab] = useState<"daily" | "festive" | "score" | "hooks" | "calendar">("daily");
+
+  // Read URL search params on mount (e.g. ?tab=festive)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "festive" || tabParam === "score" || tabParam === "hooks" || tabParam === "calendar" || tabParam === "daily") {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, []);
 
   // Hide calendar tab if feature disabled
   const availableTabs = FEATURES.CALENDAR_ENABLED 
@@ -295,19 +307,19 @@ function IdeasPage() {
       currentPlan={userPlan}
       onUpgrade={() => window.location.href = '/pricing'}
     >
-    <div className="flex flex-col gap-6 px-4 pb-28 pt-6 max-w-2xl mx-auto w-full">
+    <div className={`flex flex-col gap-6 px-4 pb-28 pt-6 ${activeTab === 'festive' ? 'max-w-5xl' : 'max-w-2xl'} mx-auto w-full transition-all`}>
       <header className="flex items-center gap-3">
         <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-gradient-to-br from-primary to-purple-600 text-white text-xl font-bold shadow-lg shadow-primary/20 animate-pulse">
           <Lightbulb className="h-6 w-6" />
         </div>
         <div>
           <h1 className="font-display text-2xl font-bold bg-clip-text bg-gradient-to-r from-text via-text to-primary text-transparent">Ideation Hub</h1>
-          <p className="text-xs text-muted-foreground">AI-powered trend scoring, hook generators, and daily schedules</p>
+          <p className="text-xs text-muted-foreground">AI-powered trend scoring, festive viral radar, hook generators, and schedules</p>
         </div>
       </header>
 
       {/* Modern High-End Tab Swapper */}
-      <div className={`grid gap-1 rounded-xl bg-surface-2 border border-border p-1 backdrop-blur-md ${FEATURES.CALENDAR_ENABLED ? 'grid-cols-4' : 'grid-cols-3'}`}>
+      <div className={`grid gap-1 rounded-xl bg-surface-2 border border-border p-1 backdrop-blur-md ${FEATURES.CALENDAR_ENABLED ? 'grid-cols-5' : 'grid-cols-4'}`}>
         <button
           onClick={() => setActiveTab("daily")}
           className={`flex flex-col md:flex-row items-center justify-center gap-1.5 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 ${
@@ -319,6 +331,20 @@ function IdeasPage() {
           <Sparkles className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Idea Drop</span>
           <span className="sm:hidden">Daily</span>
+        </button>
+
+        <button
+          onClick={() => setActiveTab("festive")}
+          className={`flex flex-col md:flex-row items-center justify-center gap-1 rounded-lg py-2.5 text-[10px] font-bold uppercase tracking-wider transition-all duration-300 relative ${
+            activeTab === "festive" 
+              ? "bg-gradient-to-r from-orange-500 to-amber-600 text-white shadow-lg shadow-orange-500/20" 
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Flame className="h-3.5 w-3.5 text-orange-400" />
+          <span className="hidden sm:inline">Festive Radar</span>
+          <span className="sm:hidden">Festive</span>
+          <span className="hidden lg:inline text-[8px] px-1 py-0.2 bg-orange-400 text-black font-extrabold rounded ml-0.5">HOT</span>
         </button>
 
         <button
@@ -342,7 +368,7 @@ function IdeasPage() {
               : "text-muted-foreground hover:text-foreground"
           }`}
         >
-          <Flame className="h-3.5 w-3.5" />
+          <Compass className="h-3.5 w-3.5" />
           <span className="hidden sm:inline">Hook Gen</span>
           <span className="sm:hidden">Hooks</span>
         </button>
@@ -366,6 +392,19 @@ function IdeasPage() {
       {/* Main Tab Contents */}
       <div className="mt-2 min-h-[450px]">
         <AnimatePresence mode="wait">
+          {/* TAB: FESTIVE VIRAL RADAR */}
+          {activeTab === "festive" && (
+            <motion.div
+              key="festive"
+              initial={{ opacity: 0, y: 15 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -15 }}
+              transition={{ duration: 0.2 }}
+            >
+              <FestiveViralRadar />
+            </motion.div>
+          )}
+
           {/* TAB 1: DAILY IDEA DROP */}
           {activeTab === "daily" && (
             <motion.div 

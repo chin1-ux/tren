@@ -1,17 +1,22 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { CreatorAnalyticsDashboard } from "@/components/CreatorAnalyticsDashboard";
-import { AIContentGenerator } from "@/components/AIContentGenerator";
-import { PlanGate } from "@/components/PlanGate";
+import { useEffect, useState } from "react";
 import { EarlyDetectionPanel } from "@/components/EarlyDetectionPanel";
-import { NewsFeedPanel } from "@/components/NewsFeedPanel";
+import { FestiveViralRadar } from "@/components/FestiveViralRadar";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { OnboardingTour, useOnboarding } from "@/components/OnboardingTour";
 import { Button } from "@/components/ui/button";
-import { HelpCircle, Newspaper, Flame, BarChart3, Sparkles } from "lucide-react";
+import { HelpCircle, Flame } from "lucide-react";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 
 export const Route = createFileRoute("/dashboard")({
+  head: () => ({
+    meta: [
+      { title: "Creator Dashboard — Trendrop" },
+      { name: "description", content: "Trending Audio early detection, Festive Viral Radar, and Creator Studio post-mortem flop audit." },
+    ],
+  }),
   component: Dashboard,
   errorComponent: RouteErrorBoundary,
 });
@@ -40,16 +45,27 @@ const NICHE_EMOJIS: Record<string, string> = {
   all: "🌐",
 };
 
-import { useEffectivePlan } from "@/lib/plan";
-
 function Dashboard() {
   const { isOpen, startOnboarding, closeOnboarding } = useOnboarding();
-  const userEmail = useUserStore((s) => s.email) ?? "";
   const userNiche = useUserStore((s) => s.niche) || "all";
   const userPlan = useEffectivePlan();
 
-  const isCurrentAffairsCreator = userNiche === "current_affairs";
-  const defaultTab = isCurrentAffairsCreator ? "breaking-news" : "early-detection";
+  const [activeTab, setActiveTab] = useState<string>("early-detection");
+
+  // Read URL query params on mount (e.g. ?tab=festive or ?tab=studio)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const tabParam = params.get("tab");
+      if (tabParam === "festive" || tabParam === "festive-radar") {
+        setActiveTab("festive-radar");
+      } else if (tabParam === "studio" || tabParam === "flop") {
+        setActiveTab("studio");
+      } else if (tabParam === "audio" || tabParam === "early-detection") {
+        setActiveTab("early-detection");
+      }
+    }
+  }, []);
 
   const nicheEmoji = NICHE_EMOJIS[userNiche] ?? "🌐";
   const nicheLabel = NICHE_LABELS[userNiche] ?? "Creator";
@@ -57,18 +73,19 @@ function Dashboard() {
   return (
     <>
       <OnboardingTour open={isOpen} onComplete={closeOnboarding} />
-      <div className="container mx-auto py-8 px-4 pb-28">
+      <div className="container mx-auto py-8 px-4 pb-28 max-w-6xl">
         {/* Personalized greeting row */}
-        <div className="flex items-center justify-between mb-5">
+        <div className="flex items-center justify-between mb-6">
           <div>
             <p className="text-xs text-muted-foreground uppercase tracking-wider font-semibold">
               {nicheEmoji} {nicheLabel} Dashboard
             </p>
-            <h1 className="text-xl font-bold font-display mt-0.5 text-foreground">
-              {isCurrentAffairsCreator
-                ? "Breaking stories & commentary windows"
-                : "Curated short-form trend feed"}
+            <h1 className="text-2xl font-bold font-display mt-0.5 text-foreground">
+              Creator Intelligence Hub
             </h1>
+            <p className="text-xs text-muted-foreground mt-0.5">
+              Early audio radar, festive anticipation waves, and post-mortem flop diagnosis
+            </p>
           </div>
           <Button
             variant="ghost"
@@ -81,7 +98,7 @@ function Dashboard() {
           </Button>
         </div>
 
-        <Tabs defaultValue={defaultTab} className="w-full">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
           <div className="w-full overflow-x-auto no-scrollbar py-1 -mx-4 px-4">
             <TabsList className="flex w-max min-w-full justify-start md:justify-center p-1.5 h-12 gap-2 bg-muted/70 border border-border/50 rounded-2xl">
               <TabsTrigger
@@ -93,19 +110,14 @@ function Dashboard() {
               </TabsTrigger>
 
               <TabsTrigger
-                value="breaking-news"
+                value="festive-radar"
                 className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60"
               >
-                <Newspaper className="h-3.5 w-3.5 text-blue-400" />
-                Viral News
-              </TabsTrigger>
-
-              <TabsTrigger
-                value="analytics"
-                className="shrink-0 flex items-center gap-1.5 rounded-xl px-4 py-2 text-xs sm:text-sm font-semibold text-muted-foreground transition-all hover:text-foreground data-[state=active]:bg-card data-[state=active]:text-foreground data-[state=active]:shadow-sm data-[state=active]:border data-[state=active]:border-border/60"
-              >
-                <BarChart3 className="h-3.5 w-3.5 text-purple-400" />
-                Analytics & AI
+                <span className="text-orange-400">🔥</span>
+                Festive Viral Radar
+                <span className="ml-1 text-[9px] px-1.5 py-0.2 rounded-full bg-orange-500/20 text-orange-400 border border-orange-500/30 font-bold">
+                  NEW
+                </span>
               </TabsTrigger>
             </TabsList>
           </div>
@@ -114,20 +126,8 @@ function Dashboard() {
             <EarlyDetectionPanel />
           </TabsContent>
 
-          <TabsContent value="breaking-news" className="mt-6">
-            <NewsFeedPanel />
-          </TabsContent>
-
-          <TabsContent value="analytics" className="mt-6 space-y-6">
-            <CreatorAnalyticsDashboard creatorEmail={userEmail} />
-            <div className="border-t border-border/40 pt-6">
-              <h3 className="text-lg font-bold font-display flex items-center gap-2 mb-4">
-                <Sparkles className="h-5 w-5 text-primary" /> AI Content Generator
-              </h3>
-              <PlanGate feature="AI Content Generator" requiredPlan="pro" currentPlan={userPlan}>
-                <AIContentGenerator />
-              </PlanGate>
-            </div>
+          <TabsContent value="festive-radar" className="mt-6">
+            <FestiveViralRadar />
           </TabsContent>
         </Tabs>
       </div>

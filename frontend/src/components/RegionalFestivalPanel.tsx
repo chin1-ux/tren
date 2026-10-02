@@ -115,7 +115,7 @@ export function RegionalFestivalPanel() {
   return (
     <div className="space-y-4">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between gap-2 flex-wrap">
         <div>
           <h2 className="text-lg font-bold font-display flex items-center gap-2">
             <Calendar className="h-5 w-5 text-orange-500" />
@@ -127,6 +127,14 @@ export function RegionalFestivalPanel() {
               : "Set your state in Settings for personalised ordering"}
           </p>
         </div>
+        <Button
+          size="sm"
+          className="bg-orange-500 hover:bg-orange-600 text-white rounded-full text-xs h-8 px-3.5 gap-1.5 font-bold shadow-sm"
+          onClick={() => window.location.href = '/ideas?tab=festive'}
+        >
+          <span className="text-sm">🔥</span>
+          Viral Radar Blueprints
+        </Button>
       </div>
 
       {sorted.slice(0, 6).map((festival, idx) => {
@@ -223,15 +231,12 @@ export function RegionalFestivalPanel() {
                 <Button
                   size="sm"
                   variant="outline"
-                  className="rounded-full text-[10px] h-7 px-3 gap-1"
+                  className="rounded-full text-[10px] h-7 px-3 gap-1 hover:border-orange-500 hover:text-orange-400"
                   onClick={() => {
-                    const ideaList = festival.hashtags && festival.hashtags.length > 0 
-                      ? festival.hashtags.join(", ") 
-                      : "Create a 30-second festive transition reel using trending audio.";
-                    toast.info(`💡 Content Angles for ${festival.name}: ${ideaList}`);
+                    window.location.href = `/ideas?tab=festive`;
                   }}
                 >
-                  Ideas
+                  Blueprints
                   <ChevronRight className="h-3 w-3" />
                 </Button>
               </div>

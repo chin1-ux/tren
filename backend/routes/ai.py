@@ -10,8 +10,8 @@ from schemas import *
 router = APIRouter()
 
 @router.post("/api/prepost-score")
-@limiter.limit("5/minute")
-def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(require_auth)):
+@limiter.limit("15/minute")
+def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(get_current_user)):
     try:
         res = creator_tools.get_pre_post_score(
             niche=req.niche,
@@ -21,14 +21,18 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
             hashtags=req.hashtags,
             post_time=req.post_time
         )
-        # Save to DB
-        analysis_data = {
-            "user_email": current_user_email,
-            "video_url": "",
-            "analysis_details": res,
-            "score": res.get("overall_score", 0)
-        }
-        supabase.table("pre_post_analyses").insert(analysis_data).execute()
+        # Save to DB if authenticated user
+        if current_user_email and current_user_email != "guest@trendrop.app" and supabase:
+            try:
+                analysis_data = {
+                    "user_email": current_user_email,
+                    "video_url": "",
+                    "analysis_details": res,
+                    "score": res.get("overall_score", 0)
+                }
+                supabase.table("pre_post_analyses").insert(analysis_data).execute()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist prepost score: {persist_err}")
         return res
     except Exception as e:
         logger.error(f"Error in /api/prepost-score: {e}", exc_info=True)
@@ -36,8 +40,8 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 
 @router.post("/api/generate-hooks")
-@limiter.limit("10/minute")
-def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+@limiter.limit("20/minute")
+def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user)):
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
@@ -57,7 +61,7 @@ def generate_hooks(request: Request, req: HookRequest, current_user: str = Depen
 
 @router.post("/api/score-reel")
 @limiter.limit("20/hour")
-def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str = Depends(require_auth)):
+def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str = Depends(get_current_user)):
     try:
         import re
         hashtags = re.findall(r"#\w+", req.caption)
@@ -99,16 +103,17 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
         else:
             grade = "D"
 
-        try:
-            analysis_data = {
-                "user_email": current_user_email,
-                "video_url": "",
-                "analysis_details": res,
-                "score": overall
-            }
-            supabase.table("pre_post_analyses").insert(analysis_data).execute()
-        except Exception as e:
-            logger.exception(f"Failed to persist pre_post analysis for user {current_user_email}: {e}")
+        if current_user_email and current_user_email != "guest@trendrop.app" and supabase:
+            try:
+                analysis_data = {
+                    "user_email": current_user_email,
+                    "video_url": "",
+                    "analysis_details": res,
+                    "score": overall
+                }
+                supabase.table("pre_post_analyses").insert(analysis_data).execute()
+            except Exception as e:
+                logger.debug(f"Failed to persist pre_post analysis for user {current_user_email}: {e}")
 
         return {
             "overall_score": overall,
@@ -305,8 +310,8 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
 
 
 @router.post("/api/seo-caption")
-@limiter.limit("10/minute")
-def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+@limiter.limit("20/minute")
+def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(get_current_user)):
     try:
         return creator_tools.generate_seo_caption(description=req.description, platform=req.platform)
     except Exception as e:

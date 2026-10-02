@@ -53,6 +53,12 @@ class FlopDiagnosisRequest(BaseModel):
     hashtags: Optional[List[str]] = []
 
 
+class FestiveIdeasRequest(BaseModel):
+    event_slug: str
+    niche: Optional[str] = "all"
+    custom_angle: Optional[str] = None
+
+
 class HookRequest(BaseModel):
     niche: Optional[str] = None
     topic: Optional[str] = None

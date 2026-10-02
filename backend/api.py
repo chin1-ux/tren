@@ -536,10 +536,10 @@ def startup_event():
     os.makedirs(uploads_path, exist_ok=True)
     os.makedirs(outputs_path, exist_ok=True)
     logger.info("Trendrop API v2.0 started.")
-    if not os.getenv("VERCEL") and not os.getenv("VERCEL_ENV"):
+    if os.getenv("ENABLE_LOCAL_CRON", "0").lower() in ("1", "true") and not os.getenv("VERCEL") and not os.getenv("VERCEL_ENV"):
         threading.Thread(target=start_cron_thread, daemon=True).start()
     else:
-        logger.info("Running in Vercel Serverless environment. In-process cron thread disabled (managed via GHA).")
+        logger.info("In-process cron thread disabled (background scraping managed via dedicated scraper repo chin1-ux/tren).")
 
 def start_cron_thread():
     if os.getenv("VERCEL") or os.getenv("VERCEL_ENV"):

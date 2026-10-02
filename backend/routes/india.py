@@ -94,6 +94,68 @@ def get_cultural_events(
         raise HTTPException(status_code=500, detail="Failed to get cultural events")
 
 
+@router.get("/api/india/festive-radar")
+@limiter.limit("60/minute")
+def get_festive_radar(
+    request: Request,
+    days_ahead: int = 150,
+    niche: Optional[str] = "all",
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Get full Festive & Cultural Viral Radar.
+    Detects 4-phase viral wave (Pre-Festive Surge, Peak Hype, Festival Day, Aftermath).
+    """
+    if not CulturalEventCalendar:
+        raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+
+    try:
+        radar = CulturalEventCalendar.get_festive_radar(days_ahead=days_ahead, niche=niche)
+        return radar
+    except Exception as e:
+        logger.exception(f"Error fetching festive radar: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch festive radar")
+
+
+@router.post("/api/india/festive-ideas")
+@limiter.limit("10/minute")
+def generate_festive_ideas(
+    request: Request,
+    body: FestiveIdeasRequest,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Generate 3 tailored viral reel concepts for a festival wave phase and creator niche.
+    """
+    if not CulturalEventCalendar:
+        raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+
+    try:
+        real_audios = []
+        if supabase:
+            try:
+                q = supabase.table("trends").select("audio_title, audio_artist").eq("status", "rising").order("velocity_avg", desc=True).limit(3).execute()
+                if q.data:
+                    real_audios = [f"'{r['audio_title']}' by {r['audio_artist']}" for r in q.data if r.get('audio_title')]
+            except Exception as dbe:
+                logger.debug(f"Grounding query skipped: {dbe}")
+
+        ideas = CulturalEventCalendar.generate_festive_reel_ideas(
+            event_slug=body.event_slug,
+            niche=body.niche or "all",
+            custom_angle=body.custom_angle,
+            grounding_audios=real_audios
+        )
+        if "error" in ideas:
+            raise HTTPException(status_code=400, detail=ideas["error"])
+        return ideas
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.exception(f"Error generating festive reel ideas: {e}")
+        raise HTTPException(status_code=500, detail="Failed to generate festive reel ideas")
+
+
 @router.get("/api/india/cultural-events/{event_name}")
 @limiter.limit("30/minute")
 def get_cultural_event_suggestions(

@@ -90,7 +90,7 @@ interface CaptionResponse {
 
 import { useEffectivePlan } from '@/lib/plan';
 
-function StudioPage() {
+export function StudioPage() {
   const { user } = useAuth();
   const userPlan = useEffectivePlan();
   const [activeTool, setActiveTool] = useState<"flop" | "prepost" | "hooks" | "seo">("flop");

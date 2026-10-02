@@ -352,6 +352,9 @@ def require_phone_verified(current_user: str = Depends(get_current_user)) -> str
 
 def require_feature(feature: str):
     def check(current_user: str = Depends(get_current_user)):
+        from api_globals import PRO_UNLOCK_ALL
+        if PRO_UNLOCK_ALL:
+            return current_user
         if current_user == "guest@trendrop.app":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
         PlanEnforcement.check_feature_access(current_user, feature)
@@ -373,6 +376,9 @@ def require_credits(cost: int):
         background_tasks: BackgroundTasks,
         current_user: str = Depends(get_current_user),
     ):
+        from api_globals import PRO_UNLOCK_ALL
+        if PRO_UNLOCK_ALL:
+            return current_user
         if current_user == "guest@trendrop.app":
             raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Authentication required")
         balance = PlanEnforcement.check_credit_balance(current_user, cost)

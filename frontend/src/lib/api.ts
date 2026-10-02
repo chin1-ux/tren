@@ -622,12 +622,16 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
   if (token && !headers.has("Authorization")) {
     headers.set("Authorization", `Bearer ${token}`);
   }
+  if (init?.body && !headers.has("Content-Type") && typeof init.body === "string") {
+    headers.set("Content-Type", "application/json");
+  }
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), 15000);
+  const isAiPath = path.includes("/api/india/festive-ideas") || path.includes("/diagnose-flop") || path.includes("/score-reel");
+  const timeout = setTimeout(() => controller.abort(), isAiPath ? 45000 : 15000);
   const res = await fetch(`${API_URL}${path}`, {
     ...init,
     headers,
-    signal: controller.signal,
+    signal: init?.signal || controller.signal,
   });
   clearTimeout(timeout);
 
@@ -1055,6 +1059,94 @@ export interface CulturalEvent {
   event_date: string;
   content_automation: string[];
   creator_opportunities: string[];
+}
+
+export interface FestiveWavePhase {
+  phase: "PRE_RADAR" | "PRE_FESTIVE_SURGE" | "PEAK_HYPE" | "DAY_OF" | "AFTERMATH" | "EXPIRED";
+  phase_name: string;
+  badge: string;
+  badge_color: string;
+  days_until: number;
+  status_text: string;
+  filming_action: string;
+  saturation_level: string;
+  urgency: "LOW" | "HIGH" | "VERY_HIGH" | "MEDIUM" | "NONE";
+  is_golden_window: boolean;
+}
+
+export interface FestiveEvent {
+  slug: string;
+  name: string;
+  local_name?: string;
+  date: string;
+  start_date?: string;
+  duration_days: number;
+  primary_regions: string[];
+  feed_flood_intensity: number;
+  content_themes: string[];
+  content_automation?: string[];
+  creator_opportunities?: string[];
+  niche_opportunities: Record<string, number>;
+  niche_fit_score?: number;
+  audio_vibe?: string;
+  hashtags: string[];
+  trending_hashtags?: string[];
+  days_until: number;
+  wave_phase: FestiveWavePhase;
+}
+
+export interface FestiveRadarResponse {
+  current_date: string;
+  target_niche: string;
+  golden_opportunity: FestiveEvent | null;
+  active_wave_festivals: FestiveEvent[];
+  upcoming_radar_festivals: FestiveEvent[];
+  total_monitored: number;
+}
+
+export interface FestiveReelConcept {
+  concept_title: string;
+  hook_3s: string;
+  hook_archetype: string;
+  format_archetype: string;
+  blueprint_flow: string[];
+  sound_style: string;
+  optimal_post_window: string;
+  why_algorithm_favors: string;
+  virality_score: number;
+}
+
+export interface FestiveIdeasResponse {
+  event_name: string;
+  event_slug: string;
+  niche: string;
+  wave_phase: FestiveWavePhase;
+  audio_recommendation: string;
+  recommended_hashtags: string[];
+  is_ai_generated?: boolean;
+  concepts: FestiveReelConcept[];
+}
+
+export async function fetchFestiveRadar(niche: string = "all"): Promise<FestiveRadarResponse> {
+  const params = new URLSearchParams();
+  if (niche) params.set("niche", niche);
+  return http<FestiveRadarResponse>(`/api/india/festive-radar?${params}`);
+}
+
+export async function generateFestiveIdeas(
+  eventSlug: string,
+  niche: string = "all",
+  customAngle?: string
+): Promise<FestiveIdeasResponse> {
+  return http<FestiveIdeasResponse>("/api/india/festive-ideas", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      event_slug: eventSlug,
+      niche,
+      custom_angle: customAngle,
+    }),
+  });
 }
 
 export async function getCulturalEventAutomation(daysAhead: number = 30): Promise<{

@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn } from "lucide-react";
+import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn, Wrench, LayoutDashboard } from "lucide-react";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +28,8 @@ export function BottomTabBar() {
 
   const allTabs = [
     { to: "/", label: "Trends", Icon: Flame },
-    { to: "/dashboard", label: "Dashboard", Icon: BarChart3 },
+    { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
+    { to: "/studio", label: "Studio", Icon: Wrench },
     ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
     ...(FEATURES.IDEAS_ENABLED ? [{ to: "/ideas", label: "Ideas", Icon: Lightbulb }] : []),
     ...(FEATURES.MARKETPLACE_ENABLED ? [{ to: "/marketplace", label: "Marketplace", Icon: Building2 }] : []),
@@ -42,7 +43,7 @@ export function BottomTabBar() {
     FEATURES.IDEAS_ENABLED,
     FEATURES.MARKETPLACE_ENABLED,
     FEATURES.DEALS_ENABLED
-  ].filter(Boolean).length + 3; // Base 3 (Trends, Dashboard, Settings/Login)
+  ].filter(Boolean).length + 4; // Base 4 (Trends, Dashboard, Studio, Settings/Login)
 
   const gridColsClass = {
     3: "grid-cols-3",
