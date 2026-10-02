@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Zap, TrendingUp, Search, X, SlidersHorizontal, Clock, AlertCircle, Target } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchTargetedTrends, fetchResurgingTrends, type UiTrend } from "@/lib/api";
+import { Bell, Search, X, SlidersHorizontal, Target } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -65,17 +65,44 @@ const NICHES = [
   { id: "beauty",   label: "💄 Beauty" },
   { id: "devotional", label: "🙏 Devotional" },
   { id: "tech",     label: "💻 Tech" },
+  { id: "dance",    label: "💃 Dance" },
   { id: "narrative_edit", label: "🎞️ Creative Edit" },
   { id: "romance_relationship", label: "💕 Romance" },
 ];
 
-type FeedTab = "rising" | "emerging" | "resurging" | "peaked" | "expired" | "workspace";
+const NICHE_KEYWORDS_MAP: Record<string, string[]> = {
+  fitness: ["workout", "gym", "fitness", "exercise", "bodybuilding", "physique", "cardio", "protein", "training", "reps"],
+  food: ["recipe", "cooking", "food", "kitchen", "dish", "tasty", "street food", "restaurant", "cafe", "baking"],
+  comedy: ["meme", "comedy", "funny", "skit", "humor", "hilarious", "laugh", "relatable", "joke"],
+  fashion: ["outfit", "ootd", "fashion", "style", "clothing", "lookbook", "wear", "styling", "grwm", "outfit-showcase", "boutique"],
+  business: ["business", "startup", "finance", "wealth", "career", "entrepreneur", "money", "productivity"],
+  travel: ["travel", "trip", "scenic", "vacation", "mountains", "wanderlust", "explore", "nature", "vlog"],
+  beauty: ["makeup", "skincare", "beauty", "cosmetics", "glow up", "glam", "hair"],
+  devotional: ["devotional", "bhakti", "temple", "spiritual", "prayer", "bhajan", "puja", "god", "divine"],
+  tech: ["tech", "technology", "coding", "software", "ai", "gadget", "developer", "hardware"],
+  narrative_edit: ["cinematic", "storytelling", "creative edit", "transition", "capcut", "edit", "montage", "visuals", "aesthetic"],
+  romance_relationship: ["romance", "romantic", "couple", "love", "relationship", "wedding", "dating"],
+  dance: ["choreography", "dance", "routine", "hookstep", "dancer", "moves", "dancing"],
+};
+
+function matchesNiche(t: UiTrend, niche: string): boolean {
+  if (!niche || niche === "all") return true;
+  const tag = (t.nicheTag || "").toLowerCase();
+  if (tag === niche) return true;
+  if (t.semanticNiches && t.semanticNiches.some(s => s.toLowerCase() === niche)) return true;
+  if (t.contentType && t.contentType.toLowerCase() === niche) return true;
+  
+  // High-accuracy semantic match from whyThisWorks and used_for_note (85%+ accuracy)
+  const context = `${t.whyThisWorks || ""} ${t.used_for_note || ""} ${t.used_for || ""} ${t.idealContentDescription || ""}`.toLowerCase();
+  const kws = NICHE_KEYWORDS_MAP[niche] || [];
+  return kws.some(kw => context.includes(kw));
+}
+
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
   const [language, setLanguage] = useState<string>("all");
-  const [feedTab, setFeedTab] = useState<FeedTab>("rising");
   const [sortMode] = useState<any>("newest");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
@@ -119,10 +146,11 @@ function TrendsFeed() {
 
   // Progressive rendering limit for fast DOM paint on mobile
   const [displayLimit, setDisplayLimit] = useState<number>(15);
+  const [showTargetedOnly, setShowTargetedOnly] = useState<boolean>(false);
 
   useEffect(() => {
     setDisplayLimit(15);
-  }, [feedTab, language, selectedNiche, sortMode]);
+  }, [language, selectedNiche, sortMode, showTargetedOnly]);
 
   // Tick every minute for countdown timers
   useEffect(() => {
@@ -131,16 +159,24 @@ function TrendsFeed() {
   }, []);
 
   const {
+    data: targetedData,
+    isLoading: targetedLoading,
+  } = useQuery({
+    queryKey: ["trends-targeted"],
+    queryFn: () => fetchTargetedTrends(),
+    staleTime: 10_000,
+  });
+
+  const {
     data: risingData,
     isLoading: risingLoading,
     isError: risingError,
     refetch: refetchRising,
   } = useQuery({
-    queryKey: ["trends", language, sortMode, selectedNiche, activeLanguages],
-    queryFn: () => fetchTrends(language, sortMode, selectedNiche, activeLanguages),
+    queryKey: ["trends", language, sortMode, activeLanguages],
+    queryFn: () => fetchTrends(language, sortMode, undefined, activeLanguages),
     staleTime: 30_000,
     refetchInterval: 5 * 60_000,
-    enabled: feedTab === "rising",
   });
 
   const {
@@ -149,11 +185,10 @@ function TrendsFeed() {
     isError: emergingError,
     refetch: refetchEmerging,
   } = useQuery({
-    queryKey: ["trends-emerging", language, selectedNiche, activeLanguages],
-    queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
+    queryKey: ["trends-emerging", language, activeLanguages],
+    queryFn: () => fetchEmergingTrends(language, undefined, activeLanguages),
     staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
     refetchInterval: 2 * 60_000, // 2 min polling
-    enabled: feedTab === "emerging",
   });
 
   const {
@@ -163,10 +198,9 @@ function TrendsFeed() {
     refetch: refetchPeaked,
   } = useQuery({
     queryKey: ["trends-peaked", language, activeLanguages],
-    queryFn: () => fetchPeakedTrends(language, selectedNiche, activeLanguages),
+    queryFn: () => fetchPeakedTrends(language, undefined, activeLanguages),
     staleTime: 15 * 60_000, // 15 min stale time for peaked trends
     refetchInterval: 30 * 60_000, // 30 min polling
-    enabled: feedTab === "peaked",
   });
 
   const {
@@ -176,10 +210,9 @@ function TrendsFeed() {
     refetch: refetchExpired,
   } = useQuery({
     queryKey: ["trends-expired", language, activeLanguages],
-    queryFn: () => fetchExpiredTrends(language, selectedNiche, activeLanguages),
+    queryFn: () => fetchExpiredTrends(language, undefined, activeLanguages),
     staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
     refetchInterval: 60 * 60_000, // 60 min polling
-    enabled: feedTab === "expired",
   });
 
   const {
@@ -189,22 +222,9 @@ function TrendsFeed() {
     refetch: refetchResurging,
   } = useQuery({
     queryKey: ["trends-resurging", language, activeLanguages],
-    queryFn: () => fetchResurgingTrends(language, selectedNiche, activeLanguages),
+    queryFn: () => fetchResurgingTrends(language, undefined, activeLanguages),
     staleTime: 5 * 60_000, // 5 min — resurging changes less often than rising
     refetchInterval: 10 * 60_000,
-    enabled: feedTab === "resurging",
-  });
-
-  const {
-    data: targetedData,
-    isLoading: targetedLoading,
-    isError: targetedError,
-    refetch: refetchTargeted,
-  } = useQuery({
-    queryKey: ["trends-targeted"],
-    queryFn: () => fetchTargetedTrends(),
-    staleTime: 10_000,
-    enabled: feedTab === "workspace",
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
@@ -255,50 +275,73 @@ function TrendsFeed() {
   useEffect(() => {
     if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
       const diff = emergingCount - prevCountRef.current;
-      toast(`🚨 ${diff} new emerging trend${diff > 1 ? "s" : ""} just detected!`, {
-        description: "Switch to the Emerging tab to see them first.",
-        action: { label: "View", onClick: () => setFeedTab("emerging") }
+      toast(`🚨 ${diff} new early trend${diff > 1 ? "s" : ""} detected!`, {
+        description: "Prioritized right at the top of your feed — act fast!",
       });
     }
     prevCountRef.current = emergingCount;
   }, [emergingCount]);
 
-  // When rising tab is empty but peaked has data, fall back to peaked so the app isn't empty
-  const risingFallbackToPeaked =
-    feedTab === "rising" &&
-    !risingLoading &&
-    deduplicatedTrends.rising.length === 0 &&
-    deduplicatedTrends.peaked.length > 0;
+  // Unified feed lifecycle ordering: emerging -> rising -> comeback -> peaked -> expired
+  const STATUS_ORDER: Record<string, number> = {
+    emerging: 0,
+    rising: 1,
+    resurging: 2,
+    peaked: 3,
+    expired: 4,
+  };
 
-  const activeData = feedTab === "rising"
-    ? (risingFallbackToPeaked ? deduplicatedTrends.peaked : deduplicatedTrends.rising)
-    : feedTab === "emerging" ? deduplicatedTrends.emerging
-    : feedTab === "resurging" ? deduplicatedTrends.resurging
-    : feedTab === "peaked" ? deduplicatedTrends.peaked
-    : feedTab === "expired" ? deduplicatedTrends.expired
-    : targetedData;
-  const isLoading = feedTab === "rising" ? risingLoading
-    : feedTab === "emerging" ? emergingLoading
-    : feedTab === "resurging" ? resurgingLoading
-    : feedTab === "peaked" ? peakedLoading
-    : feedTab === "expired" ? expiredLoading
-    : targetedLoading;
-  const isError = feedTab === "rising" ? risingError
-    : feedTab === "emerging" ? emergingError
-    : feedTab === "resurging" ? resurgingError
-    : feedTab === "peaked" ? peakedError
-    : feedTab === "expired" ? expiredError
-    : targetedError;
+  const allTrends = useMemo(() => {
+    const merged = [
+      ...deduplicatedTrends.emerging,
+      ...deduplicatedTrends.rising,
+      ...deduplicatedTrends.resurging,
+      ...deduplicatedTrends.peaked,
+      ...deduplicatedTrends.expired,
+    ];
+    return merged.sort((a, b) => {
+      const aPriority = STATUS_ORDER[a.status ?? "rising"] ?? 1;
+      const bPriority = STATUS_ORDER[b.status ?? "rising"] ?? 1;
+      return aPriority - bPriority;
+    });
+  }, [deduplicatedTrends]);
 
-  const refetch = feedTab === "rising" ? refetchRising
-    : feedTab === "emerging" ? refetchEmerging
-    : feedTab === "resurging" ? refetchResurging
-    : feedTab === "peaked" ? refetchPeaked
-    : feedTab === "expired" ? refetchExpired
-    : refetchTargeted;
+  const isLoading = (risingLoading && !risingData) || (emergingLoading && !emergingData);
+  const isError = risingError && emergingError;
+
+  const refetch = () => {
+    refetchRising();
+    refetchEmerging();
+    refetchResurging();
+    refetchPeaked();
+    refetchExpired();
+  };
 
   const trends = useMemo(() => {
-    const list = activeData ?? [];
+    let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
+
+    // 1. High-accuracy niche filter (driven by whyThisWorks / used_for_note ~85% real accuracy)
+    if (selectedNiche && selectedNiche !== "all") {
+      list = list.filter((t) => matchesNiche(t, selectedNiche));
+    }
+
+    // 2. Language filter guard
+    if (language && language !== "all") {
+      const allowed = language.split(",").map(l => l.trim().toLowerCase());
+      list = list.filter((t) => {
+        const raw = (t.rawLanguage || "").toLowerCase();
+        const lbl = (t.language || "").toLowerCase();
+        return (
+          allowed.includes(raw) ||
+          allowed.includes(lbl) ||
+          (allowed.includes("hi") && ["hindi", "hi"].includes(raw)) ||
+          (allowed.includes("en") && ["english", "en"].includes(raw)) ||
+          (allowed.includes("en") && ["english", "en"].includes(lbl))
+        );
+      });
+    }
+
+    // 3. Search query filter
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
     return list.filter(
@@ -307,7 +350,7 @@ function TrendsFeed() {
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q)
     );
-  }, [activeData, searchQuery]);
+  }, [allTrends, targetedData, showTargetedOnly, selectedNiche, language, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -320,7 +363,7 @@ function TrendsFeed() {
     if (isRisingLoading || isEmergingLoading) {
       return lastTotalActiveRef.current;
     }
-    const count = deduplicatedTrends.rising.length + deduplicatedTrends.emerging.length;
+    const count = deduplicatedTrends.rising.length + deduplicatedTrends.emerging.length + deduplicatedTrends.resurging.length;
     lastTotalActiveRef.current = count;
     return count;
   }, [deduplicatedTrends, risingLoading, emergingLoading, risingData, emergingData]);
@@ -337,15 +380,14 @@ function TrendsFeed() {
             <TrenddropLogo size={34} />
 
             <div className="flex items-center gap-2">
-              {/* Notification bell — switches to Emerging tab when tapped */}
-                <button
+            {/* Notification bell */}
+            <button
               id="notification-bell"
               onClick={() => {
-                setFeedTab("emerging");
-                toast("⚡ Switched to Emerging feed", {
+                toast("⚡ Early Detection Monitor", {
                   description: emergingCount > 0
-                    ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} detected right now`
-                    : "No new emerging trends yet — check back soon!",
+                    ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} prioritized right at the top of your feed.`
+                    : "No new emerging trends right now — monitoring feeds in real-time.",
                 });
               }}
               className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10 active:scale-95"
@@ -385,85 +427,65 @@ function TrendsFeed() {
 
       {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
-        <div className="flex gap-1 rounded-xl bg-muted p-1 mb-3 overflow-x-auto no-scrollbar">
-          <TabButton
-            active={feedTab === "rising"}
-            onClick={() => setFeedTab("rising")}
-            onHover={() => {
-              queryClient.prefetchQuery({
-                queryKey: ["trends", language, sortMode, selectedNiche, activeLanguages],
-                queryFn: () => fetchTrends(language, sortMode, selectedNiche, activeLanguages),
-                staleTime: 30_000,
-              });
+        {/* Niche Filter Chips */}
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
+          {NICHES.map((n) => (
+            <button
+              key={n.id}
+              id={`niche-chip-${n.id}`}
+              onClick={() => {
+                setSelectedNiche(n.id);
+                setDisplayLimit(15);
+                if (typeof window !== "undefined") localStorage.setItem("trendrop_pref_niche", n.id);
+              }}
+              className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                selectedNiche === n.id
+                  ? "bg-primary text-white shadow-sm shadow-primary/30"
+                  : "bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {n.label}
+            </button>
+          ))}
+        </div>
+
+        {/* Language & Targeted Filter Chips */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-2 items-center">
+          <button
+            type="button"
+            id="targeted-quick-filter"
+            onClick={() => {
+              setShowTargetedOnly((prev) => !prev);
+              setDisplayLimit(15);
             }}
-            icon={<TrendingUp className="h-3.5 w-3.5" />}
-            label="Rising"
-            count={deduplicatedTrends.rising.length}
-          />
-          <TabButton
-            active={feedTab === "emerging"}
-            onClick={() => setFeedTab("emerging")}
-            onHover={() => {
-              queryClient.prefetchQuery({
-                queryKey: ["trends-emerging", language, selectedNiche, activeLanguages],
-                queryFn: () => fetchEmergingTrends(language, selectedNiche, activeLanguages),
-                staleTime: 30_000,
-              });
-            }}
-            icon={<Zap className="h-3.5 w-3.5" />}
-            label="Emerging"
-            count={deduplicatedTrends.emerging.length}
-            urgent
-          />
-          <TabButton
-            active={feedTab === "resurging"}
-            onClick={() => setFeedTab("resurging")}
-            onHover={() => {
-              queryClient.prefetchQuery({
-                queryKey: ["trends-resurging", language, activeLanguages],
-                queryFn: () => fetchResurgingTrends(language, selectedNiche, activeLanguages),
-                staleTime: 5 * 60_000,
-              });
-            }}
-            icon={<span className="text-xs">🔁</span>}
-            label="Comeback"
-            count={deduplicatedTrends.resurging.length}
-          />
-          <TabButton
-            active={feedTab === "workspace"}
-            onClick={() => setFeedTab("workspace")}
-            icon={<Target className="h-3.5 w-3.5" />}
-            label="Workspace"
-            count={targetedData?.length ?? 0}
-          />
-          <TabButton
-            active={feedTab === "peaked"}
-            onClick={() => setFeedTab("peaked")}
-            onHover={() => {
-              queryClient.prefetchQuery({
-                queryKey: ["trends-peaked", language, activeLanguages],
-                queryFn: () => fetchPeakedTrends(language, selectedNiche, activeLanguages),
-                staleTime: 15 * 60_000,
-              });
-            }}
-            icon={<Clock className="h-3.5 w-3.5" />}
-            label="Peaked"
-            count={deduplicatedTrends.peaked.length}
-          />
-          <TabButton
-            active={feedTab === "expired"}
-            onClick={() => setFeedTab("expired")}
-            onHover={() => {
-              queryClient.prefetchQuery({
-                queryKey: ["trends-expired", language, activeLanguages],
-                queryFn: () => fetchExpiredTrends(language, selectedNiche, activeLanguages),
-                staleTime: 30 * 60_000,
-              });
-            }}
-            icon={<AlertCircle className="h-3.5 w-3.5" />}
-            label="Expired"
-            count={deduplicatedTrends.expired.length}
-          />
+            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
+              showTargetedOnly
+                ? "bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400"
+                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+            }`}
+          >
+            <Target className="h-3 w-3" />
+            Targeted {targetedData && targetedData.length > 0 ? `(${targetedData.length})` : ""}
+          </button>
+          {LANGUAGES.slice(0, 10).map((l) => (
+            <button
+              key={l.code}
+              id={`lang-chip-${l.code}`}
+              onClick={() => {
+                const newLang = l.code === language ? "all" : l.code;
+                setLanguage(newLang);
+                setDisplayLimit(15);
+                if (typeof window !== "undefined") localStorage.setItem("trendrop_pref_language", newLang);
+              }}
+              className={`flex-shrink-0 rounded-full px-3 py-1 text-[11px] font-medium transition-all ${
+                language === l.code
+                  ? "bg-secondary text-secondary-foreground shadow-sm ring-1 ring-secondary/50"
+                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              {l.label}
+            </button>
+          ))}
         </div>
 
         {/* Search */}
@@ -506,45 +528,10 @@ function TrendsFeed() {
           }}
         />
 
-        {feedTab === "rising" && risingFallbackToPeaked && (
-          <div className="rounded-xl border border-primary/30 bg-[rgba(230,57,70,0.06)] p-3">
-            <p className="text-xs text-primary font-semibold">
-              🔄 <strong>Trend engine is warming up</strong> — Showing recently peaked trends while new rising trends are being detected. Fresh trends will appear here automatically.
-            </p>
-          </div>
-        )}
-        {feedTab === "emerging" && (
-          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3">
+        {deduplicatedTrends.emerging.length > 0 && (
+          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3 flex items-center justify-between">
             <p className="text-xs text-[#ff006e] font-semibold">
-              ⚡ <strong>Early Access Feed</strong> — These trends were detected recently while still rising. You are seeing them before they go mainstream. Act fast!
-            </p>
-          </div>
-        )}
-        {feedTab === "resurging" && (
-          <div className="rounded-xl border border-violet-500/30 bg-[rgba(139,92,246,0.05)] p-3">
-            <p className="text-xs text-violet-400 font-semibold">
-              🔁 <strong>Comeback Feed</strong> — These audios previously peaked or faded, then came back with fresh momentum detected by Trendrop's scraper. The audio already proved itself once — audience familiarity is built in. Use it for nostalgia, remix, or reaction content before the second peak saturates.
-            </p>
-          </div>
-        )}
-        {feedTab === "peaked" && (
-          <div className="rounded-xl border border-amber-500/30 bg-[rgba(245,158,11,0.05)] p-3">
-            <p className="text-xs text-amber-500 font-semibold">
-              📉 <strong>Peaked Trends</strong> — These trends have already peaked but still have significant momentum. Good for established creators looking for proven content.
-            </p>
-          </div>
-        )}
-        {feedTab === "expired" && (
-          <div className="rounded-xl border border-slate-500/30 bg-[rgba(100,116,139,0.05)] p-3">
-            <p className="text-xs text-slate-400 font-semibold">
-              ⏰ <strong>Expired Trends</strong> — These trends have passed their window. View for historical reference and analysis.
-            </p>
-          </div>
-        )}
-        {feedTab === "workspace" && (
-          <div className="rounded-xl border border-emerald-500/30 bg-[rgba(16,185,129,0.05)] p-3">
-            <p className="text-xs text-emerald-400 font-semibold">
-              🎯 <strong>My Workspace</strong> — Trends you are actively targeting. Follow the filming guides, download templates, and publish your content before other creators jump in.
+              ⚡ <strong>{deduplicatedTrends.emerging.length} Early Trend{deduplicatedTrends.emerging.length > 1 ? "s" : ""}</strong> detected — prioritized first. First-mover advantage active!
             </p>
           </div>
         )}
@@ -566,45 +553,47 @@ function TrendsFeed() {
           </>
         ) : !isError && trends.length === 0 ? (
           <div className="glass-card p-12 text-center">
-            <p className="text-4xl mb-3">
-              {feedTab === "workspace" ? "🎯" : "🎵"}
-            </p>
+            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : "🎵"}</p>
             <p className="text-base font-semibold">
-              {feedTab === "workspace" ? "Your workspace is empty" : "No trends right now"}
+              {showTargetedOnly ? "Your targeted workspace is empty" : "No trends found for this filter"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
-              {feedTab === "workspace"
-                ? "Target trends using the 'Target Trend' button on any trend card. They'll appear here for tracking."
-                : "Our active trend rail is warming up. New trends will appear soon."}
+              {showTargetedOnly
+                ? "Click 'Target Trend' on any trend card to save and track your targeted audios here."
+                : "Try selecting \"All\" or a different niche / language to discover more viral audios."}
             </p>
           </div>
-        ) : feedTab === "emerging" ? (
-          <PlanGate
-            feature="Early Detection Feed"
-            requiredPlan="pro"
-            currentPlan={userPlan}
-            onUpgrade={() => window.location.href = '/pricing'}
-          >
-            <div className="flex flex-col gap-4">
-              {trends.slice(0, displayLimit).map((t) => (
-                <TrendCard
-                  key={t.id}
-                  trend={withCountdown(t)}
-                  onDanceTap={setDanceTrend}
-                  selectedNiche={selectedNiche}
-                />
-              ))}
-            </div>
-          </PlanGate>
         ) : (
-          trends.slice(0, displayLimit).map((t) => (
-            <TrendCard
-              key={t.id}
-              trend={withCountdown(t)}
-              onDanceTap={setDanceTrend}
-              selectedNiche={selectedNiche}
-            />
-          ))
+          <div className="flex flex-col gap-4">
+            {trends.slice(0, displayLimit).map((t) => {
+              const card = (
+                <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
+                  <TrendCard
+                    trend={withCountdown(t)}
+                    onDanceTap={setDanceTrend}
+                    selectedNiche={selectedNiche}
+                    showStatusBadge={true}
+                  />
+                </div>
+              );
+
+              if (t.status === "emerging") {
+                return (
+                  <PlanGate
+                    key={t.id}
+                    feature="Early Detection Feed"
+                    requiredPlan="pro"
+                    currentPlan={userPlan}
+                    onUpgrade={() => window.location.href = '/pricing'}
+                  >
+                    {card}
+                  </PlanGate>
+                );
+              }
+
+              return card;
+            })}
+          </div>
         )}
 
         {displayLimit < trends.length && (
@@ -619,46 +608,8 @@ function TrendsFeed() {
         )}
       </div>
 
-
-
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
 
-
-      </div>
-  );
-}
-
-function TabButton({
-  active, onClick, onHover, icon, label, count, urgent,
-}: {
-  active: boolean;
-  onClick: () => void;
-  onHover?: () => void;
-  icon: React.ReactNode;
-  label: string;
-  count?: number;
-  urgent?: boolean;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      onMouseEnter={onHover}
-      onTouchStart={onHover}
-      className={`flex flex-1 min-w-max px-3 items-center justify-center gap-1.5 rounded-lg py-2 text-xs font-bold uppercase tracking-wide transition-all ${
-        active
-          ? urgent
-            ? "bg-[#ff006e] text-white shadow-sm shadow-[rgba(255,0,110,0.3)]"
-            : "bg-primary text-white shadow-sm shadow-primary/30"
-          : "text-muted-foreground hover:text-foreground"
-      }`}
-    >
-      {icon}
-      {label}
-      {count !== undefined && count > 0 && (
-        <span className={`rounded-full px-1.5 py-0.5 text-[9px] font-extrabold ${active ? "bg-white/20" : urgent ? "bg-[#ff006e]/20 text-[#ff006e]" : "bg-primary/15 text-primary"}`}>
-          {count}
-        </span>
-      )}
-    </button>
+    </div>
   );
 }

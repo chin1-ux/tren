@@ -29,7 +29,7 @@ ALLOWED_LANGUAGES = {
     "en", "es", "pt", "ko", "instrumental", "other", "unknown"
 }
 
-TARGET_GEMINI_MODEL = "gemini-3.8-flash"
+TARGET_GEMINI_MODEL = "gemini-2.0-flash"
 
 _GLOBAL_GEMINI_KEYS = None
 _LAST_GEMINI_CALL_TIME = 0.0
@@ -92,6 +92,24 @@ def classify_audio(title: str, artist: str, captions: str = "") -> dict:
                 "vocal_evidence": ev_msg,
                 "context_evidence": "Deterministic title/artist script match",
                 "provider_model": f"rule/script-{lang_code}",
+                "_raw": {}
+            }
+
+    # 3. High-confidence Romanized / Latin script vocabulary rules for Indian languages
+    romanized_rules = [
+        (r'(?i)\b(naina|khoyi|khoya|aankhen|fitoor|mohabbat|zindagi|jaane|deewana|dharkan|saathiya|sukoon|tere\s+bin|mera\s+dil|tum\s+se|tose\s+naina|chali\s+aayee|yeh\s+vaada|aaj\s+ki\s+raat|guzarish|mann\s+mohan)\b', "hi", "Distinctive Hindi vocabulary in title/artist"),
+        (r'(?i)\b(kudiye|munda|charcha|jatt|patiala|bhangra|soniye|ranbir|gurlez|dosanjh|akhiyan\s+udekdiyan)\b', "pa", "Distinctive Punjabi vocabulary in title/artist"),
+        (r'(?i)\b(anirudh|ravichander|kadavul|ennai|vanakkam|kollywood|thala|thalapathy)\b', "ta", "Distinctive Tamil vocabulary in title/artist"),
+    ]
+
+    for pattern, lang_code, ev_msg in romanized_rules:
+        if re.search(pattern, title_artist_text):
+            return {
+                "language": lang_code,
+                "confidence": 0.95,
+                "vocal_evidence": ev_msg,
+                "context_evidence": "Deterministic Romanized vocabulary match",
+                "provider_model": f"rule/romanized-{lang_code}",
                 "_raw": {}
             }
 

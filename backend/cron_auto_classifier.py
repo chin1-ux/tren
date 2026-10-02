@@ -127,15 +127,15 @@ Rules:
                         if lang in ALLOWED_LANGUAGES:
                             results[cid] = lang
 
-            # Retry missing IDs in batch with default fallback
+            # Retry missing IDs in batch with default fallback ('other' instead of 'en' to prevent language leak)
             missing = sent_ids - set(results.keys())
             for mid in missing:
-                results[mid] = "en"
+                results[mid] = "other"
         except Exception as err:
             logger.warning(f"Language batch Gemini call failed: {err}")
             for mid in sent_ids:
                 if mid not in results:
-                    results[mid] = "en"
+                    results[mid] = "other"
 
     return results
 

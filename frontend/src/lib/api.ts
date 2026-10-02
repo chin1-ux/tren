@@ -249,6 +249,7 @@ export interface UiTrend {
   contentTypeEmoji: string;
   category: string;
   language?: string;
+  rawLanguage?: string;
   languageEmoji?: string;
   isDance: boolean;
   isNarrativeEdit: boolean;
@@ -348,6 +349,8 @@ export interface UiTrend {
   audioGenre?: string;
   audioLabel?: string;
   firstDetectedAt?: string | null;
+  createdAt?: string | null;
+  statusChangedAt?: string | null;
 
   // niche intelligence fields (from niche_relevance_engine)
   adaptation_briefs?: Record<string, {
@@ -364,7 +367,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
   const key = (t.content_type || "viral").toLowerCase();
   const meta = CATEGORY_EMOJI[key] ?? { emoji: "🔥", category: "Viral" as TrendCategory };
   const hours = Math.max(0, Number(t.window_hours_remaining) || 0);
-  let rawLang = (t.language ?? "").toLowerCase().trim();
+  let rawLang = ((t as any).language_final || t.language || "").toLowerCase().trim();
   // Map legacy text values to proper ISO codes
   if (rawLang === "hindi" || rawLang === "bhojpuri") rawLang = "hi";
   else if (rawLang === "tamil") rawLang = "ta";
@@ -400,9 +403,10 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     contentType: isUnverified ? "Classifying..." : meta.category,
     contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
     category: isUnverified ? "Classifying..." : meta.category,
-    language: isVerified ? (langInfo?.label ?? t.language ?? undefined) : undefined,
-    languageEmoji: isVerified ? (langInfo?.emoji ?? (t.language ? "🌍" : undefined)) : undefined,
-    languageLabel: isVerified ? langInfo?.label : undefined,
+    rawLanguage: rawLang || undefined,
+    language: isVerified ? (langInfo?.label ?? (rawLang ? rawLang.toUpperCase() : t.language ?? undefined)) : (langInfo?.label ?? undefined),
+    languageEmoji: isVerified ? (langInfo?.emoji ?? (t.language ? "🌍" : undefined)) : (langInfo?.emoji ?? undefined),
+    languageLabel: isVerified ? langInfo?.label : (langInfo?.label ?? undefined),
     isDance: !!t.is_dance,
     isNarrativeEdit: !!t.narrative_edit,
     idealContentDescription: t.ideal_content_description ?? "",
@@ -473,6 +477,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     isVoiceover: !!t.is_voiceover,
     saturationCount: t.saturation_count ?? 0,
     firstDetectedAt: t.first_detected_at ?? null,
+    createdAt: t.created_at ?? null,
+    statusChangedAt: t.status_changed_at ?? null,
     // niche personalization fields — populated by server when user has a niche preference
     adaptation_briefs: t.adaptation_briefs ?? undefined,
     niche_relevance: t.niche_relevance ?? undefined,

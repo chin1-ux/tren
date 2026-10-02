@@ -7,7 +7,7 @@
  * means IST users see times 5h30m too early (UTC clock value displayed as IST).
  *
  * Fix: parseApiDate() forces bare ISO strings to UTC before constructing the
- * Date object.  All API-sourced date fields must go through this helper.
+ * Date object. All API-sourced date fields must go through this helper.
  */
 
 /**
@@ -47,5 +47,36 @@ export function formatApiDateIst(
     hour12: true,
     timeZone: "Asia/Kolkata",
     ...opts,
+  });
+}
+
+/**
+ * Human-friendly relative time, e.g. "just now", "15m ago", "2h ago", "4d ago".
+ */
+export function formatRelativeTime(s: string | Date | null | undefined): string {
+  const d = s instanceof Date ? s : parseApiDate(s);
+  if (!d) return "recently";
+  const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
+  if (diffSec < 60) return "just now";
+  const diffMin = Math.floor(diffSec / 60);
+  if (diffMin < 60) return `${diffMin}m ago`;
+  const diffHours = Math.floor(diffMin / 60);
+  if (diffHours < 24) return `${diffHours}h ago`;
+  const diffDays = Math.floor(diffHours / 24);
+  if (diffDays < 30) return `${diffDays}d ago`;
+  const diffMonths = Math.floor(diffDays / 30);
+  return `${diffMonths}mo ago`;
+}
+
+/**
+ * Short month + day format, e.g. "Sep 24".
+ */
+export function formatShortDate(s: string | Date | null | undefined): string {
+  const d = s instanceof Date ? s : parseApiDate(s);
+  if (!d) return "";
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    timeZone: "Asia/Kolkata",
   });
 }

@@ -16,12 +16,13 @@ import { motion, AnimatePresence } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
 import { TrendProofSection } from "./TrendProofSection";
-import { formatApiDateIst } from "@/lib/time";
+import { formatApiDateIst, formatRelativeTime, formatShortDate } from "@/lib/time";
 
 interface Props {
   trend: UiTrend;
   onDanceTap: (trend: UiTrend) => void;
   selectedNiche?: string;
+  showStatusBadge?: boolean;
 }
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -62,6 +63,23 @@ function getTrendClassificationBadge(classification?: string): { label: string; 
     case "new_viral":
     default:
       return { label: "New Viral", color: "text-primary", bgColor: "bg-primary/15", icon: "🔥" };
+  }
+}
+
+/** Lifecycle status badge — shown in unified feed mode */
+function getLifecycleStatusBadge(status?: string): { label: string; color: string; bg: string; icon: string } {
+  switch (status) {
+    case "emerging":
+      return { label: "Emerging", color: "text-pink-400 dark:text-pink-300", bg: "bg-pink-500/15 border-pink-500/30", icon: "⚡" };
+    case "resurging":
+      return { label: "Comeback", color: "text-violet-400 dark:text-violet-300", bg: "bg-violet-500/15 border-violet-500/30", icon: "🔁" };
+    case "peaked":
+      return { label: "Peaked", color: "text-amber-400 dark:text-amber-300", bg: "bg-amber-500/15 border-amber-500/30", icon: "🏔️" };
+    case "expired":
+      return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "💀" };
+    case "rising":
+    default:
+      return { label: "Rising", color: "text-emerald-400 dark:text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", icon: "📈" };
   }
 }
 
@@ -402,19 +420,14 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
       {/* ── 1. Top row: status and key badges ── */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1">
-        <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${
-          trend.status === "emerging" ? "bg-amber-500/20 text-amber-400 border-amber-500/30" :
-          trend.status === "peaked" ? "bg-blue-500/20 text-blue-400 border-blue-500/30" :
-          trend.status === "expired" ? "bg-zinc-500/20 text-zinc-400 border-zinc-500/30" :
-          trend.status === "resurging" ? "bg-violet-500/20 text-violet-400 border-violet-500/30" :
-          "bg-primary/10 text-primary border-primary/20"
-        }`}>
-          {trend.status === "emerging" ? "⚡ Emerging" :
-           trend.status === "peaked" ? "📉 Peaked" :
-           trend.status === "expired" ? "⏰ Expired" :
-           trend.status === "resurging" ? "🔁 Comeback" :
-           "📈 Rising"}
-        </span>
+        {(() => {
+          const badge = getLifecycleStatusBadge(trend.status);
+          return (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${badge.bg} ${badge.color}`}>
+              {badge.icon} {badge.label}
+            </span>
+          );
+        })()}
 
         {trend.used_for && (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider">
@@ -476,11 +489,40 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
         
         {/* Used For 1-line Creator Format Note */}
-        {trend.used_for_note && (
+        {(trend.used_for_note || trend.whyThisWorks) && (
           <div className="mt-1.5 rounded-lg bg-primary/10 border border-primary/20 p-2 text-xs text-foreground/90 font-medium leading-snug">
-            💡 <span className="font-bold text-primary">Why this works:</span> {trend.used_for_note}
+            💡 <span className="font-bold text-primary">Why this works:</span> {trend.used_for_note || trend.whyThisWorks}
           </div>
         )}
+
+        {/* Dual-Date Timeline Telemetry: First caught vs Latest rescraped */}
+        {(() => {
+          const firstDate = trend.firstDetectedAt || trend.createdAt;
+          const lastActiveDate = trend.statusChangedAt || trend.createdAt;
+          if (!firstDate && !lastActiveDate) return null;
+
+          const firstShort = firstDate ? formatShortDate(firstDate) : null;
+          const firstRel = firstDate ? formatRelativeTime(firstDate) : null;
+          const lastRel = lastActiveDate ? formatRelativeTime(lastActiveDate) : null;
+
+          // If detected very recently (< 4 hours) and first is nearly same as last
+          const isFresh = firstDate && lastActiveDate && Math.abs(new Date(firstDate).getTime() - new Date(lastActiveDate).getTime()) < 4 * 3600_000;
+
+          return (
+            <div className="flex items-center gap-2 text-[11px] text-muted-foreground/80 mt-1 font-medium flex-wrap">
+              {firstDate && (
+                <span className="inline-flex items-center gap-1 bg-white/[0.04] dark:bg-white/[0.04] border border-border/40 px-2 py-0.5 rounded-md">
+                  🕒 <span className="text-muted-foreground">First caught:</span> <strong className="text-foreground">{firstShort}</strong> ({firstRel})
+                </span>
+              )}
+              {lastActiveDate && !isFresh && (
+                <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-2 py-0.5 rounded-md">
+                  🔄 <span>Last verified:</span> <strong>{lastRel}</strong>
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Saturation advice subtitle */}
         {(() => {

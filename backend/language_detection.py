@@ -128,6 +128,25 @@ VERNACULAR_HASHTAG_LANG: dict[str, str] = {
     "bhojpurireel": "bho",
     "haryanvireel": "hne",
     "tirangayatra": "hi",
+    # Global native script & regional genre tags
+    "funkmtg": "pt",
+    "passinho": "pt",
+    "funkbrasil": "pt",
+    "dancabrasil": "pt",
+    "reelsbrasil": "pt",
+    "릴스": "ko",
+    "음악추천": "ko",
+    "케이팝": "ko",
+    "챌린지": "ko",
+    "perreo": "es",
+    "latintrend": "es",
+    "reggaetonurbano": "es",
+    "spanishmusic": "es",
+    "рилс": "ru",
+    "хочуврек": "ru",
+    "тренд": "ru",
+    "музыка": "ru",
+    "рек": "ru",
 }
 
 _INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml"}
@@ -150,6 +169,8 @@ _SCRIPT_RANGES = {
     "kn": ("\u0C80", "\u0CFF"), # Kannada
     "ml": ("\u0D00", "\u0D7F"), # Malayalam
     "ta": ("\u0B80", "\u0BFF"), # Tamil
+    "ko": ("\uAC00", "\uD7AF"), # Hangul (Korean)
+    "ru": ("\u0400", "\u04FF"), # Cyrillic (Russian/CIS)
 }
 
 _GENRE_LANG_MAP = {

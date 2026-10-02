@@ -139,7 +139,18 @@ def get_trends(
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
                       or (t.get("discovery_source") or "regional") != "global"]
             english = [t for t in trends if t not in indian]
-            trends = indian + english
+            # Balanced 2:1 Interleaving (2 Indian : 1 Global) so global tracks appear throughout the feed
+            interleaved = []
+            i_idx, e_idx = 0, 0
+            while i_idx < len(indian) or e_idx < len(english):
+                for _ in range(2):
+                    if i_idx < len(indian):
+                        interleaved.append(indian[i_idx])
+                        i_idx += 1
+                if e_idx < len(english):
+                    interleaved.append(english[e_idx])
+                    e_idx += 1
+            trends = interleaved
 
         # Wire C5: Inject niche adaptations using the engine for personalized feed
         for t in trends:
@@ -248,7 +259,18 @@ def get_emerging_trends(
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
                       or (t.get("discovery_source") or "") == "regional"]
             english = [t for t in trends if t not in indian]
-            trends = indian + english
+            # Balanced 2:1 Interleaving (2 Indian : 1 Global) so global emerging trends appear throughout
+            interleaved = []
+            i_idx, e_idx = 0, 0
+            while i_idx < len(indian) or e_idx < len(english):
+                for _ in range(2):
+                    if i_idx < len(indian):
+                        interleaved.append(indian[i_idx])
+                        i_idx += 1
+                if e_idx < len(english):
+                    interleaved.append(english[e_idx])
+                    e_idx += 1
+            trends = interleaved
 
         trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
         
@@ -602,6 +624,7 @@ def get_resurging_trends(
 def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
+    languages: Optional[str] = None,
     limit: Optional[int] = None,
     current_user: str = Depends(get_current_user),
 ):
@@ -620,8 +643,7 @@ def get_expired_trends(
             f"first_detected_at.gte.{expired_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{expired_cutoff})"
         )
-        if language and language != "all":
-            q = q.eq("language", language)
+        q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
         if limit:
             q = q.limit(limit)

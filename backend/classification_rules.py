@@ -14,16 +14,18 @@ HASHTAG_POOL_MAP = {
     },
     "GLOBAL_NICHES": {
         "fitnessreels", "foodreels", "comedyreels", "fashionreels",
-        "travelreels", "beautyreels", "artreels",
+        "travelreels", "beautyreels", "artreels", "grwmoutfit",
+        "gymmotivation", "aestheticvlog", "cinematictravel", "storytime",
     },
     "GLOBAL_DISCOVERY": {
         "brazilianphonk", "funkbrasil", "phonkmusic", "phonk", "funkmtg",
         "reelsbrasil", "passinho", "dancabrasil", "speedupphonk",
-        "kpop", "kpopdance", "kpopreels", "kpopsongs",
+        "kpop", "kpopdance", "kpopreels", "kpopsongs", "kpopchallenge",
         "viralaudio", "trendingsound", "speedupsongs", "remixreels",
         "reelsound", "viralmusic", "audiosforedits", "trendingaudio",
         "reggaeton", "latinmusic", "spanishmusic", "latinreels",
-        "spanishreels", "latintrend", "perreo", "afrobeats",
+        "spanishreels", "latintrend", "perreo", "afrobeats", "afrobeatsmusic",
+        "ukdrill", "eurodance", "popmusic", "billboardhot100", "filmtok", "filmedit",
     },
     "MICRO_DANCE": {
         "microdance", "trendingdance", "viralchallenge", "dancehacks",
