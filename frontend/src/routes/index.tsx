@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Bell, Search, X, SlidersHorizontal, Target } from "lucide-react";
+import { Search, X, SlidersHorizontal, Target } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -368,27 +368,6 @@ function TrendsFeed() {
             <TrenddropLogo size={34} />
 
             <div className="flex items-center gap-2">
-            {/* Notification bell */}
-            <button
-              id="notification-bell"
-              onClick={() => {
-                toast("⚡ Early Detection Monitor", {
-                  description: emergingCount > 0
-                    ? `${emergingCount} early trend${emergingCount > 1 ? "s" : ""} prioritized right at the top of your feed.`
-                    : "No new emerging trends right now — monitoring feeds in real-time.",
-                });
-              }}
-              className="relative rounded-full bg-white/5 p-2 text-foreground transition-colors hover:bg-white/10 active:scale-95"
-              aria-label={`Notifications${emergingCount > 0 ? ` — ${emergingCount} emerging trends` : ""}`}
-            >
-              <Bell className="h-4 w-4" />
-              {emergingCount > 0 && (
-                <span className="absolute -right-0.5 -top-0.5 flex h-3.5 w-3.5 items-center justify-center rounded-full bg-[#ff006e] text-[8px] font-bold text-white animate-pulse">
-                  {emergingCount}
-                </span>
-              )}
-            </button>
-
             {/* Theme Toggle */}
             <ThemeToggle />
 
