@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useState } from "react";
-import { Sparkles, Trophy, Lightbulb, Target, Info, Check, Share2, ClipboardList, PenTool, MessageSquarePlus } from "lucide-react";
+import { Sparkles, Trophy, Lightbulb, Target, Info, Check, Share2, ClipboardList, PenTool, MessageSquarePlus, Flame, Zap, Clock, Music, Copy, RefreshCw, TrendingUp, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { apiFetch, getAuthToken } from "@/lib/api";
@@ -12,13 +12,48 @@ import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 export const Route = createFileRoute("/studio")({
   head: () => ({
     meta: [
-      { title: "Creator Studio — Trendrop" },
-      { name: "description", content: "Pre-Post Score, Hook Generator, and SEO Caption Optimizer." },
+      { title: "Creator Studio & Post-Mortem — Trendrop" },
+      { name: "description", content: "Post-Mortem Flop Diagnosis, Pre-Post Score, Hook Generator, and SEO Caption Optimizer." },
     ],
   }),
   errorComponent: RouteErrorBoundary,
   component: StudioPage,
 });
+
+interface FlopDiagnosisResult {
+  overall_grade: string;
+  headline_diagnosis: string;
+  primary_bottleneck: string;
+  audio_timing: {
+    grade: string;
+    saturation_pct: number;
+    verdict: string;
+  };
+  hook_strength: {
+    grade: string;
+    archetype_detected: string;
+    retention_verdict: string;
+    rewritten_viral_hook: string;
+  };
+  posting_timing: {
+    grade: string;
+    optimal_window: string;
+    verdict: string;
+  };
+  hashtag_health?: {
+    grade: string;
+    verdict: string;
+  };
+  actionable_playbook: string[];
+  replacement_audio?: {
+    title: string;
+    artist: string;
+    saturation: string;
+    velocity: string;
+    status: string;
+  };
+  is_fallback?: boolean;
+}
 
 interface AnalysisResult {
   overall_score: number;
@@ -58,7 +93,18 @@ import { useEffectivePlan } from '@/lib/plan';
 function StudioPage() {
   const { user } = useAuth();
   const userPlan = useEffectivePlan();
-  const [activeTool, setActiveTool] = useState<"prepost" | "hooks" | "seo">("prepost");
+  const [activeTool, setActiveTool] = useState<"flop" | "prepost" | "hooks" | "seo">("flop");
+
+  // Post-Mortem Flop Diagnosis States
+  const [flopNiche, setFlopNiche] = useState("Fitness");
+  const [flopAudio, setFlopAudio] = useState("");
+  const [flopDate, setFlopDate] = useState(() => new Date().toISOString().split("T")[0]);
+  const [flopTime, setFlopTime] = useState("18:30");
+  const [flopViews, setFlopViews] = useState("");
+  const [flopHookCaption, setFlopHookCaption] = useState("");
+  const [flopTags, setFlopTags] = useState("");
+  const [loadingFlop, setLoadingFlop] = useState(false);
+  const [flopResult, setFlopResult] = useState<FlopDiagnosisResult | null>(null);
 
   // Pre-Post States
   const [niche, setNiche] = useState("");
@@ -81,6 +127,50 @@ function StudioPage() {
   const [seoPlatform, setSeoPlatform] = useState("instagram");
   const [loadingSeo, setLoadingSeo] = useState(false);
   const [seoResult, setSeoResult] = useState<CaptionResponse | null>(null);
+
+  const handleDiagnoseFlop = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!flopAudio.trim()) {
+      toast.error("Please enter the Audio / Song used!");
+      return;
+    }
+    if (!flopHookCaption.trim()) {
+      toast.error("Please enter your Hook or Caption!");
+      return;
+    }
+    setLoadingFlop(true);
+    const token = getAuthToken();
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (token) {
+      headers["Authorization"] = `Bearer ${token}`;
+    }
+    try {
+      const res = await apiFetch("/api/diagnose-flop", {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          audio_title: flopAudio.trim(),
+          posted_date: flopDate,
+          posted_time: flopTime,
+          views_count: flopViews.trim(),
+          hook_or_caption: flopHookCaption.trim(),
+          niche: flopNiche,
+          hashtags: flopTags.split(",").map(t => t.trim()).filter(Boolean)
+        })
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setFlopResult(data);
+        toast.success("Post-mortem diagnosis generated!");
+      } else {
+        throw new Error(`Server returned ${res.status}`);
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to generate flop diagnosis.");
+    } finally {
+      setLoadingFlop(false);
+    }
+  };
 
   const handleAnalyze = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -205,12 +295,22 @@ function StudioPage() {
         </div>
         <div>
           <h1 className="font-display text-2xl font-bold text-text">Creator Studio</h1>
-          <p className="text-xs text-muted-foreground">Level up your posts before publishing</p>
+          <p className="text-xs text-muted-foreground">Post-mortem flop diagnosis & pre-publish content intelligence</p>
         </div>
       </header>
 
       {/* Tabs */}
       <div className="flex gap-1 rounded-xl bg-muted p-1">
+        <button
+          onClick={() => setActiveTool("flop")}
+          className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wide transition-all ${
+            activeTool === "flop" ? "bg-rose-500 text-white shadow-sm shadow-rose-500/30" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          <Flame className="h-3.5 w-3.5 text-rose-300" />
+          <span>Flop Audit</span>
+          <span className="hidden sm:inline-block ml-0.5 px-1 py-0.2 rounded bg-white/20 text-[9px] font-black">NEW</span>
+        </button>
         <button
           onClick={() => setActiveTool("prepost")}
           className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg py-2.5 text-xs font-bold uppercase tracking-wide transition-all ${
@@ -239,6 +339,291 @@ function StudioPage() {
           SEO Caption
         </button>
       </div>
+
+      {/* 0. Flop Diagnosis */}
+      {activeTool === "flop" && (
+        <div className="space-y-5">
+          <form onSubmit={handleDiagnoseFlop} className="glass-card p-5 rounded-2xl border border-rose-500/20 space-y-4">
+            <div className="flex items-start justify-between gap-2">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-400 text-[10px] font-black uppercase tracking-wider border border-rose-500/20">
+                    Post-Mortem Engine
+                  </span>
+                  <span className="text-[11px] text-muted-foreground font-medium">Empirical Saturation + Hook Audit</span>
+                </div>
+                <h3 className="font-display font-bold text-lg text-text mt-1">Why Did My Reel Flop?</h3>
+                <p className="text-xs text-muted-foreground mt-0.5">
+                  Cross-reference your audio's velocity, historical saturation, and hook retention to pinpoint the exact failure point.
+                </p>
+              </div>
+            </div>
+
+            <div className="space-y-3 pt-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Your Niche</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Fitness, Tech, Fashion, Food, Comedy"
+                    value={flopNiche}
+                    onChange={(e) => setFlopNiche(e.target.value)}
+                    className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Audio / Song Used</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. Kesariya, Chaleya, Espresso"
+                    value={flopAudio}
+                    onChange={(e) => setFlopAudio(e.target.value)}
+                    className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Date Posted</label>
+                  <input
+                    type="date"
+                    value={flopDate}
+                    onChange={(e) => setFlopDate(e.target.value)}
+                    className="w-full mt-1 rounded-xl bg-muted/60 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Time Posted (IST)</label>
+                  <input
+                    type="time"
+                    value={flopTime}
+                    onChange={(e) => setFlopTime(e.target.value)}
+                    className="w-full mt-1 rounded-xl bg-muted/60 px-3 py-2 text-sm text-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                  />
+                </div>
+                <div>
+                  <label className="text-[10px] uppercase font-bold text-muted-foreground">Views Reached</label>
+                  <input
+                    type="text"
+                    placeholder="e.g. 380 views"
+                    value={flopViews}
+                    onChange={(e) => setFlopViews(e.target.value)}
+                    className="w-full mt-1 rounded-xl bg-muted/60 px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground">Your Hook (First 3 Seconds) & Caption</label>
+                <textarea
+                  placeholder="Paste what was spoken/shown on screen in the first 3 seconds, plus your caption..."
+                  value={flopHookCaption}
+                  onChange={(e) => setFlopHookCaption(e.target.value)}
+                  rows={3}
+                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50 resize-none"
+                />
+              </div>
+
+              <div>
+                <label className="text-[10px] uppercase font-bold text-muted-foreground">Hashtags Used (Optional)</label>
+                <input
+                  type="text"
+                  placeholder="#fitness, #workout, #gymmotivation"
+                  value={flopTags}
+                  onChange={(e) => setFlopTags(e.target.value)}
+                  className="w-full mt-1 rounded-xl bg-muted/60 px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-rose-500/50"
+                />
+              </div>
+            </div>
+
+            <Button
+              type="submit"
+              disabled={loadingFlop}
+              className="w-full bg-gradient-to-r from-rose-500 to-amber-500 hover:from-rose-600 hover:to-amber-600 text-white font-bold h-11 shadow-lg shadow-rose-500/20"
+            >
+              {loadingFlop ? (
+                <span className="flex items-center gap-2">
+                  <RefreshCw className="h-4 w-4 animate-spin" />
+                  Running Post-Mortem Audit...
+                </span>
+              ) : (
+                <span className="flex items-center gap-2">
+                  <Flame className="h-4 w-4" />
+                  Diagnose My Flop
+                </span>
+              )}
+            </Button>
+          </form>
+
+          {/* Diagnosis Results Card */}
+          {flopResult && (
+            <div className="glass-card p-5 border border-rose-500/30 rounded-2xl space-y-5 animate-in fade-in duration-300">
+              {/* Header Banner */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-xl bg-gradient-to-r from-rose-950/40 via-surface to-amber-950/30 border border-rose-500/20">
+                <div className="space-y-1">
+                  <div className="flex items-center gap-2">
+                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-[10px] font-black uppercase tracking-wider">
+                      PRIMARY BOTTLENECK
+                    </span>
+                    <span className="text-xs font-bold text-amber-400">
+                      {flopResult.primary_bottleneck?.replace(/_/g, " ")}
+                    </span>
+                  </div>
+                  <h4 className="text-sm sm:text-base font-bold text-white leading-snug">
+                    "{flopResult.headline_diagnosis}"
+                  </h4>
+                </div>
+                <div className="flex sm:flex-col items-center justify-center px-4 py-2 rounded-xl bg-black/40 border border-white/10 shrink-0">
+                  <span className="text-[10px] uppercase font-bold text-muted-foreground sm:block">Grade</span>
+                  <span className={`text-3xl font-black ${
+                    flopResult.overall_grade?.startsWith("A") ? "text-emerald-400" :
+                    flopResult.overall_grade?.startsWith("B") ? "text-teal-400" :
+                    flopResult.overall_grade?.startsWith("C") ? "text-amber-400" : "text-rose-400"
+                  }`}>
+                    {flopResult.overall_grade}
+                  </span>
+                </div>
+              </div>
+
+              {/* 3 Core Diagnosis Columns */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+                {/* Audio Timing */}
+                <div className="p-4 rounded-xl bg-surface-2 border border-border/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                      <Music className="h-3 w-3 text-rose-400" /> Audio Timing
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-rose-500/20 text-rose-300 text-xs font-black">
+                      {flopResult.audio_timing?.grade}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-text">
+                    Saturation: <span className="text-rose-400 font-bold">{flopResult.audio_timing?.saturation_pct}%</span>
+                  </div>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    {flopResult.audio_timing?.verdict}
+                  </p>
+                </div>
+
+                {/* Hook Strength */}
+                <div className="p-4 rounded-xl bg-surface-2 border border-border/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                      <Zap className="h-3 w-3 text-amber-400" /> Hook Retention
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-black">
+                      {flopResult.hook_strength?.grade}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-text">
+                    Type: <span className="text-amber-400 font-bold">{flopResult.hook_strength?.archetype_detected}</span>
+                  </div>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    {flopResult.hook_strength?.retention_verdict}
+                  </p>
+                </div>
+
+                {/* Posting Timing */}
+                <div className="p-4 rounded-xl bg-surface-2 border border-border/80 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
+                      <Clock className="h-3 w-3 text-emerald-400" /> Niche Peak
+                    </span>
+                    <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 text-xs font-black">
+                      {flopResult.posting_timing?.grade}
+                    </span>
+                  </div>
+                  <div className="text-xs font-semibold text-text">
+                    Optimal: <span className="text-emerald-400 font-bold">{flopResult.posting_timing?.optimal_window}</span>
+                  </div>
+                  <p className="text-xs text-text-muted leading-relaxed">
+                    {flopResult.posting_timing?.verdict}
+                  </p>
+                </div>
+              </div>
+
+              {/* Hook Rewrite Card */}
+              {flopResult.hook_strength?.rewritten_viral_hook && (
+                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                  <div className="flex items-center justify-between">
+                    <span className="text-[10px] uppercase font-black text-amber-400 tracking-wider flex items-center gap-1">
+                      <Sparkles className="h-3.5 w-3.5" /> High-Retention Hook Rewrite
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(flopResult.hook_strength.rewritten_viral_hook);
+                        toast.success("Viral hook copied!");
+                      }}
+                      className="text-xs text-amber-300 font-bold hover:underline flex items-center gap-1"
+                    >
+                      <Copy className="h-3 w-3" /> Copy Rewrite
+                    </button>
+                  </div>
+                  <p className="text-sm font-semibold text-white italic">
+                    "{flopResult.hook_strength.rewritten_viral_hook}"
+                  </p>
+                  <p className="text-[11px] text-amber-300/80">
+                    Use this Contrarian / Curiosity angle to halt viewer scroll in the first 1.5 seconds.
+                  </p>
+                </div>
+              )}
+
+              {/* Actionable Playbook */}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+                  Next Reel Action Playbook
+                </span>
+                <div className="space-y-1.5">
+                  {flopResult.actionable_playbook?.map((step, idx) => (
+                    <div key={idx} className="flex items-start gap-2.5 p-2.5 rounded-lg bg-surface border border-border text-xs text-foreground">
+                      <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-rose-500/20 text-rose-400 font-bold text-[10px]">
+                        {idx + 1}
+                      </span>
+                      <span className="leading-snug pt-0.5">{step}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Suggested Replacement Audio */}
+              {flopResult.replacement_audio && (
+                <div className="p-4 rounded-xl bg-emerald-500/10 border border-emerald-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div className="space-y-1">
+                    <span className="text-[10px] font-black uppercase tracking-wider text-emerald-400 flex items-center gap-1">
+                      <TrendingUp className="h-3.5 w-3.5" /> Don't Reuse Peaked Audios — Use This Instead
+                    </span>
+                    <div className="text-sm font-bold text-white">
+                      "{flopResult.replacement_audio.title}" {flopResult.replacement_audio.artist && `— ${flopResult.replacement_audio.artist}`}
+                    </div>
+                    <div className="flex items-center gap-2 text-xs text-emerald-300">
+                      <span>Saturation: <strong>{flopResult.replacement_audio.saturation}</strong></span>
+                      <span>•</span>
+                      <span>Velocity: <strong>{flopResult.replacement_audio.velocity}</strong></span>
+                      <span>•</span>
+                      <span className="uppercase text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 font-bold">
+                        {flopResult.replacement_audio.status}
+                      </span>
+                    </div>
+                  </div>
+                  <Button
+                    onClick={() => {
+                      setAudio(flopResult.replacement_audio!.title);
+                      setNiche(flopNiche);
+                      setActiveTool("prepost");
+                      toast.success(`Loaded "${flopResult.replacement_audio!.title}" into Pre-Post auditor!`);
+                    }}
+                    size="sm"
+                    className="bg-emerald-500 hover:bg-emerald-600 text-white font-bold text-xs shrink-0"
+                  >
+                    Test in Pre-Post Score →
+                  </Button>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* 1. Pre-Post Score */}
       {activeTool === "prepost" && (

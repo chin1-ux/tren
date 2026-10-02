@@ -43,6 +43,16 @@ class ScoreReelRequest(BaseModel):
     niche: str
 
 
+class FlopDiagnosisRequest(BaseModel):
+    audio_title: str
+    posted_date: str
+    posted_time: Optional[str] = "18:00"
+    views_count: Optional[str] = ""
+    hook_or_caption: str
+    niche: Optional[str] = "lifestyle"
+    hashtags: Optional[List[str]] = []
+
+
 class HookRequest(BaseModel):
     niche: Optional[str] = None
     topic: Optional[str] = None

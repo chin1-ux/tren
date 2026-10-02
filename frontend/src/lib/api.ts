@@ -48,6 +48,7 @@ export interface ApiTrend {
   llm_classification_status?: string;
   raw_llm_response?: unknown;
   llm_classified_at?: string | null;
+  status_changed_at?: string | null;
   // v2 new fields
   global_saturation_pct?: number;
   india_saturation_pct?: number;

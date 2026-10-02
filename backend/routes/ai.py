@@ -139,6 +139,60 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
         }
 
 
+@router.post("/api/diagnose-flop")
+@limiter.limit("15/minute")
+def diagnose_flop(
+    request: Request,
+    req: FlopDiagnosisRequest,
+    current_user_email: str = Depends(get_current_user)
+):
+    """
+    Post-Mortem Diagnosis Engine for Reels:
+    Cross-references audio saturation and velocity history in Trendrop DB,
+    analyzes hook retention drop-offs, and provides actionable rewrites.
+    """
+    try:
+        import re
+        hashtags = req.hashtags
+        if not hashtags and req.hook_or_caption:
+            hashtags = re.findall(r"#\w+", req.hook_or_caption)
+
+        result = creator_tools.diagnose_flop(
+            audio_title=req.audio_title,
+            posted_date=req.posted_date,
+            posted_time=req.posted_time or "18:00",
+            views_count=req.views_count or "",
+            hook_or_caption=req.hook_or_caption,
+            niche=req.niche or "lifestyle",
+            hashtags=hashtags or []
+        )
+
+        # Persist to pre_post_analyses for user history if user is logged in and DB configured
+        if current_user_email and supabase:
+            try:
+                analysis_data = {
+                    "user_email": current_user_email,
+                    "video_url": "",
+                    "analysis_details": {
+                        "type": "flop_diagnosis",
+                        "audio_title": req.audio_title,
+                        "posted_date": req.posted_date,
+                        "views_count": req.views_count,
+                        "result": result
+                    },
+                    "score": 40 if result.get("overall_grade") in ("D", "F") else 65
+                }
+                supabase.table("pre_post_analyses").insert(analysis_data).execute()
+            except Exception as persist_err:
+                logger.debug(f"Could not persist flop diagnosis: {persist_err}")
+
+        return result
+    except Exception as e:
+        logger.error(f"Error in /api/diagnose-flop: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error during flop diagnosis")
+
+
+
 @router.get("/api/daily-ideas/{user_email}")
 @limiter.limit("10/minute")
 def get_daily_ideas_by_email(user_email: str, request: Request, current_user_email: str = Depends(require_auth)):

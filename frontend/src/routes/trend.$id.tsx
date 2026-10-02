@@ -14,6 +14,7 @@ import { toast } from "sonner";
 import { z } from "zod";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useEffectivePlan } from '@/lib/plan';
+import { getGoldenHourExpiryMeta } from "@/components/TrendCard";
 
 export const Route = createFileRoute("/trend/$id")({
   head: () => ({
@@ -181,6 +182,38 @@ function TrendDetailPage() {
           <StatPill label="Reels" value={`${trend.reelCount ?? "–"}`} />
           <StatPill label="Category" value={`${trend.contentTypeEmoji} ${trend.contentType}`} />
         </div>
+
+        {/* Golden Hour / Audio Expiry Radar Callout */}
+        {(() => {
+          const radar = getGoldenHourExpiryMeta(trend);
+          if (!radar) return null;
+          return (
+            <div className={`rounded-xl p-3.5 text-xs flex items-center justify-between gap-3 border ${
+              radar.isGoldenHour
+                ? "bg-gradient-to-r from-amber-500/20 via-rose-500/15 to-transparent border-amber-500/35 text-amber-200"
+                : radar.isExpiring
+                ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
+                : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+            }`}>
+              <div className="flex items-center gap-2.5">
+                <span className="text-xl shrink-0">{radar.isGoldenHour ? "🔥" : radar.isExpiring ? "⚠️" : "🟡"}</span>
+                <div>
+                  <span className="font-extrabold block text-xs uppercase tracking-wider">
+                    {radar.isGoldenHour ? "Golden Viral Window Active" : radar.isExpiring ? "Audio Expiring / Peaked" : "Window Tightening"}
+                  </span>
+                  <span className="text-[11px] opacity-90 leading-tight block mt-0.5">
+                    {radar.subText}
+                  </span>
+                </div>
+              </div>
+              {radar.isGoldenHour && (
+                <span className="shrink-0 px-2.5 py-1 rounded bg-amber-400 text-black text-[10px] font-black uppercase tracking-wider shadow-sm">
+                  Film Now
+                </span>
+              )}
+            </div>
+          );
+        })()}
 
 
 

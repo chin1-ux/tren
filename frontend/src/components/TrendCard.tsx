@@ -83,6 +83,62 @@ function getLifecycleStatusBadge(status?: string): { label: string; color: strin
   }
 }
 
+/** Golden Hour & Audio Expiry Radar helper */
+export function getGoldenHourExpiryMeta(trend: UiTrend): {
+  isGoldenHour: boolean;
+  isExpiring: boolean;
+  isTightening: boolean;
+  badgeLabel: string;
+  badgeClass: string;
+  subText: string;
+} | null {
+  const sat = trend.indiaSaturationPct ?? trend.globalSaturationPct ?? (trend.saturationScore ? trend.saturationScore * 100 : 0);
+  const velocity = trend.viralMultiplier ?? 0;
+  const status = (trend.status ?? "rising").toLowerCase();
+
+  // 1. Golden Hour: High velocity (> 15x or opportunityScore >= 75) + Low Saturation (< 28%)
+  const isGolden = (sat > 0 && sat <= 28 && (velocity >= 15 || (trend.opportunityScore ?? 0) >= 75)) ||
+                   (status === "emerging" && (velocity >= 12 || (trend.opportunityScore ?? 0) >= 70));
+
+  if (isGolden) {
+    return {
+      isGoldenHour: true,
+      isExpiring: false,
+      isTightening: false,
+      badgeLabel: "🔥 GOLDEN HOUR",
+      badgeClass: "bg-gradient-to-r from-amber-500/25 to-rose-500/25 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.2)] animate-pulse",
+      subText: `Spiking velocity with <28% saturation — peak 4-hour viral window.`
+    };
+  }
+
+  // 2. Audio Expiry / Crowded: Saturation >= 65% or status === peaked/expired
+  const isExpiring = sat >= 65 || status === "peaked" || status === "expired";
+  if (isExpiring) {
+    return {
+      isGoldenHour: false,
+      isExpiring: true,
+      isTightening: false,
+      badgeLabel: "⚠️ EXPIRING / CROWDED",
+      badgeClass: "bg-rose-500/15 text-rose-300 border-rose-500/35",
+      subText: `Audio saturated (${Math.round(sat)}%). Reach is crowded — post within 24h or pick an emerging audio.`
+    };
+  }
+
+  // 3. Window Tightening: Saturation between 40% and 65%
+  if (sat >= 40 && sat < 65) {
+    return {
+      isGoldenHour: false,
+      isExpiring: false,
+      isTightening: true,
+      badgeLabel: "🟡 WINDOW TIGHTENING",
+      badgeClass: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+      subText: `Saturation at ${Math.round(sat)}% — competition rising fast. Plan your post soon.`
+    };
+  }
+
+  return null;
+}
+
 /** Velocity pattern indicator */
 function getVelocityPatternIndicator(pattern?: string): { label: string; icon: string } {
   switch (pattern) {
@@ -429,6 +485,20 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           );
         })()}
 
+        {/* Golden Hour / Audio Expiry Radar Badge */}
+        {(() => {
+          const radar = getGoldenHourExpiryMeta(trend);
+          if (!radar) return null;
+          return (
+            <span
+              title={radar.subText}
+              className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wide border ${radar.badgeClass}`}
+            >
+              {radar.badgeLabel}
+            </span>
+          );
+        })()}
+
         {trend.used_for && (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider">
             🎯 Used for: {trend.used_for}
@@ -518,6 +588,38 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
               {lastActiveDate && !isFresh && (
                 <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-2 py-0.5 rounded-md">
                   🔄 <span>Last verified:</span> <strong>{lastRel}</strong>
+                </span>
+              )}
+            </div>
+          );
+        })()}
+
+        {/* Golden Hour / Expiry Radar Callout Box */}
+        {(() => {
+          const radar = getGoldenHourExpiryMeta(trend);
+          if (!radar) return null;
+          return (
+            <div className={`mt-2 rounded-xl p-2.5 text-xs flex items-center justify-between gap-2 border ${
+              radar.isGoldenHour
+                ? "bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent border-amber-500/30 text-amber-200"
+                : radar.isExpiring
+                ? "bg-rose-500/10 border-rose-500/25 text-rose-300"
+                : "bg-amber-500/10 border-amber-500/25 text-amber-300"
+            }`}>
+              <div className="flex items-center gap-2">
+                <span className="text-base shrink-0">{radar.isGoldenHour ? "🔥" : radar.isExpiring ? "⚠️" : "🟡"}</span>
+                <div>
+                  <span className="font-extrabold block text-[11px] uppercase tracking-wider">
+                    {radar.isGoldenHour ? "Golden Viral Window Active" : radar.isExpiring ? "Audio Expiring / Saturated" : "Window Tightening"}
+                  </span>
+                  <span className="text-[10px] opacity-90 leading-tight block">
+                    {radar.subText}
+                  </span>
+                </div>
+              </div>
+              {radar.isGoldenHour && (
+                <span className="shrink-0 px-2 py-0.5 rounded bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider shadow-sm">
+                  Film Now
                 </span>
               )}
             </div>

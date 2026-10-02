@@ -482,3 +482,235 @@ Return ONLY a JSON object with a single key "calendar" containing an array of da
                 return {"status": "no_data", "message": "Creator analytics table is being set up. Please connect your Instagram account first."}
             logger.error(f"Error in run_niche_health_audit: {e}")
             return {"status": "error", "message": err_str}
+
+    def diagnose_flop(
+        self,
+        audio_title: str,
+        posted_date: str,
+        posted_time: str = "18:00",
+        views_count: str = "",
+        hook_or_caption: str = "",
+        niche: str = "lifestyle",
+        hashtags: list = None
+    ) -> dict:
+        """
+        Diagnose why a reel flopped using Trendrop's historical audio saturation,
+        velocity timeline, niche distribution peaks, and LLM hook audit.
+        """
+        if hashtags is None:
+            hashtags = []
+
+        audio_query = (audio_title or "").strip()
+        trend_match = None
+        saturation_pct = 50
+        status = "unknown"
+        first_detected_at = None
+        optimal_hour = 20  # Default 8 PM IST
+        velocity_avg = 10.0
+
+        if self.supabase and audio_query:
+            try:
+                res = self.supabase.table("trends").select(
+                    "id, audio_title, audio_artist, status, velocity_avg, peak_velocity, "
+                    "saturation_score, optimal_post_hour_ist, why_this_works, first_detected_at, created_at, niche_tag"
+                ).ilike("audio_title", f"%{audio_query}%").limit(1).execute()
+
+                if res.data and len(res.data) > 0:
+                    trend_match = res.data[0]
+                    status = trend_match.get("status") or "rising"
+                    opt = trend_match.get("optimal_post_hour_ist")
+                    if opt is not None:
+                        optimal_hour = int(opt)
+                    velocity_avg = trend_match.get("velocity_avg") or 10.0
+                    sat = trend_match.get("saturation_score")
+                    first_detected_at = trend_match.get("first_detected_at") or trend_match.get("created_at")
+
+                    if sat is not None:
+                        saturation_pct = int(sat * 100) if sat <= 1.0 else int(sat)
+                    else:
+                        status_sat_map = {"emerging": 18, "rising": 38, "peaked": 78, "expired": 92}
+                        saturation_pct = status_sat_map.get(status, 50)
+            except Exception as e:
+                logger.warning(f"Error querying trends for flop diagnosis: {e}")
+
+        # Timing analysis
+        try:
+            posted_hour = int(posted_time.split(":")[0]) if ":" in posted_time else 18
+        except Exception:
+            posted_hour = 18
+
+        hour_diff = abs(posted_hour - optimal_hour)
+        if hour_diff <= 2:
+            time_slot_eval = f"Good window (posted at {posted_time}, close to niche peak of {optimal_hour}:00 IST)"
+            time_grade = "A-"
+        elif hour_diff <= 4:
+            time_slot_eval = f"Suboptimal window ({hour_diff}h away from optimal {optimal_hour}:00 IST peak for {niche})"
+            time_grade = "C+"
+        else:
+            time_slot_eval = f"Off-peak timing (posted at {posted_time} vs Indian audience peak of {optimal_hour}:00 IST)"
+            time_grade = "D"
+
+        hours_after_detection = None
+        if first_detected_at and posted_date:
+            try:
+                from datetime import datetime
+                dt_str = first_detected_at.replace("Z", "+00:00").split(".")[0]
+                detected_dt = datetime.fromisoformat(dt_str)
+                time_clean = posted_time if len(posted_time) == 5 else "18:00"
+                post_dt_str = f"{posted_date}T{time_clean}:00"
+                posted_dt = datetime.fromisoformat(post_dt_str)
+                hours_diff = (posted_dt - detected_dt).total_seconds() / 3600
+                hours_after_detection = round(hours_diff, 1)
+            except Exception as dt_err:
+                logger.debug(f"Could not calculate hours_after_detection: {dt_err}")
+
+        # Assess audio saturation grade
+        if saturation_pct >= 70 or status in ("peaked", "expired"):
+            audio_grade = "D"
+            audio_verdict = f"High saturation penalty ({saturation_pct}%). This audio had already peaked and algorithmic push was dominated by high-authority accounts."
+        elif saturation_pct >= 45:
+            audio_grade = "C"
+            audio_verdict = f"Late Rising window ({saturation_pct}% saturation). Crowded competitive tier — required exceptional early viewer retention."
+        elif saturation_pct >= 25:
+            audio_grade = "B+"
+            audio_verdict = f"Healthy Rising window ({saturation_pct}% saturation). Audio timing was viable; flop was likely driven by hook drop-off or pacing."
+        else:
+            audio_grade = "A"
+            audio_verdict = f"Early Golden Window ({saturation_pct}% saturation). Audio timing was prime; algorithm drop-off was purely content/hook related."
+
+        # Find replacement audio right now from Supabase
+        replacement_audio = None
+        if self.supabase:
+            try:
+                rep_res = self.supabase.table("trends").select(
+                    "audio_title, audio_artist, status, velocity_avg, saturation_score, niche_tag"
+                ).in_("status", ["emerging", "rising"]).order("velocity_avg", desc=True).limit(6).execute()
+                if rep_res.data:
+                    for r in rep_res.data:
+                        if niche and niche.lower() in (r.get("niche_tag") or "").lower():
+                            replacement_audio = r
+                            break
+                    if not replacement_audio:
+                        replacement_audio = rep_res.data[0]
+            except Exception as rep_err:
+                logger.debug(f"Could not fetch replacement audio: {rep_err}")
+
+        # Prompt LLM
+        system_prompt = (
+            "You are Trendrop's Post-Mortem Diagnosis Engine for Indian creators on Instagram Reels & YouTube Shorts. "
+            "You give brutally honest, data-backed post-mortems explaining why a reel underperformed. "
+            "Never give generic advice. Focus on: Audio Timing, First-3-Seconds Hook, Niche Algorithm Peaks, and Actionable Rewrite."
+        )
+
+        detected_hrs_text = f"{hours_after_detection} hours after discovery" if hours_after_detection is not None else "Historical trend"
+        user_prompt = f"""
+Diagnose why this reel underperformed:
+- Audio Used: "{audio_title}" (Found in Trendrop DB: {bool(trend_match)})
+- Audio Status at Post Time: {status.upper()}
+- Estimated Saturation: {saturation_pct}%
+- Hours Post-Discovery: {detected_hrs_text}
+- Creator Posted At: {posted_date} {posted_time} (Niche Peak Window: {optimal_hour}:00 IST)
+- View Count: {views_count or 'Under 500 views'}
+- Hook / Caption: "{hook_or_caption}"
+- Niche: {niche}
+- Hashtags: {', '.join(hashtags) if hashtags else 'None provided'}
+
+Return ONLY a JSON response in the following format:
+{{
+  "overall_grade": "D",
+  "headline_diagnosis": "Your content wasn't bad — you entered a peaked audio 18 hours too late.",
+  "primary_bottleneck": "AUDIO_SATURATION",
+  "audio_timing": {{
+    "grade": "{audio_grade}",
+    "saturation_pct": {saturation_pct},
+    "verdict": "{audio_verdict}"
+  }},
+  "hook_strength": {{
+    "grade": "B-",
+    "archetype_detected": "Passive Statement",
+    "retention_verdict": "First 3 seconds lacked an immediate curiosity gap or visual disruptor.",
+    "rewritten_viral_hook": "Specific rewritten hook using the Contrarian or Curiosity formula"
+  }},
+  "posting_timing": {{
+    "grade": "{time_grade}",
+    "optimal_window": "{optimal_hour}:00 - {optimal_hour+2}:00 IST",
+    "verdict": "{time_slot_eval}"
+  }},
+  "hashtag_health": {{
+    "grade": "B",
+    "verdict": "Hashtag review..."
+  }},
+  "actionable_playbook": [
+    "Fix 1: Exact step to take next time",
+    "Fix 2: Hook or scripting tweak",
+    "Fix 3: Timing or hashtag change"
+  ]
+}}
+"""
+        result = self._call_gemini(system_prompt, user_prompt)
+        
+        # Deterministic fallback if LLM unavailable
+        if not result or not isinstance(result, dict) or "overall_grade" not in result:
+            if saturation_pct >= 60:
+                headline = f"Audio saturation killed your reach. At {saturation_pct}% saturation, 95% of algorithmic reach goes to earlier creators."
+                primary = "AUDIO_SATURATION"
+                ov_grade = "D"
+            elif hour_diff > 3:
+                headline = f"Off-peak distribution bottleneck. Posted during a lull for {niche} in Indian timezones."
+                primary = "OFF_PEAK_TIMING"
+                ov_grade = "C-"
+            else:
+                headline = "Early hook drop-off. The opening 3 seconds lacked an immediate pattern interrupt."
+                primary = "HOOK_DROP_OFF"
+                ov_grade = "C+"
+
+            hook_first_line = hook_or_caption.split("\n")[0] if "\n" in hook_or_caption else hook_or_caption
+            result = {
+                "overall_grade": ov_grade,
+                "headline_diagnosis": headline,
+                "primary_bottleneck": primary,
+                "audio_timing": {
+                    "grade": audio_grade,
+                    "saturation_pct": saturation_pct,
+                    "verdict": audio_verdict
+                },
+                "hook_strength": {
+                    "grade": "B-",
+                    "archetype_detected": "Descriptive Statement",
+                    "retention_verdict": f"'{hook_first_line[:50]}...' describes the topic rather than challenging the viewer or opening an emotional gap.",
+                    "rewritten_viral_hook": f"Stop making this fatal {niche} mistake if you want results..."
+                },
+                "posting_timing": {
+                    "grade": time_grade,
+                    "optimal_window": f"{optimal_hour}:00 - {optimal_hour+2}:00 IST",
+                    "verdict": time_slot_eval
+                },
+                "hashtag_health": {
+                    "grade": "B-",
+                    "verdict": "Keep hashtags to 5-8 hyper-relevant niche tags to help Instagram search categorize your reel."
+                },
+                "actionable_playbook": [
+                    "Catch audios earlier: Only post audios with <30% saturation on Trendrop.",
+                    "Lead with a visual disruptor or Contrarian Hook in the first 1.5 seconds.",
+                    f"Align posting time strictly to the {optimal_hour}:00 IST peak for {niche} audiences."
+                ],
+                "is_fallback": True
+            }
+
+        # Attach recommended replacement audio
+        if replacement_audio:
+            rep_title = replacement_audio.get("audio_title", "Trending Audio")
+            rep_artist = replacement_audio.get("audio_artist", "")
+            raw_sat = replacement_audio.get("saturation_score")
+            rep_sat = int(raw_sat * 100) if raw_sat and raw_sat <= 1.0 else int(raw_sat or 22)
+            rep_vel = replacement_audio.get("velocity_avg", 35.0)
+            result["replacement_audio"] = {
+                "title": rep_title,
+                "artist": rep_artist,
+                "saturation": f"{rep_sat}%",
+                "velocity": f"{rep_vel}x",
+                "status": replacement_audio.get("status", "rising")
+            }
+
+        return result
+

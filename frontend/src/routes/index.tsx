@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target } from "lucide-react";
+import { Search, X, SlidersHorizontal, Target, Flame } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -146,10 +146,11 @@ function TrendsFeed() {
   // Progressive rendering limit for fast DOM paint on mobile
   const [displayLimit, setDisplayLimit] = useState<number>(15);
   const [showTargetedOnly, setShowTargetedOnly] = useState<boolean>(false);
+  const [showGoldenHourOnly, setShowGoldenHourOnly] = useState<boolean>(false);
 
   useEffect(() => {
     setDisplayLimit(15);
-  }, [language, selectedNiche, sortMode, showTargetedOnly]);
+  }, [language, selectedNiche, sortMode, showTargetedOnly, showGoldenHourOnly]);
 
   // Tick every minute for countdown timers
   useEffect(() => {
@@ -340,7 +341,18 @@ function TrendsFeed() {
       });
     }
 
-    // 3. Search query filter
+    // 3. Golden Hour quick filter (high velocity + <28% saturation)
+    if (showGoldenHourOnly) {
+      list = list.filter((t) => {
+        const sat = t.indiaSaturationPct ?? t.globalSaturationPct ?? (t.saturationScore ? t.saturationScore * 100 : 0);
+        const vel = t.viralMultiplier ?? 0;
+        const status = (t.status ?? "rising").toLowerCase();
+        return (sat > 0 && sat <= 28 && (vel >= 15 || (t.opportunityScore ?? 0) >= 75)) ||
+               (status === "emerging" && (vel >= 12 || (t.opportunityScore ?? 0) >= 70));
+      });
+    }
+
+    // 4. Search query filter
     if (!searchQuery.trim()) return list;
     const q = searchQuery.toLowerCase();
     return list.filter(
@@ -349,7 +361,7 @@ function TrendsFeed() {
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q)
     );
-  }, [allTrends, targetedData, showTargetedOnly, selectedNiche, language, searchQuery]);
+  }, [allTrends, targetedData, showTargetedOnly, showGoldenHourOnly, selectedNiche, language, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -416,6 +428,7 @@ function TrendsFeed() {
             id="targeted-quick-filter"
             onClick={() => {
               setShowTargetedOnly((prev) => !prev);
+              if (!showTargetedOnly) setShowGoldenHourOnly(false);
               setDisplayLimit(15);
             }}
             className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
@@ -426,6 +439,23 @@ function TrendsFeed() {
           >
             <Target className="h-3 w-3" />
             Targeted {targetedData && targetedData.length > 0 ? `(${targetedData.length})` : ""}
+          </button>
+          <button
+            type="button"
+            id="golden-hour-quick-filter"
+            onClick={() => {
+              setShowGoldenHourOnly((prev) => !prev);
+              if (!showGoldenHourOnly) setShowTargetedOnly(false);
+              setDisplayLimit(15);
+            }}
+            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
+              showGoldenHourOnly
+                ? "bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-sm ring-1 ring-amber-400"
+                : "bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20"
+            }`}
+          >
+            <Flame className="h-3 w-3 text-amber-400" />
+            Golden Hour
           </button>
           {LANGUAGES.slice(0, 10).map((l) => (
             <button
