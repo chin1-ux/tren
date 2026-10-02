@@ -221,28 +221,25 @@ class InstagramScraper:
                 "sportsreels", "neerajchopra", "kabaddi"
             ],
             # ── GLOBAL_DISCOVERY ─────────────────────────────────────────────────
-            # DB-validated: reggaeton #10, kpop #10, funkbrasil #9, passinho #5, afrobeats #5
-            # Research: tags real creators put on their posts (not curator aggregators)
+            # Country-clustered native discovery: Brazil (BR), Korea (KR), Latin (ES), Russia (RU), Global Edits (EN)
             "GLOBAL_DISCOVERY": [
-                # Core: real creators tag their audio-driven posts with these
-                "viralaudio", "trendingsound", "viralmusic", "reelsaudio",
-                "trendingaudio", "viralsong", "speedupsongs", "remixreels",
-                # Dance/challenge (audio is the reason these get posted)
-                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
-                # Brazilian Phonk & Funk — DB confirmed: funkbrasil #9, passinho #5
-                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic",
-                "speedupphonk", "driftphonk", "darkphonk",
-                "passinho", "funkmtg", "montagem",
-                # Amapiano (huge in 2025-26, crossover with afrobeats)
-                "amapiano", "amapianovibes", "amapianodance",
-                # Afrobeats — DB confirmed: afrobeats #5, naijamusic growing
-                "afrobeats", "afrobeatsreels", "amapiano", "afrodance", "naijamusic",
-                # K-Pop — DB confirmed: kpop #10
-                "kpop", "kpopdance", "kpopedit", "kpopchoreography",
-                # Latin/Spanish — DB confirmed: reggaeton #10
-                "reggaeton", "latinmusic", "spanishmusic", "perreo",
-                # Hip-hop / R&B / Pop
-                "hiphop", "hiphopreels", "rnbmusic", "popmusic"
+                # Brazil (Baile Funk & MTG Phonk)
+                "funkmtg", "passinho",
+                # South Korea (Seoul Dance & K-Pop Challenges)
+                "릴스", "음악추천",
+                # Latin America & Spain (Reggaeton & Urbano)
+                "perreo", "latintrend",
+                # Russia & CIS (Speedup & Transition Phonk)
+                "рилс", "хочуврек",
+                # Global Edits & Breakout Pop
+                "viralaudio", "speedupsongs",
+                # Secondary Regional & Genre Seeds
+                "funkbrasil", "dancabrasil", "reelsbrasil", "mtgphonk",
+                "케이팝", "챌린지", "kpopdance", "kpopedit",
+                "reggaetonurbano", "spanishmusic", "latinreels",
+                "тренд", "музыка",
+                "remixreels", "trendingsound", "brazilianphonk",
+                "afrobeats", "amapiano", "filmtok", "popmusic"
             ]
         }
 
@@ -1200,12 +1197,27 @@ class InstagramScraper:
 
         looks_indian = _looks_indian_audio(audio_name, reel.get("audio_artist"), caption)
 
-        # If audio language is an Indian language code, force origin to IN
-        # This fixes the case where a Tamil/Telugu artist isn't in _INDIAN_ORIGIN_HINTS
+        # Country origin resolution
         if audio_lang in _INDIAN_LANG_CODES:
             trend_origin = "IN"
             creator_country = "IN"
             confidence = 0.92
+        elif audio_lang == "ko":
+            trend_origin = "KR"
+            creator_country = "KR"
+            confidence = 0.92
+        elif audio_lang == "pt":
+            trend_origin = "BR"
+            creator_country = "BR"
+            confidence = 0.92
+        elif audio_lang == "ru":
+            trend_origin = "RU"
+            creator_country = "RU"
+            confidence = 0.92
+        elif audio_lang == "es":
+            trend_origin = "ES"
+            creator_country = "ES"
+            confidence = 0.90
         elif looks_indian:
             trend_origin = "IN"
             creator_country = "IN"
