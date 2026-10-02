@@ -1,5 +1,6 @@
 import { createFileRoute, Navigate } from "@tanstack/react-router";
 import { useState, useEffect } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { 
   Lightbulb, 
   Calendar as CalendarIcon, 
@@ -81,10 +82,6 @@ function IdeasPage() {
   const [userEmail, setUserEmail] = useState("anonymous@trendrop.app");
   const [userNiche, setUserNiche] = useState("dance");
 
-  // Section 1: Daily Idea Drop States
-  const [ideas, setIdeas] = useState<ApiDailyIdea[]>([]);
-  const [loadingIdeas, setLoadingIdeas] = useState(false);
-  const [usingFallbackIdeas, setUsingFallbackIdeas] = useState(false);
 
   // Section 2: Pre-Post Reel Score States
   const [scoreAudio, setScoreAudio] = useState("");
@@ -115,30 +112,28 @@ function IdeasPage() {
     setUserNiche(niche);
     setScoreNiche(niche);
     
-    // Load daily ideas
-    getIdeas(email);
     // Load saved calendar from local storage or DB
     loadSavedCalendar(email);
   }, [user]);
 
-  const getIdeas = async (email: string) => {
-    setLoadingIdeas(true);
-    setUsingFallbackIdeas(false);
-    try {
-      const data = await fetchDailyIdeas(email);
-      setIdeas(data);
-      // Detect server-side fallback: any idea with is_fallback means LLM failed
-      const isServerFallback = Array.isArray(data) && data.length > 0 && data.some(i => i.is_fallback);
-      setUsingFallbackIdeas(isServerFallback);
-    } catch (err) {
-      console.error("Failed to load daily ideas", err);
-      toast.error("Could not load personalized ideas. Check your connection.");
-      setUsingFallbackIdeas(true);
-      setIdeas([]);
-    } finally {
-      setLoadingIdeas(false);
-    }
-  };
+  // Section 1: Daily Idea Drop — TanStack Query Cached for instant tab rendering
+  const {
+    data: ideasData,
+    isLoading: loadingIdeas,
+    refetch: refetchIdeas,
+    isFetching: isFetchingIdeas,
+  } = useQuery({
+    queryKey: ["daily-ideas", userEmail],
+    queryFn: async () => {
+      const email = userEmail || "anonymous@trendrop.app";
+      return fetchDailyIdeas(email);
+    },
+    staleTime: 15 * 60_000, // 15 min cache for 0ms transitions
+    enabled: !!userEmail,
+  });
+
+  const ideas = ideasData || [];
+  const usingFallbackIdeas = Array.isArray(ideas) && ideas.length > 0 && ideas.some(i => i.is_fallback);
 
   const loadSavedCalendar = async (email: string) => {
     try {
@@ -421,13 +416,13 @@ function IdeasPage() {
                   <p className="text-xs text-muted-foreground">3 fresh trend-backed ideas customized for your niche</p>
                 </div>
                 <Button 
-                  onClick={() => getIdeas(userEmail)} 
+                  onClick={() => refetchIdeas()} 
                   disabled={loadingIdeas}
                   variant="outline"
                   size="sm"
                   className="h-8 border-border hover:bg-surface-2 flex items-center gap-1.5 text-xs text-text"
                 >
-                  <RefreshCw className={`h-3 w-3 ${loadingIdeas ? 'animate-spin' : ''}`} /> 
+                  <RefreshCw className={`h-3 w-3 ${isFetchingIdeas ? 'animate-spin' : ''}`} /> 
                   Refresh
                 </Button>
               </div>

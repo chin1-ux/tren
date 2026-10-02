@@ -9,6 +9,8 @@ from schemas import *
 import niche_relevance_engine
 router = APIRouter()
 
+_TRENDS_FEED_CACHE: dict = {}
+
 def _apply_languages_filter(q, language: Optional[str] = None, languages: Optional[str] = None):
     lang_list = []
     if languages and languages.strip():
@@ -43,6 +45,18 @@ def get_trends(
     user_email = current_user if current_user else "guest"
     cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_email}"
     
+    # Check in-memory feed cache (60s TTL)
+    now_ts = time.time()
+    if cache_key in _TRENDS_FEED_CACHE:
+        entry = _TRENDS_FEED_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 60:
+            headers = {
+                "Cache-Control": "public, max-age=60",
+                "X-Cache": "HIT-MEM",
+                "X-Skipped-Local-Fallback": "true",
+            }
+            return JSONResponse(content=entry["data"], headers=headers)
+
     # Try fetching from Redis cache first
     if standard_queue and standard_queue.connection:
         try:
@@ -50,8 +64,10 @@ def get_trends(
             parsed_cache = json.loads(cached_data) if cached_data else None
             if parsed_cache and len(parsed_cache) > 0:
                 logger.info(f"Serving trends from cache for key: {cache_key}")
+                _TRENDS_FEED_CACHE[cache_key] = {"time": now_ts, "data": parsed_cache}
                 headers = {
                     "Cache-Control": "public, max-age=60",
+                    "X-Cache": "HIT-REDIS",
                     "X-Skipped-Local-Fallback": "true",
                 }
                 return JSONResponse(content=parsed_cache, headers=headers)
@@ -176,6 +192,12 @@ def get_trends(
             # Default or sort=="newest": strictly newest audio detected on top
             trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
 
+        # Save to in-memory cache
+        _TRENDS_FEED_CACHE[cache_key] = {"time": time.time(), "data": trends}
+        if len(_TRENDS_FEED_CACHE) > 200:
+            oldest_k = min(_TRENDS_FEED_CACHE.keys(), key=lambda k: _TRENDS_FEED_CACHE[k]["time"])
+            _TRENDS_FEED_CACHE.pop(oldest_k, None)
+
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
             try:
@@ -185,6 +207,7 @@ def get_trends(
                 
         headers = {
             "Cache-Control": "public, max-age=300",
+            "X-Cache": "MISS",
             "X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false",
         }
         return JSONResponse(content=trends, headers=headers)

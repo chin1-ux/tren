@@ -3,7 +3,7 @@ import {
   ArrowLeft, Copy, CheckCheck, Clock, Flame, Share2, ExternalLink,
   Zap, Volume2, Calendar, ChevronRight, Music2,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { Button } from "@/components/ui/button";
@@ -36,27 +36,40 @@ function TrendDetailPage() {
   const userPlan = useEffectivePlan();
   const userNiche = useUserStore((s) => s.niche) || 'all';
 
+  const queryClient = useQueryClient();
+
   const { data: trend, isLoading: trendLoading } = useQuery({
     queryKey: ["trend", id],
     queryFn: () => fetchTrendById(id),
+    staleTime: 5 * 60_000,
+    placeholderData: () => {
+      const queries = queryClient.getQueriesData<UiTrend[]>({ queryKey: ["trends"] });
+      for (const [, list] of queries) {
+        if (Array.isArray(list)) {
+          const match = list.find((t) => String(t.id) === String(id));
+          if (match) return match as any;
+        }
+      }
+      return undefined;
+    },
   });
 
   const { data: captionKit, isLoading: captionLoading } = useQuery({
     queryKey: ["caption-kit", id],
     queryFn: () => fetchCaptionKit(id),
-    enabled: !!trend,
+    staleTime: 5 * 60_000,
   });
 
   const { data: similarTrends } = useQuery({
     queryKey: ["similar-trends", id],
     queryFn: () => fetchSimilarTrends(id),
-    enabled: !!trend,
+    staleTime: 5 * 60_000,
   });
 
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", id],
     queryFn: () => fetchTrendReels(id),
-    enabled: !!trend,
+    staleTime: 5 * 60_000,
   });
 
   const hasCreatorBreakout = reels?.some((r) => r.is_creator_outlier) || false;
@@ -64,7 +77,7 @@ function TrendDetailPage() {
   const { data: decision } = useQuery({
     queryKey: ["trend-decision", id],
     queryFn: () => fetchTrendDecision(id),
-    enabled: !!trend,
+    staleTime: 5 * 60_000,
   });
 
   const copyCaption = (idx: number) => {

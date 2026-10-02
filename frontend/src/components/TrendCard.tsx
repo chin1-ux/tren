@@ -22,6 +22,8 @@ interface Props {
   trend: UiTrend;
   onDanceTap: (trend: UiTrend) => void;
   selectedNiche?: string;
+  selectedNiches?: string[];
+  isTargeted?: boolean;
   showStatusBadge?: boolean;
 }
 
@@ -281,7 +283,7 @@ function buildAudioUrl(audioId?: string | null, audioName?: string): string {
 
 // ── Main Component ─────────────────────────────────────────────────────────────
 
-export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
+export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNiche, selectedNiches, isTargeted: propIsTargeted, showStatusBadge }: Props) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
   const [showPreviewModal, setShowPreviewModal] = useState(false);
@@ -295,10 +297,13 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const { data: targetedTrends = [] } = useQuery({
     queryKey: ["trends-targeted"],
     queryFn: fetchTargetedTrends,
-    staleTime: 10_000,
+    staleTime: 60_000,
+    enabled: propIsTargeted === undefined,
   });
 
-  const isTargeted = targetedTrends.some((t: any) => String(t.id) === String(trend.id));
+  const isTargeted = propIsTargeted !== undefined
+    ? propIsTargeted
+    : targetedTrends.some((t: any) => String(t.id) === String(trend.id));
 
   // Saved trend tracking is hydrated after mount to avoid SSR/client text mismatch.
   useEffect(() => {
@@ -381,13 +386,19 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   ].filter(n => n && n !== "general")));
 
   let nichesToDisplay = [...allNiches];
-  const matchedIndex = selectedNiche && selectedNiche !== "all"
-    ? nichesToDisplay.findIndex(n => (n ?? "").toLowerCase() === (selectedNiche ?? "all").toLowerCase())
-    : -1;
+  const activeNiches = selectedNiches && selectedNiches.length > 0 && !selectedNiches.includes("all")
+    ? selectedNiches
+    : selectedNiche && selectedNiche !== "all"
+    ? [selectedNiche]
+    : [];
+  const activeNichesSet = new Set(activeNiches.map(s => s.toLowerCase()));
 
-  if (matchedIndex > 0) {
-    const [matchedNiche] = nichesToDisplay.splice(matchedIndex, 1);
-    nichesToDisplay.unshift(matchedNiche);
+  if (activeNichesSet.size > 0) {
+    const matchedIndex = nichesToDisplay.findIndex(n => activeNichesSet.has((n ?? "").toLowerCase()));
+    if (matchedIndex > 0) {
+      const [matchedNiche] = nichesToDisplay.splice(matchedIndex, 1);
+      nichesToDisplay.unshift(matchedNiche);
+    }
   }
 
   const displayNiches = nichesToDisplay.slice(0, 2);
@@ -746,13 +757,13 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
               {/* ── Niche-Personalized Brief (shown when user has a niche set) ── */}
               {(() => {
-                const nicheKey = selectedNiche && selectedNiche !== "all" ? selectedNiche : null;
-                const brief = nicheKey && trend.adaptation_briefs?.[nicheKey];
+                const matchedNicheKey = activeNiches.find(n => trend.adaptation_briefs?.[n]) || (selectedNiche && selectedNiche !== "all" ? selectedNiche : null);
+                const brief = matchedNicheKey && trend.adaptation_briefs?.[matchedNicheKey];
                 if (!brief) return null;
                 return (
                   <div className="rounded-xl border border-violet-500/30 bg-violet-500/[0.07] p-3 space-y-2">
                     <p className="text-[9px] font-bold uppercase tracking-wider text-violet-400">
-                      🎯 For Your Niche — {nicheKey.charAt(0).toUpperCase() + nicheKey.slice(1)}
+                      🎯 For Your Niche — {matchedNicheKey.charAt(0).toUpperCase() + matchedNicheKey.slice(1)}
                     </p>
                     {/* Main content angle */}
                     <p className="text-xs font-semibold text-foreground leading-snug">{brief.brief}</p>

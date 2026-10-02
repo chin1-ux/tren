@@ -1,5 +1,6 @@
-import React, { useState, useEffect } from "react";
+import React, { useState } from "react";
 import { motion } from "framer-motion";
+import { useQuery } from "@tanstack/react-query";
 import {
   Sparkles, TrendingUp, Clock, AlertCircle, Zap,
   Music2, ExternalLink, RefreshCw, Flame, Disc, Radio
@@ -42,42 +43,28 @@ interface SpotifyApiResponse {
 }
 
 export function EarlyDetectionPanel() {
-  const [alreadyTrending, setAlreadyTrending] = useState<AlreadyTrendingTrack[]>([]);
-  const [newOnSpotify, setNewOnSpotify] = useState<NewOnSpotifyTrack[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [fallbackReason, setFallbackReason] = useState<string | null>(null);
-  const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
-
   const userPlan = useEffectivePlan();
 
-  useEffect(() => {
-    fetchTracks();
-  }, []);
-
-  const fetchTracks = async () => {
-    setLoading(true);
-    setFallbackReason(null);
-    try {
+  const { data: spotifyData, isLoading: loading, refetch, isFetching } = useQuery<SpotifyApiResponse & { fallbackReason: string | null; fetchedAt: Date }>({
+    queryKey: ["spotify-viral"],
+    queryFn: async () => {
       const res = await apiFetch("/api/spotify/viral");
-      const fallback = res.headers.get("X-Fallback-Reason");
-      if (fallback) setFallbackReason(fallback);
+      const fallbackReason = res.headers.get("X-Fallback-Reason");
+      if (!res.ok) throw new Error("Failed to load tracks");
+      const data: SpotifyApiResponse = await res.json();
+      return {
+        ...data,
+        fallbackReason,
+        fetchedAt: new Date(),
+      };
+    },
+    staleTime: 5 * 60_000, // 5 min cache for instant back-and-forth tab transitions
+  });
 
-      if (res.ok) {
-        const data: SpotifyApiResponse = await res.json();
-        if (data && (Array.isArray(data.already_trending) || Array.isArray(data.new_on_spotify))) {
-          setAlreadyTrending(data.already_trending || []);
-          setNewOnSpotify(data.new_on_spotify || []);
-          setLastRefreshed(new Date());
-          setLoading(false);
-          return;
-        }
-      }
-    } catch (err) {
-      console.error("spotify/viral fetch error:", err);
-    }
-
-    setLoading(false);
-  };
+  const alreadyTrending = spotifyData?.already_trending || [];
+  const newOnSpotify = spotifyData?.new_on_spotify || [];
+  const fallbackReason = spotifyData?.fallbackReason || null;
+  const lastRefreshed = spotifyData?.fetchedAt || null;
 
   const getStatusBadge = (status?: string) => {
     switch (status?.toLowerCase()) {
@@ -137,9 +124,9 @@ export function EarlyDetectionPanel() {
             size="sm"
             variant="outline"
             className="rounded-full gap-1.5 text-xs h-8 shrink-0 hover:bg-green-500/10 hover:text-green-400 hover:border-green-500/30 transition-all"
-            onClick={fetchTracks}
+            onClick={() => refetch()}
           >
-            <RefreshCw className="h-3 w-3" />
+            <RefreshCw className={`h-3 w-3 ${isFetching ? "animate-spin" : ""}`} />
             Refresh
           </Button>
         </div>

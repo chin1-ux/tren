@@ -1,4 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
+import { useQuery } from "@tanstack/react-query";
 import { motion, AnimatePresence } from "framer-motion";
 import { 
   Flame, 
@@ -48,8 +49,11 @@ const NICHE_OPTIONS = [
 export function FestiveViralRadar() {
   const storeNiche = useUserStore((s) => s.niche) || "all";
   const [selectedNiche, setSelectedNiche] = useState<string>(storeNiche);
-  const [radarData, setRadarData] = useState<FestiveRadarResponse | null>(null);
-  const [loadingRadar, setLoadingRadar] = useState(true);
+  const { data: radarData = null, isLoading: loadingRadar } = useQuery<FestiveRadarResponse | null>({
+    queryKey: ["festive-radar", selectedNiche],
+    queryFn: () => fetchFestiveRadar(selectedNiche),
+    staleTime: 10 * 60_000, // 10 min cache for instant niche switching
+  });
 
   // Idea Generation State
   const [generatingForSlug, setGeneratingForSlug] = useState<string | null>(null);
@@ -57,23 +61,6 @@ export function FestiveViralRadar() {
   const [customAngle, setCustomAngle] = useState("");
   const [copiedHook, setCopiedHook] = useState<string | null>(null);
   const [filterPhase, setFilterPhase] = useState<"all" | "golden" | "peak">("all");
-
-  useEffect(() => {
-    loadRadar(selectedNiche);
-  }, [selectedNiche]);
-
-  const loadRadar = async (niche: string) => {
-    setLoadingRadar(true);
-    try {
-      const data = await fetchFestiveRadar(niche);
-      setRadarData(data);
-    } catch (err) {
-      console.error("Error loading festive radar:", err);
-      toast.error("Could not fetch festive radar. Please try again.");
-    } finally {
-      setLoadingRadar(false);
-    }
-  };
 
   const handleGenerateIdeas = async (eventSlug: string, angleOverride?: string) => {
     setGeneratingForSlug(eventSlug);

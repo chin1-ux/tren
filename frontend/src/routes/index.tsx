@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, ArrowRight } from "lucide-react";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, ArrowRight, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchFestiveRadar, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
@@ -99,6 +99,11 @@ function matchesNiche(t: UiTrend, niche: string): boolean {
   return kws.some(kw => context.includes(kw));
 }
 
+function matchesNiches(t: UiTrend, niches: string[]): boolean {
+  if (!niches || niches.length === 0 || niches.includes("all")) return true;
+  return niches.some((n) => matchesNiche(t, n));
+}
+
 type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
@@ -111,8 +116,8 @@ function TrendsFeed() {
   const [, setNow] = useState(Date.now());
   const prevCountRef = useRef<number>(0);
 
-  // Niche filter — read from preferences
-  const [selectedNiche, setSelectedNiche] = useState<string>("all");
+  // Multi-Niche filter — read from preferences
+  const [selectedNiches, setSelectedNiches] = useState<string[]>(["all"]);
   const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
 
   // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
@@ -131,7 +136,22 @@ function TrendsFeed() {
         } catch (e) {}
       }
       setLanguage(localStorage.getItem("trendrop_pref_language") ?? "all");
-      setSelectedNiche(localStorage.getItem("trendrop_pref_niche") ?? "all");
+      try {
+        const savedNiches = localStorage.getItem("trendrop_pref_niches");
+        if (savedNiches) {
+          const parsed = JSON.parse(savedNiches);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            setSelectedNiches(parsed);
+          }
+        } else {
+          const single = localStorage.getItem("trendrop_pref_niche");
+          if (single && single !== "all") {
+            setSelectedNiches([single]);
+          }
+        }
+      } catch {
+        setSelectedNiches(["all"]);
+      }
     }
   }, []);
 
@@ -151,7 +171,38 @@ function TrendsFeed() {
 
   useEffect(() => {
     setDisplayLimit(15);
-  }, [language, selectedNiche, sortMode, showTargetedOnly, showGoldenHourOnly]);
+  }, [language, selectedNiches, sortMode, showTargetedOnly, showGoldenHourOnly]);
+
+  const handleToggleNiche = (nicheId: string) => {
+    setDisplayLimit(15);
+    if (nicheId === "all") {
+      setSelectedNiches(["all"]);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trendrop_pref_niches", JSON.stringify(["all"]));
+        localStorage.setItem("trendrop_pref_niche", "all");
+      }
+      return;
+    }
+
+    setSelectedNiches((prev) => {
+      let next: string[];
+      const isCurrentlyAll = prev.length === 0 || prev.includes("all");
+      if (isCurrentlyAll) {
+        next = [nicheId];
+      } else if (prev.includes(nicheId)) {
+        next = prev.filter((n) => n !== nicheId);
+        if (next.length === 0) next = ["all"];
+      } else {
+        next = [...prev, nicheId];
+      }
+
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trendrop_pref_niches", JSON.stringify(next));
+        localStorage.setItem("trendrop_pref_niche", next.length === 1 ? next[0] : next.join(","));
+      }
+      return next;
+    });
+  };
 
   // Tick every minute for countdown timers
   useEffect(() => {
@@ -324,12 +375,17 @@ function TrendsFeed() {
     refetchExpired();
   };
 
+  // Pre-calculate targeted Set for instant O(1) card lookups without running 30+ separate hooks
+  const targetedSet = useMemo(() => {
+    return new Set((targetedData ?? []).map((t: any) => String(t.id)));
+  }, [targetedData]);
+
   const trends = useMemo(() => {
     let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
 
-    // 1. High-accuracy niche filter (driven by whyThisWorks / used_for_note ~85% real accuracy)
-    if (selectedNiche && selectedNiche !== "all") {
-      list = list.filter((t) => matchesNiche(t, selectedNiche));
+    // 1. High-accuracy multi-niche filter (driven by whyThisWorks / used_for_note ~85% real accuracy)
+    if (selectedNiches && !selectedNiches.includes("all") && selectedNiches.length > 0) {
+      list = list.filter((t) => matchesNiches(t, selectedNiches));
     }
 
     // 2. Language filter guard
@@ -368,7 +424,7 @@ function TrendsFeed() {
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q)
     );
-  }, [allTrends, targetedData, showTargetedOnly, showGoldenHourOnly, selectedNiche, language, searchQuery]);
+  }, [allTrends, targetedData, showTargetedOnly, showGoldenHourOnly, selectedNiches, language, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -436,25 +492,36 @@ function TrendsFeed() {
       {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         {/* Niche Filter Chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
-          {NICHES.map((n) => (
+        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2 items-center">
+          {selectedNiches.length > 0 && !selectedNiches.includes("all") && (
             <button
-              key={n.id}
-              id={`niche-chip-${n.id}`}
-              onClick={() => {
-                setSelectedNiche(n.id);
-                setDisplayLimit(15);
-                if (typeof window !== "undefined") localStorage.setItem("trendrop_pref_niche", n.id);
-              }}
-              className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
-                selectedNiche === n.id
-                  ? "bg-primary text-white shadow-sm shadow-primary/30"
-                  : "bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
+              type="button"
+              id="niche-reset-btn"
+              onClick={() => handleToggleNiche("all")}
+              className="flex-shrink-0 flex items-center gap-1 rounded-full px-2.5 py-1 text-[11px] font-bold bg-muted/90 text-foreground hover:bg-muted border border-border/80 transition-all cursor-pointer"
+              title="Reset to all niches"
             >
-              {n.label}
+              <RotateCcw className="h-3 w-3 text-muted-foreground" />
+              Reset ({selectedNiches.length})
             </button>
-          ))}
+          )}
+          {NICHES.map((n) => {
+            const isSelected = n.id === "all" ? selectedNiches.includes("all") : selectedNiches.includes(n.id);
+            return (
+              <button
+                key={n.id}
+                id={`niche-chip-${n.id}`}
+                onClick={() => handleToggleNiche(n.id)}
+                className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "bg-primary text-white shadow-sm shadow-primary/30 ring-1 ring-primary/40 font-bold"
+                    : "bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {n.label}
+              </button>
+            );
+          })}
         </div>
 
         {/* Language & Targeted Filter Chips */}
@@ -554,12 +621,13 @@ function TrendsFeed() {
           languagesMap={LANGUAGES}
           onClear={() => {
             setLanguage("all");
-            setSelectedNiche("all");
+            setSelectedNiches(["all"]);
             setPreferredLanguages([]);
             if (typeof window !== "undefined") {
               localStorage.removeItem("trendrop_pref_language");
               localStorage.removeItem("trendrop_preferred_languages");
               localStorage.removeItem("trendrop_pref_niche");
+              localStorage.removeItem("trendrop_pref_niches");
             }
             toast.success("Filters reset to All");
           }}
@@ -608,7 +676,9 @@ function TrendsFeed() {
                   <TrendCard
                     trend={withCountdown(t)}
                     onDanceTap={setDanceTrend}
-                    selectedNiche={selectedNiche}
+                    selectedNiches={selectedNiches}
+                    selectedNiche={selectedNiches[0]}
+                    isTargeted={targetedSet.has(String(t.id))}
                     showStatusBadge={true}
                   />
                 </div>
