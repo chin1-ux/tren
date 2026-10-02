@@ -160,9 +160,9 @@ export function FestiveViralRadar() {
             <p className="text-[11px] text-emerald-300 font-medium mt-1">FILM & POST (Max Reach)</p>
           </div>
           <div className="p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
-            <div className="font-semibold text-amber-400 flex items-center gap-1">
+            <div className="font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1">
               <span>⚡ Peak Hype</span>
-              <span className="text-[10px] text-amber-500">(1-3d)</span>
+              <span className="text-[10px] text-muted-foreground font-semibold">(1-3d)</span>
             </div>
             <p className="text-[11px] text-muted-foreground mt-1">GRWM & fast hacks</p>
           </div>
@@ -214,7 +214,7 @@ export function FestiveViralRadar() {
                 <span className="text-xs font-semibold text-muted-foreground px-2 py-0.5 rounded-md bg-muted/60">
                   {radarData.golden_opportunity.days_until} days until festival
                 </span>
-                <span className="text-xs font-bold text-yellow-500 bg-yellow-500/10 border border-yellow-500/20 px-2 py-0.5 rounded-md">
+                <span className="text-xs font-bold text-amber-500 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
                   ★ {radarData.golden_opportunity.niche_fit_score ?? 95}% Match for {selectedNiche}
                 </span>
               </div>
@@ -554,7 +554,7 @@ export function FestiveViralRadar() {
 
                     {/* Niche compatibility & Tags */}
                     <div className="flex items-center justify-between pt-1">
-                      <span className="text-[11px] font-semibold text-yellow-500 flex items-center gap-1">
+                      <span className="text-[11px] font-bold text-amber-500 dark:text-amber-400 flex items-center gap-1">
                         ★ {nicheScore}% {selectedNiche} fit
                       </span>
 

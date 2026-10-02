@@ -59,7 +59,7 @@ function getTrendClassificationBadge(classification?: string): { label: string; 
     case "evergreen_popular":
       return { label: "Evergreen Popular", color: "text-emerald-300", bgColor: "bg-emerald-500/15", icon: "🌿" };
     case "classic_hit":
-      return { label: "Classic Hit", color: "text-amber-300", bgColor: "bg-amber-500/15", icon: "🎵" };
+      return { label: "Classic Hit", color: "text-amber-500 dark:text-amber-400 font-bold", bgColor: "bg-amber-500/15 border border-amber-500/30", icon: "🎵" };
     case "new_viral":
     default:
       return { label: "New Viral", color: "text-primary", bgColor: "bg-primary/15", icon: "🔥" };
@@ -74,7 +74,7 @@ function getLifecycleStatusBadge(status?: string): { label: string; color: strin
     case "resurging":
       return { label: "Comeback", color: "text-violet-400 dark:text-violet-300", bg: "bg-violet-500/15 border-violet-500/30", icon: "🔁" };
     case "peaked":
-      return { label: "Peaked", color: "text-amber-400 dark:text-amber-300", bg: "bg-amber-500/15 border-amber-500/30", icon: "🏔️" };
+      return { label: "Peaked", color: "text-amber-500 dark:text-amber-400 font-bold", bg: "bg-amber-500/15 border-amber-500/35", icon: "🏔️" };
     case "expired":
       return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "💀" };
     case "rising":
@@ -106,7 +106,7 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
       isExpiring: false,
       isTightening: false,
       badgeLabel: "🔥 GOLDEN HOUR",
-      badgeClass: "bg-gradient-to-r from-amber-500/25 to-rose-500/25 text-amber-300 border-amber-400/40 shadow-[0_0_12px_rgba(245,158,11,0.2)] animate-pulse",
+      badgeClass: "bg-amber-500 text-black font-extrabold border border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.35)] animate-pulse",
       subText: `Spiking velocity with <28% saturation — peak 4-hour viral window.`
     };
   }
@@ -119,7 +119,7 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
       isExpiring: true,
       isTightening: false,
       badgeLabel: "⚠️ EXPIRING / CROWDED",
-      badgeClass: "bg-rose-500/15 text-rose-300 border-rose-500/35",
+      badgeClass: "bg-rose-500/15 text-rose-400 border border-rose-500/35 font-bold",
       subText: `Audio saturated (${Math.round(sat)}%). Reach is crowded — post within 24h or pick an emerging audio.`
     };
   }
@@ -131,7 +131,7 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
       isExpiring: false,
       isTightening: true,
       badgeLabel: "🟡 WINDOW TIGHTENING",
-      badgeClass: "bg-amber-500/10 text-amber-300 border-amber-500/30",
+      badgeClass: "bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/40 font-bold",
       subText: `Saturation at ${Math.round(sat)}% — competition rising fast. Plan your post soon.`
     };
   }
@@ -234,7 +234,7 @@ function TrialReelBadge({
       return (
         <span
           title="Saturated globally but India window barely open"
-          className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-bold text-amber-300 cursor-help"
+          className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 px-2.5 py-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-400 cursor-help"
         >
           🚀 Post now for India
         </span>
@@ -601,18 +601,20 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           return (
             <div className={`mt-2 rounded-xl p-2.5 text-xs flex items-center justify-between gap-2 border ${
               radar.isGoldenHour
-                ? "bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-transparent border-amber-500/30 text-amber-200"
+                ? "bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-card border-amber-500/40 text-foreground"
                 : radar.isExpiring
                 ? "bg-rose-500/10 border-rose-500/25 text-rose-300"
-                : "bg-amber-500/10 border-amber-500/25 text-amber-300"
+                : "bg-amber-500/10 border-amber-500/30 text-foreground"
             }`}>
               <div className="flex items-center gap-2">
                 <span className="text-base shrink-0">{radar.isGoldenHour ? "🔥" : radar.isExpiring ? "⚠️" : "🟡"}</span>
                 <div>
-                  <span className="font-extrabold block text-[11px] uppercase tracking-wider">
+                  <span className={`font-extrabold block text-[11px] uppercase tracking-wider ${
+                    radar.isGoldenHour ? "text-amber-500 dark:text-amber-400" : radar.isExpiring ? "text-rose-400" : "text-amber-500 dark:text-amber-400"
+                  }`}>
                     {radar.isGoldenHour ? "Golden Viral Window Active" : radar.isExpiring ? "Audio Expiring / Saturated" : "Window Tightening"}
                   </span>
-                  <span className="text-[10px] opacity-90 leading-tight block">
+                  <span className="text-[10px] text-muted-foreground leading-tight block">
                     {radar.subText}
                   </span>
                 </div>
@@ -681,12 +683,12 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       {/* ── 3. Chips row ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
         {trend.isRegionalCrossover && trend.crossoverFromLanguage && (
-          <Chip className="bg-amber-500/20 text-amber-300 border border-amber-500/30 font-bold">
+          <Chip className="bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/35 font-bold">
             🔀 {trend.crossoverFromLanguage} crossover
           </Chip>
         )}
         {!trend.isClassificationVerified && (
-          <Chip className="bg-amber-500/15 text-amber-300 border border-amber-500/20">
+          <Chip className="bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-semibold">
             ⏳ Classifying
           </Chip>
         )}
@@ -733,8 +735,8 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
             {/* Crossover notification bar */}
             {trend.isRegionalCrossover && trend.crossoverMessage && (
-              <div className="rounded-xl border border-amber-500/20 bg-amber-500/[0.04] p-3 text-xs text-amber-300">
-                ⚠️ <strong>Crossover Alert:</strong> {trend.crossoverMessage}
+              <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 text-xs text-foreground">
+                ⚠️ <strong className="text-amber-500 dark:text-amber-400 font-bold">Crossover Alert:</strong> <span className="text-muted-foreground font-medium">{trend.crossoverMessage}</span>
               </div>
             )}
 

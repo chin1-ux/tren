@@ -292,7 +292,7 @@ function IdeasPage() {
       case "easy":
         return "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20";
       case "medium":
-        return "bg-amber-500/10 text-amber-400 border border-amber-500/20";
+        return "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/30 font-bold";
       case "hard":
         return "bg-primary/10 text-primary border border-primary/20";
       default:
@@ -433,8 +433,8 @@ function IdeasPage() {
               </div>
 
               {usingFallbackIdeas && !loadingIdeas && ideas.length > 0 && (
-                <div className="rounded-xl border border-amber-500/20 bg-amber-500/5 p-3.5 mb-4 text-xs text-amber-400 leading-relaxed">
-                  ⚠️ <strong>Personalized Ideas Offline:</strong> We couldn't load custom ideas tailored to your niche. Showing generic fallback starting points instead.
+                <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3.5 mb-4 text-xs text-foreground leading-relaxed">
+                  ⚠️ <strong className="text-amber-500 dark:text-amber-400 font-bold">Personalized Ideas Offline:</strong> <span className="text-muted-foreground font-medium">We couldn't load custom ideas tailored to your niche. Showing generic fallback starting points instead.</span>
                 </div>
               )}
 
@@ -628,7 +628,7 @@ function IdeasPage() {
                   className="glass-card p-6 border border-border rounded-2xl bg-surface-2 space-y-6 shadow-2xl relative overflow-hidden"
                 >
                   {scoringResult.is_fallback && (
-                    <div className="bg-amber-500/10 border border-amber-500/20 rounded-lg px-4 py-2 text-amber-400 text-sm font-medium">
+                    <div className="bg-amber-500/15 border border-amber-500/35 rounded-lg px-4 py-2 text-amber-500 dark:text-amber-400 text-sm font-semibold">
                       {scoringResult.fallback_reason || "Showing fallback score — LLM unavailable"}
                     </div>
                   )}

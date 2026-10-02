@@ -679,7 +679,7 @@ function GeneratePage() {
             disabled={scoringLoading}
             className="w-full h-12 bg-gradient-to-r from-violet-600 to-primary font-bold uppercase text-white rounded-xl shadow-lg"
           >
-            <Star className="h-4 w-4 mr-2 text-amber-300 fill-amber-300" />
+            <Star className="h-4 w-4 mr-2 text-amber-400 fill-amber-400" />
             {scoringLoading ? "Scoring..." : showScoreCard ? "Hide Score" : "Score This Video"}
           </Button>
 

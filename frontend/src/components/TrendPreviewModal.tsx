@@ -131,7 +131,7 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
                 <Clock className="w-3.5 h-3.5" /> {trend.hoursLeft}h remaining
               </span>
               {!trend.isClassificationVerified && (
-                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/10 border border-amber-500/20 px-2.5 py-0.5 text-xs font-bold text-amber-300">
+                <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 px-2.5 py-0.5 text-xs font-bold text-amber-500 dark:text-amber-400">
                   ⏳ Classifying
                 </span>
               )}

@@ -151,7 +151,7 @@ function TrendDetailPage() {
               </span>
             )}
             {!trend.isClassificationVerified ? (
-              <span className="text-sm rounded-full border border-amber-500/25 bg-amber-500/10 px-2.5 py-1 text-amber-300">
+              <span className="text-sm rounded-full border border-amber-500/35 bg-amber-500/15 px-2.5 py-1 text-amber-500 dark:text-amber-400 font-bold">
                 ⏳ Classifying
               </span>
             ) : trend.languageEmoji ? (
@@ -188,26 +188,28 @@ function TrendDetailPage() {
           const radar = getGoldenHourExpiryMeta(trend);
           if (!radar) return null;
           return (
-            <div className={`rounded-xl p-3.5 text-xs flex items-center justify-between gap-3 border ${
+            <div className={`rounded-xl p-3.5 text-xs flex items-center justify-between gap-3 border shadow-sm ${
               radar.isGoldenHour
-                ? "bg-gradient-to-r from-amber-500/20 via-rose-500/15 to-transparent border-amber-500/35 text-amber-200"
+                ? "bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-card border-amber-500/40 text-foreground"
                 : radar.isExpiring
                 ? "bg-rose-500/15 border-rose-500/30 text-rose-300"
-                : "bg-amber-500/15 border-amber-500/30 text-amber-300"
+                : "bg-amber-500/15 border-amber-500/35 text-foreground"
             }`}>
               <div className="flex items-center gap-2.5">
                 <span className="text-xl shrink-0">{radar.isGoldenHour ? "🔥" : radar.isExpiring ? "⚠️" : "🟡"}</span>
                 <div>
-                  <span className="font-extrabold block text-xs uppercase tracking-wider">
+                  <span className={`font-extrabold block text-xs uppercase tracking-wider ${
+                    radar.isGoldenHour ? "text-amber-500 dark:text-amber-400" : radar.isExpiring ? "text-rose-400" : "text-amber-500 dark:text-amber-400"
+                  }`}>
                     {radar.isGoldenHour ? "Golden Viral Window Active" : radar.isExpiring ? "Audio Expiring / Peaked" : "Window Tightening"}
                   </span>
-                  <span className="text-[11px] opacity-90 leading-tight block mt-0.5">
+                  <span className="text-[11px] text-muted-foreground font-medium leading-tight block mt-0.5">
                     {radar.subText}
                   </span>
                 </div>
               </div>
               {radar.isGoldenHour && (
-                <span className="shrink-0 px-2.5 py-1 rounded bg-amber-400 text-black text-[10px] font-black uppercase tracking-wider shadow-sm">
+                <span className="shrink-0 px-2.5 py-1 rounded bg-amber-500 text-black text-[10px] font-extrabold uppercase tracking-wider shadow-sm">
                   Film Now
                 </span>
               )}
@@ -447,7 +449,7 @@ function TrendDetailPage() {
             <p className="text-xs font-bold uppercase tracking-wide text-muted-foreground">Target Keywords</p>
             <div className="flex flex-wrap gap-1.5">
               {captionKit.keyword_strategy.target_keywords?.map((keyword: string, idx: number) => (
-                <span key={idx} className="rounded-full bg-amber-500/10 px-2.5 py-1 text-xs font-semibold text-amber-400 border border-amber-500/20">
+                <span key={idx} className="rounded-full bg-amber-500/15 px-2.5 py-1 text-xs font-bold text-amber-500 dark:text-amber-400 border border-amber-500/30">
                   {keyword}
                 </span>
               ))}
@@ -490,7 +492,7 @@ function TrendDetailPage() {
                   const phaseLabel = phase.replace(/_/g, " ").replace("s", "s — ");
                   return (
                     <div key={idx} className="flex gap-3 items-start p-2.5 rounded-lg bg-white/[0.01] hover:bg-white/[0.03] transition-all border border-border/50">
-                      <span className="font-mono text-amber-500 font-bold bg-amber-500/10 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
+                      <span className="font-mono text-amber-500 dark:text-amber-400 font-bold bg-amber-500/15 border border-amber-500/30 px-1.5 py-0.5 rounded text-[10px] whitespace-nowrap">
                         {phaseLabel}
                       </span>
                       <p className="text-muted-foreground leading-relaxed">{text}</p>

@@ -146,10 +146,10 @@ export function EarlyDetectionPanel() {
 
         {/* Fallback warning banner if any */}
         {fallbackReason && (
-          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-yellow-500/10 border border-yellow-500/20">
-            <AlertCircle className="h-4 w-4 text-yellow-400 mt-0.5 shrink-0" />
+          <div className="flex items-start gap-3 p-3.5 rounded-xl bg-amber-500/10 border border-amber-500/30">
+            <AlertCircle className="h-4 w-4 text-amber-500 dark:text-amber-400 mt-0.5 shrink-0" />
             <div>
-              <p className="text-xs font-semibold text-yellow-300">Spotify Data Notice</p>
+              <p className="text-xs font-bold text-amber-500 dark:text-amber-400">Spotify Data Notice</p>
               <p className="text-[11px] text-muted-foreground mt-0.5">
                 {fallbackReason}
               </p>

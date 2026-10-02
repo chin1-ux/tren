@@ -484,13 +484,13 @@ function TrendsFeed() {
               if (!showGoldenHourOnly) setShowTargetedOnly(false);
               setDisplayLimit(15);
             }}
-            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-all ${
+            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold transition-all ${
               showGoldenHourOnly
                 ? "bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-sm ring-1 ring-amber-400"
-                : "bg-amber-500/10 text-amber-300 border border-amber-500/20 hover:bg-amber-500/20"
+                : "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/35 hover:bg-amber-500/25"
             }`}
           >
-            <Flame className="h-3 w-3 text-amber-400" />
+            <Flame className="h-3 w-3 text-amber-500 dark:text-amber-400" />
             Golden Hour
           </button>
           {nearestFestive && (

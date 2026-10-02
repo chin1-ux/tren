@@ -510,13 +510,13 @@ export function StudioPage() {
                 <div className="p-4 rounded-xl bg-surface-2 border border-border/80 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-bold text-muted-foreground flex items-center gap-1">
-                      <Zap className="h-3 w-3 text-amber-400" /> Hook Retention
+                      <Zap className="h-3 w-3 text-amber-500" /> Hook Retention
                     </span>
-                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-black">
+                    <span className="px-2 py-0.5 rounded bg-amber-500/20 text-amber-400 dark:text-amber-300 border border-amber-500/30 text-xs font-black">
                       {flopResult.hook_strength?.grade}
                     </span>
                   </div>
-                  <div className="text-xs font-semibold text-text">
+                  <div className="text-xs font-semibold text-foreground">
                     Type: <span className="text-amber-400 font-bold">{flopResult.hook_strength?.archetype_detected}</span>
                   </div>
                   <p className="text-xs text-text-muted leading-relaxed">
@@ -545,7 +545,7 @@ export function StudioPage() {
 
               {/* Hook Rewrite Card */}
               {flopResult.hook_strength?.rewritten_viral_hook && (
-                <div className="p-4 rounded-xl bg-amber-500/10 border border-amber-500/30 space-y-2">
+                <div className="p-4 rounded-xl bg-gradient-to-r from-amber-500/15 via-orange-500/10 to-card border border-amber-500/40 space-y-2">
                   <div className="flex items-center justify-between">
                     <span className="text-[10px] uppercase font-black text-amber-400 tracking-wider flex items-center gap-1">
                       <Sparkles className="h-3.5 w-3.5" /> High-Retention Hook Rewrite
@@ -555,15 +555,15 @@ export function StudioPage() {
                         navigator.clipboard.writeText(flopResult.hook_strength.rewritten_viral_hook);
                         toast.success("Viral hook copied!");
                       }}
-                      className="text-xs text-amber-300 font-bold hover:underline flex items-center gap-1"
+                      className="text-xs text-amber-400 hover:text-amber-300 font-bold hover:underline flex items-center gap-1"
                     >
                       <Copy className="h-3 w-3" /> Copy Rewrite
                     </button>
                   </div>
-                  <p className="text-sm font-semibold text-white italic">
+                  <p className="text-sm font-semibold text-foreground italic">
                     "{flopResult.hook_strength.rewritten_viral_hook}"
                   </p>
-                  <p className="text-[11px] text-amber-300/80">
+                  <p className="text-[11px] text-muted-foreground font-medium">
                     Use this Contrarian / Curiosity angle to halt viewer scroll in the first 1.5 seconds.
                   </p>
                 </div>
@@ -707,10 +707,10 @@ export function StudioPage() {
             <div className="glass-card p-5 border border-emerald-500/40 rounded-2xl space-y-4 animate-in fade-in">
               {/* Simulated-data warning — shown only when backend LLM call failed */}
               {analysisResult.is_simulated && (
-                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/30 px-3 py-2.5">
+                <div className="flex items-start gap-2 rounded-xl bg-amber-500/10 border border-amber-500/40 px-3.5 py-2.5">
                   <Info className="h-4 w-4 text-amber-400 mt-0.5 shrink-0" />
-                  <p className="text-xs text-amber-300">
-                    <span className="font-bold">Estimated result</span> — AI scoring is temporarily unavailable.
+                  <p className="text-xs text-foreground/90 font-medium">
+                    <span className="font-bold text-amber-400">Estimated result</span> — AI scoring is temporarily unavailable.
                     These numbers are rule-based defaults, not personalised analysis.
                     Results will update automatically once the AI service recovers.
                   </p>
@@ -818,7 +818,12 @@ export function StudioPage() {
                   </div>
                   <p className="text-sm text-text font-semibold">"{h.text}"</p>
                   {h.on_screen_keyword && (
-                    <p className="text-xs font-bold text-amber-400">📺 On-screen text: {h.on_screen_keyword}</p>
+                    <p className="text-xs font-semibold text-foreground flex items-center gap-1.5">
+                      <span className="text-amber-500 font-bold">📺 On-screen text:</span>
+                      <span className="bg-amber-500/15 border border-amber-500/30 text-amber-400 dark:text-amber-300 px-1.5 py-0.2 rounded font-mono text-[11px] font-bold">
+                        {h.on_screen_keyword}
+                      </span>
+                    </p>
                   )}
                   <p className="text-xs text-muted-foreground">{h.why_it_works}</p>
                 </div>
