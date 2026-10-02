@@ -68,3 +68,19 @@ for stmt in new_columns:
   3. The potential risks/breakages to the current high-confidence data ingestion pipeline.
   4. Ask Chinmay for explicit approval before touching any scraper code.
 - **REVERT PROTOCOL**: If any future change introduces regressions, Chinmay or the agent can instantly restore the golden working state via: `git checkout golden-scraper-v1.0 -- backend/instagram_scraper_browser.py backend/trend_engine.py backend/spotify_fetcher.py`.
+
+## Production Ready Golden Checkpoint (prod-ready-v1.0)
+
+**Tag**: `prod-ready-v1.0`
+- **Main Repo (`ch1n-may/trendrop`)**: Commit `0792128` (Tag: `prod-ready-v1.0`)
+- **Scraper Repo (`chin1-ux/tren`)**: Commit `a2f5799` (Tag: `prod-ready-v1.0`)
+- **Date**: Oct 2, 2026
+
+**Verified Core Systems in this Checkpoint**:
+1. **Unified Dynamic Feed**: Emerging, rising, resurging, peaked, and expired trends rendered in a single intelligent stream with priority ordering.
+2. **Targeted Workspace Quick Filter**: 1-tap chip toggle giving users instant access to their targeted/saved audios and back to the unified feed.
+3. **Dual-Date Timeline**: Trend cards render both "First caught" (initial discovery date) and "Last verified" (latest rescrape check) to prevent multi-day peaking date ambiguity.
+4. **Why-This-Works Niche Engine**: High-accuracy semantic creator use-case matching (~85% real accuracy) on `why_this_works` and `used_for_note` powering instant niche filters (Fitness, Food, Dance, Fashion, Travel, etc.).
+5. **Zero-Leak Language Engine**: Strict `language_final` priority on backend and frontend with Romanized Hindi/Punjabi vocabulary pre-rules.
+6. **2:1 Balanced Interleaving**: Indian and Global audio balance in top rail feeds.
+7. **Native Multi-Country Scraper Clusters**: Dedicated scraper crawling native hashtags across Brazil (pt), South Korea (ko), Latin/Spain (es), Russia (ru), and Global Edits (en).
