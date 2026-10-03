@@ -485,12 +485,25 @@ function TrendsFeed() {
         const lbl = (t.language || "").toLowerCase().trim();
         const src = (t.discoverySource || "").toLowerCase().trim();
 
+        const fb = (t.fallbackLanguage || "").toLowerCase().trim();
+        const lf = (t.languageFinal || "").toLowerCase().trim();
+
         if (wantsGlobal) {
-          // Global is any audio whose discovery source is global OR whose language is NOT Indian regional
-          if (src === "global") return true;
-          if (!raw && !lbl) return true; // Unclassified/instrumental tracks are global
-          if (!INDIAN_CODES.has(raw) && !INDIAN_CODES.has(lbl)) return true;
-          return false;
+          // Absolute Rejection: If ANY field designates an Indian regional language, reject immediately
+          if (INDIAN_CODES.has(raw) || INDIAN_CODES.has(lbl) || INDIAN_CODES.has(fb) || INDIAN_CODES.has(lf)) {
+            return false;
+          }
+          // If explicitly marked as 'other', check fallbackLanguage - if Indian, reject
+          if (raw === "other" && (INDIAN_CODES.has(fb) || !fb)) {
+            return false;
+          }
+          // Verified global crawler source or verified international language code
+          const GLOBAL_CODES = new Set(["en", "english", "es", "spanish", "pt", "portuguese", "ko", "korean", "ja", "japanese", "ru", "russian", "fr", "french", "de", "german", "it", "italian", "instrumental"]);
+          if (src === "global" || GLOBAL_CODES.has(raw) || GLOBAL_CODES.has(lf)) {
+            return true;
+          }
+          // Default: Only allow if not Indian and non-empty verified foreign language
+          return Boolean(raw && !INDIAN_CODES.has(raw) && raw !== "other");
         }
 
         return (

@@ -251,6 +251,8 @@ export interface UiTrend {
   category: string;
   language?: string;
   rawLanguage?: string;
+  fallbackLanguage?: string;
+  languageFinal?: string;
   languageEmoji?: string;
   isDance: boolean;
   isNarrativeEdit: boolean;
@@ -405,6 +407,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     contentTypeEmoji: isUnverified ? "⏳" : meta.emoji,
     category: isUnverified ? "Classifying..." : meta.category,
     rawLanguage: rawLang || undefined,
+    fallbackLanguage: ((t as any).language || "").toLowerCase().trim() || undefined,
+    languageFinal: ((t as any).language_final || "").toLowerCase().trim() || undefined,
     language: isVerified ? (langInfo?.label ?? (rawLang ? rawLang.toUpperCase() : t.language ?? undefined)) : (langInfo?.label ?? undefined),
     languageEmoji: isVerified ? (langInfo?.emoji ?? (t.language ? "🌍" : undefined)) : (langInfo?.emoji ?? undefined),
     languageLabel: isVerified ? langInfo?.label : (langInfo?.label ?? undefined),
