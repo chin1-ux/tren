@@ -215,7 +215,7 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
-    staleTime: 10_000,
+    staleTime: 60_000,
   });
 
   const {
@@ -226,8 +226,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends", language, sortMode, activeLanguages],
     queryFn: () => fetchTrends(language, sortMode, undefined, activeLanguages),
-    staleTime: 30_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 2 * 60_000,
+    refetchInterval: 15 * 60_000, // 15 min gentle polling (scraper runs every 3h)
   });
 
   const {
@@ -238,8 +238,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", language, activeLanguages],
     queryFn: () => fetchEmergingTrends(language, undefined, activeLanguages),
-    staleTime: 30_000, // 30 sec fast stale time for volatile emerging trends
-    refetchInterval: 2 * 60_000, // 2 min polling
+    staleTime: 2 * 60_000,
+    refetchInterval: 15 * 60_000, // 15 min gentle polling
   });
 
   const {
@@ -250,8 +250,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-peaked", language, activeLanguages],
     queryFn: () => fetchPeakedTrends(language, undefined, activeLanguages),
-    staleTime: 15 * 60_000, // 15 min stale time for peaked trends
-    refetchInterval: 30 * 60_000, // 30 min polling
+    staleTime: 15 * 60_000,
+    refetchInterval: 45 * 60_000,
   });
 
   const {
@@ -262,8 +262,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-expired", language, activeLanguages],
     queryFn: () => fetchExpiredTrends(language, undefined, activeLanguages),
-    staleTime: 30 * 60_000, // 30 min stale time for historical expired trends
-    refetchInterval: 60 * 60_000, // 60 min polling
+    staleTime: 30 * 60_000,
+    refetchInterval: 60 * 60_000,
   });
 
   const {
@@ -274,7 +274,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-resurging", language, activeLanguages],
     queryFn: () => fetchResurgingTrends(language, undefined, activeLanguages),
-    refetchInterval: 10 * 60_000,
+    staleTime: 5 * 60_000,
+    refetchInterval: 20 * 60_000,
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab

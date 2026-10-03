@@ -58,7 +58,7 @@ def get_trends(
         entry = _TRENDS_FEED_CACHE[cache_key]
         if now_ts - entry.get("time", 0) < 60:
             headers = {
-                "Cache-Control": "public, max-age=60",
+                "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
                 "X-Cache": "HIT-MEM",
                 "X-Skipped-Local-Fallback": "true",
             }
@@ -73,7 +73,7 @@ def get_trends(
                 logger.info(f"Serving trends from cache for key: {cache_key}")
                 _TRENDS_FEED_CACHE[cache_key] = {"time": now_ts, "data": parsed_cache}
                 headers = {
-                    "Cache-Control": "public, max-age=60",
+                    "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
                     "X-Cache": "HIT-REDIS",
                     "X-Skipped-Local-Fallback": "true",
                 }
@@ -139,6 +139,7 @@ def get_trends(
             # Default: newest audio detected by Trendrop pipeline on top
             q = q.order("first_detected_at", desc=True)
 
+        q = q.limit(100)
         skipped_local_fallback = True
         res = execute_supabase_get(q)
         trends = _normalize_trends(res.data or [])
@@ -150,6 +151,7 @@ def get_trends(
             q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
             if language and language != "all":
                 q_fb = q_fb.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+            q_fb = q_fb.limit(100)
             res_fb = execute_supabase_get(q_fb)
             trends = _normalize_trends(res_fb.data or [])
 
@@ -213,7 +215,7 @@ def get_trends(
                 logger.error(f"Redis cache write error: {e}")
                 
         headers = {
-            "Cache-Control": "public, max-age=300",
+            "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
             "X-Cache": "MISS",
             "X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false",
         }
@@ -265,6 +267,7 @@ def get_emerging_trends(
 
         q = _apply_languages_filter(q, language, languages)
         q = q.order("velocity_avg", desc=True)
+        q = q.limit(100)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
 
@@ -309,7 +312,11 @@ def get_emerging_trends(
             for trend in trends:
                 trend["user_watermark_id"] = user_id
         
-        return trends
+        headers = {
+            "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+            "X-Status-Filter": "emerging"
+        }
+        return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -537,10 +544,11 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).execute()
+        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
-        return trends
+        headers = {"Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300"}
+        return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.exception(f"Error fetching all-active trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
@@ -571,7 +579,7 @@ def get_peaked_trends(
         entry = _PEAKED_TRENDS_CACHE[cache_key]
         if now - entry['time'] < 300:
             logger.info(f"Serving peaked trends from in-memory cache for key: {cache_key}")
-            headers = {"X-Cache": "HIT", "Cache-Control": "public, max-age=300"}
+            headers = {"X-Cache": "HIT", "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"}
             return JSONResponse(content=entry['data'], headers=headers)
             
     try:
@@ -586,8 +594,8 @@ def get_peaked_trends(
 
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
-        if limit:
-            q = q.limit(limit)
+        limit_val = min(limit or 100, 100)
+        q = q.limit(limit_val)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
@@ -595,7 +603,7 @@ def get_peaked_trends(
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
         
-        headers = {"X-Cache": "MISS", "Cache-Control": "public, max-age=300"}
+        headers = {"X-Cache": "MISS", "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"}
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
@@ -642,7 +650,7 @@ def get_resurging_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
-        headers = {"Cache-Control": "public, max-age=120", "X-Status-Filter": "resurging"}
+        headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging"}
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching resurging trends: {e}", exc_info=True)
@@ -675,11 +683,12 @@ def get_expired_trends(
         )
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
-        if limit:
-            q = q.limit(limit)
+        limit_val = min(limit or 100, 100)
+        q = q.limit(limit_val)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        return trends
+        headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired"}
+        return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")

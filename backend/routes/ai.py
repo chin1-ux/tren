@@ -32,8 +32,10 @@ _DAILY_LIMITS = {
     "video":  int(os.getenv("AI_QUOTA_VIDEO",   "5")),
 }
 
+GLOBAL_DAILY_AI_LIMIT = int(os.getenv("GLOBAL_DAILY_AI_LIMIT", "500"))
+
 def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
-    """Raise HTTP 429 if the user has exceeded their daily LLM quota for this tier.
+    """Raise HTTP 429 if the user or the platform has exceeded daily LLM quota.
 
     Guest users are blocked outright — all AI endpoints require auth.
     Quota is NOT applied to admin emails or demo-allowlisted accounts.
@@ -51,10 +53,19 @@ def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
     limit = _DAILY_LIMITS.get(tier, 20)
     today = time.strftime("%Y-%m-%d")
     redis_key = f"ai_quota:{user_email}:{endpoint}:{today}"
+    global_redis_key = f"ai_quota:global:{today}"
 
     # 1. Try Redis first (shared across serverless invocations)
     if standard_queue and standard_queue.connection:
         try:
+            # Check global circuit breaker to protect free-tier Gemini/Groq limits
+            g_val = standard_queue.connection.get(global_redis_key)
+            if g_val and int(g_val) >= GLOBAL_DAILY_AI_LIMIT:
+                raise HTTPException(
+                    status_code=429,
+                    detail="Global daily AI capacity reached to safeguard free-tier limits. Resets at midnight UTC."
+                )
+
             val = standard_queue.connection.get(redis_key)
             count = int(val) if val else 0
             if count >= limit:
@@ -71,6 +82,8 @@ def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
             pipe = standard_queue.connection.pipeline()
             pipe.incr(redis_key)
             pipe.expire(redis_key, seconds_until_midnight + 60)
+            pipe.incr(global_redis_key)
+            pipe.expire(global_redis_key, seconds_until_midnight + 60)
             pipe.execute()
             return
         except HTTPException:
@@ -79,6 +92,17 @@ def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
             pass  # Redis unavailable — fall through to in-memory
 
     # 2. In-memory fallback (per-process, resets on cold start — acceptable)
+    global_entry = _AI_QUOTA_CACHE.get("global")
+    if global_entry and global_entry.get("day") == today:
+        if global_entry["count"] >= GLOBAL_DAILY_AI_LIMIT:
+            raise HTTPException(
+                status_code=429,
+                detail="Global daily AI capacity reached to safeguard free-tier limits. Resets at midnight UTC."
+            )
+        global_entry["count"] += 1
+    else:
+        _AI_QUOTA_CACHE["global"] = {"day": today, "count": 1}
+
     cache_key = f"{user_email}:{endpoint}"
     entry = _AI_QUOTA_CACHE.get(cache_key)
     if entry and entry.get("day") == today:
