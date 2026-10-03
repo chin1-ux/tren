@@ -21,6 +21,13 @@ def _apply_languages_filter(q, language: Optional[str] = None, languages: Option
     if not lang_list:
         return q
 
+    # 'global' = everything EXCEPT Indian regional languages
+    # NULL language_final rows are included (unknown/unclassified languages are likely global)
+    if "global" in lang_list:
+        indian_codes = "hi,pa,ta,te,ml,kn,bn,mr,gu,ne"
+        # Include: language_final NOT IN indian_codes OR language_final IS NULL
+        return q.or_(f"language_final.not.in.({indian_codes}),language_final.is.null")
+
     filter_or = f"language_final.in.({','.join(lang_list)}),and(language_final.is.null,language.in.({','.join(lang_list)}))"
     return q.or_(filter_or)
 
