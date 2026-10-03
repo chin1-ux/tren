@@ -114,7 +114,7 @@ function TrendsFeed() {
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-  const [, setNow] = useState(Date.now());
+  const [now, setNow] = useState<number>(() => Date.now());
   const prevCountRef = useRef<number>(0);
 
   // Unified multi-dimensional filter state
@@ -468,7 +468,8 @@ function TrendsFeed() {
         const detectedTime = new Date(t.firstDetectedAt || t.createdAt!).getTime();
         if (isNaN(detectedTime)) return false;
 
-        const ageHours = (now - detectedTime) / (1000 * 60 * 60);
+        const currentNow = now || Date.now();
+        const ageHours = (currentNow - detectedTime) / (1000 * 60 * 60);
 
         // If specific runs were matched, check if detectedTime falls inside run windows (+/- buffer)
         if (activeRuns.length > 0) {
@@ -635,7 +636,7 @@ function TrendsFeed() {
         (t.contentType ?? "").toLowerCase().includes(q) ||
         (t.whyThisWorks ?? "").toLowerCase().includes(q)
     );
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery]);
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns, now]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
