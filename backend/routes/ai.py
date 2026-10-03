@@ -9,9 +9,92 @@ from schemas import *
 
 router = APIRouter()
 
+# ── Per-user daily LLM quota guard ────────────────────────────────────────────
+# Protects Groq/Gemini free-tier API key limits from being exhausted by a
+# single user hammering endpoints. Limits are intentionally generous enough
+# for real users but blocking for automated abuse.
+#
+# Quota tiers (calls per user per day):
+#   LIGHT  = 30  — hooks, caption kit, seo caption  (cheap/fast LLM calls)
+#   MEDIUM = 20  — score reel, diagnose flop, daily ideas  (medium LLM calls)
+#   HEAVY  = 10  — calendar, narrative, reel gen  (expensive multi-turn calls)
+#   VIDEO  =  5  — video analysis  (FFmpeg + LLM, heaviest)
+#
+# Stored in Redis if available; falls back to in-memory dict (per-process).
+# In-memory is fine for Vercel (single invocation isolation) and local dev.
+
+_AI_QUOTA_CACHE: dict[str, dict] = {}  # {user:endpoint -> {count, day}}
+
+_DAILY_LIMITS = {
+    "light":  int(os.getenv("AI_QUOTA_LIGHT",  "30")),
+    "medium": int(os.getenv("AI_QUOTA_MEDIUM", "20")),
+    "heavy":  int(os.getenv("AI_QUOTA_HEAVY",  "10")),
+    "video":  int(os.getenv("AI_QUOTA_VIDEO",   "5")),
+}
+
+def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
+    """Raise HTTP 429 if the user has exceeded their daily LLM quota for this tier.
+
+    Guest users are blocked outright — all AI endpoints require auth.
+    Quota is NOT applied to admin emails or demo-allowlisted accounts.
+    """
+    if not user_email or user_email == "guest@trendrop.app":
+        raise HTTPException(
+            status_code=401,
+            detail="Authentication required to use AI features"
+        )
+
+    # Demo/admin bypass
+    if PlanEnforcement.is_demo_allowlisted(user_email):
+        return
+
+    limit = _DAILY_LIMITS.get(tier, 20)
+    today = time.strftime("%Y-%m-%d")
+    redis_key = f"ai_quota:{user_email}:{endpoint}:{today}"
+
+    # 1. Try Redis first (shared across serverless invocations)
+    if standard_queue and standard_queue.connection:
+        try:
+            val = standard_queue.connection.get(redis_key)
+            count = int(val) if val else 0
+            if count >= limit:
+                raise HTTPException(
+                    status_code=429,
+                    detail=f"Daily AI limit reached ({limit} calls/day for this feature). Resets at midnight."
+                )
+            # Increment with TTL to midnight
+            import datetime as _dt
+            now = _dt.datetime.utcnow()
+            seconds_until_midnight = int(
+                (_dt.datetime(now.year, now.month, now.day) + _dt.timedelta(days=1) - now).total_seconds()
+            )
+            pipe = standard_queue.connection.pipeline()
+            pipe.incr(redis_key)
+            pipe.expire(redis_key, seconds_until_midnight + 60)
+            pipe.execute()
+            return
+        except HTTPException:
+            raise
+        except Exception:
+            pass  # Redis unavailable — fall through to in-memory
+
+    # 2. In-memory fallback (per-process, resets on cold start — acceptable)
+    cache_key = f"{user_email}:{endpoint}"
+    entry = _AI_QUOTA_CACHE.get(cache_key)
+    if entry and entry.get("day") == today:
+        if entry["count"] >= limit:
+            raise HTTPException(
+                status_code=429,
+                detail=f"Daily AI limit reached ({limit} calls/day for this feature). Resets at midnight."
+            )
+        entry["count"] += 1
+    else:
+        _AI_QUOTA_CACHE[cache_key] = {"day": today, "count": 1}
+
 @router.post("/api/prepost-score")
-@limiter.limit("15/minute")
+@limiter.limit("8/minute")
 def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(get_current_user)):
+    _check_ai_quota(current_user_email, "prepost-score", "medium")
     try:
         res = creator_tools.get_pre_post_score(
             niche=req.niche,
@@ -40,8 +123,9 @@ def get_prepost_score(request: Request, req: PrePostRequest, current_user_email:
 
 
 @router.post("/api/generate-hooks")
-@limiter.limit("20/minute")
+@limiter.limit("5/minute")
 def generate_hooks(request: Request, req: HookRequest, current_user: str = Depends(get_current_user)):
+    _check_ai_quota(current_user, "generate-hooks", "light")
     try:
         niche = req.trend or req.niche or "lifestyle"
         topic = req.content_description or req.topic or "viral reels"
@@ -60,8 +144,9 @@ def generate_hooks(request: Request, req: HookRequest, current_user: str = Depen
 
 
 @router.post("/api/score-reel")
-@limiter.limit("20/hour")
+@limiter.limit("8/hour")
 def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str = Depends(get_current_user)):
+    _check_ai_quota(current_user_email, "score-reel", "medium")
     try:
         import re
         hashtags = re.findall(r"#\w+", req.caption)
@@ -145,12 +230,13 @@ def score_reel(request: Request, req: ScoreReelRequest, current_user_email: str 
 
 
 @router.post("/api/diagnose-flop")
-@limiter.limit("15/minute")
+@limiter.limit("8/minute")
 def diagnose_flop(
     request: Request,
     req: FlopDiagnosisRequest,
     current_user_email: str = Depends(get_current_user)
 ):
+    _check_ai_quota(current_user_email, "diagnose-flop", "medium")
     """
     Post-Mortem Diagnosis Engine for Reels:
     Cross-references audio saturation and velocity history in Trendrop DB,
@@ -310,8 +396,9 @@ def generate_calendar_for_user(user_email: str, request: Request, current_user_e
 
 
 @router.post("/api/seo-caption")
-@limiter.limit("20/minute")
+@limiter.limit("8/minute")
 def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_email: str = Depends(get_current_user)):
+    _check_ai_quota(current_user_email, "seo-caption", "light")
     try:
         return creator_tools.generate_seo_caption(description=req.description, platform=req.platform)
     except Exception as e:
@@ -320,8 +407,9 @@ def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_
 
 
 @router.get("/api/daily-ideas")
-@limiter.limit("10/minute")
+@limiter.limit("3/minute")
 def get_daily_ideas(request: Request, current_user_email: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+    _check_ai_quota(current_user_email, "daily-ideas", "medium")
     # CACHING: ideas:{user_email}:{date}
     import datetime as dt
     today_str = dt.date.today().isoformat()
@@ -357,8 +445,9 @@ def get_daily_ideas(request: Request, current_user_email: str = Depends(require_
 
 
 @router.post("/api/calendar")
-@limiter.limit("5/minute")
+@limiter.limit("2/minute")
 def create_calendar(request: Request, req: CalendarRequest, current_user_email: str = Depends(get_current_user), _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):
+    _check_ai_quota(current_user_email, "calendar", "heavy")
     try:
         try:
             res = creator_tools.generate_calendar(
@@ -405,7 +494,7 @@ def get_calendar(request: Request, current_user_email: str = Depends(get_current
 
 
 @router.get("/api/ai/generate-caption")
-@limiter.limit("20/minute")
+@limiter.limit("8/minute")
 def generate_caption(
     request: Request,
     trend_id: int = Query(..., description="ID of the trend to generate caption kit for"),
@@ -413,6 +502,7 @@ def generate_caption(
     _credit_check: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))
 ):
     """Generate an AI caption kit for a specific trend."""
+    _check_ai_quota(current_user, "generate-caption", "light")
     try:
         from caption_engine import CaptionEngine
         engine = CaptionEngine()
@@ -428,7 +518,7 @@ def generate_caption(
 
 
 @router.post("/api/video/analyze-metadata")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 def analyze_video_metadata(
     request: Request,
     payload: VideoUrlRequest,
@@ -439,6 +529,7 @@ def analyze_video_metadata(
     Analyze video metadata using FFmpeg, falling back to simulated data if not available.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    _check_ai_quota(current_user, "video-analyze-metadata", "video")
     temp_path = None
     try:
         video_url = payload.video_url
@@ -479,7 +570,7 @@ def analyze_video_metadata(
 
 
 @router.post("/api/video/analyze-visual")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 def analyze_video_visual(
     request: Request,
     payload: VideoUrlRequest,
@@ -490,6 +581,7 @@ def analyze_video_visual(
     Analyze video visual content using OpenCV, falling back to simulated data if not available.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    _check_ai_quota(current_user, "video-analyze-visual", "video")
     temp_path = None
     try:
         video_url = payload.video_url
@@ -520,7 +612,7 @@ def analyze_video_visual(
 
 
 @router.post("/api/video/predict-virality")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 def predict_video_virality(
     request: Request,
     payload: VideoUrlRequest,
@@ -531,6 +623,7 @@ def predict_video_virality(
     Predict video virality combining metadata and visual analysis.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    _check_ai_quota(current_user, "video-predict-virality", "video")
     temp_path = None
     try:
         video_url = payload.video_url
@@ -569,7 +662,7 @@ def predict_video_virality(
 
 
 @router.post("/api/video/improvements")
-@limiter.limit("5/minute")
+@limiter.limit("3/minute")
 def get_video_improvements(
     request: Request,
     payload: VideoUrlRequest,
@@ -580,6 +673,7 @@ def get_video_improvements(
     Get improvement suggestions for video virality.
     Credits are ONLY charged when real analysis is returned (not simulated).
     """
+    _check_ai_quota(current_user, "video-improvements", "video")
     temp_path = None
     try:
         video_url = payload.video_url

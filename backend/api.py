@@ -39,17 +39,16 @@ async def health_check_api():
 @app.get("/api/cron/trigger", tags=["Cron"])
 async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
     """
-    Trigger the scraper pipeline. Secure it using Vercel's CRON_SECRET or a simple secret token.
+    Trigger the scraper pipeline. Secured via CRON_SECRET env var (Authorization header only).
+    Never accept the secret via URL query param — it would be logged in plaintext.
     """
-    cron_secret = os.getenv("CRON_SECRET", "test-cron-secret-xyz")
+    cron_secret = os.getenv("CRON_SECRET")
+    if not cron_secret:
+        logger.error("CRON_SECRET env var not set — refusing cron trigger")
+        raise HTTPException(status_code=500, detail="Cron not configured")
+
     auth_header = request.headers.get("Authorization")
-    secret_param = request.query_params.get("secret")
-    
-    is_valid = (
-        (auth_header and auth_header == f"Bearer {cron_secret}") or
-        (secret_param and secret_param == cron_secret)
-    )
-    if not is_valid:
+    if not auth_header or auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     if is_vercel:
@@ -128,15 +127,13 @@ async def trigger_trend_refresh(request: Request, background_tasks: BackgroundTa
     No scraping — completes within Vercel's serverless timeout (< 60s).
     Runs every 2 hours to keep statuses fresh between full scrape runs.
     """
-    cron_secret = os.getenv("CRON_SECRET", "test-cron-secret-xyz")
-    auth_header = request.headers.get("Authorization")
-    secret_param = request.query_params.get("secret")
+    cron_secret = os.getenv("CRON_SECRET")
+    if not cron_secret:
+        logger.error("CRON_SECRET env var not set — refusing cron refresh")
+        raise HTTPException(status_code=500, detail="Cron not configured")
 
-    is_valid = (
-        (auth_header and auth_header == f"Bearer {cron_secret}") or
-        (secret_param and secret_param == cron_secret)
-    )
-    if not is_valid:
+    auth_header = request.headers.get("Authorization")
+    if not auth_header or auth_header != f"Bearer {cron_secret}":
         raise HTTPException(status_code=401, detail="Unauthorized")
 
     def _run_refresh():
@@ -364,7 +361,8 @@ app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 # 2.5 FRONTEND PERFORMANCE: Gzip middleware
 app.add_middleware(GZipMiddleware, minimum_size=1000)
 
-# Secure CORS config whitelisting Vercel, Railway, and Localhost
+# Strict CORS: exact origin whitelist — no wildcards.
+# Add new deployment URLs via CORS_EXTRA_ORIGINS env var (comma-separated).
 ENVIRONMENT = os.getenv("ENVIRONMENT", "development")
 
 allowed_origins = [
@@ -376,13 +374,16 @@ allowed_origins = [
     "http://localhost:8081",
     "http://127.0.0.1:8081",
 ]
+_extra_cors = os.getenv("CORS_EXTRA_ORIGINS", "")
+if _extra_cors:
+    allowed_origins.extend([o.strip() for o in _extra_cors.split(",") if o.strip()])
 
 app.add_middleware(
     CORSMiddleware,
     allow_origins=allowed_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept", "Origin"],
 )
 
 # Request size limits
@@ -396,30 +397,33 @@ MAX_JSON_SIZE = 10 * 1024 * 1024  # 10MB
 # Item 4 (original): /api/users/, /api/content-trends, /api/cron/, etc.
 # Item 8 (compute-risk): guest-accessible endpoints that instantiate engines/run analysis.
 _RATE_LIMITED_PATHS = [
-    # --- Item 4: auth/cron/users (original scope) ---
+    # --- auth/cron/users ---
     ("/api/users/", 30, 60),
     ("/api/content-trends", 30, 60),
     ("/api/daily-ideas/", 10, 60),
     ("/api/generate-calendar/", 10, 60),
     ("/api/collab-matches/", 10, 60),
-    ("/api/cron/", 5, 60),
+    ("/api/cron/", 3, 60),           # Max 3 cron triggers per minute
     ("/api/deals/", 10, 60),
     ("/api/proof", 30, 60),
-    # --- Item 8: guest-accessible compute-risk endpoints ---
-    # Hashtag computation
+    # --- guest-accessible compute-risk endpoints ---
     ("/api/hashtags/", 10, 60),
-    # Event monitoring (compute, not just DB reads)
     ("/api/events/", 10, 60),
-    # India features — 4 guest-accessible compute endpoints (hashtag-strategy,
-    # creator-patterns, cultural-events/{name}, cultural-events/{name}/optimal-timing)
-    # The other 7 /api/india/* endpoints are gated by require_feature or require_credits
     ("/api/india/", 10, 60),
-    # AI/LLM generation (require_credits gates guests, but middleware adds IP layer)
-    ("/api/generate-hooks", 10, 60),
-    ("/api/generate-narrative", 5, 60),
-    ("/api/generate-reel", 5, 60),
-    # Video analysis
-    ("/api/video/", 10, 60),
+    # --- LLM/AI endpoints: strict IP-level limits to protect API key quotas ---
+    # These are per-IP per-minute caps; per-user daily quotas enforced in route handler
+    ("/api/generate-hooks", 5, 60),       # 5/min per IP (was 10)
+    ("/api/generate-narrative", 3, 60),   # 3/min per IP (was 5)
+    ("/api/generate-reel", 3, 60),        # 3/min per IP (was 5)
+    ("/api/prepost-score", 5, 60),        # 5/min per IP
+    ("/api/diagnose-flop", 5, 60),        # 5/min per IP
+    ("/api/seo-caption", 5, 60),          # 5/min per IP
+    ("/api/ai/generate-caption", 5, 60),  # 5/min per IP
+    ("/api/score-reel", 5, 60),           # 5/min per IP
+    ("/api/daily-ideas", 3, 60),          # 3/min per IP
+    ("/api/calendar", 2, 60),             # 2/min per IP (heavy LLM call)
+    # --- Video analysis: heaviest compute + LLM ---
+    ("/api/video/", 3, 60),               # 3/min per IP (was 10)
 ]
 
 # In-memory sliding-window rate limiter for middleware (works without Redis too)

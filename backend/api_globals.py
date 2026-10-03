@@ -504,12 +504,16 @@ redis_limiter = get_rate_limiter() if REDIS_RATE_LIMITER_AVAILABLE else None
 from fastapi.middleware.gzip import GZipMiddleware
 try:
     import sentry_sdk
-    sentry_sdk.init(
-        dsn="https://68bd847016cb673a5a3c45a3bb093531@o4511918964277248.ingest.de.sentry.io/4511918972469328",
-        send_default_pii=False,
-        traces_sample_rate=0.1,
-        environment=os.getenv("ENVIRONMENT", "development")
-    )
+    _sentry_dsn = os.getenv("SENTRY_DSN")
+    if _sentry_dsn:
+        sentry_sdk.init(
+            dsn=_sentry_dsn,
+            send_default_pii=False,
+            traces_sample_rate=0.1,
+            environment=os.getenv("ENVIRONMENT", "development")
+        )
+    else:
+        logger.info("SENTRY_DSN not set — Sentry reporting disabled.")
 except ImportError:
     print("Warning: sentry_sdk not installed. Sentry reporting disabled.")
 
@@ -540,21 +544,28 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(GZipMiddleware, minimum_size=1000)
+# Strict CORS: exact origin whitelist only — no wildcards (*.vercel.app removed).
+# Any new deployment domain must be explicitly added here.
+_CORS_ALLOWED_ORIGINS = [
+    "http://localhost:8081",
+    "http://localhost:5173",
+    "http://localhost:3000",
+    "http://127.0.0.1:8081",
+    "http://127.0.0.1:5173",
+    "http://127.0.0.1:3000",
+    "https://trendrop-black.vercel.app",
+]
+# Allow adding extra origins via env var (comma-separated) without code changes
+_extra_origins = os.getenv("CORS_EXTRA_ORIGINS", "")
+if _extra_origins:
+    _CORS_ALLOWED_ORIGINS.extend([o.strip() for o in _extra_origins.split(",") if o.strip()])
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:8081",
-        "http://localhost:5173",
-        "http://localhost:3000",
-        "http://127.0.0.1:8081",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:3000",
-        "https://trendrop-black.vercel.app",
-        "https://*.vercel.app",
-    ],
+    allow_origins=_CORS_ALLOWED_ORIGINS,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept", "Origin"],
 )
 
 

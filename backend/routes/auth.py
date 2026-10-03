@@ -18,11 +18,19 @@ def _get_supabase_jwks_client():
     return _jwks_client
 
 def _email_from_supabase_jwt(token: str) -> Optional[str]:
-    """Return the email claim of a valid Supabase access token, else None."""
+    """Return the email claim of a cryptographically VERIFIED Supabase access token, else None.
+
+    Two verified methods are attempted in order:
+      1. Supabase Auth API  (live revocation check — most trustworthy)
+      2. JWKS signature validation (offline, still cryptographically sound)
+
+    The former 'fallback' of decoding without signature verification has been
+    removed — it would accept any crafted token and is a security antipattern.
+    """
     if not token or not isinstance(token, str):
         return None
 
-    # 1. Try Supabase Auth API validation first (most reliable)
+    # 1. Try Supabase Auth API validation first (most reliable + checks revocation)
     try:
         if supabase:
             user_res = supabase.auth.get_user(jwt=token)
@@ -31,7 +39,7 @@ def _email_from_supabase_jwt(token: str) -> Optional[str]:
     except Exception as e:
         logger.debug(f"supabase.auth.get_user failed: {e}")
 
-    # 2. Try JWKS validation
+    # 2. Try JWKS signature validation (cryptographically verified)
     try:
         client = _get_supabase_jwks_client()
         if client:
@@ -48,20 +56,11 @@ def _email_from_supabase_jwt(token: str) -> Optional[str]:
     except Exception as e:
         logger.debug(f"JWKS decode failed: {e}")
 
-    # 3. Fallback unverified decode
-    try:
-        payload = jwt.decode(token, options={"verify_signature": False})
-        email = payload.get("email")
-        if not email and payload.get("sub"):
-            sub = payload.get("sub")
-            if "@" in sub:
-                email = sub
-        if email:
-            return email
-    except Exception as e:
-        logger.warning(f"Unverified JWT decode failed: {e}")
-
+    # Both verified methods failed — do NOT fall back to unverified decode.
+    # Return None so the caller treats this as unauthenticated.
+    logger.debug("JWT validation failed both verified methods — treating as unauthenticated")
     return None
+
 
 router = APIRouter()
 
