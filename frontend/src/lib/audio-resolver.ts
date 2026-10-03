@@ -3,7 +3,7 @@
  * 
  * Provides fast, zero-server-cost resolution for trending audio previews.
  * Uses official Apple Music / iTunes Search CDN preview endpoints with in-memory + local storage caching.
- * Resolves viral drop segments and handles original/custom audio fallbacks.
+ * Employs Strict Multi-Candidate Fuzzy Verification to prevent incorrect artist/song audio mismatches.
  */
 
 export interface ResolvedAudio {
@@ -21,8 +21,8 @@ export interface ResolvedAudio {
 // In-memory runtime cache
 const memoryCache = new Map<string, ResolvedAudio>();
 
-// Storage cache key
-const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v2";
+// Storage cache key (v4: strictly audited to invalidate any previously mismatched audio)
+const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v4_strict";
 
 /**
  * Check if a URL is an actual audio stream file (m4a, mp3, aac) and NOT an HTML page
@@ -56,6 +56,11 @@ export function isAudioStreamUrl(url?: string | null): boolean {
 function getStorageCache(): Record<string, ResolvedAudio> {
   if (typeof window === "undefined") return {};
   try {
+    // Purge legacy caches that may contain cross-artist mismatches
+    localStorage.removeItem("trendrop_resolved_audio_cache_v1");
+    localStorage.removeItem("trendrop_resolved_audio_cache_v2");
+    localStorage.removeItem("trendrop_resolved_audio_cache_v3");
+
     const raw = localStorage.getItem(CACHE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
   } catch {
@@ -71,9 +76,9 @@ function saveToStorageCache(key: string, data: ResolvedAudio) {
   try {
     const cache = getStorageCache();
     cache[key] = data;
-    // Cap cache at 200 tracks to preserve storage space
+    // Cap cache at 300 tracks to preserve storage space
     const keys = Object.keys(cache);
-    if (keys.length > 200) {
+    if (keys.length > 300) {
       delete cache[keys[0]];
     }
     localStorage.setItem(CACHE_STORAGE_KEY, JSON.stringify(cache));
@@ -83,8 +88,21 @@ function saveToStorageCache(key: string, data: ResolvedAudio) {
 }
 
 /**
- * Clean and normalize song titles to maximize search hit rate on music catalogs.
- * Strips out tags like (From "..."), [Official Music Video], (feat. ...), [Slowed], etc.
+ * Clean and normalize text strings for tokenization
+ */
+function normalizeString(s?: string | null): string {
+  if (!s) return "";
+  return s
+    .toLowerCase()
+    .replace(/[\(\[].*?[\)\]]/g, "") // remove parenthetical content like (feat. ...)
+    .replace(/[^a-z0-9\s]/g, " ")     // keep alphanumeric
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+/**
+ * Clean song title and artist for iTunes query string.
+ * Preserves artists with commas like "Tyler, The Creator".
  */
 export function cleanMusicQuery(title: string, artist?: string): { cleanTitle: string; cleanArtist: string; fullQuery: string } {
   let cleanTitle = (title || "")
@@ -94,15 +112,14 @@ export function cleanMusicQuery(title: string, artist?: string): { cleanTitle: s
     .replace(/\s*[\(\[](from|soundtrack|ost|audio).*?[\)\]]/gi, "")
     // Remove video/reverb modifiers like [Official Video], (Slowed + Reverb)
     .replace(/\s*[\(\[](official|video|music video|lyric|lyrics|slowed|reverb|remix|version).*?[\)\]]/gi, "")
-    // Remove extra punctuation
     .replace(/[—–\-]/g, " ")
     .replace(/\s+/g, " ")
     .trim();
 
   let cleanArtist = (artist || "")
     .replace(/\s*[\(\[](feat\.|ft\.|featuring).*?[\)\]]/gi, "")
-    .replace(/\s*,\s*.*$/, "") // Pick first artist if comma-separated
-    .replace(/\s*&\s*.*$/, "") // Pick first artist before &
+    // Only strip trailing collaboration tokens after & or 'with', NOT commas (to protect "Tyler, The Creator")
+    .replace(/\s*(&|\bwith\b)\s*.*$/gi, "")
     .replace(/\s+/g, " ")
     .trim();
 
@@ -130,23 +147,96 @@ export function isOriginalCreatorAudio(title?: string, artist?: string): boolean
 }
 
 /**
- * Helper to fetch and parse from iTunes Search API
+ * Calculate match confidence between requested track and iTunes candidate.
+ * STRICT: If target artist is known and candidate artist has 0 token overlap, returns 0.
  */
-async function fetchItunes(query: string, country?: string): Promise<any | null> {
-  const countryParam = country ? `&country=${country}` : "";
-  const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=1${countryParam}`;
-  const res = await fetch(itunesUrl, { mode: "cors" });
-  if (!res.ok) return null;
-  const data = await res.json();
-  if (data.results && data.results.length > 0 && data.results[0].previewUrl) {
-    return data.results[0];
+export function calculateMatchConfidence(
+  targetTitle: string,
+  targetArtist: string,
+  candidateTitle: string,
+  candidateArtist: string
+): number {
+  const normTargetTitle = normalizeString(targetTitle);
+  const normTargetArtist = normalizeString(targetArtist);
+  const normCandTitle = normalizeString(candidateTitle);
+  const normCandArtist = normalizeString(candidateArtist);
+
+  const titleWords = normTargetTitle.split(" ").filter((w) => w.length > 0);
+  const candTitleWords = new Set(normCandTitle.split(" ").filter((w) => w.length > 0));
+
+  if (titleWords.length === 0 || candTitleWords.size === 0) {
+    return 0;
   }
-  return null;
+
+  // Calculate title overlap
+  const matchedTitleWords = titleWords.filter((w) => candTitleWords.has(w));
+  const titleScore = matchedTitleWords.length / titleWords.length;
+
+  // Stopwords for artist matching
+  const artistStopwords = new Set(["the", "feat", "ft", "and", "official", "music", "audio", "records"]);
+  const artistWords = normTargetArtist.split(" ").filter((w) => w.length > 1 && !artistStopwords.has(w));
+  const candArtistWords = new Set(normCandArtist.split(" ").filter((w) => w.length > 1 && !artistStopwords.has(w)));
+
+  let artistScore = 0.5; // Neutral if no artist provided
+
+  if (artistWords.length > 0) {
+    const matchedArtistWords = artistWords.filter((w) => candArtistWords.has(w));
+    const artistOverlap = matchedArtistWords.length / artistWords.length;
+
+    // STRICT REJECTION: If target artist is specified but has ZERO overlap with candidate artist, REJECT!
+    if (artistOverlap === 0) {
+      return 0; // Absolute veto: prevents Drake playing for Tyler, The Creator
+    }
+
+    artistScore = artistOverlap;
+  }
+
+  // 60% Title weight, 40% Artist weight
+  return titleScore * 0.6 + artistScore * 0.4;
 }
 
 /**
- * Resolve audio playback source using iTunes Search API.
- * High-speed Akamai CDN delivery, zero authentication required, fully licensed 30s clips.
+ * Fetch top candidate tracks from iTunes Search API (request 10 to rank by confidence)
+ */
+async function fetchItunesCandidates(query: string, country?: string): Promise<any[]> {
+  try {
+    const countryParam = country ? `&country=${country}` : "";
+    const itunesUrl = `https://itunes.apple.com/search?term=${encodeURIComponent(query)}&entity=song&limit=10${countryParam}`;
+    const res = await fetch(itunesUrl, { mode: "cors" });
+    if (!res.ok) return [];
+    const data = await res.json();
+    return (data.results || []).filter((r: any) => Boolean(r && r.previewUrl));
+  } catch {
+    return [];
+  }
+}
+
+/**
+ * Find best candidate matching target song and artist
+ */
+function findBestCandidate(candidates: any[], targetTitle: string, targetArtist: string): { candidate: any | null; confidence: number } {
+  let bestCandidate: any | null = null;
+  let bestScore = 0;
+
+  for (const cand of candidates) {
+    const score = calculateMatchConfidence(
+      targetTitle,
+      targetArtist,
+      cand.trackName || "",
+      cand.artistName || ""
+    );
+
+    if (score > bestScore && score >= 0.60) {
+      bestScore = score;
+      bestCandidate = cand;
+    }
+  }
+
+  return { candidate: bestCandidate, confidence: bestScore };
+}
+
+/**
+ * Resolve audio playback source with Strict Multi-Candidate Fuzzy Verification.
  */
 export async function resolveAudioTrack(params: {
   id: string | number;
@@ -207,27 +297,33 @@ export async function resolveAudioTrack(params: {
     return originalResolved;
   }
 
-  // 5. Query Apple Music / iTunes Search API with multi-step fallback
+  // 5. Query Apple Music / iTunes Search API with Strict Scoring
   const { cleanTitle, cleanArtist, fullQuery } = cleanMusicQuery(params.song, params.artist);
 
   try {
-    // Step 5A: Try full query in India store
-    let match = await fetchItunes(fullQuery, "IN");
+    let match: any = null;
 
-    // Step 5B: If no hit and artist was present, try title alone in India store
-    if (!match && cleanTitle) {
-      match = await fetchItunes(cleanTitle, "IN");
+    // Step 5A: Try full query in India store with 10 candidates
+    const inCandidates = await fetchItunesCandidates(fullQuery, "IN");
+    let result = findBestCandidate(inCandidates, cleanTitle, cleanArtist);
+
+    // Step 5B: If no high-confidence match in IN, try Global store
+    if (!result.candidate) {
+      const globalCandidates = await fetchItunesCandidates(fullQuery);
+      result = findBestCandidate(globalCandidates, cleanTitle, cleanArtist);
     }
 
-    // Step 5C: Try global iTunes store
-    if (!match) {
-      match = await fetchItunes(fullQuery);
+    // Step 5C: If still no match and artist was present, search title alone BUT strictly verify candidate artist
+    if (!result.candidate && cleanTitle && cleanArtist) {
+      const titleCandidates = await fetchItunesCandidates(cleanTitle, "IN");
+      result = findBestCandidate(titleCandidates, cleanTitle, cleanArtist);
+      if (!result.candidate) {
+        const titleGlobal = await fetchItunesCandidates(cleanTitle);
+        result = findBestCandidate(titleGlobal, cleanTitle, cleanArtist);
+      }
     }
 
-    // Step 5D: Try title alone in global store
-    if (!match && cleanTitle) {
-      match = await fetchItunes(cleanTitle);
-    }
+    match = result.candidate;
 
     if (match) {
       const resolved: ResolvedAudio = {
@@ -250,7 +346,7 @@ export async function resolveAudioTrack(params: {
     console.warn(`[audio-resolver] Failed to resolve "${fullQuery}":`, err);
   }
 
-  // Fallback: unresolved
+  // Fallback: unresolved (never serve an incorrect artist)
   const fallbackResolved: ResolvedAudio = {
     previewUrl: null,
     title: params.song,
