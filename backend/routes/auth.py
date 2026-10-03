@@ -81,133 +81,14 @@ def reset_password(request: Request, req: ResetPasswordRequest):
 @limiter.limit("5/hour")
 def signup(request: Request, req: SignupRequest):
     """
-    Initiate signup process with phone verification.
-    Creates user in Supabase Auth but requires phone verification before full access.
+    Deprecated: Public email signup is disabled to protect free tier quotas and prevent unverified bot accounts.
+    Users must authenticate securely via Google OAuth.
     """
     _enforce_rate_limit(request, "signup", 3, 3600, [])
-    try:
-        # Step 1: Create user via sign_up (properly hashes password for login)
-        # Then auto-confirm email via admin API so user can login immediately
-        auth_res = None
-        try:
-            auth_res = supabase.auth.sign_up({"email": req.email, "password": req.password})
-            logger.info(f"User created via sign_up: {req.email}")
-            
-            # Auto-confirm email via admin if sign_up didn't confirm it
-            if auth_res and auth_res.user and not auth_res.user.email_confirmed_at:
-                try:
-                    import requests as _req
-                    _req.post(
-                        f"{SUPABASE_URL}/auth/v1/admin/users/{auth_res.user.id}/confirm",
-                        headers={"apikey": SUPABASE_KEY, "Authorization": f"Bearer {SUPABASE_KEY}"},
-                        timeout=10
-                    )
-                    logger.info(f"Auto-confirmed email for: {req.email}")
-                except Exception as confirm_err:
-                    logger.warning(f"Auto-confirm failed (non-fatal): {confirm_err}")
-        except Exception as sign_err:
-            # If user already exists via sign_up, try admin create as fallback
-            logger.warning(f"sign_up failed: {sign_err}, trying admin create")
-            try:
-                auth_res = supabase.auth.admin.create_user({
-                    "email": req.email,
-                    "password": req.password,
-                    "email_confirm": True
-                })
-                logger.info(f"User created via admin auth API: {req.email}")
-            except Exception as admin_err:
-                logger.error(f"Both signup methods failed: {admin_err}")
-                raise HTTPException(status_code=400, detail="Failed to create account")
-
-        if not auth_res or not auth_res.user:
-            raise HTTPException(status_code=400, detail="Failed to register user via Supabase Auth")
-
-        # Step 2: Send phone verification code (optional — skip if service not configured)
-        phone_verified = False
-        phone_verification_required = False
-
-        if PhoneVerification:
-            verification_result = PhoneVerification.send_verification_code(req.phone_number)
-            if verification_result.get('success'):
-                logger.info(f"Verification code sent to: {req.phone_number}")
-                phone_verification_required = True
-            else:
-                # Verification send failed — log; do NOT mark the number verified.
-                # Asserting a false "verified" state is worse than an unverified one.
-                logger.warning(f"Verification code send failed (non-fatal): {verification_result.get('error')}")
-                phone_verified = False
-        else:
-            # PhoneVerification not configured — the number stays unverified
-            logger.info("PhoneVerification not configured — skipping phone verification for signup")
-            phone_verified = False
-
-        # Step 3: Save user metadata to users table
-        import random
-        user_id = f"#{random.randint(1000, 9999)}"
-        
-        user_data = {
-            "email": req.email,
-            "user_id": user_id,
-            "phone_number": req.phone_number,
-            "phone_verified": phone_verified,
-            "niche": req.niche,
-            "language_preference": req.language,
-            "plan": "free",
-            "credits_remaining": 100,
-            "credits_used_this_month": 0,
-            "created_at": datetime.now(timezone.utc).isoformat()
-        }
-        supabase.table("users").upsert(user_data, on_conflict="email").execute()
-
-        # Step 3.5: Save to user_preferences
-        prefs_data = {
-            "email": req.email,
-            "niches": [req.niche] if req.niche != "all" else [],
-            "languages": [req.language],
-            "regions": ["IN"],
-            "creator_language": req.language,
-            "state": req.state if req.state else None,
-            "creator_tier": req.tier if req.tier else "nano",
-            "updated_at": datetime.now(timezone.utc).isoformat()
-        }
-        try:
-            supabase.table("user_preferences").upsert(prefs_data, on_conflict="email").execute()
-        except Exception as e:
-            logger.error(f"Failed to save user_preferences for {req.email}: {e}")
-
-        # Log signup grant in credit_transactions
-        try:
-            user_id_res = supabase.table("users").select("id").eq("email", req.email).single().execute()
-            if user_id_res.data:
-                supabase.table("credit_transactions").insert({
-                    "user_id": user_id_res.data["id"],
-                    "amount": 100,
-                    "reason": "signup_grant",
-                    "endpoint": "signup",
-                    "balance_after": 100,
-                }).execute()
-        except Exception:
-            logger.warning(f"Failed to log signup credit grant for {req.email}")
-
-        response: dict = {
-            "success": True,
-            "message": "Account created successfully!" if phone_verified else "Account created. Please verify your phone number to complete signup.",
-            "user": {
-                "email": req.email,
-                "phone_number": req.phone_number,
-                "phone_verified": phone_verified,
-                "niche": req.niche,
-                "language": req.language
-            },
-            "phone_verification_required": phone_verification_required
-        }
-
-        return response
-    except Exception as e:
-        logger.error(f"Signup failed: {e}", exc_info=True)
-        if isinstance(e, HTTPException):
-            raise
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+    raise HTTPException(
+        status_code=400,
+        detail="Email registration is disabled to prevent unverified accounts. Please sign in with Google for instant verified access."
+    )
 
 
 @router.post("/api/auth/verify-phone")
