@@ -36,7 +36,7 @@ export const Route = createFileRoute("/")({
 
 const LANGUAGES = [
   { code: "all", label: "🌐 All" },
-  { code: "en",  label: "🇬🇧 English" },
+  { code: "global", label: "🌐 Global" },
   { code: "hi",  label: "🇮🇳 Hindi" },
   { code: "pa",  label: "🌾 Punjabi" },
   { code: "ta",  label: "🌴 Tamil" },
