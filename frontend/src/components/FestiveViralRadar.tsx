@@ -46,12 +46,21 @@ const NICHE_OPTIONS = [
   { id: "dance", label: "Dance & Choreo", emoji: "💃" },
 ];
 
+const CATEGORY_OPTIONS = [
+  { id: "all", label: "All Events", emoji: "🌐" },
+  { id: "cultural_in", label: "Indian Cultural", emoji: "🪔" },
+  { id: "global_pop", label: "Global Pop & Viral", emoji: "🎃" },
+  { id: "commercial_tech", label: "Shopping & Sales", emoji: "🛍️" },
+  { id: "sports_entertainment", label: "Sports & Cricket", emoji: "🏏" },
+];
+
 export function FestiveViralRadar() {
   const storeNiche = useUserStore((s) => s.niche) || "all";
   const [selectedNiche, setSelectedNiche] = useState<string>(storeNiche);
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const { data: radarData = null, isLoading: loadingRadar } = useQuery<FestiveRadarResponse | null>({
-    queryKey: ["festive-radar", selectedNiche],
-    queryFn: () => fetchFestiveRadar(selectedNiche),
+    queryKey: ["festive-radar", selectedNiche, selectedCategory],
+    queryFn: () => fetchFestiveRadar(selectedNiche, selectedCategory),
     staleTime: 10 * 60_000, // 10 min cache for instant niche switching
   });
 
@@ -107,7 +116,7 @@ export function FestiveViralRadar() {
           <div className="space-y-2 max-w-2xl">
             <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-semibold bg-orange-500/15 text-orange-400 border border-orange-500/30">
               <Flame className="w-3.5 h-3.5 animate-pulse text-orange-500" />
-              Festive & Cultural Viral Radar (India)
+              Seasonal, Festive & Viral Radar (India & Global)
             </div>
             <h2 className="text-2xl md:text-3xl font-bold font-display tracking-tight text-foreground">
               Film the Pre-Festive Surge <span className="text-orange-400">Before Feeds Flood</span>
@@ -163,6 +172,30 @@ export function FestiveViralRadar() {
         </div>
       </div>
 
+      {/* Scope / Category Filter Rail */}
+      <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 border-b border-border/40 pb-4">
+        <div>
+          <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Event Scope</h3>
+          <p className="text-[11px] text-muted-foreground">Filter by Indian cultural traditions or global pop-culture viral spikes.</p>
+        </div>
+        <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 no-scrollbar">
+          {CATEGORY_OPTIONS.map((cat) => (
+            <button
+              key={cat.id}
+              onClick={() => setSelectedCategory(cat.id)}
+              className={`px-3 py-1 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
+                selectedCategory === cat.id
+                  ? "bg-foreground text-background border-foreground shadow-sm font-bold"
+                  : "bg-muted/40 text-muted-foreground border-border/50 hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <span>{cat.emoji}</span>
+              <span>{cat.label}</span>
+            </button>
+          ))}
+        </div>
+      </div>
+
       {/* Niche Selector Filter */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
@@ -201,6 +234,11 @@ export function FestiveViralRadar() {
                 <span className="text-xs font-semibold text-muted-foreground px-2 py-0.5 rounded-md bg-muted/60">
                   {radarData.golden_opportunity.days_until} days until festival
                 </span>
+                {radarData.golden_opportunity.category_label && (
+                  <span className="text-xs font-medium text-muted-foreground px-2 py-0.5 rounded-md bg-muted/50 border border-border/40">
+                    {radarData.golden_opportunity.category_label}
+                  </span>
+                )}
                 <span className="text-xs font-bold text-amber-500 dark:text-amber-400 bg-amber-500/15 border border-amber-500/30 px-2 py-0.5 rounded-md">
                   ★ {radarData.golden_opportunity.niche_fit_score ?? 95}% Match for {selectedNiche}
                 </span>
@@ -493,17 +531,24 @@ export function FestiveViralRadar() {
                   <div className="space-y-2.5">
                     {/* Header: Wave Badge + Days */}
                     <div className="flex items-center justify-between gap-2">
-                      <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
-                          isGolden
-                            ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
-                            : isPeak
-                            ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
-                            : "bg-muted text-muted-foreground border-border/60"
-                        }`}
-                      >
-                        {festival.wave_phase?.badge || "🔭 Radar"}
-                      </span>
+                      <div className="flex items-center gap-1.5">
+                        <span
+                          className={`px-2.5 py-0.5 rounded-full text-[10px] font-bold border ${
+                            isGolden
+                              ? "bg-emerald-500/15 text-emerald-400 border-emerald-500/30"
+                              : isPeak
+                              ? "bg-amber-500/15 text-amber-400 border-amber-500/30"
+                              : "bg-muted text-muted-foreground border-border/60"
+                          }`}
+                        >
+                          {festival.wave_phase?.badge || "🔭 Radar"}
+                        </span>
+                        {festival.category_label && (
+                          <span className="text-[10px] text-muted-foreground bg-muted/40 px-2 py-0.5 rounded-full border border-border/40">
+                            {festival.category_label}
+                          </span>
+                        )}
+                      </div>
 
                       <span className="text-xs font-bold text-foreground">
                         {festival.days_until === 0

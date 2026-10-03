@@ -100,6 +100,7 @@ def get_festive_radar(
     request: Request,
     days_ahead: int = 150,
     niche: Optional[str] = "all",
+    category: Optional[str] = "all",
     current_user: str = Depends(get_current_user)
 ):
     """
@@ -110,7 +111,7 @@ def get_festive_radar(
         raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
 
     try:
-        radar = CulturalEventCalendar.get_festive_radar(days_ahead=days_ahead, niche=niche)
+        radar = CulturalEventCalendar.get_festive_radar(days_ahead=days_ahead, niche=niche, category=category)
         return radar
     except Exception as e:
         logger.exception(f"Error fetching festive radar: {e}")

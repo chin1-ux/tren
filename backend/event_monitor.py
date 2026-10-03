@@ -185,6 +185,32 @@ class EventMonitor:
                 "target_audiences": ["kerala community", "travel enthusiasts", "cultural enthusiasts"],
                 "platform_relevance": {"instagram": 0.7, "youtube_shorts": 0.65, "tiktok": 0.5},
                 "viral_potential": 65
+            },
+            {
+                "id": f"halloween_{current_year}",
+                "name": "Halloween",
+                "event_type": EventType.CULTURAL,
+                "impact": EventImpact.HIGH,
+                "month": 10,  # October
+                "hashtags": ["#halloween", f"#halloween{current_year}", "#spookyseason", "#halloweencostume", "#halloweenmakeup", "#spooky"],
+                "content_themes": ["costume transformations", "SFX makeup tutorials", "horror movie themes", "spooky recipes", "party looks", "relatable comedy"],
+                "creator_opportunities": ["cosmetic & makeup brand collabs", "DIY costume challenges", "horror sound beat drops", "spooky snacks & mocktails"],
+                "target_audiences": ["youth", "fashion enthusiasts", "makeup artists", "party-goers", "pop-culture lovers"],
+                "platform_relevance": {"instagram": 0.95, "youtube_shorts": 0.9, "tiktok": 0.95},
+                "viral_potential": 92
+            },
+            {
+                "id": f"black_friday_{current_year}",
+                "name": "Black Friday & Cyber Week",
+                "event_type": EventType.CULTURAL,
+                "impact": EventImpact.HIGH,
+                "month": 11,  # November
+                "hashtags": ["#blackfriday", f"#blackfriday{current_year}", "#cybermonday", "#techdeals", "#salealert", "#shoppinghaul"],
+                "content_themes": ["gadget discounts", "sneaker drops", "software lifetime deals", "budget shopping guides", "fashion sale hauls"],
+                "creator_opportunities": ["tech brand sponsorships", "affiliate marketing hauls", "price tracking breakdowns", "credit card cashback hacks"],
+                "target_audiences": ["tech lovers", "gamers", "fashion shoppers", "deal hunters", "creators"],
+                "platform_relevance": {"instagram": 0.9, "youtube_shorts": 0.92, "tiktok": 0.88},
+                "viral_potential": 90
             }
         ]
     

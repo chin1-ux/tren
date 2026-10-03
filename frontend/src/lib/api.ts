@@ -1091,6 +1091,8 @@ export interface FestiveEvent {
   audio_vibe?: string;
   hashtags: string[];
   trending_hashtags?: string[];
+  category?: string;
+  category_label?: string;
   days_until: number;
   wave_phase: FestiveWavePhase;
 }
@@ -1098,6 +1100,7 @@ export interface FestiveEvent {
 export interface FestiveRadarResponse {
   current_date: string;
   target_niche: string;
+  category_filter?: string;
   golden_opportunity: FestiveEvent | null;
   active_wave_festivals: FestiveEvent[];
   upcoming_radar_festivals: FestiveEvent[];
@@ -1127,9 +1130,10 @@ export interface FestiveIdeasResponse {
   concepts: FestiveReelConcept[];
 }
 
-export async function fetchFestiveRadar(niche: string = "all"): Promise<FestiveRadarResponse> {
+export async function fetchFestiveRadar(niche: string = "all", category: string = "all"): Promise<FestiveRadarResponse> {
   const params = new URLSearchParams();
   if (niche) params.set("niche", niche);
+  if (category && category !== "all") params.set("category", category);
   return http<FestiveRadarResponse>(`/api/india/festive-radar?${params}`);
 }
 
