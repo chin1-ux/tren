@@ -226,6 +226,122 @@ def get_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+# ── Scraper Run Freshness Batch Endpoint ───────────────────────────────────────
+
+_SCRAPER_RUNS_CACHE: dict = {}
+
+def _format_run_relative_time(dt_val) -> str:
+    if not dt_val:
+        return "recently"
+    try:
+        if isinstance(dt_val, str):
+            dt_clean = dt_val.replace("Z", "+00:00")
+            dt_obj = datetime.fromisoformat(dt_clean)
+        elif isinstance(dt_val, datetime):
+            dt_obj = dt_val
+        else:
+            return "recently"
+
+        now = datetime.now(timezone.utc)
+        if dt_obj.tzinfo is None:
+            dt_obj = dt_obj.replace(tzinfo=timezone.utc)
+
+        diff_sec = max(0, int((now - dt_obj).total_seconds()))
+        if diff_sec < 60:
+            return "just now"
+        minutes = diff_sec // 60
+        if minutes < 60:
+            return f"{minutes}m ago"
+        hours = minutes // 60
+        if hours < 24:
+            return f"{hours}h ago"
+        days = hours // 24
+        return f"{days}d ago"
+    except Exception:
+        return "recently"
+
+
+@router.get("/api/trends/runs")
+@router.get("/api/scraper/recent-runs")
+@limiter.limit("60/minute")
+def get_recent_scraper_runs(request: Request, limit: int = 6):
+    """
+    Fetch recent scraper runs from cron_runs table with discovered trend IDs.
+    Powers the Scraper Run Freshness Batch filter in the UI.
+    Placed BEFORE /api/trends/{trend_id} to prevent path parameter collision.
+    """
+    cache_key = f"scraper_runs:{limit}"
+    now_ts = time.time()
+    if cache_key in _SCRAPER_RUNS_CACHE:
+        entry = _SCRAPER_RUNS_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 60:
+            return JSONResponse(content=entry["data"])
+
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+
+    try:
+        res = supabase.table("cron_runs") \
+            .select("id, run_at, completed_at, new_trends_found, trend_ids, status, created_at") \
+            .not_.is_("run_at", "null") \
+            .order("id", desc=True) \
+            .limit(limit) \
+            .execute()
+
+        runs_raw = res.data or []
+        if not runs_raw:
+            res_fb = supabase.table("cron_runs") \
+                .select("id, run_at, completed_at, new_trends_found, trend_ids, status, created_at") \
+                .order("id", desc=True) \
+                .limit(limit) \
+                .execute()
+            runs_raw = res_fb.data or []
+
+        formatted_runs = []
+        letters = ["A", "B", "C", "D", "E", "F", "G", "H"]
+        for idx, r in enumerate(runs_raw):
+            letter = letters[idx] if idx < len(letters) else f"Run {idx + 1}"
+            label_tag = "Latest" if idx == 0 else ("Previous" if idx == 1 else f"{idx + 1} runs ago")
+            label = f"Run {letter} ({label_tag})"
+
+            raw_ids = r.get("trend_ids") or []
+            if isinstance(raw_ids, str):
+                try:
+                    raw_ids = json.loads(raw_ids)
+                except Exception:
+                    raw_ids = []
+
+            clean_ids = []
+            for tid in raw_ids:
+                try:
+                    clean_ids.append(int(tid))
+                except (ValueError, TypeError):
+                    continue
+
+            run_time_str = r.get("run_at") or r.get("created_at")
+            rel_time = _format_run_relative_time(run_time_str)
+
+            formatted_runs.append({
+                "run_id": r.get("id"),
+                "letter": letter,
+                "label": label,
+                "relative_time": rel_time,
+                "run_at": run_time_str,
+                "completed_at": r.get("completed_at"),
+                "new_trends_count": len(clean_ids) if clean_ids else (r.get("new_trends_found") or 0),
+                "trend_ids": clean_ids,
+                "status": r.get("status") or "completed",
+            })
+
+        result = {"runs": formatted_runs}
+        _SCRAPER_RUNS_CACHE[cache_key] = {"time": now_ts, "data": result}
+        return JSONResponse(content=result)
+
+    except Exception as e:
+        logger.exception(f"Error fetching scraper runs: {e}")
+        return JSONResponse(content={"runs": []})
+
+
 @router.get("/api/trends/emerging")
 @limiter.limit("60/minute")
 def get_emerging_trends(
@@ -1464,119 +1580,4 @@ def get_niche_trends(
     except Exception as e:
         logger.exception(f"Error fetching niche trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
-
-
-# ── Scraper Run Freshness Batch Endpoint ───────────────────────────────────────
-
-_SCRAPER_RUNS_CACHE: dict = {}
-
-def _format_run_relative_time(dt_val) -> str:
-    if not dt_val:
-        return "recently"
-    try:
-        if isinstance(dt_val, str):
-            dt_clean = dt_val.replace("Z", "+00:00")
-            dt_obj = datetime.fromisoformat(dt_clean)
-        elif isinstance(dt_val, datetime):
-            dt_obj = dt_val
-        else:
-            return "recently"
-
-        now = datetime.now(timezone.utc)
-        if dt_obj.tzinfo is None:
-            dt_obj = dt_obj.replace(tzinfo=timezone.utc)
-
-        diff_sec = max(0, int((now - dt_obj).total_seconds()))
-        if diff_sec < 60:
-            return "just now"
-        minutes = diff_sec // 60
-        if minutes < 60:
-            return f"{minutes}m ago"
-        hours = minutes // 60
-        if hours < 24:
-            return f"{hours}h ago"
-        days = hours // 24
-        return f"{days}d ago"
-    except Exception:
-        return "recently"
-
-
-@router.get("/api/trends/runs")
-@router.get("/api/scraper/recent-runs")
-@limiter.limit("60/minute")
-def get_recent_scraper_runs(request: Request, limit: int = 6):
-    """
-    Fetch recent scraper runs from cron_runs table with discovered trend IDs.
-    Powers the Scraper Run Freshness Batch filter in the UI.
-    """
-    cache_key = f"scraper_runs:{limit}"
-    now_ts = time.time()
-    if cache_key in _SCRAPER_RUNS_CACHE:
-        entry = _SCRAPER_RUNS_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 60:
-            return JSONResponse(content=entry["data"])
-
-    if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
-
-    try:
-        res = supabase.table("cron_runs") \
-            .select("id, run_at, completed_at, new_trends_found, trend_ids, status, created_at") \
-            .not_.is_("run_at", "null") \
-            .order("id", desc=True) \
-            .limit(limit) \
-            .execute()
-
-        runs_raw = res.data or []
-        if not runs_raw:
-            res_fb = supabase.table("cron_runs") \
-                .select("id, run_at, completed_at, new_trends_found, trend_ids, status, created_at") \
-                .order("id", desc=True) \
-                .limit(limit) \
-                .execute()
-            runs_raw = res_fb.data or []
-
-        formatted_runs = []
-        letters = ["A", "B", "C", "D", "E", "F", "G", "H"]
-        for idx, r in enumerate(runs_raw):
-            letter = letters[idx] if idx < len(letters) else f"Run {idx + 1}"
-            label_tag = "Latest" if idx == 0 else ("Previous" if idx == 1 else f"{idx + 1} runs ago")
-            label = f"Run {letter} ({label_tag})"
-
-            raw_ids = r.get("trend_ids") or []
-            if isinstance(raw_ids, str):
-                try:
-                    raw_ids = json.loads(raw_ids)
-                except Exception:
-                    raw_ids = []
-
-            clean_ids = []
-            for tid in raw_ids:
-                try:
-                    clean_ids.append(int(tid))
-                except (ValueError, TypeError):
-                    continue
-
-            run_time_str = r.get("run_at") or r.get("created_at")
-            rel_time = _format_run_relative_time(run_time_str)
-
-            formatted_runs.append({
-                "run_id": r.get("id"),
-                "letter": letter,
-                "label": label,
-                "relative_time": rel_time,
-                "run_at": run_time_str,
-                "completed_at": r.get("completed_at"),
-                "new_trends_count": len(clean_ids) if clean_ids else (r.get("new_trends_found") or 0),
-                "trend_ids": clean_ids,
-                "status": r.get("status") or "completed",
-            })
-
-        result = {"runs": formatted_runs}
-        _SCRAPER_RUNS_CACHE[cache_key] = {"time": now_ts, "data": result}
-        return JSONResponse(content=result)
-
-    except Exception as e:
-        logger.exception(f"Error fetching scraper runs: {e}")
-        return JSONResponse(content={"runs": []})
 
