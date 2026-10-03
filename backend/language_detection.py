@@ -27,10 +27,12 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "antara nandy": "hi", "yuvnsoni": "hi", "hiten": "hi", "sharvi yadav": "hi",
     "atif aslam": "hi", "rahat fateh": "hi", "nusrat": "hi",
     "hindi": "hi", "hindisong": "hi", "hindireels": "hi",
-    "deva": "hi", "maula": "hi", "mere": "hi", "bhajan": "hi", "mata": "hi", "chalisa": "hi", "kirtan": "hi",
     "asees kaur": "hi", "anuv jain": "hi", "des rangila": "hi", "chak de india": "hi",
     "o sanam": "hi", "jhalak dikhla ja": "hi",
     "khatam nahi hoga": "hi", "ghar se bhaag": "hi",
+    "tum hi aana": "hi", "tum hi": "hi", "tum": "hi", "aana": "hi", "tera": "hi", "meri": "hi", "mera": "hi",
+    "tujhe": "hi", "apna": "hi", "apni": "hi", "payal dev": "hi", "marjaavaan": "hi", "jubin nautiyal": "hi",
+    "kesariya": "hi", "chaleya": "hi", "o maahi": "hi", "ve kamleya": "hi", "satranga": "hi",
 
     # -- Tamil --
     "anirudh": "ta", "sai abhyankkar": "ta", "gana muthu": "ta", "vishnu edavan": "ta", "edavan": "ta", "kollywood": "ta",
@@ -95,7 +97,7 @@ LANG_KEYWORD_MAP: dict[str, str] = {
     "mollywood": "ml", "mohanlal": "ml", "mammootty": "ml", "dulquer": "ml", "fahadh": "ml", "sushin shyam": "ml",
     "gopi sundar": "ml", "shaan rahman": "ml", "k.s. chithra": "ml", "vineeth sreenivasan": "ml", "hesaham abdul": "ml",
     "rajeesh": "ml", "rajeesh k chandu": "ml", "kalabhavan mani": "ml", "kadakanninmunakondu": "ml",
-    "malayalamsong": "ml", "malayalam": "ml",
+    "malayalamsong": "ml", "malayalam": "ml", "kavya ajit": "ml", "kavya": "ml", "mahave": "ml", "mamave": "ml",
 
     # -- Kannada --
     "sandalwood": "kn", "kannada song": "kn", "yash": "kn", "kiccha": "kn", "sudeep": "kn", "darshan": "kn",
@@ -149,7 +151,7 @@ VERNACULAR_HASHTAG_LANG: dict[str, str] = {
     "рек": "ru",
 }
 
-_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml"}
+_INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "mr", "ml", "gu", "bn", "ne", "bho", "hne", "or"}
 DISALLOWED_REGIONAL_LANGS = {"gu", "hne", "bho", "bn"}
 
 

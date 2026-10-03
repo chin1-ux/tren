@@ -23,6 +23,7 @@ import { useUserStore } from "@/store/useAppStore";
 import { useEffectivePlan } from "@/lib/plan";
 import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { isIndianAudio, INDIAN_LANG_CODES } from "@/lib/indianAudioDetector";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -476,7 +477,6 @@ function TrendsFeed() {
 
     // 9. Language filter guard
     if (filters.language && filters.language !== "all") {
-      const INDIAN_CODES = new Set(["hi", "hindi", "pa", "punjabi", "ta", "tamil", "te", "telugu", "ml", "malayalam", "kn", "kannada", "bn", "bengali", "mr", "marathi", "gu", "gujarati", "ne", "nepali", "bho", "bhojpuri", "hne", "mai", "or"]);
       const allowed = filters.language.split(",").map(l => l.trim().toLowerCase());
       const wantsGlobal = allowed.includes("global");
 
@@ -484,45 +484,64 @@ function TrendsFeed() {
         const raw = (t.rawLanguage || "").toLowerCase().trim();
         const lbl = (t.language || "").toLowerCase().trim();
         const src = (t.discoverySource || "").toLowerCase().trim();
-
         const fb = (t.fallbackLanguage || "").toLowerCase().trim();
         const lf = (t.languageFinal || "").toLowerCase().trim();
 
+        // High-accuracy semantic Indian audio classifier (inspects scripts, title, artist, tokens)
+        const isIndian = isIndianAudio(t);
+
         if (wantsGlobal) {
-          // Absolute Rejection: If ANY field designates an Indian regional language, reject immediately
-          if (INDIAN_CODES.has(raw) || INDIAN_CODES.has(lbl) || INDIAN_CODES.has(fb) || INDIAN_CODES.has(lf)) {
+          // Absolute Rule 1: If semantic engine identifies ANY Indian trait, REJECT 100%!
+          if (isIndian) {
             return false;
           }
-          // If explicitly marked as 'other', check fallbackLanguage - if Indian, reject
-          if (raw === "other" && (INDIAN_CODES.has(fb) || !fb)) {
+
+          // Absolute Rule 2: Explicitly reject any Indian language codes
+          if (INDIAN_LANG_CODES.has(raw) || INDIAN_LANG_CODES.has(lbl) || INDIAN_LANG_CODES.has(fb) || INDIAN_LANG_CODES.has(lf)) {
             return false;
           }
+
+          // Absolute Rule 3: Reject "instrumental" or "other" unless verified foreign global crawler
+          if (raw === "instrumental" || lf === "instrumental" || raw === "other") {
+            return src === "global" && (t.trendOrigin || "").toUpperCase() !== "IN";
+          }
+
+          // Verified international language codes (STRICT: Notice "instrumental" is REMOVED!)
+          const GLOBAL_CODES = new Set(["en", "english", "es", "spanish", "pt", "portuguese", "ko", "korean", "ja", "japanese", "ru", "russian", "fr", "french", "de", "german", "it", "italian"]);
+
           // Verified global crawler source or verified international language code
-          const GLOBAL_CODES = new Set(["en", "english", "es", "spanish", "pt", "portuguese", "ko", "korean", "ja", "japanese", "ru", "russian", "fr", "french", "de", "german", "it", "italian", "instrumental"]);
           if (src === "global" || GLOBAL_CODES.has(raw) || GLOBAL_CODES.has(lf)) {
-            return true;
+            return (t.trendOrigin || "").toUpperCase() !== "IN";
           }
-          // Default: Only allow if not Indian and non-empty verified foreign language
-          return Boolean(raw && !INDIAN_CODES.has(raw) && raw !== "other");
+
+          // Default: Only allow if verified foreign language and not Indian origin
+          return Boolean(raw && !INDIAN_LANG_CODES.has(raw) && raw !== "other" && (t.trendOrigin || "").toUpperCase() !== "IN");
         }
+
+        // For specific language selections:
+        const matchesIndianLang = (
+          (allowed.includes("hi") && (["hindi", "hi"].includes(raw) || ["hindi", "hi"].includes(lf) || (isIndian && !allowed.some(c => c !== "hi" && (raw === c || lf === c))))) ||
+          (allowed.includes("pa") && (["punjabi", "pa"].includes(raw) || ["punjabi", "pa"].includes(lf))) ||
+          (allowed.includes("ta") && (["tamil", "ta"].includes(raw) || ["tamil", "ta"].includes(lf))) ||
+          (allowed.includes("te") && (["telugu", "te"].includes(raw) || ["telugu", "te"].includes(lf))) ||
+          (allowed.includes("ml") && (["malayalam", "ml"].includes(raw) || ["malayalam", "ml"].includes(lf))) ||
+          (allowed.includes("kn") && (["kannada", "kn"].includes(raw) || ["kannada", "kn"].includes(lf))) ||
+          (allowed.includes("bn") && (["bengali", "bn"].includes(raw) || ["bengali", "bn"].includes(lf))) ||
+          (allowed.includes("mr") && (["marathi", "mr"].includes(raw) || ["marathi", "mr"].includes(lf))) ||
+          (allowed.includes("gu") && (["gujarati", "gu"].includes(raw) || ["gujarati", "gu"].includes(lf))) ||
+          (allowed.includes("ne") && (["nepali", "ne"].includes(raw) || ["nepali", "ne"].includes(lf))) ||
+          (allowed.includes("instrumental") && (raw === "instrumental" || lf === "instrumental" || (t.song && t.song.toLowerCase().includes("instrumental"))))
+        );
 
         return (
           allowed.includes(raw) ||
           allowed.includes(lbl) ||
-          (allowed.includes("hi") && ["hindi", "hi"].includes(raw)) ||
-          (allowed.includes("pa") && ["punjabi", "pa"].includes(raw)) ||
-          (allowed.includes("ta") && ["tamil", "ta"].includes(raw)) ||
-          (allowed.includes("te") && ["telugu", "te"].includes(raw)) ||
-          (allowed.includes("ml") && ["malayalam", "ml"].includes(raw)) ||
-          (allowed.includes("kn") && ["kannada", "kn"].includes(raw)) ||
-          (allowed.includes("bn") && ["bengali", "bn"].includes(raw)) ||
-          (allowed.includes("mr") && ["marathi", "mr"].includes(raw)) ||
-          (allowed.includes("gu") && ["gujarati", "gu"].includes(raw)) ||
+          allowed.includes(lf) ||
+          matchesIndianLang ||
           (allowed.includes("ko") && ["korean", "ko"].includes(raw)) ||
           (allowed.includes("es") && ["spanish", "es"].includes(raw)) ||
           (allowed.includes("pt") && ["portuguese", "pt"].includes(raw)) ||
-          (allowed.includes("en") && ["english", "en"].includes(raw)) ||
-          (allowed.includes("en") && ["english", "en"].includes(lbl))
+          (allowed.includes("en") && !isIndian && ["english", "en"].includes(raw))
         );
       });
     }
