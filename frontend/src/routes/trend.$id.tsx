@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import {
   ArrowLeft, Copy, CheckCheck, Clock, Flame, Share2, ExternalLink,
-  Zap, Volume2, Calendar, ChevronRight, Music2,
+  Zap, Volume2, Calendar, ChevronRight, Music2, Play, Pause, Loader2, Sparkles,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
@@ -15,6 +15,8 @@ import { z } from "zod";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
 import { useEffectivePlan } from '@/lib/plan';
 import { getGoldenHourExpiryMeta } from "@/components/TrendCard";
+import { useAudioStore, primeAudio } from "@/store/useAudioStore";
+import { resolveAudioTrack } from "@/lib/audio-resolver";
 
 export const Route = createFileRoute("/trend/$id")({
   head: () => ({
@@ -103,6 +105,50 @@ function TrendDetailPage() {
     window.open(`https://wa.me/?text=${text}`, "_blank");
   };
 
+  const [isResolving, setIsResolving] = useState(false);
+  const { currentTrack, isPlaying, playTrack, togglePlay } = useAudioStore();
+
+  const trackIdentifier = String(trend?.id || id);
+  const isCurrentTrack = currentTrack && String(currentTrack.id) === trackIdentifier;
+  const isThisPlaying = isCurrentTrack && isPlaying;
+
+  const handlePlayDrop = async () => {
+    if (!trend) return;
+
+    // Synchronously prime audio element within user gesture
+    primeAudio();
+
+    if (isCurrentTrack) {
+      togglePlay();
+      return;
+    }
+
+    setIsResolving(true);
+    try {
+      const resolved = await resolveAudioTrack({
+        id: trackIdentifier,
+        song: trend.song,
+        artist: trend.artist,
+        audioId: trend.audioId,
+        previewUrl: trend.previewUrl || trend.audioUrl,
+      });
+
+      playTrack({
+        id: trackIdentifier,
+        title: resolved.title,
+        artist: resolved.artist,
+        coverUrl: resolved.coverUrl || undefined,
+        instagramAudioId: trend.audioId || undefined,
+        viralStartSec: resolved.viralStartSec,
+        viralDurationSec: resolved.viralDurationSec,
+        previewUrl: resolved.previewUrl,
+        sourceType: resolved.sourceType,
+      });
+    } finally {
+      setIsResolving(false);
+    }
+  };
+
   const formatHour = (h?: number) => {
     if (h === undefined) return "7 PM";
     const period = h >= 12 ? "PM" : "AM";
@@ -181,12 +227,64 @@ function TrendDetailPage() {
           <p className="text-sm text-muted-foreground mt-1">by {trend.artist}</p>
         </div>
 
-        {/* Waveform bars */}
-        <div className="flex items-end gap-1.5 h-10">
-          {[7, 4, 9, 6, 10, 5, 8, 3, 7, 5].map((h, i) => (
-            <div key={i} className="waveform-bar" style={{ height: `${h * 3}px` }} />
-          ))}
-          <span className="ml-2 text-xs text-muted-foreground self-center">{trend.viralMultiplier}x viral</span>
+        {/* Play Viral Drop Interactive Control & Waveform bars */}
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-2xl bg-white/[0.03] border border-border/40 p-3.5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePlayDrop}
+              disabled={isResolving}
+              className={`flex items-center gap-2 rounded-xl px-4 py-2.5 text-xs font-bold transition-all shadow-md ${
+                isThisPlaying
+                  ? "bg-amber-500 text-black shadow-[0_0_16px_rgba(245,158,11,0.4)] scale-105"
+                  : "bg-primary text-primary-foreground hover:bg-primary/90 hover:scale-105 active:scale-95"
+              }`}
+            >
+              {isResolving ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : isThisPlaying ? (
+                <>
+                  <Pause className="h-4 w-4 fill-current" />
+                  <span>Pause Hook</span>
+                </>
+              ) : (
+                <>
+                  <Play className="h-4 w-4 fill-current ml-0.5" />
+                  <span>Play Viral Drop</span>
+                </>
+              )}
+            </button>
+
+            {/* Dynamic Equalizer Bars */}
+            <div className="flex items-end gap-1 h-8 px-1">
+              {[4, 8, 10, 6, 9, 5, 7, 3, 9, 6].map((baseH, i) => (
+                <div
+                  key={i}
+                  className={`w-1 rounded-full transition-all duration-200 ${
+                    isThisPlaying ? "bg-amber-400" : "bg-primary/50"
+                  }`}
+                  style={{
+                    height: isThisPlaying
+                      ? `${25 + ((i * 31) % 75)}%`
+                      : `${baseH * 3}px`,
+                    animation: isThisPlaying
+                      ? `audioBarBounce 0.8s ease-in-out infinite alternate ${i * 0.1}s`
+                      : "none",
+                  }}
+                />
+              ))}
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {isThisPlaying && (
+              <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/30 px-2.5 py-0.5 text-[10px] font-extrabold text-amber-500 dark:text-amber-400 animate-pulse">
+                <Sparkles className="h-3 w-3" /> 15s Hook Loop Active
+              </span>
+            )}
+            <span className="text-xs font-semibold text-muted-foreground self-center">
+              {trend.viralMultiplier}x viral
+            </span>
+          </div>
         </div>
 
         {/* Stats row */}

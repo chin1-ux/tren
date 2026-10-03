@@ -95,7 +95,6 @@ function SettingsPage() {
 
   // Dynamic style states
   const [fontSize, setFontSize] = useState<"normal" | "large" | "largest">("normal");
-  const [themeColor, setThemeColor] = useState<"coral" | "violet" | "emerald">("coral");
 
   // Theme state
   const [theme, setTheme] = useState<"light" | "dark">("light");
@@ -169,11 +168,9 @@ function SettingsPage() {
       setFontSize(savedSize);
       applyFontSize(savedSize);
     }
-    const savedColor = localStorage.getItem("trendrop_theme_color") as any;
-    if (savedColor) {
-      setThemeColor(savedColor);
-      applyThemeColor(savedColor);
-    }
+    localStorage.removeItem("trendrop_theme_color");
+    document.documentElement.style.removeProperty("--primary");
+    document.documentElement.style.removeProperty("--color-primary");
   }, []);
 
   // Theme change
@@ -205,28 +202,11 @@ function SettingsPage() {
     else if (size === "largest") root.style.fontSize = "20px";
   };
 
-  const applyThemeColor = (color: "coral" | "violet" | "emerald") => {
-    const colors = {
-      coral: "#FF4D3D",
-      violet: "#7F77DD",
-      emerald: "#1FB87A"
-    };
-    document.documentElement.style.setProperty("--primary", colors[color]);
-    document.documentElement.style.setProperty("--color-primary", colors[color]);
-  };
-
   const handleFontSizeChange = (size: "normal" | "large" | "largest") => {
     setFontSize(size);
     localStorage.setItem("trendrop_font_size", size);
     applyFontSize(size);
     toast.success(`Font size changed to ${size}!`);
-  };
-
-  const handleThemeColorChange = (color: "coral" | "violet" | "emerald") => {
-    setThemeColor(color);
-    localStorage.setItem("trendrop_theme_color", color);
-    applyThemeColor(color);
-    toast.success(`Theme primary color updated to ${color}!`);
   };
 
   const handleLogout = async () => {
@@ -540,27 +520,6 @@ function SettingsPage() {
                 }`}
               >
                 {size.toUpperCase()}
-              </button>
-            ))}
-          </div>
-        </div>
-
-        {/* Brand Theme Colors */}
-        <div className="space-y-2 border-t border-border/20 pt-3">
-          <p className="text-xs font-semibold text-foreground">App Brand Color Vibe</p>
-          <div className="grid grid-cols-3 gap-2">
-            {(["coral", "violet", "emerald"] as const).map((color) => (
-              <button
-                key={color}
-                type="button"
-                onClick={() => handleThemeColorChange(color)}
-                className={`rounded-lg py-2 text-[11px] font-bold border capitalize transition-all ${
-                  themeColor === color 
-                    ? "bg-primary text-white border-primary" 
-                    : "bg-muted/40 text-foreground border-border/30 hover:bg-muted"
-                }`}
-              >
-                {color}
               </button>
             ))}
           </div>

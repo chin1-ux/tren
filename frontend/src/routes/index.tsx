@@ -1,9 +1,8 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, ArrowRight, RotateCcw } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchFestiveRadar, type UiTrend } from "@/lib/api";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -278,13 +277,6 @@ function TrendsFeed() {
     refetchInterval: 10 * 60_000,
   });
 
-  const { data: festiveRadarData } = useQuery({
-    queryKey: ["festive-radar-top-alert"],
-    queryFn: () => fetchFestiveRadar("all"),
-    staleTime: 60 * 60_000,
-  });
-  const nearestFestive = festiveRadarData?.golden_opportunity || festiveRadarData?.active_wave_festivals?.[0] || festiveRadarData?.upcoming_radar_festivals?.[0];
-
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
   // Priority: rising > emerging > resurging > peaked > expired
   const deduplicatedTrends = useMemo(() => {
@@ -460,35 +452,6 @@ function TrendsFeed() {
         </div>
       </div>
 
-      {/* ── Festive Wave Alert Banner ─────────────────────────────────── */}
-      {nearestFestive && (
-        <div className="mx-4 mt-3 rounded-2xl border border-orange-500/30 bg-gradient-to-r from-orange-500/10 via-amber-500/5 to-card p-3 sm:p-3.5 flex items-center justify-between gap-3 shadow-sm">
-          <div className="flex items-center gap-2.5 min-w-0">
-            <div className="w-8 h-8 rounded-xl bg-orange-500/20 text-orange-400 border border-orange-500/30 flex items-center justify-center shrink-0">
-              <Flame className="w-4 h-4 animate-pulse text-orange-500" />
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs font-bold text-foreground flex items-center gap-1.5 flex-wrap">
-                <span>Festive Surge: {nearestFestive.name} {nearestFestive.days_until === 0 ? "is today" : `is in ${nearestFestive.days_until} days`}</span>
-                <span className="text-[10px] font-extrabold px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  {nearestFestive.wave_phase?.badge || "Golden Window Open"}
-                </span>
-              </p>
-              <p className="text-[11px] text-muted-foreground truncate">
-                {nearestFestive.wave_phase?.status_text || "Algorithm distribution for pre-festive curiosity & glow-ups is peaking now before feeds flood."}
-              </p>
-            </div>
-          </div>
-          <Button
-            size="sm"
-            onClick={() => navigate({ to: "/dashboard", search: { tab: "festive" } as any })}
-            className="shrink-0 bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs h-8 px-3 rounded-xl gap-1 shadow-sm"
-          >
-            Generate Reels <ArrowRight className="w-3 h-3" />
-          </Button>
-        </div>
-      )}
-
       {/* ── Feed Tabs & Search ─────────────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
         {/* Niche Filter Chips */}
@@ -560,17 +523,6 @@ function TrendsFeed() {
             <Flame className="h-3 w-3 text-amber-500 dark:text-amber-400" />
             Golden Hour
           </button>
-          {nearestFestive && (
-            <button
-              type="button"
-              id="festive-radar-chip"
-              onClick={() => navigate({ to: "/dashboard", search: { tab: "festive" } as any })}
-              className="flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-bold transition-all bg-gradient-to-r from-orange-500/15 to-amber-500/15 text-orange-400 border border-orange-500/30 hover:border-orange-500 hover:text-orange-300"
-            >
-              <Sparkles className="h-3 w-3 text-orange-400 animate-pulse" />
-              Festive Radar ({nearestFestive.name} {nearestFestive.days_until === 0 ? "today" : `in ${nearestFestive.days_until}d`})
-            </button>
-          )}
           {LANGUAGES.slice(0, 10).map((l) => (
             <button
               key={l.code}

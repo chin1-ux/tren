@@ -546,7 +546,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           }}
           trendId={trend.id}
           opportunityScore={trend.opportunityScore}
-          previewUrl={audioUrl || trend.previewUrl || trend.audioUrl}
+          previewUrl={trend.previewUrl || trend.audioUrl || null}
         />
       </div>
 
