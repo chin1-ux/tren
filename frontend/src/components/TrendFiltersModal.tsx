@@ -1,6 +1,7 @@
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, RotateCcw, Check, Sparkles, Clock, Flame, ShieldCheck, Film, Globe2 } from "lucide-react";
+import { X, RotateCcw, Check, Sparkles, Clock, Flame, ShieldCheck, Film, Globe2, Radio, Layers } from "lucide-react";
+import type { ScraperRunInfo } from "@/lib/api";
 
 export interface FilterState {
   lifecycle: string; // 'all' | 'emerging' | 'rising' | 'resurging' | 'peaked' | 'expired'
@@ -12,6 +13,8 @@ export interface FilterState {
   niches: string[]; // ['all'] or array of niche IDs
   language: string; // 'all' | 'global' | 'hi' | 'pa' | ...
   format: string; // 'all' | 'dance' | 'narrative' | 'faceless'
+  freshnessPreset: string; // 'all' | 'latest' | 'previous' | 'last_2' | 'today' | 'custom'
+  selectedRunIds: number[]; // e.g. [482] or [482, 481]
 }
 
 interface TrendFiltersModalProps {
@@ -23,6 +26,7 @@ interface TrendFiltersModalProps {
   nichesList: Array<{ id: string; label: string }>;
   languagesList: Array<{ code: string; label: string }>;
   totalResultsCount: number;
+  scraperRuns?: ScraperRunInfo[];
 }
 
 export function TrendFiltersModal({
@@ -34,6 +38,7 @@ export function TrendFiltersModal({
   nichesList,
   languagesList,
   totalResultsCount,
+  scraperRuns = [],
 }: TrendFiltersModalProps) {
   if (!isOpen) return null;
 
@@ -111,6 +116,115 @@ export function TrendFiltersModal({
           {/* Scrollable Filter Body */}
           <div className="flex-1 overflow-y-auto px-5 py-4 space-y-6 no-scrollbar">
             
+            {/* 0. Scraper Run & Freshness Batch */}
+            <div>
+              <div className="flex items-center justify-between mb-2">
+                <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
+                  <Radio className="h-3.5 w-3.5 text-primary animate-pulse" />
+                  Scraper Run & Freshness Batch
+                </label>
+                {(filters.freshnessPreset !== "all" || (filters.selectedRunIds && filters.selectedRunIds.length > 0)) && (
+                  <span className="text-[11px] font-semibold text-primary px-2 py-0.5 rounded-full bg-primary/10">
+                    Filtered by scrape wave
+                  </span>
+                )}
+              </div>
+
+              {/* Quick Batch Presets */}
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-1.5 mb-2.5">
+                {[
+                  { id: "all", label: "All Runs", desc: "Full catalog" },
+                  { id: "latest", label: "🚀 Latest (Run A)", desc: "Newest wave" },
+                  { id: "previous", label: "⏪ Previous (Run B)", desc: "1 cycle prior" },
+                  { id: "last_2", label: "⚡ Last 2 Runs", desc: "A + B combined" },
+                  { id: "today", label: "📅 Today", desc: "Last 24 hours" },
+                ].map((preset) => {
+                  const isSelected = filters.freshnessPreset === preset.id && (!filters.selectedRunIds || filters.selectedRunIds.length === 0);
+                  return (
+                    <button
+                      key={preset.id}
+                      type="button"
+                      onClick={() => onChange({ freshnessPreset: preset.id, selectedRunIds: [] })}
+                      className={`flex flex-col text-left p-2 rounded-xl border transition-all ${
+                        isSelected
+                          ? "border-primary bg-primary/10 text-primary ring-1 ring-primary/40 font-bold"
+                          : "border-border/60 bg-muted/30 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                      }`}
+                    >
+                      <span className="text-xs font-semibold leading-tight line-clamp-1">{preset.label}</span>
+                      <span className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{preset.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Discrete Run Selector (Combine or Separate Specific Runs) */}
+              {scraperRuns && scraperRuns.length > 0 && (
+                <div className="p-2.5 rounded-xl border border-border/50 bg-muted/20">
+                  <div className="flex items-center justify-between mb-2">
+                    <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                      <Layers className="h-3 w-3 text-primary" />
+                      Discrete Scrape Cohorts (Select to isolate or combine):
+                    </span>
+                    {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
+                      <span className="text-[10px] font-semibold text-primary">
+                        {filters.selectedRunIds.length} run{filters.selectedRunIds.length > 1 ? "s" : ""} combined
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
+                    {scraperRuns.slice(0, 6).map((run) => {
+                      const isSelected = (filters.selectedRunIds || []).includes(run.run_id);
+                      return (
+                        <button
+                          key={run.run_id}
+                          type="button"
+                          onClick={() => {
+                            const current = filters.selectedRunIds || [];
+                            let next: number[];
+                            if (current.includes(run.run_id)) {
+                              next = current.filter((id) => id !== run.run_id);
+                            } else {
+                              next = [...current, run.run_id];
+                            }
+                            onChange({
+                              selectedRunIds: next,
+                              freshnessPreset: next.length > 0 ? "custom" : "all",
+                            });
+                          }}
+                          className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
+                            isSelected
+                              ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/50 shadow-sm"
+                              : "border-border/50 bg-card/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                          }`}
+                        >
+                          <div className="min-w-0 pr-1">
+                            <div className="flex items-center gap-1.5">
+                              <span className="text-xs font-bold text-foreground">
+                                Run {run.letter}
+                              </span>
+                              <span className="text-[10px] text-muted-foreground">
+                                ({run.relative_time})
+                              </span>
+                            </div>
+                            <span className="text-[10px] text-primary/90 font-medium">
+                              {run.new_trends_count} fresh audio{run.new_trends_count !== 1 ? "s" : ""}
+                            </span>
+                          </div>
+                          <div className={`h-4 w-4 shrink-0 rounded flex items-center justify-center border transition-all ${
+                            isSelected ? "border-primary bg-primary text-white" : "border-border/80 bg-background/50"
+                          }`}>
+                            {isSelected && <Check className="h-2.5 w-2.5" />}
+                          </div>
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+
             {/* 1. Lifecycle Stage */}
             <div>
               <label className="text-xs font-bold uppercase tracking-wider text-muted-foreground mb-2 block">

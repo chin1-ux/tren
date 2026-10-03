@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, type UiTrend } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, type UiTrend, type ScraperRunInfo } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -128,6 +128,8 @@ function TrendsFeed() {
     niches: ["all"],
     language: "all",
     format: "all",
+    freshnessPreset: "all",
+    selectedRunIds: [],
   });
 
   const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
@@ -204,6 +206,8 @@ function TrendsFeed() {
       niches: ["all"],
       language: "all",
       format: "all",
+      freshnessPreset: "all",
+      selectedRunIds: [],
     });
     if (typeof window !== "undefined") {
       localStorage.setItem("trendrop_pref_language", "all");
@@ -224,6 +228,7 @@ function TrendsFeed() {
     if (filters.niches.length > 0 && !filters.niches.includes("all")) count++;
     if (filters.language !== "all") count++;
     if (filters.format !== "all") count++;
+    if (filters.freshnessPreset !== "all" || (filters.selectedRunIds && filters.selectedRunIds.length > 0)) count++;
     return count;
   }, [filters]);
 
@@ -249,6 +254,16 @@ function TrendsFeed() {
     const id = setInterval(() => setNow(Date.now()), 60_000);
     return () => clearInterval(id);
   }, []);
+
+  const {
+    data: scraperRunsData,
+  } = useQuery({
+    queryKey: ["scraper-runs"],
+    queryFn: () => fetchRecentScraperRuns(6),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+  });
+  const scraperRuns = scraperRunsData ?? [];
 
   const {
     data: targetedData,
@@ -416,6 +431,70 @@ function TrendsFeed() {
 
   const trends = useMemo(() => {
     let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
+
+    // 0. Scraper Run & Freshness Batch filter (isolate or combine scrape cohorts)
+    const hasCustomRuns = filters.selectedRunIds && filters.selectedRunIds.length > 0;
+    const hasFreshnessPreset = filters.freshnessPreset && filters.freshnessPreset !== "all";
+
+    if (hasCustomRuns || hasFreshnessPreset) {
+      const targetTrendIds = new Set<number>();
+      let activeRuns: ScraperRunInfo[] = [];
+
+      if (hasCustomRuns) {
+        activeRuns = scraperRuns.filter((r) => filters.selectedRunIds.includes(r.run_id));
+      } else if (filters.freshnessPreset === "latest" && scraperRuns.length > 0) {
+        activeRuns = [scraperRuns[0]];
+      } else if (filters.freshnessPreset === "previous" && scraperRuns.length > 1) {
+        activeRuns = [scraperRuns[1]];
+      } else if (filters.freshnessPreset === "last_2" && scraperRuns.length > 0) {
+        activeRuns = scraperRuns.slice(0, 2);
+      }
+
+      for (const r of activeRuns) {
+        for (const id of r.trend_ids || []) {
+          targetTrendIds.add(Number(id));
+        }
+      }
+
+      list = list.filter((t) => {
+        const tid = Number(t.id);
+        // 1. Direct match in target trend IDs from cron_runs
+        if (targetTrendIds.size > 0 && targetTrendIds.has(tid)) {
+          return true;
+        }
+
+        // 2. Fallback to time-window relative to runs or preset
+        if (!t.firstDetectedAt && !t.createdAt) return false;
+        const detectedTime = new Date(t.firstDetectedAt || t.createdAt!).getTime();
+        if (isNaN(detectedTime)) return false;
+
+        const ageHours = (now - detectedTime) / (1000 * 60 * 60);
+
+        // If specific runs were matched, check if detectedTime falls inside run windows (+/- buffer)
+        if (activeRuns.length > 0) {
+          return activeRuns.some((r) => {
+            const startMs = new Date(r.run_at).getTime() - 15 * 60 * 1000;
+            const endMs = (r.completed_at ? new Date(r.completed_at).getTime() : startMs + 45 * 60 * 1000) + 15 * 60 * 1000;
+            return detectedTime >= startMs && detectedTime <= endMs;
+          });
+        }
+
+        // Preset-based relative age fallback
+        if (filters.freshnessPreset === "latest") {
+          return ageHours <= 3.5;
+        }
+        if (filters.freshnessPreset === "previous") {
+          return ageHours > 3.5 && ageHours <= 7.0;
+        }
+        if (filters.freshnessPreset === "last_2") {
+          return ageHours <= 7.0;
+        }
+        if (filters.freshnessPreset === "today") {
+          return ageHours <= 24.0;
+        }
+        return true;
+      });
+    }
 
     // 1. Lifecycle Stage filter
     if (filters.lifecycle && filters.lifecycle !== "all") {
@@ -757,6 +836,18 @@ function TrendsFeed() {
                 <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ format: "all" })} />
               </span>
             )}
+            {filters.freshnessPreset !== "all" && filters.freshnessPreset !== "custom" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
+                Batch: {filters.freshnessPreset === "latest" ? "Run A (Latest)" : filters.freshnessPreset === "previous" ? "Run B (Previous)" : filters.freshnessPreset === "last_2" ? "Last 2 Runs" : "Today"}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ freshnessPreset: "all" })} />
+              </span>
+            )}
+            {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
+                Runs ({filters.selectedRunIds.length} combined)
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ selectedRunIds: [], freshnessPreset: "all" })} />
+              </span>
+            )}
             <button
               type="button"
               onClick={resetAllFilters}
@@ -882,6 +973,7 @@ function TrendsFeed() {
         nichesList={NICHES}
         languagesList={LANGUAGES}
         totalResultsCount={trends.length}
+        scraperRuns={scraperRuns}
       />
 
     </div>

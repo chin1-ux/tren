@@ -766,12 +766,35 @@ export async function fetchResurgingTrends(language?: string, niche?: string, la
   }
 }
 
+export interface ScraperRunInfo {
+  run_id: number;
+  letter: string;
+  label: string;
+  relative_time: string;
+  run_at: string;
+  completed_at?: string;
+  new_trends_count: number;
+  trend_ids: number[];
+  status?: string;
+}
+
+export async function fetchRecentScraperRuns(limit = 6): Promise<ScraperRunInfo[]> {
+  try {
+    const res = await http<{ runs: ScraperRunInfo[] }>(`/api/trends/runs?limit=${limit}`);
+    return res.runs || [];
+  } catch (e) {
+    console.warn("Could not fetch recent scraper runs, falling back to temporal mode:", e);
+    return [];
+  }
+}
+
 export async function updateLanguagePreferences(languages: string[]): Promise<{ success: boolean; preferred_languages: string[] }> {
   return http<{ success: boolean; preferred_languages: string[] }>("/api/users/language-preferences", {
     method: "PUT",
     body: JSON.stringify({ languages }),
   });
 }
+
 
 
 
