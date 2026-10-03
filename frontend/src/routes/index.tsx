@@ -476,14 +476,38 @@ function TrendsFeed() {
 
     // 9. Language filter guard
     if (filters.language && filters.language !== "all") {
+      const INDIAN_CODES = new Set(["hi", "hindi", "pa", "punjabi", "ta", "tamil", "te", "telugu", "ml", "malayalam", "kn", "kannada", "bn", "bengali", "mr", "marathi", "gu", "gujarati", "ne", "nepali", "bho", "bhojpuri", "hne", "mai", "or"]);
       const allowed = filters.language.split(",").map(l => l.trim().toLowerCase());
+      const wantsGlobal = allowed.includes("global");
+
       list = list.filter((t) => {
-        const raw = (t.rawLanguage || "").toLowerCase();
-        const lbl = (t.language || "").toLowerCase();
+        const raw = (t.rawLanguage || "").toLowerCase().trim();
+        const lbl = (t.language || "").toLowerCase().trim();
+        const src = (t.discoverySource || "").toLowerCase().trim();
+
+        if (wantsGlobal) {
+          // Global is any audio whose discovery source is global OR whose language is NOT Indian regional
+          if (src === "global") return true;
+          if (!raw && !lbl) return true; // Unclassified/instrumental tracks are global
+          if (!INDIAN_CODES.has(raw) && !INDIAN_CODES.has(lbl)) return true;
+          return false;
+        }
+
         return (
           allowed.includes(raw) ||
           allowed.includes(lbl) ||
           (allowed.includes("hi") && ["hindi", "hi"].includes(raw)) ||
+          (allowed.includes("pa") && ["punjabi", "pa"].includes(raw)) ||
+          (allowed.includes("ta") && ["tamil", "ta"].includes(raw)) ||
+          (allowed.includes("te") && ["telugu", "te"].includes(raw)) ||
+          (allowed.includes("ml") && ["malayalam", "ml"].includes(raw)) ||
+          (allowed.includes("kn") && ["kannada", "kn"].includes(raw)) ||
+          (allowed.includes("bn") && ["bengali", "bn"].includes(raw)) ||
+          (allowed.includes("mr") && ["marathi", "mr"].includes(raw)) ||
+          (allowed.includes("gu") && ["gujarati", "gu"].includes(raw)) ||
+          (allowed.includes("ko") && ["korean", "ko"].includes(raw)) ||
+          (allowed.includes("es") && ["spanish", "es"].includes(raw)) ||
+          (allowed.includes("pt") && ["portuguese", "pt"].includes(raw)) ||
           (allowed.includes("en") && ["english", "en"].includes(raw)) ||
           (allowed.includes("en") && ["english", "en"].includes(lbl))
         );
