@@ -507,20 +507,28 @@ export const createDefaultPreferences = async (userId: string) => {
 
 if (typeof window !== "undefined") {
   supabase.auth.getSession().then(({ data: { session } }) => {
-    inMemoryToken = session?.access_token || null;
-    if (session) {
-      // Enable Supabase JS v2's built-in proactive token refresh.
-      // Without this, access tokens expire after ~1h and every gated API call
-      // returns 401 until the user manually re-logs in.
-      supabase.auth.startAutoRefresh();
+    if (localStorage.getItem("trendrop_session_token")) {
+      inMemoryToken = session?.access_token || null;
+      if (session) {
+        supabase.auth.startAutoRefresh();
+      }
+    } else {
+      inMemoryToken = null;
     }
   });
 
   supabase.auth.onAuthStateChange(async (event, session) => {
+    if (event === "SIGNED_OUT" || !session) {
+      inMemoryToken = null;
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("trendrop_session_token");
+        localStorage.removeItem("trendrop_token");
+      }
+      return;
+    }
     inMemoryToken = session?.access_token || null;
-    // Persist refreshed token to localStorage so the getAuthToken() fallback
-    // also picks up the latest value (covers hard-reloads between refresh cycles).
-    if (session?.access_token && typeof window !== "undefined") {
+    // Persist refreshed token to localStorage only if an active user session exists
+    if (session?.access_token && typeof window !== "undefined" && localStorage.getItem("trendrop_session_token")) {
       localStorage.setItem("trendrop_session_token", session.access_token);
     }
     if (event === "TOKEN_REFRESHED") {
@@ -601,21 +609,6 @@ export async function ensureValidToken(): Promise<string | null> {
 export function getAuthToken(): string | null {
   if (!inMemoryToken && typeof window !== "undefined") {
     inMemoryToken = localStorage.getItem("trendrop_session_token") || localStorage.getItem("trendrop_token");
-    if (!inMemoryToken) {
-      // Also check Supabase local storage keys if present
-      for (let i = 0; i < localStorage.length; i++) {
-        const key = localStorage.key(i);
-        if (key && key.startsWith("sb-") && key.endsWith("-auth-token")) {
-          try {
-            const parsed = JSON.parse(localStorage.getItem(key) || "");
-            if (parsed?.access_token) {
-              inMemoryToken = parsed.access_token;
-              break;
-            }
-          } catch (e) {}
-        }
-      }
-    }
   }
   return inMemoryToken;
 }

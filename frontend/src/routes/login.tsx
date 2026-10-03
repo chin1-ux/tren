@@ -119,7 +119,7 @@ function LoginPage() {
             .
           </p>
 
-          {/* Footer note & Admin link */}
+          {/* Footer note */}
           <div className="w-full mt-6 pt-5 border-t border-slate-100 dark:border-slate-800 text-xs text-slate-500 dark:text-slate-400 flex flex-col gap-2">
             <div>
               New to Trendrop?{" "}
@@ -129,16 +129,6 @@ function LoginPage() {
                 className="text-[#FF4D3D] hover:underline font-semibold"
               >
                 Get instant access
-              </button>
-            </div>
-            <div>
-              Admin portal?{" "}
-              <button
-                type="button"
-                onClick={() => navigate({ to: "/admin/login" })}
-                className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 underline"
-              >
-                Admin Login
               </button>
             </div>
           </div>

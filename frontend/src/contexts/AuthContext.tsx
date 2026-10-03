@@ -229,30 +229,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({ session_token: sessionToken }),
         });
       } catch (error) {
-        toast.error("Logout failed — please try again");
+        console.warn("Backend logout failed:", error);
       }
     }
 
-    setAuthToken(null);
-    // Clear all auth and preference keys
-    const keysToRemove = [
-      "trendrop_session_token",
-      "trendrop_user_email",
-      "trendrop_user_niche",
-      "trendrop_user_language",
-      "trendrop_user_plan",
-      "trendrop_token",
-      "trendrop_email",
-      "trendrop_onboarded",
-      "trendrop_visited",
-      "trendrop_tutorial_done",
-      "admin_token",
-      "admin_email",
-      "admin_role",
-    ];
-    for (const key of keysToRemove) {
-      localStorage.removeItem(key);
+    // 1. Terminate Supabase client session to purge active credentials
+    try {
+      await supabase.auth.signOut({ scope: "local" });
+    } catch (e) {
+      try {
+        await supabase.auth.signOut();
+      } catch (err) {
+        console.warn("Supabase signOut error:", err);
+      }
     }
+
+    // 2. Clear in-memory token
+    setAuthToken(null);
+
+    // 3. Clear ALL localStorage items related to trendrop, supabase auth, or admin
+    if (typeof window !== "undefined") {
+      const keysToRemove: string[] = [];
+      for (let i = 0; i < localStorage.length; i++) {
+        const key = localStorage.key(i);
+        if (
+          key &&
+          (key.startsWith("sb-") ||
+            key.startsWith("trendrop_") ||
+            key.startsWith("admin_"))
+        ) {
+          keysToRemove.push(key);
+        }
+      }
+      for (const k of keysToRemove) {
+        localStorage.removeItem(k);
+      }
+      try {
+        sessionStorage.clear();
+      } catch (e) {}
+    }
+
+    // 4. Reset Zustand user store
+    useUserStore.getState().logout();
+
+    // 5. Clear AuthContext state
     setUser(null);
   };
 
@@ -349,7 +369,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === "SIGNED_OUT" || !session) {
+        setAuthToken(null);
+        setUser(null);
+        useUserStore.getState().logout();
+        return;
+      }
+
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.access_token) {
+        // Prevent ghost session reanimation: if INITIAL_SESSION fires but localStorage has no session token,
+        // it means the user had explicitly signed out. Do NOT revive the session.
+        const storedToken = localStorage.getItem("trendrop_session_token");
+        if (event === "INITIAL_SESSION" && !storedToken) {
+          supabase.auth.signOut({ scope: "local" }).catch(() => {});
+          setAuthToken(null);
+          setUser(null);
+          return;
+        }
+
         const token = session.access_token;
         const email = session.user.email || "";
         setAuthToken(token);

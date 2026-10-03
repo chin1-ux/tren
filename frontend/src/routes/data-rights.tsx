@@ -6,6 +6,7 @@ import { toast } from "sonner";
 import { supabase } from "@/lib/supabase";
 import { setAuthToken } from "@/lib/api";
 import { useUserStore } from "@/store/useAppStore";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/data-rights")({
   head: () => ({
@@ -19,6 +20,9 @@ export const Route = createFileRoute("/data-rights")({
 
 function DataRightsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const backTarget = user ? "/settings" : "/login";
+  const backLabel = user ? "Return to Settings" : "Return to Sign In";
   const logoutUser = useUserStore((s) => s.logout);
   const userEmail = useUserStore((s) => s.email);
 
@@ -151,7 +155,7 @@ function DataRightsPage() {
       logoutUser();
 
       toast.success("Account and all associated personal data permanently erased from our servers.");
-      router.navigate({ to: "/" });
+      router.navigate({ to: "/login" });
     } catch (err) {
       toast.error("Failed to fully erase account data. Please contact privacy@trendrop.app");
       console.error(err);
@@ -165,7 +169,7 @@ function DataRightsPage() {
       {/* Header */}
       <header className="flex items-center gap-3">
         <Link
-          to="/settings"
+          to={backTarget}
           className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/60 border border-border text-foreground hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -307,10 +311,10 @@ function DataRightsPage() {
             You have the right to request correction or updating of your profile details, niches, or language preferences.
           </p>
           <Link
-            to="/settings"
+            to={backTarget}
             className="inline-flex w-full items-center justify-center bg-muted/60 border border-border text-foreground hover:bg-muted font-bold text-xs uppercase tracking-wider rounded-xl h-11 transition-colors"
           >
-            Go to Profile Settings &rarr;
+            {user ? "Go to Profile Settings →" : "Sign In to Access Settings →"}
           </Link>
         </div>
 
@@ -335,10 +339,10 @@ function DataRightsPage() {
 
       <div className="text-center">
         <Link
-          to="/settings"
+          to={backTarget}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors underline"
         >
-          Return to Settings
+          {backLabel}
         </Link>
       </div>
     </div>

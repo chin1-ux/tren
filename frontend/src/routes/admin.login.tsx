@@ -2,6 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { Shield, ArrowLeft, AlertCircle, Lock, Mail } from "lucide-react";
 import { motion } from "framer-motion";
 import { useState } from "react";
+import { API_URL } from "@/lib/api";
 
 export const Route = createFileRoute("/admin/login")({
   head: () => ({
@@ -25,7 +26,7 @@ function AdminLoginPage() {
     setLoading(true);
 
     try {
-      const response = await fetch("/api/admin/login", {
+      const response = await fetch(`${API_URL}/api/admin/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

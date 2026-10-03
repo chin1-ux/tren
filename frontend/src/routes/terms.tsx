@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, AlertTriangle } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 
 export const Route = createFileRoute("/terms")({
   head: () => ({
@@ -12,12 +13,16 @@ export const Route = createFileRoute("/terms")({
 });
 
 function TermsPage() {
+  const { user } = useAuth();
+  const backTarget = user ? "/settings" : "/login";
+  const backLabel = user ? "Return to Settings" : "Return to Sign In";
+
   return (
     <div className="flex flex-col gap-6 px-4 pb-24 pt-6 text-foreground">
       {/* Header */}
       <header className="flex items-center gap-3">
         <Link
-          to="/settings"
+          to={backTarget}
           className="flex h-9 w-9 items-center justify-center rounded-xl bg-muted/60 border border-border text-foreground hover:bg-muted transition-colors"
         >
           <ArrowLeft className="h-4 w-4" />
@@ -94,10 +99,10 @@ function TermsPage() {
 
       <div className="text-center">
         <Link
-          to="/settings"
+          to={backTarget}
           className="inline-flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors underline"
         >
-          Return to Settings
+          {backLabel}
         </Link>
       </div>
     </div>

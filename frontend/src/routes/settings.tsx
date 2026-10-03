@@ -91,7 +91,14 @@ const TIERS = [
 
 function SettingsPage() {
   const navigate = useNavigate();
-  const { logout } = useAuth();
+  const { user, loading, logout } = useAuth();
+
+  // Guard: if unauthenticated, immediately redirect to login
+  useEffect(() => {
+    if (!loading && !user && !localStorage.getItem("trendrop_session_token")) {
+      navigate({ to: "/login" });
+    }
+  }, [user, loading, navigate]);
 
   // Dynamic style states
   const [fontSize, setFontSize] = useState<"normal" | "large" | "largest">("normal");
