@@ -114,6 +114,21 @@ function SignupPage() {
         className="w-full max-w-md"
       >
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 border border-slate-200 dark:border-slate-700">
+          {/* Header */}
+          <div className="text-center mb-6 flex flex-col items-center">
+            <img
+              src="/icon-192.png"
+              alt="Trendrop"
+              className="w-16 h-16 rounded-[22%] shadow-md mb-3 object-contain"
+            />
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
+              Join Trendrop
+            </h1>
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Discover viral audio trends before everyone else
+            </p>
+          </div>
+
           {/* Primary Google Login Button */}
           <Button
             type="button"

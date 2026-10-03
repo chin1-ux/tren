@@ -55,12 +55,17 @@ function LoginPage() {
       >
         <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-xl p-8 border border-slate-200 dark:border-slate-700">
           {/* Header */}
-          <div className="text-center mb-8">
-            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">
+          <div className="text-center mb-8 flex flex-col items-center">
+            <img
+              src="/icon-192.png"
+              alt="Trendrop"
+              className="w-16 h-16 rounded-[22%] shadow-md mb-3 object-contain"
+            />
+            <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-1">
               Welcome Back
             </h1>
-            <p className="text-slate-600 dark:text-slate-400">
-              Login to your Trendrop account
+            <p className="text-slate-600 dark:text-slate-400 text-sm">
+              Sign in to your Trendrop account to continue
             </p>
           </div>
 

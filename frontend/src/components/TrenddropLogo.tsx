@@ -1,6 +1,19 @@
 import React from 'react';
 
 export function TrenddropIcon({ size = 40, variant = 'coral', className = '' }: { size?: number; variant?: 'coral' | 'acid' | 'ink'; className?: string }) {
+  if (variant === 'coral') {
+    return (
+      <img
+        src="/icon-192.png"
+        alt="Trendrop"
+        width={size}
+        height={size}
+        className={`inline-block rounded-[22%] object-contain ${className}`}
+        data-testid="trendrop-icon"
+      />
+    );
+  }
+
   const variants = {
     coral: { bg: '#FF4D3D', fg: '#FFFFFF', accent: '#C7F23A' },
     acid:  { bg: '#C7F23A', fg: '#0B0B0F', accent: '#FF4D3D' },
@@ -10,9 +23,16 @@ export function TrenddropIcon({ size = 40, variant = 'coral', className = '' }: 
   return (
     <svg width={size} height={size} viewBox="0 0 120 120" className={className} data-testid="trendrop-icon">
       <rect x="0" y="0" width="120" height="120" rx="28" fill={v.bg}/>
-      <path d="M 22 84 L 50 64 L 70 74 L 96 36" stroke={v.fg} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <path d="M 86 34 L 100 32 L 98 46" stroke={v.fg} strokeWidth="7" strokeLinecap="round" strokeLinejoin="round" fill="none"/>
-      <path d="M 36 96 C 36 88, 44 80, 44 70 C 44 80, 52 88, 52 96 C 52 102, 47 106, 44 106 C 41 106, 36 102, 36 96 Z" fill={v.accent}/>
+      {/* Uplifting Swoosh T */}
+      <path
+        d="M 32 50 C 32 46, 36 42, 42 42 L 68 42 C 78 42, 86 36, 92 30 C 94 28, 97 29, 96 32 C 94 40, 84 48, 72 50 L 64 50 L 64 88 C 64 94, 56 94, 56 88 L 56 50 L 42 50 C 36 50, 32 46, 32 50 Z"
+        fill={v.fg}
+      />
+      {/* Cute Droplet */}
+      <path
+        d="M 80 62 C 84 54, 88 54, 92 62 C 96 70, 96 78, 90 84 C 84 90, 76 86, 74 80 C 72 74, 76 68, 80 62 Z"
+        fill={v.accent}
+      />
     </svg>
   );
 }

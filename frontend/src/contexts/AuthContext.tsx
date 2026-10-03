@@ -257,6 +257,83 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithGoogle = async () => {
+    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
+
+    if (googleClientId && typeof window !== "undefined") {
+      try {
+        // Load Google Identity Services dynamically if needed
+        if (!window.google?.accounts?.id) {
+          await new Promise<void>((resolve, reject) => {
+            const existing = document.getElementById("google-gis-sdk");
+            if (existing) {
+              existing.addEventListener("load", () => resolve());
+              existing.addEventListener("error", (e) => reject(e));
+              return;
+            }
+            const script = document.createElement("script");
+            script.id = "google-gis-sdk";
+            script.src = "https://accounts.google.com/gsi/client";
+            script.async = true;
+            script.defer = true;
+            script.onload = () => resolve();
+            script.onerror = (e) => reject(e);
+            document.head.appendChild(script);
+          });
+        }
+
+        if (window.google?.accounts?.id) {
+          const authCompleted = await new Promise<boolean>((resolve) => {
+            let handled = false;
+            window.google.accounts.id.initialize({
+              client_id: googleClientId,
+              callback: async (response: { credential?: string }) => {
+                if (response.credential) {
+                  handled = true;
+                  try {
+                    const { error } = await supabase.auth.signInWithIdToken({
+                      provider: "google",
+                      token: response.credential,
+                    });
+                    if (error) {
+                      console.warn("Supabase signInWithIdToken error:", error);
+                      resolve(false);
+                    } else {
+                      resolve(true);
+                    }
+                  } catch (err) {
+                    console.warn("Token exchange error:", err);
+                    resolve(false);
+                  }
+                } else {
+                  resolve(false);
+                }
+              },
+              auto_select: false,
+              cancel_on_tap_outside: true,
+            });
+
+            window.google.accounts.id.prompt((notification: any) => {
+              if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
+                if (!handled) resolve(false);
+              }
+            });
+
+            // If prompt doesn't trigger within 2.5s, fall back to OAuth redirect
+            setTimeout(() => {
+              if (!handled) resolve(false);
+            }, 2500);
+          });
+
+          if (authCompleted) {
+            return;
+          }
+        }
+      } catch (gisError) {
+        console.warn("Google Identity Services in-page auth unavailable, falling back to OAuth redirect:", gisError);
+      }
+    }
+
+    // Default & resilient fallback: standard Supabase OAuth redirect
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
