@@ -373,7 +373,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
-    checkAuth();
+    // Helper: detect if current page load is an OAuth redirect (has access_token or code in URL)
+    const isOAuthCallback = () => {
+      if (typeof window === "undefined") return false;
+      const hash = window.location.hash;
+      const search = window.location.search;
+      return (
+        hash.includes("access_token") ||
+        hash.includes("refresh_token") ||
+        search.includes("code=") ||
+        search.includes("access_token")
+      );
+    };
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
       if (event === "SIGNED_OUT") {
@@ -392,10 +403,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.access_token) {
-        // Prevent ghost session reanimation: if INITIAL_SESSION fires but localStorage has no session token,
-        // it means the user had explicitly signed out. Do NOT revive the session.
         const storedToken = localStorage.getItem("trendrop_session_token");
-        if (event === "INITIAL_SESSION" && !storedToken) {
+
+        // Ghost session guard: INITIAL_SESSION with no stored token AND no OAuth callback
+        // means the user explicitly logged out previously but Supabase still has a stale session.
+        // ONLY block if this is NOT an OAuth redirect — OAuth callbacks have no stored token yet
+        // because we haven't had a chance to write it.
+        if (event === "INITIAL_SESSION" && !storedToken && !isOAuthCallback()) {
+          console.warn("[auth] Ghost session detected — signing out stale Supabase session");
           supabase.auth.signOut({ scope: "local" }).catch(() => {});
           setAuthToken(null);
           setUser(null);
@@ -403,11 +418,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           return;
         }
 
+        // Valid session: OAuth redirect OR returning user with stored token
         const token = session.access_token;
         const email = session.user.email || "";
         setAuthToken(token);
         localStorage.setItem("trendrop_session_token", token);
         localStorage.setItem("trendrop_user_email", email);
+        // Only set defaults if not already stored (preserve existing user prefs)
         if (!localStorage.getItem("trendrop_user_niche")) {
           localStorage.setItem("trendrop_user_niche", "all");
         }
@@ -417,27 +434,50 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         if (!localStorage.getItem("trendrop_user_plan")) {
           localStorage.setItem("trendrop_user_plan", "pro");
         }
-        setUser({
+        const userObj = {
           email,
           niche: localStorage.getItem("trendrop_user_niche") || "all",
           language: localStorage.getItem("trendrop_user_language") || "en",
           plan: localStorage.getItem("trendrop_user_plan") || "pro",
-        });
-        useUserStore.getState().setUser({
-          email,
-          niche: localStorage.getItem("trendrop_user_niche") || "all",
-          language: localStorage.getItem("trendrop_user_language") || "en",
-          plan: localStorage.getItem("trendrop_user_plan") || "pro",
-          authToken: token,
-        });
+        };
+        setUser(userObj);
+        useUserStore.getState().setUser({ ...userObj, authToken: token });
         setLoading(false);
-      } else if (event === "INITIAL_SESSION" && !session) {
-        // No active Supabase session on startup - checkAuth handles local cached session
-        const storedToken = localStorage.getItem("trendrop_session_token");
-        if (!storedToken) {
-          setUser(null);
-          setLoading(false);
-        }
+
+        // Background: verify token with backend to get actual plan/niche/language
+        // (non-blocking — user is already logged in from cached data above)
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
+        fetch(`${API_URL}/api/auth/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_token: token }),
+          signal: controller.signal,
+        })
+          .then((r) => r.json())
+          .then((data) => {
+            clearTimeout(timeout);
+            if (data?.success && data?.valid && data?.user) {
+              const u = data.user;
+              localStorage.setItem("trendrop_user_email", u.email);
+              localStorage.setItem("trendrop_user_niche", u.niche);
+              localStorage.setItem("trendrop_user_language", u.language);
+              localStorage.setItem("trendrop_user_plan", u.plan);
+              setUser(u);
+              useUserStore.getState().setUser({ ...u, authToken: token });
+            }
+          })
+          .catch(() => {
+            clearTimeout(timeout);
+            // Non-fatal: user stays logged in with cached data
+          });
+
+        return;
+      }
+
+      if (event === "INITIAL_SESSION" && !session) {
+        // No active Supabase session — fall back to checkAuth to handle our custom cached token
+        checkAuth();
       }
     });
 
