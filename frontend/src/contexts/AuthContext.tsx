@@ -40,7 +40,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      // Seed cached user state immediately so initial render is instant (0ms delay)
+      // Seed cached user state immediately — 0ms perceived load time
       const cachedEmail = localStorage.getItem("trendrop_user_email");
       const cachedNiche = localStorage.getItem("trendrop_user_niche") || "all";
       const cachedLang = localStorage.getItem("trendrop_user_language") || "hi";
@@ -51,53 +51,56 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setLoading(false);
 
-      const controller = new AbortController();
-      const timeout = setTimeout(() => controller.abort(), 8000);
+      // Background: verify with backend to refresh plan/niche data.
+      // IMPORTANT: Only clear session if backend explicitly returns { valid: false }.
+      // Never clear on network errors, timeouts, or unexpected responses — user stays logged in.
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 8000);
 
-      const response = await fetch(`${API_URL}/api/auth/verify`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ session_token: token }),
-        signal: controller.signal,
-      });
-      clearTimeout(timeout);
-
-      const data = await response.json();
-      
-      if (data && data.success && data.valid && data.user) {
-        setUser(data.user);
-        setAuthToken(token);
-        localStorage.setItem("trendrop_user_email", data.user.email);
-        localStorage.setItem("trendrop_user_niche", data.user.niche);
-        localStorage.setItem("trendrop_user_language", data.user.language);
-        localStorage.setItem("trendrop_user_plan", data.user.plan);
-        useUserStore.getState().setUser({
-          email: data.user.email,
-          niche: data.user.niche,
-          language: data.user.language,
-          plan: data.user.plan,
-          authToken: token,
+        const response = await fetch(`${API_URL}/api/auth/verify`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ session_token: token }),
+          signal: controller.signal,
         });
-      } else {
-        // Server says token is invalid — clear session
-        setAuthToken(null);
-        localStorage.removeItem("trendrop_session_token");
-        localStorage.removeItem("trendrop_user_email");
-        localStorage.removeItem("trendrop_user_niche");
-        localStorage.removeItem("trendrop_user_language");
-        localStorage.removeItem("trendrop_user_plan");
-        setUser(null);
+        clearTimeout(timeout);
+
+        const data = await response.json();
+
+        if (data?.success && data?.valid && data?.user) {
+          // Valid — update with latest profile from backend
+          setUser(data.user);
+          setAuthToken(token);
+          localStorage.setItem("trendrop_user_email", data.user.email);
+          localStorage.setItem("trendrop_user_niche", data.user.niche);
+          localStorage.setItem("trendrop_user_language", data.user.language);
+          localStorage.setItem("trendrop_user_plan", data.user.plan);
+          useUserStore.getState().setUser({
+            email: data.user.email,
+            niche: data.user.niche,
+            language: data.user.language,
+            plan: data.user.plan,
+            authToken: token,
+          });
+        } else if (data?.valid === false) {
+          // Backend explicitly says token is invalid (revoked, expired, etc.) — sign out
+          console.warn("[auth] Backend revoked session, signing out");
+          setAuthToken(null);
+          localStorage.removeItem("trendrop_session_token");
+          localStorage.removeItem("trendrop_user_email");
+          localStorage.removeItem("trendrop_user_niche");
+          localStorage.removeItem("trendrop_user_language");
+          localStorage.removeItem("trendrop_user_plan");
+          setUser(null);
+        }
+        // else: unexpected response shape → keep user logged in with cached data
+      } catch {
+        // Network/timeout — backend unreachable. Keep user logged in, don't touch session.
+        console.warn("[auth] Backend verify unreachable, using cached session");
       }
     } catch (error: any) {
-      // Network error or timeout — do NOT wipe the session.
-      // The backend may be temporarily unreachable (cold start, network blip).
-      // Keep the user logged in with cached localStorage data instead.
-      if (error?.name === "AbortError") {
-        console.warn("Auth check timed out, using cached session");
-      } else {
-        console.warn("Auth check failed (network), using cached session:", error?.message);
-      }
-      // Restore user from localStorage so the app isn't stuck on "Loading..."
+      // Outer catch: localStorage read failed or similar — stay logged in if possible
       const cachedEmail = localStorage.getItem("trendrop_user_email");
       if (cachedEmail) {
         setUser({
@@ -284,87 +287,16 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   const loginWithGoogle = async () => {
-    const googleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID;
-
-    if (googleClientId && typeof window !== "undefined") {
-      try {
-        // Load Google Identity Services dynamically if needed
-        if (!window.google?.accounts?.id) {
-          await new Promise<void>((resolve, reject) => {
-            const existing = document.getElementById("google-gis-sdk");
-            if (existing) {
-              existing.addEventListener("load", () => resolve());
-              existing.addEventListener("error", (e) => reject(e));
-              return;
-            }
-            const script = document.createElement("script");
-            script.id = "google-gis-sdk";
-            script.src = "https://accounts.google.com/gsi/client";
-            script.async = true;
-            script.defer = true;
-            script.onload = () => resolve();
-            script.onerror = (e) => reject(e);
-            document.head.appendChild(script);
-          });
-        }
-
-        if (window.google?.accounts?.id) {
-          const authCompleted = await new Promise<boolean>((resolve) => {
-            let handled = false;
-            window.google.accounts.id.initialize({
-              client_id: googleClientId,
-              callback: async (response: { credential?: string }) => {
-                if (response.credential) {
-                  handled = true;
-                  try {
-                    const { error } = await supabase.auth.signInWithIdToken({
-                      provider: "google",
-                      token: response.credential,
-                    });
-                    if (error) {
-                      console.warn("Supabase signInWithIdToken error:", error);
-                      resolve(false);
-                    } else {
-                      resolve(true);
-                    }
-                  } catch (err) {
-                    console.warn("Token exchange error:", err);
-                    resolve(false);
-                  }
-                } else {
-                  resolve(false);
-                }
-              },
-              auto_select: false,
-              cancel_on_tap_outside: true,
-            });
-
-            window.google.accounts.id.prompt((notification: any) => {
-              if (notification.isNotDisplayed?.() || notification.isSkippedMoment?.()) {
-                if (!handled) resolve(false);
-              }
-            });
-
-            // If prompt doesn't trigger within 2.5s, fall back to OAuth redirect
-            setTimeout(() => {
-              if (!handled) resolve(false);
-            }, 2500);
-          });
-
-          if (authCompleted) {
-            return;
-          }
-        }
-      } catch (gisError) {
-        console.warn("Google Identity Services in-page auth unavailable, falling back to OAuth redirect:", gisError);
-      }
-    }
-
-    // Default & resilient fallback: standard Supabase OAuth redirect
+    // Skip Google One Tap entirely — it silently fails in most browsers (third-party
+    // cookie restrictions, prompt already dismissed, FedCM issues) and provides zero
+    // user feedback while the 2.5s timeout burns. Go straight to the full OAuth
+    // redirect which shows the Google account picker reliably.
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
         redirectTo: `${window.location.origin}/`,
+        // Force account chooser every time so user can pick which Google account
+        queryParams: { prompt: "select_account" },
       },
     });
     if (error) {
@@ -403,20 +335,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
 
       if ((event === "SIGNED_IN" || event === "INITIAL_SESSION") && session?.access_token) {
-        const storedToken = localStorage.getItem("trendrop_session_token");
-
-        // Ghost session guard: INITIAL_SESSION with no stored token AND no OAuth callback
-        // means the user explicitly logged out previously but Supabase still has a stale session.
-        // ONLY block if this is NOT an OAuth redirect — OAuth callbacks have no stored token yet
-        // because we haven't had a chance to write it.
-        if (event === "INITIAL_SESSION" && !storedToken && !isOAuthCallback()) {
-          console.warn("[auth] Ghost session detected — signing out stale Supabase session");
-          supabase.auth.signOut({ scope: "local" }).catch(() => {});
-          setAuthToken(null);
-          setUser(null);
-          setLoading(false);
-          return;
-        }
+        // Trust Supabase's session state — if SIGNED_IN or INITIAL_SESSION fires with
+        // a valid session object, the user is authenticated. No ghost session guard needed:
+        // our logout() calls supabase.auth.signOut() which purges the Supabase session,
+        // so INITIAL_SESSION with a live session always means a legitimate returning user.
 
         // Valid session: OAuth redirect OR returning user with stored token
         const token = session.access_token;
