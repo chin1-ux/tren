@@ -158,71 +158,74 @@ export function TrendFiltersModal({
                 })}
               </div>
 
-              {/* Discrete Run Selector (Combine or Separate Specific Runs) */}
-              {scraperRuns && scraperRuns.length > 0 && (
-                <div className="p-2.5 rounded-xl border border-border/50 bg-muted/20">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
-                      <Layers className="h-3 w-3 text-primary" />
-                      Discrete Scrape Cohorts (Select to isolate or combine):
-                    </span>
-                    {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
-                      <span className="text-[10px] font-semibold text-primary">
-                        {filters.selectedRunIds.length} run{filters.selectedRunIds.length > 1 ? "s" : ""} combined
-                      </span>
-                    )}
-                  </div>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
-                    {scraperRuns.slice(0, 6).map((run) => {
-                      const isSelected = (filters.selectedRunIds || []).includes(run.run_id);
-                      return (
-                        <button
-                          key={run.run_id}
-                          type="button"
-                          onClick={() => {
-                            const current = filters.selectedRunIds || [];
-                            let next: number[];
-                            if (current.includes(run.run_id)) {
-                              next = current.filter((id) => id !== run.run_id);
-                            } else {
-                              next = [...current, run.run_id];
-                            }
-                            onChange({
-                              selectedRunIds: next,
-                              freshnessPreset: next.length > 0 ? "custom" : "all",
-                            });
-                          }}
-                          className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
-                            isSelected
-                              ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/50 shadow-sm"
-                              : "border-border/50 bg-card/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
-                          }`}
-                        >
-                          <div className="min-w-0 pr-1">
-                            <div className="flex items-center gap-1.5">
-                              <span className="text-xs font-bold text-foreground">
-                                Run {run.letter}
-                              </span>
-                              <span className="text-[10px] text-muted-foreground">
-                                ({run.relative_time})
-                              </span>
+              {/* Freshness Batch Picker */}
+              {scraperRuns && scraperRuns.filter((r) => r.new_trends_count > 0).length > 0 && (() => {
+                // Only show runs that discovered at least 1 new audio — skip refresher/re-scrape runs
+                const freshRuns = scraperRuns.filter((r) => r.new_trends_count > 0).slice(0, 6);
+                return (
+                  <div className="p-2.5 rounded-xl border border-border/50 bg-muted/20">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-[11px] font-medium text-muted-foreground flex items-center gap-1">
+                        <Layers className="h-3 w-3 text-primary" />
+                        Audios by freshness batch — tap to isolate or combine:
+                      </span>
+                      {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
+                        <span className="text-[10px] font-semibold text-primary">
+                          {filters.selectedRunIds.length} batch{filters.selectedRunIds.length > 1 ? "es" : ""} active
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-1.5">
+                      {freshRuns.map((run) => {
+                        const isSelected = (filters.selectedRunIds || []).includes(run.run_id);
+                        return (
+                          <button
+                            key={run.run_id}
+                            type="button"
+                            onClick={() => {
+                              const current = filters.selectedRunIds || [];
+                              let next: number[];
+                              if (current.includes(run.run_id)) {
+                                next = current.filter((id) => id !== run.run_id);
+                              } else {
+                                next = [...current, run.run_id];
+                              }
+                              onChange({
+                                selectedRunIds: next,
+                                freshnessPreset: next.length > 0 ? "custom" : "all",
+                              });
+                            }}
+                            className={`flex items-center justify-between p-2 rounded-lg border text-left transition-all ${
+                              isSelected
+                                ? "border-primary bg-primary/15 text-foreground ring-1 ring-primary/50 shadow-sm"
+                                : "border-border/50 bg-card/60 text-muted-foreground hover:bg-muted/60 hover:text-foreground"
+                            }`}
+                          >
+                            <div className="min-w-0 pr-1">
+                              {/* Primary: time ago (the freshness signal) */}
+                              <div className="text-xs font-bold text-foreground leading-tight">
+                                {run.relative_time}
+                              </div>
+                              {/* Secondary: audio count */}
+                              <div className="text-[10px] text-primary/90 font-medium mt-0.5">
+                                +{run.new_trends_count} new audio{run.new_trends_count !== 1 ? "s" : ""}
+                              </div>
                             </div>
-                            <span className="text-[10px] text-primary/90 font-medium">
-                              {run.new_trends_count} fresh audio{run.new_trends_count !== 1 ? "s" : ""}
-                            </span>
-                          </div>
-                          <div className={`h-4 w-4 shrink-0 rounded flex items-center justify-center border transition-all ${
-                            isSelected ? "border-primary bg-primary text-white" : "border-border/80 bg-background/50"
-                          }`}>
-                            {isSelected && <Check className="h-2.5 w-2.5" />}
-                          </div>
-                        </button>
-                      );
-                    })}
+                            <div className={`h-4 w-4 shrink-0 rounded flex items-center justify-center border transition-all ${
+                              isSelected ? "border-primary bg-primary text-white" : "border-border/80 bg-background/50"
+                            }`}>
+                              {isSelected && <Check className="h-2.5 w-2.5" />}
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
-              )}
+                );
+              })()}
+
             </div>
 
             {/* 1. Lifecycle Stage */}
