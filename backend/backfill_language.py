@@ -16,8 +16,6 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 env_path = os.path.join(backend_dir, ".env")
 if os.path.exists(env_path):
     load_dotenv(env_path)
-
-os.environ["JWT_SECRET_KEY"] = "testsecret12345678901234567890123456789012"
 sys.path.insert(0, backend_dir)
 
 from api_globals import supabase

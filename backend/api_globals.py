@@ -497,8 +497,28 @@ outputs_path = os.path.join(base_dir, "outputs")
 os.makedirs(uploads_path, exist_ok=True)
 os.makedirs(outputs_path, exist_ok=True)
 
-# Rate limiter — slowapi always enabled; Redis limiter available for future middleware use
-limiter = Limiter(key_func=get_remote_address, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
+def get_real_client_ip(request: Request) -> str:
+    """
+    Extracts real client IP safely, accounting for Vercel edge proxies and CDNs.
+    """
+    # Vercel sets x-real-ip directly from the connecting client socket
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip and real_ip.strip():
+        return real_ip.strip()
+    
+    # x-vercel-forwarded-for or x-forwarded-for (first entry is original client)
+    xff = request.headers.get("x-vercel-forwarded-for") or request.headers.get("x-forwarded-for")
+    if xff:
+        first_ip = xff.split(",")[0].strip()
+        if first_ip:
+            return first_ip
+            
+    if request.client and request.client.host:
+        return request.client.host
+    return "127.0.0.1"
+
+# Rate limiter — slowapi always enabled with real client IP detection; Redis limiter available for future middleware use
+limiter = Limiter(key_func=get_real_client_ip, enabled=os.getenv("DISABLE_RATE_LIMITER", "0") != "1")
 redis_limiter = get_rate_limiter() if REDIS_RATE_LIMITER_AVAILABLE else None
 
 from fastapi.middleware.gzip import GZipMiddleware
@@ -555,10 +575,14 @@ _CORS_ALLOWED_ORIGINS = [
     "http://127.0.0.1:3000",
     "https://trendrop-black.vercel.app",
 ]
-# Allow adding extra origins via env var (comma-separated) without code changes
+# Allow adding extra origins via env var (comma-separated) with strict schema validation
 _extra_origins = os.getenv("CORS_EXTRA_ORIGINS", "")
 if _extra_origins:
-    _CORS_ALLOWED_ORIGINS.extend([o.strip() for o in _extra_origins.split(",") if o.strip()])
+    for origin in (o.strip() for o in _extra_origins.split(",") if o.strip()):
+        # Strictly disallow wildcard and enforce valid http(s) protocols
+        if origin != "*" and (origin.startswith("https://") or origin.startswith("http://")):
+            if origin not in _CORS_ALLOWED_ORIGINS:
+                _CORS_ALLOWED_ORIGINS.append(origin)
 
 app.add_middleware(
     CORSMiddleware,

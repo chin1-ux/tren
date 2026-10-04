@@ -458,7 +458,8 @@ def trigger_scraper(request: Request, background_tasks: BackgroundTasks, admin_i
 @router.post("/api/apply-deal")
 @limiter.limit("15/minute")
 def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email: str = Depends(require_auth)):
-    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
+    # require_auth guarantees current_user is never guest — enforce ownership directly
+    if req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot apply for a brand deal on behalf of another user")
     try:
         if supabase:
@@ -483,7 +484,8 @@ def apply_brand_deal(req: ApplyDealRequest, request: Request, current_user_email
 @router.post("/api/send-collab-request")
 @limiter.limit("15/minute")
 def send_collab_request(req: CollabRequest, request: Request, current_user_email: str = Depends(require_auth)):
-    if current_user_email != "guest@trendrop.app" and req.from_email != current_user_email:
+    # require_auth guarantees current_user is never guest — enforce ownership directly
+    if req.from_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: You cannot send collab requests on behalf of another user")
     try:
         if supabase:

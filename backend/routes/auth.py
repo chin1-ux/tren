@@ -418,7 +418,8 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
 @limiter.limit("15/minute")
 def get_instagram_auth_url(req: InstagramAuthRequest, request: Request, current_user_email: str = Depends(require_auth)):
     """Generate Instagram OAuth authorization URL for the user."""
-    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
+    # require_auth guarantees current_user is never guest — enforce ownership directly
+    if req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: Cannot generate auth URL for another user")
     
     if not InstagramOAuth:
@@ -527,7 +528,8 @@ def instagram_callback_get(request: Request, code: str = None, state: str = None
 @limiter.limit("15/minute")
 def instagram_callback(req: InstagramCallbackRequest, request: Request, current_user_email: str = Depends(require_auth)):
     """Handle Instagram OAuth callback and store the token."""
-    if current_user_email != "guest@trendrop.app" and req.user_email != current_user_email:
+    # require_auth guarantees current_user is never guest — enforce ownership directly
+    if req.user_email != current_user_email:
         raise HTTPException(status_code=403, detail="Forbidden: Cannot handle callback for another user")
     
     if not InstagramOAuth:
