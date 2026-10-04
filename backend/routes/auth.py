@@ -409,8 +409,6 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
         }
     except Exception as e:
         logger.error(f"Verify failed: {e}", exc_info=True)
-        print(f"VERIFY EXCEPTION: {e}")
-        import traceback; traceback.print_exc()
         if isinstance(e, HTTPException):
             raise
         return {"success": False, "valid": False, "error": "Session verification failed"}
