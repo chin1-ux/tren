@@ -636,7 +636,7 @@ function TrendsFeed() {
         (t.contentType ?? "").toLowerCase().includes(q) ||
         (t.whyThisWorks ?? "").toLowerCase().includes(q)
     );
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns, now]);
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -868,7 +868,7 @@ function TrendsFeed() {
           languagesMap={LANGUAGES}
           onClear={() => {
             setLanguage("all");
-            setSelectedNiches(["all"]);
+            updateFilter({ niches: ["all"], language: "all" });
             setPreferredLanguages([]);
             if (typeof window !== "undefined") {
               localStorage.removeItem("trendrop_pref_language");
