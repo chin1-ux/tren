@@ -270,7 +270,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
 
     // 4. Reset Zustand user store
-    useUserStore.getState().logout();
+    useUserStore.setState({
+      email: null,
+      niche: null,
+      language: null,
+      plan: null,
+      authToken: null,
+      isOnboarded: false,
+    });
 
     // 5. Clear AuthContext state
     setUser(null);
@@ -369,10 +376,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     checkAuth();
 
     const { data: authListener } = supabase.auth.onAuthStateChange((event, session) => {
-      if (event === "SIGNED_OUT" || !session) {
+      if (event === "SIGNED_OUT") {
         setAuthToken(null);
         setUser(null);
-        useUserStore.getState().logout();
+        setLoading(false);
+        useUserStore.setState({
+          email: null,
+          niche: null,
+          language: null,
+          plan: null,
+          authToken: null,
+          isOnboarded: false,
+        });
         return;
       }
 
@@ -384,6 +399,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           supabase.auth.signOut({ scope: "local" }).catch(() => {});
           setAuthToken(null);
           setUser(null);
+          setLoading(false);
           return;
         }
 
@@ -414,6 +430,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
           plan: localStorage.getItem("trendrop_user_plan") || "pro",
           authToken: token,
         });
+        setLoading(false);
+      } else if (event === "INITIAL_SESSION" && !session) {
+        // No active Supabase session on startup - checkAuth handles local cached session
+        const storedToken = localStorage.getItem("trendrop_session_token");
+        if (!storedToken) {
+          setUser(null);
+          setLoading(false);
+        }
       }
     });
 
