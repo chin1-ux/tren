@@ -22,7 +22,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 120
 
     steps:
       - name: Checkout repository
@@ -56,18 +56,19 @@ jobs:
           sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock
           sudo dpkg --configure -a || true
 
-          if ! timeout 300 python -m playwright install-deps firefox; then
-            echo "First attempt failed — cleaning apt state, updating package lists, and retrying..."
+          # Attempt playwright install-deps firefox with 600s timeout, with graceful core fallback if mirrors stall
+          if ! timeout 600 python -m playwright install-deps firefox; then
+            echo "Playwright install-deps firefox timed out or failed — installing minimal core deps fallback..."
             sudo pkill -9 -f "apt-get|dpkg|unattended-upgrades" || true
             sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock
             sudo dpkg --configure -a || true
-            sudo apt-get clean
-            sudo rm -rf /var/lib/apt/lists/*
-            sudo apt-get update
-            timeout 300 python -m playwright install-deps firefox
+            sudo apt-get update || true
+            sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2t64 xvfb ca-certificates || sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2 xvfb ca-certificates || true
           fi
 
       - name: Install Camoufox browser
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           python -m camoufox fetch
 
