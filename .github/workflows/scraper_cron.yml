@@ -2,7 +2,7 @@ name: Trendrop Scheduled Scraper Pipeline Cron
 
 on:
   schedule:
-    - cron: '0 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
+    - cron: '17 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
   workflow_dispatch:        # Manual trigger button in GitHub UI
 
 jobs:
