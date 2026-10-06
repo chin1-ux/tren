@@ -194,11 +194,18 @@ class AlertSystem:
                 logging.info(f"Trend '{audio_title}' matched {len(matching_users)} users")
 
                 for user in matching_users:
-                    user_email = user.get("email")
-                    urgency_prefix = user.get("urgency")
+                    user_email = (user.get("email") or "").strip()
                     if not user_email:
                         continue
+                    email_lower = user_email.lower()
+                    if (
+                        email_lower.endswith("@test.com")
+                        or email_lower.endswith("@example.com")
+                        or email_lower in ("test-user@trendrop.app", "demo@trendrop.app")
+                    ):
+                        continue
                         
+                    urgency_prefix = user.get("urgency")
                     subject = f"{urgency_prefix}: {audio_title} — Generate your reel now!"
 
                     html_body = self._build_email_html(
@@ -214,6 +221,11 @@ class AlertSystem:
                         total_emails_sent += 1
                         logging.info(f"Email sent to {user_email}")
                     except Exception as resend_err:
+                        err_str = str(resend_err).lower()
+                        if any(term in err_str for term in ["api key", "unauthorized", "api_key", "forbidden", "authentication"]):
+                            logging.error(f"Resend authentication error: {resend_err}")
+                            print(f"::error::Resend authentication failed: {resend_err}", flush=True)
+                            return total_emails_sent
                         logging.error(f"Resend error to {user_email}: {resend_err}", exc_info=True)
                         continue
 

@@ -2,7 +2,7 @@ name: Emergency LLM Classification
 
 on:
   schedule:
-    - cron: '0 0,6,12,18 * * *'
+    - cron: '41 0,6,12,18 * * *'
   workflow_dispatch: # Manual trigger
 
 jobs:
