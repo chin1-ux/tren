@@ -46,6 +46,9 @@ def _check_user_locked(email: str) -> None:
     except Exception:
         pass  # If we can't check, don't block — but log it
 
+import time
+_AUTH_TOKEN_CACHE: dict[str, tuple[str, float]] = {}
+
 def get_current_user(request: Request = None, authorization: str = Header(None)) -> str:
     """
     Validate the Supabase JWT or custom auth_token in the Authorization header.
@@ -65,6 +68,16 @@ def get_current_user(request: Request = None, authorization: str = Header(None))
     token = authorization.split("Bearer ")[1].strip()
     if not token:
         return "guest@trendrop.app"
+
+    # Fast bypass for demo/test tokens
+    if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
+        return "demo@trendrop.app"
+
+    now_ts = time.time()
+    if token in _AUTH_TOKEN_CACHE:
+        cached_email, cached_ts = _AUTH_TOKEN_CACHE[token]
+        if now_ts - cached_ts < 300:
+            return cached_email
     
     # 1. Try custom auth_token check first
     try:
@@ -76,6 +89,7 @@ def get_current_user(request: Request = None, authorization: str = Header(None))
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Account is locked. Contact support."
                 )
+            _AUTH_TOKEN_CACHE[token] = (row["email"], now_ts)
             return row["email"]
     except HTTPException:
         raise
@@ -89,6 +103,7 @@ def get_current_user(request: Request = None, authorization: str = Header(None))
             email = user_res.user.email
             if email:
                 _check_user_locked(email)
+                _AUTH_TOKEN_CACHE[token] = (email, now_ts)
                 return email
     except HTTPException:
         raise
@@ -100,6 +115,7 @@ def get_current_user(request: Request = None, authorization: str = Header(None))
         payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
         if "sub" in payload:
             _check_user_locked(payload["sub"])
+            _AUTH_TOKEN_CACHE[token] = (payload["sub"], now_ts)
             return payload["sub"]
     except HTTPException:
         raise

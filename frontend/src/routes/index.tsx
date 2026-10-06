@@ -117,40 +117,12 @@ function TrendsFeed() {
   const [now, setNow] = useState<number>(() => Date.now());
   const prevCountRef = useRef<number>(0);
 
-  // Unified multi-dimensional filter state
-  const [filters, setFilters] = useState<FilterState>({
-    lifecycle: "all",
-    urgency: "all",
-    minOpportunityScore: 0,
-    minVelocity: 0,
-    outlierOnly: false,
-    goldenHourOnly: false,
-    niches: ["all"],
-    language: "all",
-    format: "all",
-    freshnessPreset: "all",
-    selectedRunIds: [],
-  });
-
-  const [preferredLanguages, setPreferredLanguages] = useState<string[]>([]);
-
-  // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
-  const userEmail = useUserStore((s) => s.email);
-  const userPlan = useEffectivePlan();
-  const { loading: isAuthLoading } = useAuth();
-
-  // Load preferences from localStorage on mount
-  useEffect(() => {
+  // Unified multi-dimensional filter state initialized synchronously from localStorage
+  const [filters, setFilters] = useState<FilterState>(() => {
+    let savedLang = "all";
+    let savedNichesList = ["all"];
     if (typeof window !== "undefined") {
-      const savedLangs = localStorage.getItem("trendrop_preferred_languages");
-      if (savedLangs) {
-        try {
-          const parsed = JSON.parse(savedLangs);
-          if (Array.isArray(parsed)) setPreferredLanguages(parsed);
-        } catch (e) {}
-      }
-      const savedLang = localStorage.getItem("trendrop_pref_language") ?? "all";
-      let savedNichesList = ["all"];
+      savedLang = localStorage.getItem("trendrop_pref_language") ?? "all";
       try {
         const savedNiches = localStorage.getItem("trendrop_pref_niches");
         if (savedNiches) {
@@ -167,14 +139,39 @@ function TrendsFeed() {
       } catch {
         savedNichesList = ["all"];
       }
-
-      setFilters((prev) => ({
-        ...prev,
-        language: savedLang,
-        niches: savedNichesList,
-      }));
     }
-  }, []);
+    return {
+      lifecycle: "all",
+      urgency: "all",
+      minOpportunityScore: 0,
+      minVelocity: 0,
+      outlierOnly: false,
+      goldenHourOnly: false,
+      niches: savedNichesList,
+      language: savedLang,
+      format: "all",
+      freshnessPreset: "all",
+      selectedRunIds: [],
+    };
+  });
+
+  const [preferredLanguages, setPreferredLanguages] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedLangs = localStorage.getItem("trendrop_preferred_languages");
+      if (savedLangs) {
+        try {
+          const parsed = JSON.parse(savedLangs);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+
+  // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
+  const userEmail = useUserStore((s) => s.email);
+  const userPlan = useEffectivePlan();
+  const { loading: isAuthLoading } = useAuth();
 
   const updateFilter = useCallback((updated: Partial<FilterState>) => {
     setDisplayLimit(15);
@@ -255,6 +252,13 @@ function TrendsFeed() {
     return () => clearInterval(id);
   }, []);
 
+  // Stagger secondary queries by 300ms so rising & emerging get 100% initial bandwidth
+  const [secondaryReady, setSecondaryReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSecondaryReady(true), 300);
+    return () => clearTimeout(timer);
+  }, []);
+
   const {
     data: scraperRunsData,
   } = useQuery({
@@ -262,6 +266,7 @@ function TrendsFeed() {
     queryFn: () => fetchRecentScraperRuns(6),
     staleTime: 60_000,
     refetchInterval: 5 * 60_000,
+    enabled: secondaryReady,
   });
   const scraperRuns = scraperRunsData ?? [];
 
@@ -272,6 +277,8 @@ function TrendsFeed() {
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
     staleTime: 60_000,
+    placeholderData: (prev) => prev,
+    enabled: secondaryReady || showTargetedOnly,
   });
 
   const {
@@ -284,6 +291,7 @@ function TrendsFeed() {
     queryFn: () => fetchTrends(filters.language, sortMode, undefined, activeLanguages),
     staleTime: 2 * 60_000,
     refetchInterval: 15 * 60_000, // 15 min gentle polling (scraper runs every 3h)
+    placeholderData: (prev) => prev,
   });
 
   const {
@@ -296,6 +304,7 @@ function TrendsFeed() {
     queryFn: () => fetchEmergingTrends(filters.language, undefined, activeLanguages),
     staleTime: 2 * 60_000,
     refetchInterval: 15 * 60_000, // 15 min gentle polling
+    placeholderData: (prev) => prev,
   });
 
   const {
@@ -308,6 +317,8 @@ function TrendsFeed() {
     queryFn: () => fetchPeakedTrends(filters.language, undefined, activeLanguages),
     staleTime: 15 * 60_000,
     refetchInterval: 45 * 60_000,
+    placeholderData: (prev) => prev,
+    enabled: secondaryReady,
   });
 
   const {
@@ -320,6 +331,8 @@ function TrendsFeed() {
     queryFn: () => fetchExpiredTrends(filters.language, undefined, activeLanguages),
     staleTime: 30 * 60_000,
     refetchInterval: 60 * 60_000,
+    placeholderData: (prev) => prev,
+    enabled: secondaryReady,
   });
 
   const {
@@ -332,6 +345,8 @@ function TrendsFeed() {
     queryFn: () => fetchResurgingTrends(filters.language, undefined, activeLanguages),
     staleTime: 5 * 60_000,
     refetchInterval: 20 * 60_000,
+    placeholderData: (prev) => prev,
+    enabled: secondaryReady,
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
@@ -413,7 +428,7 @@ function TrendsFeed() {
     });
   }, [deduplicatedTrends]);
 
-  const isLoading = (risingLoading && !risingData) || (emergingLoading && !emergingData);
+  const isLoading = !risingData && !emergingData && (risingLoading || emergingLoading);
   const isError = risingError && emergingError;
 
   const refetch = () => {

@@ -449,6 +449,8 @@ def execute_supabase_get(builder, retries: int = 2, backoff_sec: float = 0.4):
                 continue
             raise
 
+_RESOLVE_USER_CACHE: dict[str, tuple[str, float]] = {}
+
 def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     """
     Returns a stable user identifier string (numeric ID or UUID) given an Authorization header.
@@ -464,26 +466,40 @@ def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     if not token:
         return None
 
+    if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
+        return "demo_user"
+
+    now_ts = time.time()
+    if token in _RESOLVE_USER_CACHE:
+        cached_uid, cached_ts = _RESOLVE_USER_CACHE[token]
+        if now_ts - cached_ts < 300:
+            return cached_uid
+
     if supabase:
         # 1. Try custom auth_token in users table first
         try:
             res = supabase.table("users").select("id, email").eq("auth_token", token).limit(1).execute()
             if res.data and len(res.data) > 0:
-                return str(res.data[0]["id"])
+                uid = str(res.data[0]["id"])
+                _RESOLVE_USER_CACHE[token] = (uid, now_ts)
+                return uid
         except Exception:
             pass
 
         # 2. Try Supabase Auth JWT
         try:
-            local_supabase = create_client(SUPABASE_URL, SUPABASE_KEY)
-            user_res = local_supabase.auth.get_user(jwt=token)
+            user_res = supabase.auth.get_user(jwt=token)
             if user_res and user_res.user:
                 email = user_res.user.email
                 if email:
                     res = supabase.table("users").select("id").eq("email", email).limit(1).execute()
                     if res.data and len(res.data) > 0:
-                        return str(res.data[0]["id"])
-                return str(user_res.user.id)
+                        uid = str(res.data[0]["id"])
+                        _RESOLVE_USER_CACHE[token] = (uid, now_ts)
+                        return uid
+                uid = str(user_res.user.id)
+                _RESOLVE_USER_CACHE[token] = (uid, now_ts)
+                return uid
         except Exception:
             pass
 
@@ -624,19 +640,44 @@ NICHE_CONTEXT_MAP = {
     "dance": ["choreography", "dance", "routine", "hookstep", "dancer", "moves", "dancing"]
 }
 
+_REELS_PREFETCH_CACHE: dict = {}
+_REELS_CACHE_TTL = 300
+
+_REELS_FALLBACK_CACHE: dict = {}
+
 def _normalize_trends(trends: list) -> list:
     """Normalize content_type and inject song/artist aliases on each trend row."""
     if not trends:
         return trends
 
     from audio_title_normalize import normalize_audio_title
+    now_ts = time.time()
 
-    # Batch query reels by audio_id (primary) and (audio_title, audio_artist) fallback in single DB round-trips
-    audio_ids = list(set(str(t.get("audio_id")) for t in trends if t.get("audio_id")))
-    fallback_titles = list(set(t.get("audio_title") for t in trends if not t.get("audio_id") and t.get("audio_title")))
-
+    # Check cached reels
+    audio_ids_all = list(set(str(t.get("audio_id")) for t in trends if t.get("audio_id")))
     reels_by_audio_id = {}
+    missing_audio_ids = []
+
+    for aid in audio_ids_all:
+        if aid in _REELS_PREFETCH_CACHE and (now_ts - _REELS_PREFETCH_CACHE[aid]["ts"] < _REELS_CACHE_TTL):
+            reels_by_audio_id[aid] = _REELS_PREFETCH_CACHE[aid]["reels"]
+        else:
+            missing_audio_ids.append(aid)
+
+    audio_ids = missing_audio_ids
+    fallback_titles_all = list(set(t.get("audio_title") for t in trends if not t.get("audio_id") and t.get("audio_title")))
     reels_by_title_artist = {}
+    missing_fallback = []
+
+    for title in fallback_titles_all:
+        norm_t = normalize_audio_title(title or "")
+        if norm_t in _REELS_FALLBACK_CACHE and (now_ts - _REELS_FALLBACK_CACHE[norm_t]["ts"] < _REELS_CACHE_TTL):
+            for ta_key, rlist in _REELS_FALLBACK_CACHE[norm_t]["reels"].items():
+                reels_by_title_artist[ta_key] = rlist
+        else:
+            missing_fallback.append(title)
+
+    fallback_titles = missing_fallback
     chunk_size = 50
 
     if audio_ids and supabase:
@@ -664,6 +705,12 @@ def _normalize_trends(trends: list) -> list:
                             "like_count": r.get("like_count") or 0,
                             "thumbnail_url": r.get("thumbnail_url")
                         })
+                # Cache fetched chunks
+                for aid in chunk:
+                    _REELS_PREFETCH_CACHE[aid] = {
+                        "ts": now_ts,
+                        "reels": reels_by_audio_id.get(aid, [])
+                    }
         except Exception as e:
             logger.warning(f"Failed to pre-fetch reels by audio_id: {e}")
 
@@ -693,6 +740,12 @@ def _normalize_trends(trends: list) -> list:
                             "like_count": r.get("like_count") or 0,
                             "thumbnail_url": r.get("thumbnail_url")
                         })
+
+                # Cache fallback titles
+                for title in chunk:
+                    norm_t = normalize_audio_title(title or "")
+                    matched = {k: v for k, v in reels_by_title_artist.items() if k[0] == norm_t}
+                    _REELS_FALLBACK_CACHE[norm_t] = {"ts": now_ts, "reels": matched}
         except Exception as e:
             logger.warning(f"Failed to pre-fetch reels by title_artist: {e}")
 
@@ -744,7 +797,7 @@ def _normalize_trends(trends: list) -> list:
             t["detected_language"] = lang_final
         else:
             curr_lang = t.get("detected_language") or t.get("language") or "other"
-            if curr_lang in ("en", "unknown") and (t.get("audio_title") or t.get("audio_artist")):
+            if curr_lang in ("unknown",) and (t.get("audio_title") or t.get("audio_artist")):
                 try:
                     from language_detection import resolve_via_music_catalog
                     catalog_lang = resolve_via_music_catalog(t.get("audio_title"), t.get("audio_artist"))

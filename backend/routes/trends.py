@@ -10,11 +10,14 @@ import niche_relevance_engine
 router = APIRouter()
 
 _TRENDS_FEED_CACHE: dict = {}
+_EMERGING_TRENDS_CACHE: dict = {}
+_RESURGING_TRENDS_CACHE: dict = {}
+_EXPIRED_TRENDS_CACHE: dict = {}
 
 def _apply_languages_filter(q, language: Optional[str] = None, languages: Optional[str] = None):
     lang_list = []
     if languages and languages.strip():
-        lang_list = [l.strip().lower() for l in languages.split(",") if l.strip()]
+        lang_list = [l.strip().lower() for l in languages.split(",") if l.strip() and l.strip().lower() != "all"]
     elif language and language.strip() and language.lower() != "all":
         lang_list = [language.strip().lower()]
 
@@ -26,11 +29,17 @@ def _apply_languages_filter(q, language: Optional[str] = None, languages: Option
     if "global" in lang_list:
         global_codes = "en,es,pt,ko,ja,ru,fr,de,it"
         indian_codes = "hi,pa,ta,te,ml,kn,bn,mr,gu,ne,bho,hne,or,instrumental"
-        return q.and_(f"language_final.in.({global_codes})", f"language_final.not.in.({indian_codes})")
+        return q.or_(
+            f"language_final.in.({global_codes}),"
+            f"discovery_source.eq.global,"
+            f"and(language_final.is.null,language.in.({global_codes}))"
+        ).or_("trend_origin.neq.IN,trend_origin.is.null").or_(f"language.not.in.({indian_codes}),language.is.null")
 
     filter_or = f"language_final.in.({','.join(lang_list)}),and(language_final.is.null,language.in.({','.join(lang_list)}))"
     return q.or_(filter_or)
 
+
+_USER_PREFS_CACHE: dict[str, tuple[dict, float]] = {}
 
 @router.get("/api/trends")
 @router.get("/api/trends/rising")
@@ -47,44 +56,10 @@ def get_trends(
     Fetch RISING trends from Supabase.
     Optional filters: ?language=hi & ?languages=hi,pa,en & sort=velocity|time_left|newest & niche=fitness
     """
-    lang_key = languages or language or "all"
-    niche_key = niche or "all"
-    user_email = current_user if current_user else "guest"
-    cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_email}"
-    
-    # Check in-memory feed cache (60s TTL)
-    now_ts = time.time()
-    if cache_key in _TRENDS_FEED_CACHE:
-        entry = _TRENDS_FEED_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 60:
-            headers = {
-                "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
-                "X-Cache": "HIT-MEM",
-                "X-Skipped-Local-Fallback": "true",
-            }
-            return JSONResponse(content=entry["data"], headers=headers)
-
-    # Try fetching from Redis cache first
-    if standard_queue and standard_queue.connection:
-        try:
-            cached_data = standard_queue.connection.get(cache_key)
-            parsed_cache = json.loads(cached_data) if cached_data else None
-            if parsed_cache and len(parsed_cache) > 0:
-                logger.info(f"Serving trends from cache for key: {cache_key}")
-                _TRENDS_FEED_CACHE[cache_key] = {"time": now_ts, "data": parsed_cache}
-                headers = {
-                    "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
-                    "X-Cache": "HIT-REDIS",
-                    "X-Skipped-Local-Fallback": "true",
-                }
-                return JSONResponse(content=parsed_cache, headers=headers)
-        except Exception as e:
-            logger.error(f"Redis fetch error: {e}")
-
-
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
+        now_ts = time.time()
         # Load user configuration for personalization
         user_niche = "all"
         user_lang = "all"
@@ -94,19 +69,55 @@ def get_trends(
         if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
             try:
                 user_plan = PlanEnforcement.get_user_plan(current_user)
-                user_data = get_cached_user_profile(current_user)
-                    
-                # Query user_preferences DB for personalized feed
-                prefs_res = supabase.table("user_preferences").select("niches, languages, preferred_languages, regions, state").eq("email", current_user).execute()
-                if prefs_res.data:
-                    prefs = prefs_res.data[0]
-                    if prefs.get("niches") and len(prefs["niches"]) > 0:
-                        user_niche = prefs["niches"][0]
-                    pref_langs = prefs.get("preferred_languages") or prefs.get("languages")
-                    if not languages and not language and pref_langs and len(pref_langs) > 0:
-                        languages = ",".join(pref_langs)
+                if current_user in _USER_PREFS_CACHE and (now_ts - _USER_PREFS_CACHE[current_user][1] < 300):
+                    prefs = _USER_PREFS_CACHE[current_user][0]
+                else:
+                    if current_user.startswith("demo@") or current_user.endswith("@trendrop.app"):
+                        prefs = {}
+                    else:
+                        prefs_res = supabase.table("user_preferences").select("niches, languages, preferred_languages, regions, state").eq("email", current_user).execute()
+                        prefs = prefs_res.data[0] if prefs_res.data else {}
+                    _USER_PREFS_CACHE[current_user] = (prefs, now_ts)
+
+                if prefs.get("niches") and len(prefs["niches"]) > 0:
+                    user_niche = prefs["niches"][0]
+                pref_langs = prefs.get("preferred_languages") or prefs.get("languages")
+                if not languages and not language and pref_langs and len(pref_langs) > 0:
+                    languages = ",".join(pref_langs)
             except Exception as e:
                 logger.warning(f"Error querying user profile/preferences for personalization: {e}")
+
+        lang_key = languages or language or "all"
+        niche_key = niche or "all"
+        cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_plan}"
+
+        # Check in-memory feed cache (60s TTL)
+        if cache_key in _TRENDS_FEED_CACHE:
+            entry = _TRENDS_FEED_CACHE[cache_key]
+            if now_ts - entry.get("time", 0) < 60:
+                headers = {
+                    "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                    "X-Cache": "HIT-MEM",
+                    "X-Skipped-Local-Fallback": "true",
+                }
+                return JSONResponse(content=entry["data"], headers=headers)
+
+        # Try fetching from Redis cache first
+        if standard_queue and standard_queue.connection:
+            try:
+                cached_data = standard_queue.connection.get(cache_key)
+                parsed_cache = json.loads(cached_data) if cached_data else None
+                if parsed_cache and len(parsed_cache) > 0:
+                    logger.info(f"Serving trends from cache for key: {cache_key}")
+                    _TRENDS_FEED_CACHE[cache_key] = {"time": now_ts, "data": parsed_cache}
+                    headers = {
+                        "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                        "X-Cache": "HIT-REDIS",
+                        "X-Skipped-Local-Fallback": "true",
+                    }
+                    return JSONResponse(content=parsed_cache, headers=headers)
+            except Exception as e:
+                logger.error(f"Redis fetch error: {e}")
 
         # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
@@ -149,8 +160,7 @@ def get_trends(
         if not trends:
             skipped_local_fallback = False
             q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
-            if language and language != "all":
-                q_fb = q_fb.or_(f"language_final.eq.{language},and(language_final.is.null,language.eq.{language})")
+            q_fb = _apply_languages_filter(q_fb, language, languages)
             q_fb = q_fb.limit(100)
             res_fb = execute_supabase_get(q_fb)
             trends = _normalize_trends(res_fb.data or [])
@@ -159,7 +169,8 @@ def get_trends(
         # --- 70/30 Distribution: Indian/regional first, English/global after ---
         # Prioritise local trends but keep global variety.
         # Only applied when no specific language filter is active.
-        if not language or language == "all":
+        active_lang = languages or language
+        if not active_lang or active_lang == "all":
             _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or", "", None}
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
                       or (t.get("discovery_source") or "regional") != "global"]
@@ -354,6 +365,19 @@ def get_emerging_trends(
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
     Pro/Agency feature only.
     """
+    lang_key = languages or language or "all"
+    cache_key = f"emerging:{lang_key}"
+    now_ts = time.time()
+    if cache_key in _EMERGING_TRENDS_CACHE:
+        entry = _EMERGING_TRENDS_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 60:
+            headers = {
+                "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                "X-Status-Filter": "emerging",
+                "X-Cache": "HIT-MEM"
+            }
+            return JSONResponse(content=entry["data"], headers=headers)
+
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -403,7 +427,8 @@ def get_emerging_trends(
                 logger.warning(f"Emerging fallback blending error: {_blend_err}")
 
         # --- 70/30 Distribution for Emerging tab ---
-        if not language or language == "all":
+        active_lang = languages or language
+        if not active_lang or active_lang == "all":
             _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
                       or (t.get("discovery_source") or "") == "regional"]
@@ -428,9 +453,15 @@ def get_emerging_trends(
             for trend in trends:
                 trend["user_watermark_id"] = user_id
         
+        _EMERGING_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
+        if len(_EMERGING_TRENDS_CACHE) > 100:
+            oldest_k = min(_EMERGING_TRENDS_CACHE.keys(), key=lambda k: _EMERGING_TRENDS_CACHE[k]["time"])
+            _EMERGING_TRENDS_CACHE.pop(oldest_k, None)
+
         headers = {
             "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
-            "X-Status-Filter": "emerging"
+            "X-Status-Filter": "emerging",
+            "X-Cache": "MISS"
         }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
@@ -739,6 +770,15 @@ def get_resurging_trends(
     Fetch RESURGING trends — audio that previously peaked or expired and has
     come back with sustained new signal. Sorted by status_changed_at DESC (most recent resurgence on top).
     """
+    lang_key = languages or language or "all"
+    cache_key = f"resurging:{lang_key}:{limit}"
+    now_ts = time.time()
+    if cache_key in _RESURGING_TRENDS_CACHE:
+        entry = _RESURGING_TRENDS_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 120:
+            headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging", "X-Cache": "HIT-MEM"}
+            return JSONResponse(content=entry["data"], headers=headers)
+
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -766,7 +806,13 @@ def get_resurging_trends(
         res = q.execute()
         trends = _normalize_trends(res.data or [])
         trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
-        headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging"}
+        
+        _RESURGING_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
+        if len(_RESURGING_TRENDS_CACHE) > 100:
+            oldest_k = min(_RESURGING_TRENDS_CACHE.keys(), key=lambda k: _RESURGING_TRENDS_CACHE[k]["time"])
+            _RESURGING_TRENDS_CACHE.pop(oldest_k, None)
+
+        headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging", "X-Cache": "MISS"}
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching resurging trends: {e}", exc_info=True)
@@ -786,6 +832,15 @@ def get_expired_trends(
     Fetch EXPIRED trends — trends that have passed their window or aged out.
     These are trends that are no longer active but may still have historical value.
     """
+    lang_key = languages or language or "all"
+    cache_key = f"expired:{lang_key}:{limit}"
+    now_ts = time.time()
+    if cache_key in _EXPIRED_TRENDS_CACHE:
+        entry = _EXPIRED_TRENDS_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 300:
+            headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired", "X-Cache": "HIT-MEM"}
+            return JSONResponse(content=entry["data"], headers=headers)
+
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
@@ -803,7 +858,13 @@ def get_expired_trends(
         q = q.limit(limit_val)
         res = q.execute()
         trends = _normalize_trends(res.data or [])
-        headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired"}
+
+        _EXPIRED_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
+        if len(_EXPIRED_TRENDS_CACHE) > 100:
+            oldest_k = min(_EXPIRED_TRENDS_CACHE.keys(), key=lambda k: _EXPIRED_TRENDS_CACHE[k]["time"])
+            _EXPIRED_TRENDS_CACHE.pop(oldest_k, None)
+
+        headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired", "X-Cache": "MISS"}
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)

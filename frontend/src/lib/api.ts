@@ -4,7 +4,7 @@
 const _rawApiUrl = (import.meta.env.VITE_API_URL as string | undefined)?.replace(/\/$/, "") ?? "";
 // Never use a localhost URL in production — it means the local .env was picked up by the build
 const _isLocalhost = /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?/i.test(_rawApiUrl);
-export const API_URL = (!_isLocalhost && _rawApiUrl) || (import.meta.env.DEV ? "http://localhost:8000" : "");
+export const API_URL = (!_isLocalhost && _rawApiUrl) || (import.meta.env.DEV ? "http://127.0.0.1:8000" : "");
 
 
 
@@ -518,12 +518,21 @@ if (typeof window !== "undefined") {
   });
 
   supabase.auth.onAuthStateChange(async (event, session) => {
-    if (event === "SIGNED_OUT" || !session) {
+    if (event === "SIGNED_OUT") {
       inMemoryToken = null;
       if (typeof window !== "undefined") {
         localStorage.removeItem("trendrop_session_token");
         localStorage.removeItem("trendrop_token");
       }
+      return;
+    }
+    if (!session) {
+      const existing = typeof window !== "undefined" ? localStorage.getItem("trendrop_session_token") : null;
+      if (existing && existing.startsWith("demo_")) {
+        inMemoryToken = existing;
+        return;
+      }
+      inMemoryToken = null;
       return;
     }
     inMemoryToken = session?.access_token || null;

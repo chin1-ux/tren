@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, ReactNode } from "react";
+import { createContext, useContext, useState, useEffect, useRef, ReactNode } from "react";
 import { useNavigate } from "@tanstack/react-router";
 import { setAuthToken, API_URL } from "@/lib/api";
 import { toast } from "sonner";
@@ -26,10 +26,24 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [loading, setLoading] = useState(true);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === "undefined") return null;
+    const token = localStorage.getItem("trendrop_session_token");
+    const email = localStorage.getItem("trendrop_user_email");
+    if (token && email) {
+      setAuthToken(token);
+      return {
+        email,
+        niche: localStorage.getItem("trendrop_user_niche") || "all",
+        language: localStorage.getItem("trendrop_user_language") || "hi",
+        plan: localStorage.getItem("trendrop_user_plan") || "free",
+      };
+    }
+    return null;
+  });
+  const [loading, setLoading] = useState<boolean>(false);
   const navigate = useNavigate();
-
+  const lastVerifyTs = useRef<number>(0);
 
   const checkAuth = async () => {
     try {
@@ -51,9 +65,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
       setLoading(false);
 
+      // Deduplicate background verify: skip if verified in last 60s
+      const now = Date.now();
+      if (now - lastVerifyTs.current < 60_000) return;
+      lastVerifyTs.current = now;
+
       // Background: verify with backend to refresh plan/niche data.
-      // IMPORTANT: Only clear session if backend explicitly returns { valid: false }.
-      // Never clear on network errors, timeouts, or unexpected responses — user stays logged in.
       try {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
@@ -305,6 +322,9 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   };
 
   useEffect(() => {
+    // Check cached session immediately on mount for 0ms perceived load time
+    checkAuth();
+
     // Helper: detect if current page load is an OAuth redirect (has access_token or code in URL)
     const isOAuthCallback = () => {
       if (typeof window === "undefined") return false;
@@ -368,6 +388,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
         // Background: verify token with backend to get actual plan/niche/language
         // (non-blocking — user is already logged in from cached data above)
+        const now = Date.now();
+        if (now - lastVerifyTs.current < 60_000) return;
+        lastVerifyTs.current = now;
+
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 8000);
         fetch(`${API_URL}/api/auth/verify`, {

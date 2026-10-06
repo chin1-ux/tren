@@ -242,9 +242,10 @@ def logout(request: Request, req: LogoutRequest):
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+_SESSION_VERIFY_CACHE: dict[str, tuple[dict, float]] = {}
+
 @router.api_route("/api/auth/verify", methods=["GET", "POST"])
 @router.api_route("/api/auth/me", methods=["GET", "POST"])
-@limiter.limit("30/hour")
 def verify(request: Request, req: Optional[VerifyRequest] = None):
     """Verify session token and enforce active session limits"""
     try:
@@ -277,6 +278,12 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
                 }
             }
 
+        # Check in-memory session cache (120s TTL) to prevent hammering Supabase on every render
+        now_ts = time.time()
+        if session_token in _SESSION_VERIFY_CACHE:
+            cached_res, cached_ts = _SESSION_VERIFY_CACHE[session_token]
+            if now_ts - cached_ts < 120:
+                return cached_res
 
         # 1. Try resolving session token in users database table first
         db_user_res = supabase.table("users").select("*").eq("auth_token", session_token).limit(1).execute()
@@ -397,7 +404,7 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
                 "last_active_at": datetime.now(timezone.utc).isoformat()
             }).eq("id", matching_session[0]["id"]).execute()
             
-        return {
+        resp_data = {
             "success": True,
             "valid": True,
             "user": {
@@ -407,6 +414,9 @@ def verify(request: Request, req: Optional[VerifyRequest] = None):
                 "plan": "pro" if PRO_UNLOCK_ALL else (user.get("plan") or "pro")
             }
         }
+        if session_token:
+            _SESSION_VERIFY_CACHE[session_token] = (resp_data, time.time())
+        return resp_data
     except Exception as e:
         logger.error(f"Verify failed: {e}", exc_info=True)
         if isinstance(e, HTTPException):

@@ -202,27 +202,36 @@ _GENRE_LANG_MAP = {
     "korean": "korean",
 }
 
+_CATALOG_CACHE: dict[str, str | None] = {}
+
 def resolve_via_music_catalog(audio_text: str, artist_text: str = "") -> str | None:
     """
     Lookup track genre via iTunes / Apple Music (Shazam catalog) API to accurately
     classify Romanized regional songs (e.g., Punjabi, Hindi, Tamil) when script/keyword checks fail.
+    Results are cached in-memory to prevent synchronous request lag.
     """
     query = f"{audio_text or ''} {artist_text or ''}".strip()
     if not query or len(query) < 3:
         return None
+    query_key = query.lower()
+    if query_key in _CATALOG_CACHE:
+        return _CATALOG_CACHE[query_key]
+
     try:
         url = f"https://itunes.apple.com/search?term={urllib.parse.quote(query)}&media=music&limit=3"
         req = urllib.request.Request(url, headers={"User-Agent": "Trendrop/1.0"})
-        with urllib.request.urlopen(req, timeout=3) as resp:
+        with urllib.request.urlopen(req, timeout=1.5) as resp:
             data = json.loads(resp.read().decode('utf-8'))
             results = data.get("results", [])
             for res in results:
                 genre = (res.get("primaryGenreName") or "").lower()
                 for key, code in _GENRE_LANG_MAP.items():
                     if key in genre:
+                        _CATALOG_CACHE[query_key] = code
                         return code
     except Exception:
         pass
+    _CATALOG_CACHE[query_key] = None
     return None
 
 def _detect_audio_language(
