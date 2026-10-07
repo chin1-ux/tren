@@ -1351,7 +1351,17 @@ def check_and_send_milestone_reminders() -> int:
         </body>
         </html>
         """
-        
+
+        # Test-recipient filter
+        email_lower = (creator_email or "").strip().lower()
+        if (
+            email_lower.endswith("@test.com")
+            or email_lower.endswith("@example.com")
+            or email_lower in ("test-user@trendrop.app", "demo@trendrop.app")
+        ):
+            logging.info(f"Skipping milestone reminder for test recipient: {creator_email}")
+            continue
+
         # Send via Resend
         try:
             if not resend.api_key:

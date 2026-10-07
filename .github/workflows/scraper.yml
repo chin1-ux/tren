@@ -62,8 +62,8 @@ jobs:
             sudo pkill -9 -f "apt-get|dpkg|unattended-upgrades" || true
             sudo rm -f /var/lib/dpkg/lock* /var/cache/apt/archives/lock /var/lib/apt/lists/lock
             sudo dpkg --configure -a || true
-            sudo apt-get update || true
-            sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2t64 xvfb ca-certificates || sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2 xvfb ca-certificates || true
+            for i in 1 2 3; do sudo apt-get update && break || (echo "apt-get update retry $i" && sleep 5); done
+            for i in 1 2 3; do sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2t64 xvfb ca-certificates && break || sudo apt-get install -y --no-install-recommends libgtk-3-0 libx11-xcb1 libasound2 xvfb ca-certificates && break || (echo "apt install retry $i" && sleep 5); done
           fi
 
       - name: Install Camoufox browser
