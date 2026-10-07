@@ -897,11 +897,12 @@ def run_full_pipeline(stages: list = None):
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
-        try:
-            from notify_telegram import notify_run_failure
-            notify_run_failure(stage=run_state.get("stage"), error_msg=run_state.get("cutoff_reason"), run_id=os.getenv("GITHUB_RUN_ID"))
-        except Exception as _tg_err:
-            logging.warning(f"Failed to dispatch Telegram run failure alert: {_tg_err}")
+        if run_state.get("stage", "").endswith("_failed"):
+            try:
+                from notify_telegram import notify_run_failure
+                notify_run_failure(stage=run_state.get("stage"), error_msg=run_state.get("cutoff_reason"), run_id=os.getenv("GITHUB_RUN_ID"))
+            except Exception as _tg_err:
+                logging.warning(f"Failed to dispatch Telegram run failure alert: {_tg_err}")
     
     # Check for Instagram login wall redirect and dispatch single consolidated alert
     scrapers_to_check = []
