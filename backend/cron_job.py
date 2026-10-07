@@ -897,6 +897,11 @@ def run_full_pipeline(stages: list = None):
     logging.info(f"=== {run_label} COMPLETE — {len(trend_ids)} new trends in {int(elapsed)}s ===")
     if run_state.get("cutoff_reason"):
         logging.warning(f"Pipeline cutoff summary: {run_state['cutoff_reason']} (last stage: {run_state.get('stage')})")
+        try:
+            from notify_telegram import notify_run_failure
+            notify_run_failure(stage=run_state.get("stage"), error_msg=run_state.get("cutoff_reason"), run_id=os.getenv("GITHUB_RUN_ID"))
+        except Exception as _tg_err:
+            logging.warning(f"Failed to dispatch Telegram run failure alert: {_tg_err}")
     
     # Check for Instagram login wall redirect and dispatch single consolidated alert
     scrapers_to_check = []
@@ -916,6 +921,11 @@ def run_full_pipeline(stages: list = None):
             alert_sys.send_login_wall_alert(targets=list(set(all_targets)), gha_run_id=os.getenv("GITHUB_RUN_ID"))
         except Exception as alert_err:
             logging.error(f"Failed to dispatch login wall alert: {alert_err}")
+        try:
+            from notify_telegram import notify_login_wall
+            notify_login_wall(targets=list(set(all_targets)), run_id=os.getenv("GITHUB_RUN_ID"))
+        except Exception as _tg_err:
+            logging.warning(f"Failed to dispatch Telegram login wall alert: {_tg_err}")
 
     _send_cron_heartbeat()
     # Immediately purge the Redis trends cache so the next API request
@@ -1404,6 +1414,11 @@ if __name__ == "__main__":
         run_full_pipeline()
     except Exception as e:
         logging.error(f"Startup pipeline run failed: {e}", exc_info=True)
+        try:
+            from notify_telegram import notify_run_failure
+            notify_run_failure(stage="startup_pipeline", error_msg=str(e), run_id=os.getenv("GITHUB_RUN_ID"))
+        except Exception as _tg_err:
+            logging.warning(f"Failed to dispatch Telegram failure alert: {_tg_err}")
 
     # Run data retention clean up immediately once on startup to verify / process pending
     try:

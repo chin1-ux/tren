@@ -114,9 +114,36 @@ def _send_email(message: str) -> bool:
         return False
 
 
+def _send_alert(message: str) -> bool:
+    """
+    Send heartbeat alert using Telegram as primary channel, falling back to Webhook and Resend email.
+    """
+    # 1. Primary: Telegram
+    try:
+        from notify_telegram import send_telegram_message
+        tg_text = f"⚠️ <b>[TRENDROP HEARTBEAT ALERT]</b>\n\n{message}"
+        if send_telegram_message(tg_text):
+            print("Heartbeat alert sent via primary channel (Telegram)")
+            return True
+    except Exception as tg_err:
+        print(f"Primary Telegram alert failed: {tg_err}")
+
+    # 2. Secondary: Webhook (Slack/Discord)
+    if _send_webhook(message):
+        print("Heartbeat alert sent via secondary channel (Webhook)")
+        return True
+
+    # 3. Fallback: Email (Resend)
+    if _send_email(message):
+        print("Heartbeat alert sent via fallback channel (Resend Email)")
+        return True
+
+    return False
+
+
 def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
     """
-    Look for the most recent successful cron run and email a human if the
+    Look for the most recent successful cron run and alert if the
     pipeline has gone stale longer than the allowed threshold.
     """
     sb = _get_supabase()
@@ -137,13 +164,7 @@ def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
             "alert_sent": False,
         }
         if not dry_run:
-            webhook_success = _send_webhook("Trendrop cron heartbeat missed. No rows exist in cron_runs.")
-            if not webhook_success:
-                # Fallback to email if webhook fails
-                email_success = _send_email("Trendrop cron heartbeat missed. No rows exist in cron_runs.")
-                payload["alert_sent"] = email_success
-            else:
-                payload["alert_sent"] = True
+            payload["alert_sent"] = _send_alert("Trendrop cron heartbeat missed. No rows exist in cron_runs.")
         return payload
 
     completed_at = latest.get("completed_at") or latest.get("run_at") or latest.get("started_at") or latest.get("created_at")
@@ -158,20 +179,14 @@ def check_cron_heartbeat(max_age_hours: int = 8, dry_run: bool = False) -> dict:
 
     if stale and not dry_run:
         message = (
-            f"Trendrop cron heartbeat missed. "
-            f"Latest run: {completed_dt.isoformat()} | "
-            f"Age: {age_hours:.1f}h | "
-            f"Status: {latest.get('status')} | "
-            f"Stage: {latest.get('stage')} | "
-            f"Cutoff: {latest.get('cutoff_reason') or 'none'}"
+            f"Trendrop cron heartbeat missed.\n"
+            f"• Latest run: {completed_dt.isoformat()}\n"
+            f"• Age: {age_hours:.1f}h\n"
+            f"• Status: {latest.get('status')}\n"
+            f"• Stage: {latest.get('stage')}\n"
+            f"• Cutoff: {latest.get('cutoff_reason') or 'none'}"
         )
-        webhook_success = _send_webhook(message)
-        if not webhook_success:
-            # Fallback to email if webhook fails
-            email_success = _send_email(message)
-            alert_sent = email_success
-        else:
-            alert_sent = True
+        alert_sent = _send_alert(message)
     else:
         alert_sent = False
 
