@@ -789,6 +789,12 @@ class TrendEngine:
 
             # STEP 4: Evaluate each audio group
             confirmed = []
+            gate_drops = {
+                "3_reel": 0,
+                "engagement": 0,
+                "creator_diversity": 0,
+                "velocity_floor": 0,
+            }
 
             for (title, artist), group_reels in audio_groups.items():
                 representative_audio_id = next((str(r.get("audio_id")) for r in group_reels if r.get("audio_id")), None)
@@ -946,6 +952,7 @@ class TrendEngine:
 
                 # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
                 if len(high_velocity_reels) < 3 and not is_breakout_single_reel:
+                    gate_drops["3_reel"] += 1
                     logging.debug(
                         f"Audio '{title}' failed 3-reel threshold check "
                         f"(found {len(high_velocity_reels)} recent high-velocity reels, "
@@ -1072,6 +1079,7 @@ class TrendEngine:
                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
                 if not has_valid_engagement:
+                    gate_drops["engagement"] += 1
                     continue
 
                 max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
@@ -1094,12 +1102,14 @@ class TrendEngine:
                 # Require at least 2 distinct creator accounts for emerging, and at least 3 distinct creators for rising.
                 # Single-creator self-promotional audios (e.g. speechplaninc with 12 reels from 1 account) are strictly skipped.
                 if creator_count < 2 and not (is_valid_single_creator_breakout or (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0)):
+                    gate_drops["creator_diversity"] += 1
                     logging.debug(f"Creator diversity gate: skipping '{title}' | {artist} — only {creator_count} distinct creator account(s)")
                     continue
 
                 # Active Velocity Floor Gate:
                 # Require max_velocity >= 0.3 or recent_6h_avg > 0.0 to eliminate dead audios with zero velocity.
                 if max_velocity < 0.3 and recent_6h_avg == 0.0:
+                    gate_drops["velocity_floor"] += 1
                     logging.debug(f"Velocity floor gate: skipping '{title}' | {artist} — max_velocity={max_velocity}, recent_6h_avg={recent_6h_avg}")
                     continue
 
@@ -1159,6 +1169,12 @@ class TrendEngine:
                     }),
                 })
 
+            logging.info(
+                f"[GATE TELEMETRY] Evaluated {len(audio_groups)} candidates | "
+                f"Dropped: 3-reel={gate_drops['3_reel']}, engagement={gate_drops['engagement']}, "
+                f"creator-diversity={gate_drops['creator_diversity']}, velocity-floor={gate_drops['velocity_floor']} | "
+                f"Confirmed: {len(confirmed)}"
+            )
             logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
 
             # Keep all confirmed candidates. The old "top 7" slice silently dropped the

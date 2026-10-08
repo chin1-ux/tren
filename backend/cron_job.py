@@ -318,7 +318,7 @@ def run_full_pipeline(stages: list = None):
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
     if scrape_mode == "global":
-        global_tags = "trendingaudio,trendingsound,trendingsong,trendingmusic,viralaudio,viralsong,viralmusic,trendingreels,viralreels,speedupsongs,speedup,slowedandreverb,remixreels,mashup,capcuttemplate,transitionreels,lipsync,dancechallenge,phonk,phonkmusic,brazilianphonk,funkbrasileiro,reelsbrasil,kpop,kpopdance,reggaeton,musicalatina,afrobeats,amapiano,arabicmusic,hardstyle,eurodance"
+        global_tags = "trendingsong,trendingreels,viralreels,transitionreels,lipsync,mashup,hardstyle,kpop,musicalatina,reelsbrasil,trendingaudio,viralaudio,capcuttemplate,dancechallenge,phonk,amapiano,ترند,تريند,ريلز,اغاني,keşfet,müzik,trendmüzik,jedagjedug,musikviral,fyp,tendencia,musicaviral,funkbrasil,mtgphonk,릴스,챌린지,リール,トレンド,рилс,тренд,ukdrill,newmusic,hiphopreels,naijamusic"
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
 

@@ -1505,6 +1505,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "is_original_audio": is_original_audio,
                 "audio_use": audio_use,
                 "source_hashtag_pool": source_hashtag_pool,
+                "source_tag": tag,
             })
 
         if not candidates:
@@ -1676,6 +1677,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "window_hours_remaining": window,
                 "content_tone": meta.get("content_tone", "unknown"),
                 "niche_tag": classify_niche(c["caption"], c["hashtags"], source_hashtag_pool=source_hashtag_pool),
+                "source_tag": c.get("source_tag"),
             })
 
             # Video storage (permanently disabled)
@@ -1728,6 +1730,25 @@ Return ONLY valid JSON, no markdown, no explanation:
                 try:
                     self.supabase.table("reels").upsert(chunk, on_conflict="reel_id").execute()
                     saved_reel_ids.update(r["reel_id"] for r in chunk)
+
+                    # Audio Sightings lightweight telemetry (additive, non-fatal)
+                    sightings = [
+                        {
+                            "audio_id": r.get("audio_id"),
+                            "reel_id": r.get("reel_id"),
+                            "views": r.get("view_count"),
+                            "likes": r.get("like_count"),
+                            "taken_at": r.get("posted_at"),
+                            "source_tag": r.get("source_tag"),
+                            "seen_at": datetime.now(timezone.utc).isoformat(),
+                        }
+                        for r in chunk if r.get("audio_id") and r.get("reel_id")
+                    ]
+                    if sightings:
+                        try:
+                            self.supabase.table("audio_sightings").insert(sightings).execute()
+                        except Exception as sight_err:
+                            logger.debug(f"audio_sightings insert failed (non-fatal): {sight_err}")
                 except Exception as e:
                     # Salvage: retry this chunk row-by-row so one poisoned row
                     # cannot discard its neighbours.
