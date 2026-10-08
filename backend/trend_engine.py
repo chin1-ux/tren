@@ -1076,8 +1076,18 @@ class TrendEngine:
                 EMERGING_USE_THRESHOLD = 150000
                 RISING_USE_THRESHOLD = 500000
 
-                # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
+                # Engagement Quality Gate with Hidden-Likes Fallback:
+                # Standard: At least one reel in candidate group has like_count >= 10.
+                # Fallback: When likes are hidden/unavailable on all reels (like_count <= 5),
+                # require at least one reel with comment_count >= 2 OR view_count >= 5000 (calibrated to p25).
                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
+                if not has_valid_engagement:
+                    all_likes_hidden = all((r.get("like_count") or 0) <= 5 for r in group_reels)
+                    if all_likes_hidden:
+                        has_valid_engagement = any(
+                            (r.get("comment_count") or 0) >= 2 or (r.get("view_count") or 0) >= 5000
+                            for r in group_reels
+                        )
                 if not has_valid_engagement:
                     gate_drops["engagement"] += 1
                     continue

@@ -1,0 +1,33 @@
+name: Scheduled Data Retention Cleanup
+
+on:
+  schedule:
+    - cron: '43 2 * * *'  # Daily at 2:43 AM UTC (off-minute)
+  workflow_dispatch:
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+jobs:
+  retention:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install database driver
+        run: pip install psycopg2-binary python-dotenv
+
+      - name: Run Standalone Retention Pruning
+        continue-on-error: true
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/retention.py

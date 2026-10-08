@@ -22,7 +22,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 120
+    timeout-minutes: 45
 
     steps:
       - name: Checkout repository
@@ -167,6 +167,18 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python backend/verify_scraper_run.py
+
+      - name: Run Audio-First Capture, Watchlist & Expansion
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python backend/audio_capture.py
+          python backend/watchlist.py
+          python backend/audio_expand.py
 
       - name: Upload scraper browser log artifact
         if: always()
