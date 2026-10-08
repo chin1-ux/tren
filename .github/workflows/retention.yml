@@ -22,12 +22,15 @@ jobs:
         with:
           python-version: '3.11'
 
-      - name: Install database driver
-        run: pip install psycopg2-binary python-dotenv
+      - name: Install dependencies
+        run: pip install psycopg2-binary python-dotenv supabase
 
       - name: Run Standalone Retention Pruning
         continue-on-error: true
         env:
           SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
         run: |
           python backend/retention.py
