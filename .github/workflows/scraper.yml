@@ -22,7 +22,7 @@ concurrency:
 jobs:
   run-pipeline:
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 75
 
     steps:
       - name: Checkout repository
@@ -102,21 +102,8 @@ jobs:
         run: |
           python backend/auth_system.py
 
-      - name: Run Audio-First Capture, Watchlist & Probe
-        if: always()
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
-        run: |
-          python backend/audio_capture.py
-          python backend/watchlist.py
-          python backend/audio_probe.py
-
       - name: Run pipeline (India mode)
+        timeout-minutes: 50
         if: >-
           github.event_name != 'workflow_dispatch'
           || github.event.inputs.mode == 'both'
@@ -147,6 +134,7 @@ jobs:
           PYTHONPATH=backend python -c "from cron_job import run_audio_count_check; run_audio_count_check()"
 
       - name: Run pipeline (Global mode)
+        timeout-minutes: 50
         if: >-
           github.event_name != 'workflow_dispatch'
           || github.event.inputs.mode == 'both'
@@ -181,6 +169,54 @@ jobs:
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
         run: |
           python backend/verify_scraper_run.py
+
+      - name: Run Audio-First Capture
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_capture.py
+
+      - name: Run Audio Probe
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_probe.py
+
+      - name: Run Sighting Expansion
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_expand.py
+
+      - name: Run Watchlist Evaluation
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/watchlist.py
 
       - name: Upload scraper browser log artifact
         if: always()

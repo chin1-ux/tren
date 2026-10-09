@@ -123,14 +123,19 @@ def evaluate_watchlist(dry_run: bool = False, target_time: Optional[datetime] = 
     PAGE_SIZE = 1000
 
     while True:
-        res = sb.table("reels") \
-            .select("reel_id, audio_id, audio_title, audio_artist, owner_username, is_original_audio, velocity_score, view_count, created_at") \
-            .gte("created_at", h72_ago) \
-            .lte("created_at", ref_iso) \
-            .not_.is_("audio_title", "null") \
-            .range(offset, offset + PAGE_SIZE - 1) \
-            .execute()
-        data = res.data or []
+        try:
+            res = sb.table("reels") \
+                .select("reel_id, audio_id, audio_title, audio_artist, owner_username, is_original_audio, velocity_score, view_count, created_at") \
+                .gte("created_at", h72_ago) \
+                .lte("created_at", ref_iso) \
+                .not_.is_("audio_title", "null") \
+                .order("id", desc=False) \
+                .range(offset, offset + PAGE_SIZE - 1) \
+                .execute()
+            data = res.data or []
+        except Exception as e:
+            logger.warning(f"Error fetching reels at offset {offset}: {e}")
+            break
         for r in data:
             if r.get("is_original_audio"):
                 continue

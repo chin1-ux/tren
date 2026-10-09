@@ -56,6 +56,10 @@ _classification_run_count = 0
 def _capped_classify_single_trend(trend):
     global _classification_run_count
     if _classification_run_count >= 40:
+        trend.setdefault("why_this_works", f"The track {trend.get('audio_title') or 'this track'} is currently driving high engagement on short-form feeds.")
+        trend.setdefault("audio_cue_second", 0)
+        trend.setdefault("format_transferable", True)
+        trend.setdefault("transfer_instructions", f"Adapt the visual style of {trend.get('audio_title') or 'the song'} to your niche.")
         trend.setdefault("llm_classification_status", "skipped_cap_40")
         return False
     _classification_run_count += 1
@@ -63,12 +67,16 @@ def _capped_classify_single_trend(trend):
 
 trend_engine.classify_single_trend = _capped_classify_single_trend
 
-_orig_trend_engine_sleep = trend_engine.time.sleep
-def _capped_trend_engine_sleep(duration):
-    if _classification_run_count >= 40:
-        return
-    return _orig_trend_engine_sleep(duration)
-trend_engine.time.sleep = _capped_trend_engine_sleep
+class _TrendEngineTimeProxy:
+    def sleep(self, duration):
+        if _classification_run_count >= 40:
+            return
+        return time.sleep(duration)
+
+    def __getattr__(self, item):
+        return getattr(time, item)
+
+trend_engine.time = _TrendEngineTimeProxy()
 from trend_refresher import TrendRefresher
 from alert_system import AlertSystem
 from unified_signal_processor import UnifiedSignalProcessor

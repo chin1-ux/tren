@@ -86,7 +86,7 @@ def run_nightly_batch(limit: int | None = None) -> dict:
         sb.table("trends")
         .select("id,audio_title,audio_artist,niche_tag,content_tone,vibe_tag,language,sample_captions,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions")
         .eq("is_seed_data", False)
-        .in_("llm_classification_status", ["pending", "llm_unavailable", "skipped_local_fallback"])
+        .in_("llm_classification_status", ["pending", "llm_unavailable", "skipped_local_fallback", "skipped_cap_40"])
         .order("first_detected_at", desc=False)
         .limit(max_calls)
         .execute()
