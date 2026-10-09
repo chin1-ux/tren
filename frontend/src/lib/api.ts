@@ -591,25 +591,21 @@ export async function ensureValidToken(): Promise<string | null> {
           localStorage.setItem("trendrop_session_token", token);
         }
       } else {
-        // Refresh token expired or failed — clear invalid token to prevent 401 loops
+        const isAuthError = error?.status === 400 || (error?.message && error.message.toLowerCase().includes("invalid"));
         console.warn("[auth] Supabase session refresh failed:", error?.message);
-        setAuthToken(null);
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("trendrop_session_token");
-          localStorage.removeItem("trendrop_token");
-          window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
+        if (isAuthError) {
+          setAuthToken(null);
+          if (typeof window !== "undefined") {
+            localStorage.removeItem("trendrop_session_token");
+            localStorage.removeItem("trendrop_token");
+            window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
+          }
+          return null;
         }
-        return null;
       }
     } catch (err) {
-      console.warn("[auth] Failed to proactively refresh expired token:", err);
-      setAuthToken(null);
-      if (typeof window !== "undefined") {
-        localStorage.removeItem("trendrop_session_token");
-        localStorage.removeItem("trendrop_token");
-        window.dispatchEvent(new CustomEvent("trendrop:unauthorized"));
-      }
-      return null;
+      // Network/timeout error — do NOT wipe session on transient blips
+      console.warn("[auth] Proactive refresh network failure (retaining existing token):", err);
     }
   }
   return token;

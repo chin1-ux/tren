@@ -26,44 +26,49 @@ interface AuthContextType {
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === "undefined") return null;
-    const token = localStorage.getItem("trendrop_session_token");
-    const email = localStorage.getItem("trendrop_user_email");
-    if (token && email) {
-      setAuthToken(token);
-      return {
-        email,
-        niche: localStorage.getItem("trendrop_user_niche") || "all",
-        language: localStorage.getItem("trendrop_user_language") || "hi",
-        plan: localStorage.getItem("trendrop_user_plan") || "free",
-      };
-    }
-    return null;
-  });
-  const [loading, setLoading] = useState<boolean>(false);
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState<boolean>(true);
   const navigate = useNavigate();
   const lastVerifyTs = useRef<number>(0);
 
   const checkAuth = async () => {
     try {
-      const token = localStorage.getItem("trendrop_session_token");
-      if (!token) {
+      let token = typeof window !== "undefined" ? localStorage.getItem("trendrop_session_token") : null;
+
+      // Seed cached user state immediately on client side
+      const cachedEmail = typeof window !== "undefined" ? localStorage.getItem("trendrop_user_email") : null;
+      const cachedNiche = (typeof window !== "undefined" && localStorage.getItem("trendrop_user_niche")) || "all";
+      const cachedLang = (typeof window !== "undefined" && localStorage.getItem("trendrop_user_language")) || "hi";
+      const cachedPlan = (typeof window !== "undefined" && localStorage.getItem("trendrop_user_plan")) || "free";
+      if (cachedEmail) {
+        setUser({ email: cachedEmail, niche: cachedNiche, language: cachedLang, plan: cachedPlan });
+        if (token) setAuthToken(token);
+      }
+      setLoading(false);
+
+      if (!token && !cachedEmail) {
         setUser(null);
-        setLoading(false);
         return;
       }
 
-      // Seed cached user state immediately — 0ms perceived load time
-      const cachedEmail = localStorage.getItem("trendrop_user_email");
-      const cachedNiche = localStorage.getItem("trendrop_user_niche") || "all";
-      const cachedLang = localStorage.getItem("trendrop_user_language") || "hi";
-      const cachedPlan = localStorage.getItem("trendrop_user_plan") || "free";
-      if (cachedEmail) {
-        setUser({ email: cachedEmail, niche: cachedNiche, language: cachedLang, plan: cachedPlan });
-        setAuthToken(token);
+      // Proactively check Supabase session: if the 1h access token expired,
+      // Supabase JS will automatically exchange its refresh token for a fresh one.
+      try {
+        const { data: sbSessionData } = await supabase.auth.getSession();
+        if (sbSessionData?.session?.access_token) {
+          token = sbSessionData.session.access_token;
+          setAuthToken(token);
+          if (typeof window !== "undefined") {
+            localStorage.setItem("trendrop_session_token", token);
+          }
+        }
+      } catch (sbErr) {
+        console.warn("[auth] Supabase getSession check non-fatal:", sbErr);
       }
-      setLoading(false);
+
+      if (!token) {
+        return;
+      }
 
       // Deduplicate background verify: skip if verified in last 60s
       const now = Date.now();
@@ -101,15 +106,42 @@ export function AuthProvider({ children }: { children: ReactNode }) {
             authToken: token,
           });
         } else if (data?.valid === false) {
-          // Backend explicitly says token is invalid (revoked, expired, etc.) — sign out
-          console.warn("[auth] Backend revoked session, signing out");
-          setAuthToken(null);
-          localStorage.removeItem("trendrop_session_token");
-          localStorage.removeItem("trendrop_user_email");
-          localStorage.removeItem("trendrop_user_niche");
-          localStorage.removeItem("trendrop_user_language");
-          localStorage.removeItem("trendrop_user_plan");
-          setUser(null);
+          // Backend reported token is invalid. Attempt a Supabase refresh before signing out!
+          try {
+            const { data: refreshData, error: refreshErr } = await supabase.auth.refreshSession();
+            if (!refreshErr && refreshData?.session?.access_token) {
+              const freshToken = refreshData.session.access_token;
+              setAuthToken(freshToken);
+              localStorage.setItem("trendrop_session_token", freshToken);
+              const retryRes = await fetch(`${API_URL}/api/auth/verify`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({ session_token: freshToken }),
+              });
+              const retryData = await retryRes.json();
+              if (retryData?.success && retryData?.valid && retryData?.user) {
+                setUser(retryData.user);
+                return;
+              }
+            }
+          } catch (rErr) {
+            console.warn("[auth] Refresh attempt failed:", rErr);
+          }
+
+          // Only sign out if Supabase itself confirms no active session exists
+          const { data: sessionCheck } = await supabase.auth.getSession();
+          if (!sessionCheck?.session) {
+            console.warn("[auth] Session genuinely revoked/expired, signing out");
+            setAuthToken(null);
+            localStorage.removeItem("trendrop_session_token");
+            localStorage.removeItem("trendrop_user_email");
+            localStorage.removeItem("trendrop_user_niche");
+            localStorage.removeItem("trendrop_user_language");
+            localStorage.removeItem("trendrop_user_plan");
+            setUser(null);
+          } else {
+            console.warn("[auth] Backend verify failed but Supabase session is active; retaining cached user");
+          }
         }
         // else: unexpected response shape → keep user logged in with cached data
       } catch {
@@ -118,7 +150,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       }
     } catch (error: any) {
       // Outer catch: localStorage read failed or similar — stay logged in if possible
-      const cachedEmail = localStorage.getItem("trendrop_user_email");
+      const cachedEmail = typeof window !== "undefined" ? localStorage.getItem("trendrop_user_email") : null;
       if (cachedEmail) {
         setUser({
           email: cachedEmail,
