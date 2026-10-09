@@ -78,51 +78,73 @@ def run_audio_capture():
         logger.info(f"Daily audio capture cap reached ({daily_count}/150). Skipping run.")
         return
 
-    # 2. Exclude audios measured in last 3h
+    # 2. Watchlist Priority (Order 61 Part E2): measure active watchlist audios first (re-measure every 6h)
+    h6_ago = (now_utc - timedelta(hours=6)).isoformat()
+    wl_res = sb.table("watchlist").select("audio_id").eq("status", "watching").execute()
+    active_wl_aids = [r["audio_id"] for r in (wl_res.data or []) if r.get("audio_id")]
+
+    # Check which watchlist audios were measured in last 6h
+    measured_6h = set()
+    if active_wl_aids:
+        ach_6h = sb.table("audio_count_history").select("audio_id").in_("audio_id", active_wl_aids).gte("captured_at", h6_ago).execute()
+        measured_6h = {r["audio_id"] for r in (ach_6h.data or []) if r.get("audio_id")}
+
+    watchlist_targets = [aid for aid in active_wl_aids if aid not in measured_6h][:15]
+
+    # 3. Exclude audios measured in last 3h for general candidates
     h3_ago = (now_utc - timedelta(hours=3)).isoformat()
     recent_res = sb.table("audio_count_history").select("audio_id").gte("captured_at", h3_ago).execute()
     recent_measured = set(r["audio_id"] for r in (recent_res.data or []))
+    recent_measured.update(watchlist_targets)
 
-    # 3. Fetch candidates from reels in rolling 72h window
-    h72_ago = (now_utc - timedelta(hours=72)).isoformat()
-    audio_stats = {}
-    offset = 0
-    PAGE_SIZE = 1000
+    # 4. Fetch additional candidates from reels in rolling 72h window if under 15 cap
+    candidates_needed = 15 - len(watchlist_targets)
+    candidate_targets = []
+    if candidates_needed > 0:
+        h72_ago = (now_utc - timedelta(hours=72)).isoformat()
+        audio_stats = {}
+        offset = 0
+        PAGE_SIZE = 1000
 
-    while True:
-        res = sb.table("reels") \
-            .select("audio_id, owner_username") \
-            .gte("created_at", h72_ago) \
-            .not_.is_("audio_id", "null") \
-            .range(offset, offset + PAGE_SIZE - 1) \
-            .execute()
-        data = res.data or []
-        for r in data:
-            aid = r.get("audio_id")
-            if not aid:
+        while True:
+            res = sb.table("reels") \
+                .select("audio_id, owner_username") \
+                .gte("created_at", h72_ago) \
+                .not_.is_("audio_id", "null") \
+                .range(offset, offset + PAGE_SIZE - 1) \
+                .execute()
+            data = res.data or []
+            for r in data:
+                aid = r.get("audio_id")
+                if not aid:
+                    continue
+                aid = str(aid).strip()
+                if not aid or aid in ("0", "Unknown"):
+                    continue
+                if aid not in audio_stats:
+                    audio_stats[aid] = {"creators": set(), "reels": 0}
+                audio_stats[aid]["reels"] += 1
+                if r.get("owner_username"):
+                    audio_stats[aid]["creators"].add(r["owner_username"])
+
+            if len(data) < PAGE_SIZE:
+                break
+            offset += PAGE_SIZE
+
+        eligible = []
+        for aid, st in audio_stats.items():
+            if aid in recent_measured:
                 continue
-            aid = str(aid).strip()
-            if aid not in audio_stats:
-                audio_stats[aid] = {"creators": set(), "reels": 0}
-            audio_stats[aid]["reels"] += 1
-            if r.get("owner_username"):
-                audio_stats[aid]["creators"].add(r["owner_username"])
+            c_cnt = len(st["creators"])
+            r_cnt = st["reels"]
+            if r_cnt >= 2 or c_cnt >= 2:
+                eligible.append((aid, c_cnt, r_cnt))
 
-        if len(data) < PAGE_SIZE:
-            break
-        offset += PAGE_SIZE
+        eligible.sort(key=lambda x: (x[1], x[2]), reverse=True)
+        candidate_targets = eligible[:candidates_needed]
 
-    eligible = []
-    for aid, st in audio_stats.items():
-        if aid in recent_measured:
-            continue
-        c_cnt = len(st["creators"])
-        r_cnt = st["reels"]
-        if r_cnt >= 2 or c_cnt >= 2:
-            eligible.append((aid, c_cnt, r_cnt))
-
-    eligible.sort(key=lambda x: (x[1], x[2]), reverse=True)
-    targets = eligible[:15]
+    # Combine: (audio_id, creators, reels)
+    targets = [(aid, 0, 0) for aid in watchlist_targets] + candidate_targets
 
     if not targets:
         logger.info("No eligible audio capture targets for this cycle.")

@@ -12,7 +12,7 @@ concurrency:
 jobs:
   scrape_and_detect:
     runs-on: ubuntu-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -30,6 +30,20 @@ jobs:
           playwright install chromium
           python -m camoufox fetch
 
+      - name: Run Audio-First Capture, Watchlist & Probe
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_capture.py
+          python backend/watchlist.py
+          python backend/audio_probe.py
+
       - name: Run Full Scraper & Detection Pipeline
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
@@ -41,16 +55,3 @@ jobs:
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
         run: |
           python backend/cron_job.py
-
-      - name: Run Audio-First Capture, Watchlist & Expansion
-        continue-on-error: true
-        env:
-          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
-          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
-          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
-          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
-          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
-        run: |
-          python backend/audio_capture.py
-          python backend/watchlist.py
-          python backend/audio_expand.py

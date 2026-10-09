@@ -57,10 +57,18 @@ def run_retention():
             cur.execute("DELETE FROM audio_count_history WHERE captured_at < NOW() - INTERVAL '30 days';")
             n_ach = cur.rowcount
 
+            # 5. probe_reels (21 days)
+            cur.execute("DELETE FROM probe_reels WHERE first_seen_at < NOW() - INTERVAL '21 days';")
+            n_pr = cur.rowcount
+
+            # 6. probe_log (14 days)
+            cur.execute("DELETE FROM probe_log WHERE ts < NOW() - INTERVAL '14 days';")
+            n_pl = cur.rowcount
+
             cur.close()
             conn.close()
 
-            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}")
+            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}")
             return
         except Exception as pg_err:
             logger.warning(f"Direct connection pruning failed or unreachable ({pg_err}). Falling back to Supabase REST client...")
@@ -72,6 +80,9 @@ def run_retention():
 
     from supabase import create_client
     sb = create_client(url, key)
+
+    d21_ago = (now_utc - timedelta(days=21)).isoformat()
+    d14_ago = (now_utc - timedelta(days=14)).isoformat()
 
     # 1. reel_snapshots
     res_rs = sb.table("reel_snapshots").delete().lt("snapshotted_at", d7_ago).execute()
@@ -95,7 +106,15 @@ def run_retention():
     res_ach = sb.table("audio_count_history").delete().lt("captured_at", d30_ago).execute()
     n_ach = len(res_ach.data or [])
 
-    print(f"RETENTION SUMMARY (REST): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}")
+    # 5. probe_reels
+    res_pr = sb.table("probe_reels").delete().lt("first_seen_at", d21_ago).execute()
+    n_pr = len(res_pr.data or [])
+
+    # 6. probe_log
+    res_pl = sb.table("probe_log").delete().lt("ts", d14_ago).execute()
+    n_pl = len(res_pl.data or [])
+
+    print(f"RETENTION SUMMARY (REST): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}")
 
 if __name__ == "__main__":
     run_retention()
