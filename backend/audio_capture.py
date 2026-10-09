@@ -140,19 +140,31 @@ async def _measure_audio_targets(targets: list[tuple[str, int, int]], sb):
     if not os.path.exists(cookies_path):
         cookies_path = "backend/cookies.json"
 
-    formatted_cookies = []
+    raw_c = []
     if os.path.exists(cookies_path):
-        with open(cookies_path, "r", encoding="utf-8") as f:
-            raw_c = json.load(f)
-            formatted_cookies = [
-                {
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".instagram.com"),
-                    "path": c.get("path", "/"),
-                }
-                for c in raw_c
-            ]
+        try:
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                raw_c = json.load(f)
+        except Exception as ce:
+            logger.warning(f"Error reading {cookies_path}: {ce}")
+    elif os.getenv("INSTAGRAM_COOKIES_B64"):
+        try:
+            import base64
+            b64_val = os.getenv("INSTAGRAM_COOKIES_B64").strip()
+            raw_c = json.loads(base64.b64decode(b64_val).decode("utf-8"))
+        except Exception as b64e:
+            logger.warning(f"Error decoding INSTAGRAM_COOKIES_B64: {b64e}")
+
+    formatted_cookies = [
+        {
+            "name": c["name"],
+            "value": c["value"],
+            "domain": c.get("domain", ".instagram.com"),
+            "path": c.get("path", "/"),
+        }
+        for c in raw_c
+        if isinstance(c, dict) and "name" in c and "value" in c
+    ]
 
     measured_rows = []
 

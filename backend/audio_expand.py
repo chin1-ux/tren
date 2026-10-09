@@ -133,11 +133,22 @@ def run_audio_expand():
     if not os.path.exists(cookies_path):
         cookies_path = "backend/cookies.json"
 
-    cookie_dict = {}
+    raw_c = []
     if os.path.exists(cookies_path):
-        with open(cookies_path, "r", encoding="utf-8") as f:
-            raw_c = json.load(f)
-            cookie_dict = {c["name"]: c["value"] for c in raw_c}
+        try:
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                raw_c = json.load(f)
+        except Exception as ce:
+            logger.warning(f"Error reading {cookies_path}: {ce}")
+    elif os.getenv("INSTAGRAM_COOKIES_B64"):
+        try:
+            import base64
+            b64_val = os.getenv("INSTAGRAM_COOKIES_B64").strip()
+            raw_c = json.loads(base64.b64decode(b64_val).decode("utf-8"))
+        except Exception as b64e:
+            logger.warning(f"Error decoding INSTAGRAM_COOKIES_B64: {b64e}")
+
+    cookie_dict = {c["name"]: c["value"] for c in raw_c if isinstance(c, dict) and "name" in c and "value" in c}
 
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
