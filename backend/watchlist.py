@@ -134,24 +134,47 @@ def evaluate_watchlist():
     logger.info(f"Watchlist evaluation complete: {len(scored_candidates)} eligible -> top {len(top_30)} selected")
 
     # Insert into watchlist & proof_log
+    run_id = os.getenv("GITHUB_RUN_ID")
     for cand in top_30:
         aid = cand["audio_id"]
         if aid not in existing_watchlist:
             try:
-                sb.table("watchlist").upsert({
+                wl_row = {
                     "audio_id": aid,
                     "flagged_at": now_utc.isoformat(),
                     "first_reels": cand["first_reels"],
                     "first_creators": cand["first_creators"],
                     "reasons": cand["reasons"],
                     "status": "watching"
-                }).execute()
-                sb.table("proof_log").insert({
+                }
+                proof_row = {
                     "audio_id": aid,
                     "flagged_at": now_utc.isoformat(),
                     "reasons": cand["reasons"],
                     "snapshot": cand["snapshot"]
-                }).execute()
+                }
+                if run_id:
+                    wl_row["run_id"] = run_id
+                    proof_row["run_id"] = run_id
+
+                try:
+                    sb.table("watchlist").upsert(wl_row).execute()
+                except Exception as wle:
+                    if "run_id" in wl_row:
+                        wl_row.pop("run_id")
+                        sb.table("watchlist").upsert(wl_row).execute()
+                    else:
+                        raise wle
+
+                try:
+                    sb.table("proof_log").insert(proof_row).execute()
+                except Exception as ple:
+                    if "run_id" in proof_row:
+                        proof_row.pop("run_id")
+                        sb.table("proof_log").insert(proof_row).execute()
+                    else:
+                        raise ple
+
                 logger.info(f"Watchlist flagged: {aid} (Score: {cand['score']:.1f})")
             except Exception as e:
                 logger.warning(f"Error persisting watchlist entry {aid}: {e}")

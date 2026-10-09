@@ -31,20 +31,18 @@ def parse_reels_count_text(text: str) -> tuple[int | None, str | None, str | Non
     if not text:
         return None, None, None
 
-    # Pattern 1: Modern Instagram Audio page layout ("Audio\n57.9K")
-    match = re.search(r'Audio\s*\n?\s*([\d,.]+)\s*([KMB]?)', text, re.IGNORECASE)
-    if not match:
-        # Pattern 2: Traditional layout ("57.9K reels" / "1.2M posts")
-        match = re.search(r'([\d,.]+)\s*([KMB]?)\s*(?:reels?|posts?|videos?)', text, re.IGNORECASE)
-
+    # Strict pattern requiring the word 'reels', 'posts', or 'videos'
+    match = re.search(r'([\d,.]+)\s*([KMB]?)\s*(?:reels?|posts?|videos?)', text, re.IGNORECASE)
     if not match:
         return None, None, None
 
-    raw_matched = match.group(0)
+    raw_matched = match.group(0).strip()
     val_str, suffix = match.groups()
-    val_str = val_str.replace(',', '')
+    val_str = val_str.replace(',', '').strip()
     try:
         val = float(val_str)
+        if val <= 0:
+            return None, None, None
         suffix_upper = suffix.upper() if suffix else ''
         if suffix_upper == 'K':
             val *= 1000
@@ -174,41 +172,62 @@ async def _measure_audio_targets(targets: list[tuple[str, int, int]], sb):
 
         for idx, (aid, creators, reels) in enumerate(targets):
             url = f"https://www.instagram.com/reels/audio/{aid}/"
-            try:
-                resp = await page.goto(url, wait_until="domcontentloaded", timeout=25000)
-                current_url = page.url
+            count_val = None
+            precision = None
+            raw_text = None
+            status = "no_count"
 
-                if "challenge" in current_url or "login" in current_url:
-                    logger.error(f"CHALLENGE / LOGIN REDIRECT DETECTED at {current_url}. Aborting audio capture run.")
-                    break
-
-                await page.wait_for_timeout(3000)
+            for attempt in range(2):
                 try:
-                    body_text = await page.inner_text("body", timeout=10000)
-                except Exception:
-                    body_text = ""
+                    if attempt == 0:
+                        resp = await page.goto(url, wait_until="domcontentloaded", timeout=25000)
+                    else:
+                        logger.info(f"Audio {aid}: count missing on attempt 1. Waiting 10s and reloading...")
+                        await page.wait_for_timeout(10000)
+                        resp = await page.reload(wait_until="domcontentloaded", timeout=25000)
 
-                count_val, precision, raw_text = parse_reels_count_text(body_text)
+                    current_url = page.url
+                    if "challenge" in current_url or "login" in current_url:
+                        logger.error(f"CHALLENGE / LOGIN REDIRECT DETECTED at {current_url}. Aborting audio capture run.")
+                        await ctx.close()
+                        return
 
-                # Fallback to full HTML content
-                if count_val is None:
-                    content = await page.content()
-                    count_val, precision, raw_text = parse_reels_count_text(content)
+                    await page.wait_for_timeout(4000)
+                    try:
+                        body_text = await page.inner_text("body", timeout=10000)
+                    except Exception:
+                        body_text = ""
 
-                if count_val is not None:
-                    measured_rows.append({
-                        "audio_id": aid,
-                        "raw_text": raw_text,
-                        "use_count": count_val,
-                        "precision": precision,
-                        "source": "instagram_audio_page",
-                    })
-                    logger.info(f"Captured audio {aid}: {raw_text} -> parsed={count_val} ({precision})")
-                else:
-                    logger.warning(f"Audio {aid}: count text not found in header")
+                    count_val, precision, raw_text = parse_reels_count_text(body_text)
 
-            except Exception as e:
-                logger.error(f"Failed to measure audio {aid}: {e}")
+                    # Fallback to full HTML content
+                    if count_val is None:
+                        content = await page.content()
+                        count_val, precision, raw_text = parse_reels_count_text(content)
+
+                    if count_val is not None and count_val > 0:
+                        status = "success"
+                        break
+                except Exception as e:
+                    logger.warning(f"Audio {aid} attempt {attempt+1} error: {e}")
+
+            run_id = os.getenv("GITHUB_RUN_ID")
+            row = {
+                "audio_id": aid,
+                "raw_text": raw_text,
+                "use_count": count_val if status == "success" else None,
+                "precision": precision if status == "success" else None,
+                "status": status,
+                "source": "instagram_audio_page",
+            }
+            if run_id:
+                row["run_id"] = run_id
+
+            measured_rows.append(row)
+            if status == "success":
+                logger.info(f"Captured audio {aid}: {raw_text} -> parsed={count_val} ({precision})")
+            else:
+                logger.warning(f"Audio {aid}: count text not found (status=no_count, use_count=None)")
 
             if idx < len(targets) - 1:
                 delay = random.uniform(8.0, 20.0)
@@ -217,7 +236,23 @@ async def _measure_audio_targets(targets: list[tuple[str, int, int]], sb):
         await ctx.close()
 
     if measured_rows:
-        sb.table("audio_count_history").insert(measured_rows).execute()
+        try:
+            sb.table("audio_count_history").insert(measured_rows).execute()
+        except Exception as insert_err:
+            logger.warning(f"Insert with status/run_id failed ({insert_err}), falling back to core columns...")
+            fallback_rows = [
+                {
+                    "audio_id": r["audio_id"],
+                    "raw_text": r["raw_text"],
+                    "use_count": r["use_count"],
+                    "precision": r["precision"],
+                    "source": r["source"],
+                }
+                for r in measured_rows
+                if r.get("use_count") is not None
+            ]
+            if fallback_rows:
+                sb.table("audio_count_history").insert(fallback_rows).execute()
         logger.info(f"Recorded {len(measured_rows)} audio count measurements in audio_count_history.")
     else:
         logger.info("0 audio counts recorded in this cycle.")

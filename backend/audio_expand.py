@@ -65,9 +65,8 @@ def calculate_expanded_score(base_reasons: dict, expansion: dict) -> float:
     reels_cnt = base_reasons.get("reels_72h", 0)
     growth_pct = base_reasons.get("growth_pct", 0.0)
 
-    # Expansion bonus terms
+    # Expansion bonus terms: only reward verified audio matches
     exp_creators = expansion.get("expansion_distinct_creators", 0)
-    exp_recency_share = expansion.get("recency_share_pct", 0.0) # 0 to 100
     exp_matched_reels = expansion.get("expansion_matched_reels", 0)
 
     import math
@@ -78,8 +77,8 @@ def calculate_expanded_score(base_reasons: dict, expansion: dict) -> float:
         + (min(max_v, 5000.0) * 0.02)
         + (min(growth_pct, 100.0) * 0.5)
     )
-    # Expansion bonus: +15 per extra distinct creator discovered, +0.3 per % recency share, +5 per matched reel
-    expansion_bonus = (exp_creators * 15.0) + (exp_matched_reels * 5.0) + (exp_recency_share * 0.3)
+    # Expansion bonus: +15 per extra distinct creator discovered, +5 per matched reel
+    expansion_bonus = (exp_creators * 15.0) + (exp_matched_reels * 5.0)
     return round(base_score + expansion_bonus, 2)
 
 def run_audio_expand():
@@ -181,7 +180,8 @@ def run_audio_expand():
                 for m in medias:
                     clips = m.get("clips_metadata") or {}
                     music = (clips.get("music_info") or {}).get("music_asset_info") or {}
-                    m_aid = str(music.get("audio_cluster_id") or music.get("id") or "")
+                    orig = clips.get("original_sound_info") or {}
+                    m_aids = [str(x) for x in [music.get("audio_cluster_id"), music.get("id"), orig.get("audio_asset_id"), orig.get("id")] if x]
                     
                     taken_at = m.get("taken_at")
                     dt_taken = datetime.fromtimestamp(taken_at, tz=timezone.utc) if taken_at else None
@@ -190,7 +190,7 @@ def run_audio_expand():
                     if dt_taken and (newest_posted is None or dt_taken > newest_posted):
                         newest_posted = dt_taken
 
-                    if m_aid == aid:
+                    if str(aid) in m_aids:
                         matching_reels.append(m.get("code"))
                         user = m.get("user") or {}
                         if user.get("username"):
@@ -199,15 +199,26 @@ def run_audio_expand():
                 total_m = len(medias)
                 recency_share = round((recent_reels / total_m * 100.0), 1) if total_m > 0 else 0.0
 
-                expansion_data = {
-                    "expanded_at": now_utc.isoformat(),
-                    "hashtag": tag,
-                    "total_hashtag_medias": total_m,
-                    "recency_share_pct": recency_share,
-                    "expansion_matched_reels": len(matching_reels),
-                    "expansion_distinct_creators": len(creators),
-                    "newest_posted_at": newest_posted.isoformat() if newest_posted else None
-                }
+                if matching_reels:
+                    expansion_data = {
+                        "status": "match",
+                        "expanded_at": now_utc.isoformat(),
+                        "hashtag": tag,
+                        "total_hashtag_medias": total_m,
+                        "expansion_matched_reels": len(matching_reels),
+                        "expansion_distinct_creators": len(creators),
+                        "newest_posted_at": newest_posted.isoformat() if newest_posted else None
+                    }
+                else:
+                    expansion_data = {
+                        "status": "no_match",
+                        "expanded_at": now_utc.isoformat(),
+                        "hashtag": tag,
+                        "total_hashtag_medias": total_m,
+                        "expansion_matched_reels": 0,
+                        "expansion_distinct_creators": 0,
+                        "newest_posted_at": newest_posted.isoformat() if newest_posted else None
+                    }
 
                 # Update reasons and score
                 reasons = target.get("reasons") or {}
@@ -216,7 +227,7 @@ def run_audio_expand():
                 reasons["score"] = new_score
 
                 sb.table("watchlist").update({"reasons": reasons}).eq("audio_id", aid).execute()
-                logger.info(f"Audio {aid} expanded: {len(matching_reels)} matched reels, {len(creators)} creators, recency={recency_share}%. New score={new_score:.1f}")
+                logger.info(f"Audio {aid} expanded ({expansion_data['status']}): {len(matching_reels)} matched reels, {len(creators)} creators. New score={new_score:.1f}")
 
             else:
                 logger.warning(f"Hashtag #{tag} fetch returned HTTP {resp.status_code}")
