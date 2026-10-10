@@ -292,6 +292,7 @@ def run_song_level_trends_report(sb):
     unmatched_songs = []
     lead_hours_list = []
 
+    matched_details = []
     for p in proof_rows:
         reasons = p.get("reasons") or {}
         sk = reasons.get("song_key") or p.get("snapshot", {}).get("song_key")
@@ -304,6 +305,7 @@ def run_song_level_trends_report(sb):
 
         if t:
             t_dt = t.get("first_detected_at")
+            lead_h = 0.0
             if t_dt and f_at:
                 f_datetime = datetime.fromisoformat(f_at.replace("Z", "+00:00"))
                 if not f_datetime.tzinfo:
@@ -311,16 +313,41 @@ def run_song_level_trends_report(sb):
                 t_datetime = datetime.fromisoformat(t_dt.replace("Z", "+00:00"))
                 if not t_datetime.tzinfo:
                     t_datetime = t_datetime.replace(tzinfo=timezone.utc)
+                # Sign convention: positive hours = flagged before the trend (lead), negative = flagged after (lag)
                 lead_h = (t_datetime - f_datetime).total_seconds() / 3600.0
                 lead_hours_list.append(lead_h)
             matched_songs.append((p, t))
+            matched_details.append((p, t, lead_h))
         else:
+            title = reasons.get("title")
+            artist = reasons.get("artist")
+            creators = reasons.get("distinct_creators") or 0
+            reels_cnt = reasons.get("total_reels") or 0
+            max_v = reasons.get("max_views") or 0
+            if (not title or creators == 0) and aids:
+                try:
+                    r_res = sb.table("reels").select("audio_title, audio_artist, owner_username, view_count").in_("audio_id", aids).execute()
+                    r_data = r_res.data or []
+                    if r_data:
+                        if not title:
+                            title = r_data[0].get("audio_title") or sk
+                        if not artist:
+                            artist = r_data[0].get("audio_artist")
+                        if creators == 0:
+                            creators = len({x.get("owner_username") for x in r_data if x.get("owner_username")})
+                        if reels_cnt == 0:
+                            reels_cnt = len(r_data)
+                        if max_v == 0:
+                            max_v = max([x.get("view_count") or 0 for x in r_data] or [0])
+                except Exception:
+                    pass
+
             unmatched_songs.append({
-                "title": reasons.get("title") or sk or p.get("audio_id"),
-                "artist": reasons.get("artist"),
-                "creators": reasons.get("distinct_creators") or 0,
-                "reels": reasons.get("total_reels") or 0,
-                "max_views": reasons.get("max_views") or 0,
+                "title": title or sk or p.get("audio_id"),
+                "artist": artist,
+                "creators": creators,
+                "reels": reels_cnt,
+                "max_views": max_v,
                 "audio_ids": aids,
             })
 
@@ -331,8 +358,20 @@ def run_song_level_trends_report(sb):
     print(f"Total flagged watchlist songs (14d): {total_flagged}")
     print(f"Share with song-level trend row: {len(matched_songs)}/{total_flagged} ({share_with_trend:.1f}%)")
     print(f"Lead hours (trends.first_detected_at - flag_time): Median={med_lead:.1f}h, Mean={mean_lead:.1f}h\n")
+
+    print(f"--- MATCHED SONGS WITH TRENDS ({len(matched_details)}) ---")
+    print(f"{'Title':<30} | {'Flagged At':<22} | {'First Detected At':<22} | {'Lead (h)'}")
+    print("-" * 88)
+    for p, t, lead_h in matched_details:
+        f_str = str(p.get('flagged_at', ''))[:19]
+        t_str = str(t.get('first_detected_at', ''))[:19]
+        t_name = str(p.get('reasons', {}).get('title') or t.get('audio_title') or '')[:28]
+        sign_str = f"+{lead_h:.1f}h" if lead_h >= 0 else f"{lead_h:.1f}h"
+        print(f"{t_name:<30} | {f_str:<22} | {t_str:<22} | {sign_str}")
+
+    print(f"\n--- 20 FLAGGED SONGS WITH NO SONG-LEVEL TREND ---")
     print(f"{'Title':<30} | {'Creators':<8} | {'Reels':<6} | {'Max Views':<10} | {'Audio IDs'}")
-    print("-" * 85)
+    print("-" * 88)
     for u in unmatched_songs[:20]:
         t_str = str(u['title'])[:28]
         aids_str = ",".join(str(a) for a in u['audio_ids'][:2])
@@ -342,12 +381,14 @@ def run_song_level_trends_report(sb):
 
 def run_scoreboard(sb):
     """
-    Order 65 Part 6.1:
+    Order 65 Part 6.1 & Order 66 Part 5.2:
     --scoreboard: per day, flagged songs, breakout label, lead hours,
     breakouts with no prior flag, number of readings available.
+    - No interpolation.
+    - Breakout requires >= 2 real audio_count_history readings.
     """
     print("================================================================================")
-    print("                ORDER 65 PART 6.1: DETECTION SCOREBOARD")
+    print("                ORDER 66 PART 5.2: DETECTION SCOREBOARD")
     print("================================================================================\n")
 
     now_utc = datetime.now(timezone.utc)
@@ -369,25 +410,23 @@ def run_scoreboard(sb):
         d_str = r["captured_at"][:10]
         readings_by_day[d_str] = readings_by_day.get(d_str, 0) + 1
 
-    # Breakout label: use_count >= 100K OR >= 3x earliest reading within 72h
+    # Breakout label: Requires >= 2 real audio_count_history readings
     breakouts_by_aid: Dict[str, Tuple[datetime, int, str]] = {}
     for aid, h_list in history_by_aid.items():
-        for row in h_list:
-            cnt = row.get("use_count") or 0
-            if cnt >= 100000:
-                dt = datetime.fromisoformat(row["captured_at"].replace("Z", "+00:00"))
-                if aid not in breakouts_by_aid or dt < breakouts_by_aid[aid][0]:
-                    breakouts_by_aid[aid] = (dt, cnt, ">=100K")
+        if len(h_list) < 2:
+            continue
         first_dt = datetime.fromisoformat(h_list[0]["captured_at"].replace("Z", "+00:00"))
         first_c = h_list[0].get("use_count") or 0
-        if first_c > 0:
-            for row in h_list[1:]:
-                dt = datetime.fromisoformat(row["captured_at"].replace("Z", "+00:00"))
-                if (dt - first_dt).total_seconds() <= 72 * 3600:
-                    cnt = row.get("use_count") or 0
-                    if cnt >= 3 * first_c:
-                        if aid not in breakouts_by_aid or dt < breakouts_by_aid[aid][0]:
-                            breakouts_by_aid[aid] = (dt, cnt, ">=3x in 72h")
+        for row in h_list[1:]:
+            cnt = row.get("use_count") or 0
+            dt = datetime.fromisoformat(row["captured_at"].replace("Z", "+00:00"))
+            if cnt >= 100000:
+                if aid not in breakouts_by_aid or dt < breakouts_by_aid[aid][0]:
+                    breakouts_by_aid[aid] = (dt, cnt, ">=100K")
+            if first_c > 0 and (dt - first_dt).total_seconds() <= 72 * 3600:
+                if cnt >= 3 * first_c:
+                    if aid not in breakouts_by_aid or dt < breakouts_by_aid[aid][0]:
+                        breakouts_by_aid[aid] = (dt, cnt, ">=3x in 72h")
 
     proof_by_day: Dict[str, List[Dict[str, Any]]] = {}
     all_flagged_aids: Set[str] = set()
@@ -414,10 +453,10 @@ def run_scoreboard(sb):
                     b_dt, b_cnt, b_r = breakouts_by_aid[str(a)]
                     f_dt = datetime.fromisoformat(p["flagged_at"].replace("Z", "+00:00"))
                     day_breakouts += 1
-                    lead_list.append(max(0.0, (b_dt - f_dt).total_seconds() / 3600.0))
+                    lead_list.append((b_dt - f_dt).total_seconds() / 3600.0)
                     break
 
-        med_l = f"{statistics.median(lead_list):.1f}h" if lead_list else "N/A"
+        med_l = f"{statistics.median(lead_list):+.1f}h" if lead_list else "N/A"
 
         unflagged_bo = 0
         for aid, (b_dt, b_cnt, b_r) in breakouts_by_aid.items():

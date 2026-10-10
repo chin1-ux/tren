@@ -69,10 +69,35 @@ def run_retention():
             cur.execute("DELETE FROM watchlist WHERE status != 'active' AND flagged_at < NOW() - INTERVAL '30 days';")
             n_wl = cur.rowcount
 
+            # 8. tag_run_stats (30 days)
+            cur.execute("DELETE FROM tag_run_stats WHERE recorded_at < NOW() - INTERVAL '30 days';")
+            n_trs = cur.rowcount
+
+            # 9. reels URL nullification (>7 days, not linked to trends, watchlist, or probe_reels)
+            cur.execute("""
+                WITH linked_audios AS (
+                    SELECT DISTINCT audio_id FROM trends WHERE audio_id IS NOT NULL
+                    UNION
+                    SELECT DISTINCT audio_id FROM watchlist WHERE audio_id IS NOT NULL
+                    UNION
+                    SELECT DISTINCT audio_id FROM probe_reels WHERE audio_id IS NOT NULL
+                ),
+                linked_reels AS (
+                    SELECT DISTINCT reel_code as reel_id FROM probe_reels WHERE reel_code IS NOT NULL
+                )
+                UPDATE reels
+                SET thumbnail_url = NULL, video_url = NULL, preview_url = NULL
+                WHERE created_at < NOW() - INTERVAL '7 days'
+                  AND (audio_id IS NULL OR audio_id NOT IN (SELECT audio_id FROM linked_audios))
+                  AND (reel_id IS NULL OR reel_id NOT IN (SELECT reel_id FROM linked_reels))
+                  AND (thumbnail_url IS NOT NULL OR video_url IS NOT NULL OR preview_url IS NOT NULL);
+            """)
+            n_r_null = cur.rowcount
+
             cur.close()
             conn.close()
 
-            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}, watchlist={n_wl}")
+            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}, watchlist={n_wl}, tag_run_stats={n_trs}, reels_urls_nulled={n_r_null}")
             return
         except Exception as pg_err:
             logger.warning(f"Direct connection pruning failed or unreachable ({pg_err}). Falling back to Supabase REST client...")

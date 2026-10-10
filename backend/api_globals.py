@@ -762,6 +762,24 @@ def _normalize_trends(trends: list) -> list:
                 creators_set.add(r["owner_username"])
         t["distinct_creators"] = max(len(creators_set), sum(int(x.get("distinct_creators") or 0) for x in group))
 
+        # Order 66 Part 5.3: Enrich merged trends with fresh reels-based counts if stored trend rows are stale
+        if all_aids and supabase:
+            try:
+                res_actual = supabase.table("reels") \
+                    .select("audio_id, owner_username") \
+                    .in_("audio_id", all_aids) \
+                    .gte("created_at", (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()) \
+                    .execute()
+                actual_reels = res_actual.data or []
+                if actual_reels:
+                    act_creators = {r.get("owner_username") for r in actual_reels if r.get("owner_username")}
+                    if len(actual_reels) > t["reel_count"]:
+                        t["reel_count"] = len(actual_reels)
+                    if len(act_creators) > t["distinct_creators"]:
+                        t["distinct_creators"] = len(act_creators)
+            except Exception as _act_err:
+                logger.debug(f"Could not refresh live reel counts for merged trend: {_act_err}")
+
         t["status"] = max(
             (x.get("status") or "emerging" for x in group),
             key=lambda s: STATUS_PRIORITY.get(s.lower(), 0),

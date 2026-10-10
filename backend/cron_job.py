@@ -347,10 +347,26 @@ def run_full_pipeline(stages: list = None):
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
-    if scrape_mode == "global":
-        global_tags = "trendingsong,trendingreels,viralreels,transitionreels,lipsync,mashup,hardstyle,kpop,musicalatina,reelsbrasil,trendingaudio,viralaudio,capcuttemplate,dancechallenge,phonk,amapiano,ترند,تريند,ريلز,اغاني,keşfet,müzik,trendmüzik,jedagjedug,musikviral,fyp,tendencia,musicaviral,funkbrasil,mtgphonk,릴스,챌린지,リール,トレンド,рилс,тренд,ukdrill,newmusic,hiphopreels,naijamusic"
-        os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
+    # Order 66 Part 3.3: Select scraper hashtags dynamically from tag_registry
+    try:
+        from tag_registry import select_tags_for_run
+        selected_tags, reg_stats = select_tags_for_run(scrape_mode)
+        os.environ["SCRAPER_HASHTAGS"] = ",".join(selected_tags)
+        logging.info(
+            f"Set SCRAPER_HASHTAGS from tag_registry ({scrape_mode} mode): "
+            f"{len(selected_tags)} tags (source: {reg_stats.get('source')}, "
+            f"est_wall_time: {reg_stats.get('estimated_wall_time_min', 0.0):.1f}m)"
+        )
+    except Exception as reg_err:
+        logging.warning(f"Error selecting tags from tag_registry: {reg_err}. Falling back to default lists.")
+        if scrape_mode == "global":
+            global_tags = "trendingsong,trendingreels,viralreels,transitionreels,lipsync,mashup,hardstyle,kpop,musicalatina,reelsbrasil,trendingaudio,viralaudio,capcuttemplate,dancechallenge,phonk,amapiano,ترند,تريند,ريلز,اغاني,keşfet,müzik,trendmüzik,jedagjedug,musikviral,fyp,tendencia,musicaviral,funkbrasil,mtgphonk,릴스,챌린지,リール,トレンド,рилс,тренд,ukdrill,newmusic,hiphopreels,naijamusic"
+            os.environ["SCRAPER_HASHTAGS"] = global_tags
+            logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode (fallback): {len(global_tags.split(','))} tags")
+        else:
+            if not os.environ.get("SCRAPER_HASHTAGS"):
+                from tag_registry import FALLBACK_INDIA_TAGS
+                os.environ["SCRAPER_HASHTAGS"] = ",".join(FALLBACK_INDIA_TAGS[:35])
 
     # 0. Schema Validation
     if _stage("schema"):
@@ -377,6 +393,13 @@ def run_full_pipeline(stages: list = None):
             reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
             uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
             logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
+
+            # Order 66 Part 3.4: Fill tag_run_stats post-scrape
+            try:
+                from tag_registry import record_run_tag_stats
+                record_run_tag_stats(run_id, scrape_mode, window_minutes=60)
+            except Exception as _trs_err:
+                logging.warning(f"Could not record tag_run_stats post-scrape: {_trs_err}")
         except Exception as e:
             run_state["stage"] = "instagram_scrape_failed"
             run_state["cutoff_reason"] = f"instagram scrape failed: {e}"

@@ -90,3 +90,12 @@ jobs:
           INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
         run: |
           python backend/watchlist.py
+
+      - name: Record Tag Run Stats
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python -c "from backend.tag_registry import record_run_tag_stats; import os; record_run_tag_stats(str(os.getenv('GITHUB_RUN_ID', 'manual')), os.getenv('SCRAPER_MODE', 'india'))"
+
