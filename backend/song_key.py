@@ -58,11 +58,30 @@ def fold_latin_diacritics(text: str) -> str:
     return unicodedata.normalize("NFC", "".join(result))
 
 
+def clean_unicode_text(text: str) -> str:
+    """
+    Folds Latin diacritics (NFKD, drop combining marks only for Latin letters),
+    then retains Unicode letters (L*), numbers (N*), and non-Latin marks (M*, including matras, viramas, vowel signs).
+    """
+    t = fold_latin_diacritics(text)
+    cleaned = []
+    for ch in t:
+        cat = unicodedata.category(ch)
+        cp = ord(ch)
+        if cat[0] in ("L", "N"):
+            cleaned.append(ch)
+        elif cat[0] == "M":
+            # Keep non-Latin marks (matras, viramas, tone marks), strip generic combining diacritics
+            if not (0x0300 <= cp <= 0x036F or 0x1AB0 <= cp <= 0x1AFF or 0x1DC0 <= cp <= 0x1DFF or 0x20D0 <= cp <= 0x20FF):
+                cleaned.append(ch)
+    return "".join(cleaned)
+
+
 def get_script_min_length(text: str) -> int:
     """
     Determines minimum length threshold based on script:
     - 2 for CJK / Hangul / Kana
-    - 3 for Arabic / Devanagari / Cyrillic
+    - 3 for Arabic / Devanagari / Cyrillic / Thai / Indic
     - 5 for Latin / Default
     """
     for ch in text:
@@ -74,10 +93,11 @@ def get_script_min_length(text: str) -> int:
             return 2
     for ch in text:
         cp = ord(ch)
-        # Arabic / Devanagari / Cyrillic
+        # Arabic / Devanagari / Indic / Thai / Cyrillic
         if (0x0600 <= cp <= 0x06FF or 0x0750 <= cp <= 0x077F or 0x08A0 <= cp <= 0x08FF or
             0xFB50 <= cp <= 0xFDFF or 0xFE70 <= cp <= 0xFEFF or
-            0x0900 <= cp <= 0x097F or 0xA8E0 <= cp <= 0xA8FF or
+            0x0900 <= cp <= 0x0DFF or 0xA8E0 <= cp <= 0xA8FF or
+            0x0E00 <= cp <= 0x0E7F or
             0x0400 <= cp <= 0x04FF or 0x0500 <= cp <= 0x052F):
             return 3
     return 5
@@ -91,8 +111,8 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
     - strip text after '|', '(', '[', ' - ', 'feat', 'ft.'
     - remove words slowed, reverb, sped, up, remix, version, lofi, edit, instrumental, extended
     - fold Latin diacritics
-    - keep Unicode letters and digits (str.isalnum)
-    - min length: 5 for Latin, 2 for CJK/Hangul/Kana, 3 for Arabic/Devanagari/Cyrillic
+    - keep Unicode L*, N*, and non-Latin M* (marks/viramas)
+    - min length: 5 for Latin, 2 for CJK/Hangul/Kana, 3 for Arabic/Devanagari/Cyrillic/Thai/Indic
     - skip 'originalaudio', null, '0', 'unknown'
     """
     if not title:
@@ -114,11 +134,8 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
     # Remove stripped modifier words
     t = _MODIFIER_PATTERN.sub(" ", t)
 
-    # Fold Latin diacritics
-    t = fold_latin_diacritics(t)
-
-    # Keep Unicode letters and digits (str.isalnum)
-    t_clean = "".join(c for c in t if c.isalnum())
+    # Clean text (fold Latin diacritics, keep L*, N*, non-Latin M*)
+    t_clean = clean_unicode_text(t)
 
     # Check validity & script-specific min length
     if not t_clean or t_clean in INVALID_TITLES:
@@ -133,7 +150,7 @@ def normalize_title(title: Optional[str]) -> Optional[str]:
 
 def normalize_artist(artist: Optional[str]) -> Optional[str]:
     """
-    artist: first artist token normalized (strip after comma, &, feat, etc., keep Unicode letters and digits).
+    artist: first artist token normalized (strip after comma, &, feat, etc., keep Unicode L*, N*, and non-Latin M*).
     """
     if not artist:
         return None
@@ -147,8 +164,7 @@ def normalize_artist(artist: Optional[str]) -> Optional[str]:
         if delim in a:
             a = a.split(delim, 1)[0]
 
-    a = fold_latin_diacritics(a)
-    a_clean = "".join(c for c in a if c.isalnum())
+    a_clean = clean_unicode_text(a)
     if not a_clean or a_clean in INVALID_TITLES:
         return None
 

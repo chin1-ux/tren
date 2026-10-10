@@ -40,15 +40,44 @@ def get_supabase():
     return create_client(url, key)
 
 
-def derive_tag_variants(title: str, artist: Optional[str]) -> List[str]:
+INDIC_THAI_RANGES = [
+    (0x0900, 0x0DFF),  # Devanagari, Bengali, Gurmukhi, Gujarati, Oriya, Tamil, Telugu, Kannada, Malayalam
+    (0x0E00, 0x0E7F),  # Thai
+]
+
+
+def has_indic_or_thai(text: str) -> bool:
+    for c in text:
+        cp = ord(c)
+        for start, end in INDIC_THAI_RANGES:
+            if start <= cp <= end:
+                return True
+    return False
+
+
+def is_latin_string(text: str) -> bool:
+    return all(ord(c) < 128 for c in text)
+
+
+def derive_tag_variants(title: str, artist: Optional[str]) -> Tuple[List[str], Optional[str]]:
     """
-    Derive up to two tag variants:
+    Order 64 Part B3 Tag Derivation:
+    If title is Devanagari/Thai/Bengali/Tamil etc., do NOT probe by native-script tag;
+    try (a) artist name if Latin (>=4 chars), else (b) skip and record skip_reason='indic_script'.
+    Otherwise, standard tag derivation:
     1. Title token (clean alphanumeric of normalized title)
     2. Title token + first artist token (if artist exists)
     """
+    if has_indic_or_thai(title):
+        a_norm = normalize_artist(artist)
+        if a_norm and is_latin_string(a_norm) and len(a_norm) >= 4:
+            return [a_norm], None
+        else:
+            return [], "indic_script"
+
     t_norm = normalize_title(title)
     if not t_norm:
-        return []
+        return [], "invalid_title"
 
     variants = [t_norm]
     a_norm = normalize_artist(artist)
@@ -57,39 +86,47 @@ def derive_tag_variants(title: str, artist: Optional[str]) -> List[str]:
         if combo != t_norm:
             variants.append(combo)
 
-    return variants[:2]
+    return variants[:2], None
 
 
 def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]], Dict[str, float]]:
     """
-    Computes candidates according to D1:
-    (a) HOT: non-original audio, reel posted <=72h, with view_count or velocity_score >= 95th percentile
-        of the 7-day distribution.
-    (b) Active watchlist song_keys not probed in the last 12h.
-    (c) COVERAGE: 10 rotating titles from seed_audios (dedup by song_key, not seen in reels in 14 days,
-        not probed in 7 days).
-    Exclude audios already in trends. Rank hot by velocity desc.
+    Order 64 Part A2 Quota Allocation (total <= 30 per run):
+    - 12 EARLY: song_key with 2-5 distinct creators in own reels over 72h, ranked by watchlist score.
+    - 8 HOT-UNKNOWN: hot p95 reel, song not in trends, own creators < 6, ranked by velocity desc.
+    - 6 COVERAGE: seed titles (dedup by song_key, not in reels 14d, not probed 7d, creators < 6).
+    - 4 RE-PROBE: top watchlist songs for growth, >=6h since last probe, creators < 6.
+    Skip song_keys with >=6 own creators (they go to Part D promotion instead).
+    12h cooldown on EARLY/HOT-UNKNOWN, 200/day cap unchanged.
+    Unused quota flows to the next bucket (waterfall overflow).
     """
     now_utc = datetime.now(timezone.utc)
     d7_ago = (now_utc - timedelta(days=7)).isoformat()
     h72_ago = (now_utc - timedelta(hours=72)).isoformat()
     h12_ago = (now_utc - timedelta(hours=12)).isoformat()
+    h6_ago = (now_utc - timedelta(hours=6)).isoformat()
     d14_ago = (now_utc - timedelta(days=14)).isoformat()
 
-    # 1. Fetch audios already in active trends
-    trends_res = sb.table("trends").select("audio_id").neq("status", "unqualified").execute()
+    # 1. Fetch audios and song_keys already in active trends
+    trends_res = sb.table("trends").select("audio_id, audio_title, audio_artist").neq("status", "unqualified").execute()
     trend_audio_ids = {str(r["audio_id"]) for r in (trends_res.data or []) if r.get("audio_id")}
+    trend_keys = {
+        compute_song_key(r.get("audio_title"), r.get("audio_artist"))
+        for r in (trends_res.data or [])
+        if compute_song_key(r.get("audio_title"), r.get("audio_artist"))
+    }
 
-    # 2. Fetch 7-day reels (paginated, columns only)
+    # 2. Fetch 7-day reels for percentile calculation
     logger.info("Computing 7-day reel distribution for percentile calculation...")
     offset = 0
     PAGE_SIZE = 1000
     reels_7d = []
     while True:
         res = sb.table("reels") \
-            .select("reel_id, audio_id, audio_title, audio_artist, is_original_audio, view_count, velocity_score, created_at") \
+            .select("id, reel_id, audio_id, audio_title, audio_artist, is_original_audio, view_count, velocity_score, created_at") \
             .gte("created_at", d7_ago) \
             .not_.is_("audio_id", "null") \
+            .order("id", desc=False) \
             .range(offset, offset + PAGE_SIZE - 1) \
             .execute()
         data = res.data or []
@@ -118,59 +155,130 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
     percentiles = {"p95_views": p95_views, "p95_velocity": p95_velo}
     logger.info(f"7-Day Non-Original Reels: {len(reels_7d)} | 95th Percentile Views: {p95_views:.1f} | 95th Percentile Velocity: {p95_velo:.2f}")
 
-    # (a) HOT candidates (posted <=72h, views >= p95 OR velocity >= p95)
-    hot_candidates_map: Dict[str, Dict[str, Any]] = {}
-    for r in reels_7d:
-        created_at = r.get("created_at") or ""
-        if created_at >= h72_ago:
-            v_cnt = float(r.get("view_count") or 0)
-            v_score = float(r.get("velocity_score") or 0.0)
-            if v_cnt >= p95_views or v_score >= p95_velo:
-                sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
-                if sk:
-                    if sk not in hot_candidates_map or v_score > hot_candidates_map[sk]["velocity"]:
-                        hot_candidates_map[sk] = {
-                            "song_key": sk,
-                            "trigger": "hot",
-                            "title": r.get("audio_title"),
-                            "artist": r.get("audio_artist"),
-                            "audio_id": str(r.get("audio_id")),
-                            "velocity": v_score,
-                            "views": v_cnt,
-                        }
+    # 3. Pull 72h reels from Supabase and group by song_key
+    reels_72h = []
+    offset = 0
+    while True:
+        res = sb.table("reels") \
+            .select("id, reel_id, audio_id, audio_title, audio_artist, owner_username, is_original_audio, view_count, velocity_score, created_at") \
+            .gte("created_at", h72_ago) \
+            .order("id", desc=False) \
+            .range(offset, offset + PAGE_SIZE - 1) \
+            .execute()
+        data = res.data or []
+        for r in data:
+            if not r.get("is_original_audio"):
+                reels_72h.append(r)
+        if len(data) < PAGE_SIZE:
+            break
+        offset += PAGE_SIZE
 
-    # (b) Active watchlist song_keys not probed in the last 12h
-    watchlist_candidates_map: Dict[str, Dict[str, Any]] = {}
+    song_stats: Dict[str, Dict[str, Any]] = {}
+    for r in reels_72h:
+        sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
+        if not sk or sk in trend_keys:
+            continue
+        aid = str(r.get("audio_id") or "").strip()
+        if aid and aid in trend_audio_ids:
+            continue
+
+        if sk not in song_stats:
+            song_stats[sk] = {
+                "song_key": sk,
+                "title": r.get("audio_title"),
+                "artist": r.get("audio_artist"),
+                "audio_id": aid if aid and aid not in ("0", "Unknown") else None,
+                "creators": set(),
+                "reels": 0,
+                "max_views": 0,
+                "max_velocity": 0.0,
+                "hot_reels": 0,
+            }
+        st = song_stats[sk]
+        u = r.get("owner_username")
+        if u:
+            st["creators"].add(u)
+        st["reels"] += 1
+        v_cnt = int(r.get("view_count") or 0)
+        v_score = float(r.get("velocity_score") or 0.0)
+        if v_cnt > st["max_views"]:
+            st["max_views"] = v_cnt
+        if v_score > st["max_velocity"]:
+            st["max_velocity"] = v_score
+        if v_cnt >= p95_views or v_score >= p95_velo:
+            st["hot_reels"] += 1
+
+    # 4. Check probe history for cooldowns
+    probed_12h: Set[str] = set()
+    probed_6h: Set[str] = set()
+    probed_7d: Set[str] = set()
     try:
-        wl_res = sb.table("watchlist").select("song_key, audio_id, reasons, status").eq("status", "watching").execute()
-        active_wl = wl_res.data or []
-        wl_keys = [w["song_key"] for w in active_wl if w.get("song_key")]
+        pl_res = sb.table("probe_log").select("song_key, ts").gte("ts", (now_utc - timedelta(days=7)).isoformat()).execute()
+        for p in (pl_res.data or []):
+            sk = p.get("song_key")
+            ts = p.get("ts") or ""
+            if sk:
+                probed_7d.add(sk)
+                if ts >= h12_ago:
+                    probed_12h.add(sk)
+                if ts >= h6_ago:
+                    probed_6h.add(sk)
+    except Exception as ple:
+        logger.warning(f"Error checking probe_log history: {ple}")
 
-        # Check recent probe_log for watchlist keys
-        probed_recently: Set[str] = set()
-        if wl_keys:
-            pl_res = sb.table("probe_log").select("song_key").in_("song_key", wl_keys).gte("ts", h12_ago).execute()
-            probed_recently = {p["song_key"] for p in (pl_res.data or []) if p.get("song_key")}
+    # Import watchlist score calculator
+    from watchlist import calculate_v3_score
 
-        for w in active_wl:
-            sk = w.get("song_key")
-            if sk and sk not in probed_recently and sk not in hot_candidates_map:
-                watchlist_candidates_map[sk] = {
-                    "song_key": sk,
-                    "trigger": "watchlist",
-                    "title": (w.get("reasons") or {}).get("title") or sk.split("|")[0],
-                    "artist": (w.get("reasons") or {}).get("artist") or (sk.split("|")[1] if "|" in sk else None),
-                    "audio_id": str(w.get("audio_id") or ""),
-                    "velocity": 0.0,
-                    "views": 0,
-                }
-    except Exception as wle:
-        logger.warning(f"Error checking watchlist candidates: {wle}")
+    # (a) EARLY candidates: 2-5 distinct creators in own reels over 72h, ranked by watchlist score
+    early_pool: List[Dict[str, Any]] = []
+    for sk, st in song_stats.items():
+        n_creators = len(st["creators"])
+        if 2 <= n_creators <= 5:
+            if sk in probed_12h:
+                continue
+            tags, skip = derive_tag_variants(st["title"], st["artist"])
+            if skip and skip != "indic_script":
+                continue
+            score, _ = calculate_v3_score(st["max_views"], n_creators, st["reels"], st["max_velocity"], 0.0)
+            early_pool.append({
+                "song_key": sk,
+                "trigger": "early",
+                "title": st["title"],
+                "artist": st["artist"],
+                "audio_id": st["audio_id"],
+                "velocity": st["max_velocity"],
+                "views": st["max_views"],
+                "creators_count": n_creators,
+                "score": score,
+            })
+    early_pool.sort(key=lambda x: x["score"], reverse=True)
 
-    # (c) COVERAGE: 10 rotating titles from seed_audios (dedup by song_key, not seen in reels in 14 days, not probed in 7 days)
-    coverage_candidates_map: Dict[str, Dict[str, Any]] = {}
+    # (b) HOT-UNKNOWN candidates: hot p95 reel, song not in trends, own creators < 6, ranked by velocity desc
+    hot_unknown_pool: List[Dict[str, Any]] = []
+    for sk, st in song_stats.items():
+        n_creators = len(st["creators"])
+        if n_creators < 6 and st["hot_reels"] > 0:
+            if sk in probed_12h:
+                continue
+            tags, skip = derive_tag_variants(st["title"], st["artist"])
+            if skip and skip != "indic_script":
+                continue
+            hot_unknown_pool.append({
+                "song_key": sk,
+                "trigger": "hot_unknown",
+                "title": st["title"],
+                "artist": st["artist"],
+                "audio_id": st["audio_id"],
+                "velocity": st["max_velocity"],
+                "views": st["max_views"],
+                "creators_count": n_creators,
+                "score": st["max_velocity"],
+            })
+    hot_unknown_pool.sort(key=lambda x: x["velocity"], reverse=True)
+
+    # (c) COVERAGE candidates: seed titles (dedup by song_key, not in reels 14d, not probed 7d, creators < 6)
+    coverage_pool: List[Dict[str, Any]] = []
     try:
-        # Build 14-day reels song_key set
         reels_14d_keys: Set[str] = set()
         r14_res = sb.table("reels").select("audio_title, audio_artist").gte("created_at", d14_ago).execute()
         for r in (r14_res.data or []):
@@ -178,57 +286,121 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
             if sk:
                 reels_14d_keys.add(sk)
 
-        # Build 7-day probed song_key set
-        d7_probed_keys: Set[str] = set()
-        pl7_res = sb.table("probe_log").select("song_key").gte("ts", (now_utc - timedelta(days=7)).isoformat()).execute()
-        for p in (pl7_res.data or []):
-            if p.get("song_key"):
-                d7_probed_keys.add(p["song_key"])
-
-        # Fetch seed_audios
-        seeds_res = sb.table("seed_audios").select("title, artist").order("rank", desc=False).limit(200).execute()
+        seeds_res = sb.table("seed_audios").select("title, artist, rank").order("rank", desc=False).limit(200).execute()
+        seen_cov_keys: Set[str] = set()
         for s in (seeds_res.data or []):
             sk = compute_song_key(s.get("title"), s.get("artist"))
-            if sk and sk not in reels_14d_keys and sk not in d7_probed_keys:
-                if sk not in hot_candidates_map and sk not in watchlist_candidates_map and sk not in coverage_candidates_map:
-                    coverage_candidates_map[sk] = {
-                        "song_key": sk,
-                        "trigger": "coverage",
-                        "title": s.get("title"),
-                        "artist": s.get("artist"),
-                        "audio_id": None,
-                        "velocity": 0.0,
-                        "views": 0,
-                    }
-            if len(coverage_candidates_map) >= 10:
+            if sk and sk not in reels_14d_keys and sk not in probed_7d and sk not in trend_keys and sk not in seen_cov_keys:
+                tags, skip = derive_tag_variants(s.get("title"), s.get("artist"))
+                if skip and skip != "indic_script":
+                    continue
+                seen_cov_keys.add(sk)
+                coverage_pool.append({
+                    "song_key": sk,
+                    "trigger": "coverage",
+                    "title": s.get("title"),
+                    "artist": s.get("artist"),
+                    "audio_id": None,
+                    "velocity": 0.0,
+                    "views": 0,
+                    "creators_count": 0,
+                    "score": 0.0,
+                })
+            if len(coverage_pool) >= 15:
                 break
     except Exception as ce:
-        logger.warning(f"Error checking coverage candidates: {ce}")
+        logger.warning(f"Error checking coverage pool: {ce}")
 
-    # Merge candidates: HOT (ranked by velocity desc) + Watchlist + Coverage (max 10)
-    sorted_hot = sorted(hot_candidates_map.values(), key=lambda x: x["velocity"], reverse=True)
-    all_candidates = sorted_hot + list(watchlist_candidates_map.values()) + list(coverage_candidates_map.values())
+    # (d) RE-PROBE candidates: top active watchlist songs for growth, >=6h since last probe, creators < 6
+    reprobe_pool: List[Dict[str, Any]] = []
+    try:
+        wl_res = sb.table("watchlist").select("song_key, audio_id, score, reasons, status").eq("status", "watching").order("score", desc=True).execute()
+        for w in (wl_res.data or []):
+            sk = w.get("song_key")
+            if not sk or sk in trend_keys or sk in probed_6h:
+                continue
+            # Check own creators in song_stats
+            st = song_stats.get(sk, {})
+            n_creators = len(st.get("creators", set()))
+            if n_creators >= 6:
+                continue
+            tags, skip = derive_tag_variants((w.get("reasons") or {}).get("title") or sk.split("|")[0], (w.get("reasons") or {}).get("artist") or (sk.split("|")[1] if "|" in sk else None))
+            if skip and skip != "indic_script":
+                continue
+            reprobe_pool.append({
+                "song_key": sk,
+                "trigger": "re_probe",
+                "title": (w.get("reasons") or {}).get("title") or sk.split("|")[0],
+                "artist": (w.get("reasons") or {}).get("artist") or (sk.split("|")[1] if "|" in sk else None),
+                "audio_id": str(w.get("audio_id") or ""),
+                "velocity": st.get("max_velocity", 0.0),
+                "views": st.get("max_views", 0),
+                "creators_count": n_creators,
+                "score": float(w.get("score") or 0.0),
+            })
+    except Exception as wle:
+        logger.warning(f"Error checking reprobe pool: {wle}")
+
+    # Quotas: 12 EARLY, 8 HOT-UNKNOWN, 6 COVERAGE, 4 RE-PROBE (Total <= 30)
+    QUOTAS = {"early": 12, "hot_unknown": 8, "coverage": 6, "re_probe": 4}
+    selected: List[Dict[str, Any]] = []
+    selected_keys: Set[str] = set()
+    allocated_counts = {"early": 0, "hot_unknown": 0, "coverage": 0, "re_probe": 0}
+
+    pools = {
+        "early": early_pool,
+        "hot_unknown": hot_unknown_pool,
+        "coverage": coverage_pool,
+        "re_probe": reprobe_pool,
+    }
+
+    # Pass 1: standard quota allocation
+    for bucket in ["early", "hot_unknown", "coverage", "re_probe"]:
+        q = QUOTAS[bucket]
+        for c in pools[bucket]:
+            if allocated_counts[bucket] >= q:
+                break
+            if c["song_key"] not in selected_keys:
+                selected_keys.add(c["song_key"])
+                c["trigger"] = bucket
+                selected.append(c)
+                allocated_counts[bucket] += 1
+
+    # Pass 2: waterfall overflow (unused slots flow to next buckets up to 30)
+    if len(selected) < 30:
+        for bucket in ["early", "hot_unknown", "coverage", "re_probe"]:
+            for c in pools[bucket]:
+                if len(selected) >= 30:
+                    break
+                if c["song_key"] not in selected_keys:
+                    selected_keys.add(c["song_key"])
+                    c["trigger"] = bucket
+                    selected.append(c)
+                    allocated_counts[bucket] += 1
+
+    # Log allocation per run
+    logger.info(
+        f"Probe Allocation Log: early={allocated_counts['early']}, "
+        f"hot_unknown={allocated_counts['hot_unknown']}, "
+        f"coverage={allocated_counts['coverage']}, "
+        f"re_probe={allocated_counts['re_probe']} (Total: {len(selected)})"
+    )
 
     # Map all known audio_ids in DB for each song_key to enable multi-ID matching
-    all_keys = [c["song_key"] for c in all_candidates]
+    all_keys = [c["song_key"] for c in selected]
     audio_id_map: Dict[str, Set[str]] = {k: set() for k in all_keys}
     if all_keys:
-        # Search reels for known audio IDs matching these song_keys
-        for r in reels_7d:
+        for r in reels_72h:
             sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
             if sk in audio_id_map and r.get("audio_id"):
                 audio_id_map[sk].add(str(r["audio_id"]))
 
-    for c in all_candidates:
+    for c in selected:
         c["known_audio_ids"] = list(audio_id_map.get(c["song_key"], set()))
         if c.get("audio_id") and c["audio_id"] not in c["known_audio_ids"]:
             c["known_audio_ids"].append(c["audio_id"])
 
-    logger.info(
-        f"Candidate Breakdown: HOT={len(sorted_hot)}, Watchlist={len(watchlist_candidates_map)}, "
-        f"Coverage={len(coverage_candidates_map)} (Total: {len(all_candidates)})"
-    )
-    return all_candidates, percentiles
+    return selected, percentiles
 
 
 async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool = False):
@@ -311,7 +483,27 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
 
             title = cand.get("title") or ""
             artist = cand.get("artist")
-            tag_variants = derive_tag_variants(title, artist)
+            tag_variants, skip_reason = derive_tag_variants(title, artist)
+            if skip_reason:
+                logger.info(f"Skipping candidate '{title}' by '{artist}' (reason: {skip_reason})")
+                if not dry_run:
+                    try:
+                        pl_entry = {
+                            "tag": f"SKIP:{skip_reason}",
+                            "trigger": cand.get("trigger"),
+                            "candidate_audio_id": cand.get("audio_id"),
+                            "song_key": cand["song_key"],
+                            "http_status": 0,
+                            "medias": 0,
+                            "matched": 0,
+                            "creators": 0,
+                            "run_id": run_id,
+                        }
+                        sb.table("probe_log").insert(pl_entry).execute()
+                    except Exception as ple:
+                        logger.warning(f"Error inserting skipped probe_log: {ple}")
+                continue
+
             if not tag_variants:
                 continue
 
