@@ -15,9 +15,19 @@ import sys
 import re
 import argparse
 import statistics
+import random
+import asyncio
+import json
+import base64
+import time
 from datetime import datetime, timezone, timedelta
 from typing import Dict, List, Any, Optional, Set, Tuple
 from dotenv import load_dotenv
+
+try:
+    from camoufox.async_api import AsyncCamoufox
+except ImportError:
+    AsyncCamoufox = None
 
 backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
@@ -761,15 +771,22 @@ def run_coverage_report(sb):
             if t and len(t) >= 4 and t not in registered_tags and t not in generic_stoplist:
                 candidate_tags.add(t)
 
-    random.seed(42)
-    sampled_tags = random.sample(sorted(candidate_tags), min(6, len(candidate_tags)))
-    print(f"Chosen 6 out-of-pool tags (seed=42): {sampled_tags}")
+    random.seed(71)
+    sampled_tags = random.sample(sorted(candidate_tags), min(8, len(candidate_tags)))
+    print(f"Chosen 8 out-of-pool tags (seed=71): {sampled_tags}")
 
     cookies_path = os.path.join(backend_dir, "cookies.json")
     raw_cookies = []
     if os.path.exists(cookies_path):
         with open(cookies_path, "r", encoding="utf-8") as f:
             raw_cookies = json.load(f)
+    elif os.environ.get("INSTAGRAM_COOKIES_B64"):
+        try:
+            b64_val = os.environ["INSTAGRAM_COOKIES_B64"]
+            decoded = base64.b64decode(b64_val).decode("utf-8")
+            raw_cookies = json.loads(decoded)
+        except Exception as e:
+            print(f"Notice: Failed to decode INSTAGRAM_COOKIES_B64: {e}")
 
     formatted_cookies = [
         {"name": c["name"], "value": c["value"], "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
@@ -855,7 +872,7 @@ def run_coverage_report(sb):
     except Exception as e:
         print(f"Out-of-pool fetch notice: {e}")
 
-    popular_oop_aids = [aid for aid, cnt in audio_counts_in_sample.items() if cnt >= 2]
+    popular_oop_aids = list(audio_counts_in_sample.keys())
     n_oop = len(popular_oop_aids)
     present_cnt = 0
     if popular_oop_aids:
@@ -874,7 +891,7 @@ def run_coverage_report(sb):
         {"week_start": week_start, "metric": "ground_truth_missed", "value": float(share_missed), "n": n_gt, "note": "share missed"},
         {"week_start": week_start, "metric": "breakout_recall_before", "value": float(share_bo_before), "n": n_bo, "note": "survivorship-biased: only tracked audios"},
         {"week_start": week_start, "metric": "breakout_lead_hours", "value": float(median_lead_h), "n": len(lead_hours_list), "note": "median lead hours before breakout"},
-        {"week_start": week_start, "metric": "out_of_pool_coverage", "value": float(share_oop), "n": n_oop, "note": "6 caption-mined tags (seed=42)"},
+        {"week_start": week_start, "metric": "out_of_pool_coverage", "value": float(share_oop), "n": n_oop, "note": "8 caption-mined tags (seed=71)"},
     ]
 
     try:
