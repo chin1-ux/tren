@@ -200,6 +200,9 @@ _GENRE_LANG_MAP = {
     "korean": "korean",
 }
 
+from functools import lru_cache
+
+@lru_cache(maxsize=4096)
 def resolve_via_music_catalog(audio_text: str, artist_text: str = "") -> str | None:
     """
     Lookup track genre via iTunes / Apple Music (Shazam catalog) API to accurately

@@ -226,26 +226,105 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
         if v_cnt >= p95_views or v_score >= p95_velo:
             st["hot_reels"] += 1
 
+    # Map all songs (including trends) to own creators in 72h
+    all_creators_72h_by_sk: Dict[str, Set[str]] = {}
+    all_creators_72h_by_aid: Dict[str, Set[str]] = {}
+    for r in reels_72h:
+        sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
+        aid = str(r.get("audio_id") or "").strip()
+        u = r.get("owner_username")
+        if u:
+            if sk:
+                all_creators_72h_by_sk.setdefault(sk, set()).add(u)
+            if aid and aid not in ("0", "Unknown"):
+                all_creators_72h_by_aid.setdefault(aid, set()).add(u)
+
     # 4. Check probe history for cooldowns
     probed_12h: Set[str] = set()
     probed_6h: Set[str] = set()
     probed_7d: Set[str] = set()
     try:
-        pl_res = sb.table("probe_log").select("song_key, ts").gte("ts", (now_utc - timedelta(days=7)).isoformat()).execute()
+        pl_res = sb.table("probe_log").select("song_key, ts, http_status").gte("ts", (now_utc - timedelta(days=7)).isoformat()).execute()
         for p in (pl_res.data or []):
             sk = p.get("song_key")
             ts = p.get("ts") or ""
+            status = p.get("http_status")
             if sk:
                 probed_7d.add(sk)
-                if ts >= h12_ago:
+                if ts >= h12_ago and status == 200:
                     probed_12h.add(sk)
-                if ts >= h6_ago:
+                if ts >= h6_ago and status == 200:
                     probed_6h.add(sk)
     except Exception as ple:
         logger.warning(f"Error checking probe_log history: {ple}")
 
     # Import watchlist score calculator
     from watchlist import calculate_v3_score
+
+    # (0) VERIFY candidates: trends and watchlist songs with <=2 own creators in 72h and no successful probe in 12h
+    verify_pool: List[Dict[str, Any]] = []
+    seen_verify_keys: Set[str] = set()
+    for t in (trends_res.data or []):
+        t_title = t.get("audio_title") or ""
+        t_artist = t.get("audio_artist")
+        t_aid = str(t.get("audio_id") or "").strip()
+        sk = compute_song_key(t_title, t_artist)
+        if not sk or sk in seen_verify_keys or sk in probed_12h:
+            continue
+        own_c = all_creators_72h_by_sk.get(sk, set())
+        if t_aid and t_aid in all_creators_72h_by_aid:
+            own_c = own_c.union(all_creators_72h_by_aid[t_aid])
+        n_own = len(own_c)
+        if n_own <= 2:
+            tags, skip = derive_tag_variants(t_title, t_artist)
+            if skip and skip != "indic_script":
+                continue
+            seen_verify_keys.add(sk)
+            verify_pool.append({
+                "song_key": sk,
+                "trigger": "verify",
+                "title": t_title,
+                "artist": t_artist,
+                "audio_id": t_aid if t_aid and t_aid not in ("0", "Unknown") else None,
+                "velocity": float(t.get("velocity_avg") or 0.0),
+                "views": int(t.get("reel_count") or 0) * 1000,
+                "creators_count": n_own,
+                "score": 100.0 - (n_own * 10.0),
+            })
+
+    try:
+        wl_v_res = sb.table("watchlist").select("song_key, audio_id, score, reasons, status").eq("status", "watching").order("score", desc=True).execute()
+        for w in (wl_v_res.data or []):
+            sk = w.get("song_key")
+            w_aid = str(w.get("audio_id") or "").strip()
+            if not sk or sk in seen_verify_keys or sk in probed_12h:
+                continue
+            own_c = all_creators_72h_by_sk.get(sk, set())
+            if w_aid and w_aid in all_creators_72h_by_aid:
+                own_c = own_c.union(all_creators_72h_by_aid[w_aid])
+            n_own = len(own_c)
+            if n_own <= 2:
+                w_title = (w.get("reasons") or {}).get("title") or sk.split("|")[0]
+                w_artist = (w.get("reasons") or {}).get("artist") or (sk.split("|")[1] if "|" in sk else None)
+                tags, skip = derive_tag_variants(w_title, w_artist)
+                if skip and skip != "indic_script":
+                    continue
+                seen_verify_keys.add(sk)
+                verify_pool.append({
+                    "song_key": sk,
+                    "trigger": "verify",
+                    "title": w_title,
+                    "artist": w_artist,
+                    "audio_id": w_aid if w_aid and w_aid not in ("0", "Unknown") else None,
+                    "velocity": 0.0,
+                    "views": 0,
+                    "creators_count": n_own,
+                    "score": float(w.get("score") or 0.0),
+                })
+    except Exception as ve:
+        logger.warning(f"Error checking verify pool from watchlist: {ve}")
+
+    verify_pool.sort(key=lambda x: (x["creators_count"], -x["score"]))
 
     # (a) EARLY candidates: 2-5 distinct creators in own reels over 72h, ranked by (creators desc, recency desc, score desc)
     early_pool: List[Dict[str, Any]] = []
@@ -360,13 +439,14 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
     except Exception as wle:
         logger.warning(f"Error checking reprobe pool: {wle}")
 
-    # Quotas: 12 EARLY, 8 HOT-UNKNOWN, 6 COVERAGE, 4 RE-PROBE (Total <= 30)
-    QUOTAS = {"early": 12, "hot_unknown": 8, "coverage": 6, "re_probe": 4}
+    # Quotas: 6 VERIFY, 10 EARLY, 6 HOT-UNKNOWN, 4 COVERAGE, 4 RE-PROBE (Total <= 30)
+    QUOTAS = {"verify": 6, "early": 10, "hot_unknown": 6, "coverage": 4, "re_probe": 4}
     selected: List[Dict[str, Any]] = []
     selected_keys: Set[str] = set()
-    allocated_counts = {"early": 0, "hot_unknown": 0, "coverage": 0, "re_probe": 0}
+    allocated_counts = {"verify": 0, "early": 0, "hot_unknown": 0, "coverage": 0, "re_probe": 0}
 
     pools = {
+        "verify": verify_pool,
         "early": early_pool,
         "hot_unknown": hot_unknown_pool,
         "coverage": coverage_pool,
@@ -374,7 +454,7 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
     }
 
     # Pass 1: standard quota allocation
-    for bucket in ["early", "hot_unknown", "coverage", "re_probe"]:
+    for bucket in ["verify", "early", "hot_unknown", "coverage", "re_probe"]:
         q = QUOTAS[bucket]
         for c in pools[bucket]:
             if allocated_counts[bucket] >= q:
@@ -385,7 +465,7 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
                 selected.append(c)
                 allocated_counts[bucket] += 1
 
-    # Pass 2: waterfall overflow (unused slots flow to next buckets up to 30)
+    # Pass 2: waterfall overflow (unused slots flow to next buckets up to 30; verify strictly capped at 6)
     if len(selected) < 30:
         for bucket in ["early", "hot_unknown", "coverage", "re_probe"]:
             for c in pools[bucket]:
@@ -399,7 +479,8 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
 
     # Log allocation per run
     logger.info(
-        f"Probe Allocation Log: early={allocated_counts['early']}, "
+        f"Probe Allocation Log: verify={allocated_counts['verify']}, "
+        f"early={allocated_counts['early']}, "
         f"hot_unknown={allocated_counts['hot_unknown']}, "
         f"coverage={allocated_counts['coverage']}, "
         f"re_probe={allocated_counts['re_probe']} (Total: {len(selected)})"

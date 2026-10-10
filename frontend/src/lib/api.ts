@@ -350,6 +350,7 @@ export interface UiTrend {
   firstDetectedAt?: string | null;
   creator_count?: number;
   creator_tier?: string;
+  spread_status?: "VERIFIED_MULTI" | "EARLY" | "UNVERIFIED" | "VERIFIED_SINGLE";
   distinct_creators?: number;
 
   // niche intelligence fields (from niche_relevance_engine)
@@ -435,6 +436,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     audioUseCount: t.audio_use_count ?? 0,
     creator_count: t.creator_count,
     creator_tier: t.creator_tier,
+    spread_status: t.spread_status,
     distinct_creators: t.distinct_creators,
     used_for: t.used_for ?? null,
     used_for_note: t.used_for_note ?? null,

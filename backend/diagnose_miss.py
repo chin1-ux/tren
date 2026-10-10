@@ -12,6 +12,7 @@ backend/diagnose_miss.py - Order 61 Part F: Miss Diagnosis & Breakout Lead Time 
 
 import os
 import sys
+import re
 import argparse
 import statistics
 from datetime import datetime, timezone, timedelta
@@ -517,19 +518,50 @@ def run_groundtruth_report(sb):
         sk = g.get("song_key") or compute_song_key(title, artist)
         q_title = title.split("/")[0].strip()
 
-        r_res = sb.table("reels").select("id, audio_id, owner_username, view_count, posted_at, created_at, audio_title").ilike("audio_title", f"%{q_title}%").execute()
-        reels = r_res.data or []
+        q_token = q_title.split()[0] if q_title else ""
+        norm_t = (normalize_title(title) or "").strip()
+
+        r_query = sb.table("reels").select("id, audio_id, owner_username, view_count, posted_at, created_at, audio_title, audio_artist, scraped_at")
+        if q_token:
+            r_query = r_query.ilike("audio_title", f"%{q_token}%")
+        all_reels_raw = r_query.execute().data or []
+        
+        reels = []
+        for r in all_reels_raw:
+            r_title = r.get("audio_title") or ""
+            r_artist = r.get("audio_artist") or ""
+            r_sk = compute_song_key(r_title, r_artist)
+            r_norm = (normalize_title(r_title) or "").strip()
+            if (sk and r_sk == sk) or (norm_t and r_norm and (norm_t == r_norm or norm_t in r_norm or r_norm in norm_t)):
+                reels.append(r)
+
         aids = list({str(r["audio_id"]) for r in reels if r.get("audio_id")})
         creators = list({r["owner_username"] for r in reels if r.get("owner_username")})
-        max_v = max([int(r.get("view_count") or 0) for r in reels] or [0])
+        scraped_dates = sorted([r.get("scraped_at") or r.get("created_at") for r in reels if r.get("scraped_at") or r.get("created_at")])
+        first_scraped = scraped_dates[0][:16] if scraped_dates else "None"
+        last_scraped = scraped_dates[-1][:16] if scraped_dates else "None"
+        scrape_range = f"{first_scraped}..{last_scraped}" if scraped_dates else "None"
 
-        t_res = sb.table("trends").select("id, status, first_detected_at, audio_title").ilike("audio_title", f"%{q_title}%").execute()
-        trends = t_res.data or []
+        # Match trends by audio_id OR song_key OR normalized title
+        t_query = sb.table("trends").select("id, status, first_detected_at, audio_title, audio_artist, audio_id")
+        if q_token:
+            t_query = t_query.ilike("audio_title", f"%{q_token}%")
+        all_trends_raw = t_query.execute().data or []
+        trends = []
+        for tr in all_trends_raw:
+            tr_aid = str(tr.get("audio_id") or "")
+            tr_title = tr.get("audio_title") or ""
+            tr_artist = tr.get("audio_artist") or ""
+            tr_sk = compute_song_key(tr_title, tr_artist)
+            tr_norm = (normalize_title(tr_title) or "").strip()
+            if (tr_aid and tr_aid in aids) or (sk and tr_sk == sk) or (norm_t and tr_norm and (norm_t == tr_norm or norm_t in tr_norm or tr_norm in norm_t)):
+                trends.append(tr)
 
         matched_pl = []
         for p in all_proof:
             p_sk = (p.get("snapshot") or {}).get("song_key")
-            if p_sk == sk or str(p.get("audio_id")) in aids:
+            p_aid = str(p.get("audio_id") or "")
+            if (sk and p_sk == sk) or (p_aid and p_aid in aids):
                 matched_pl.append(p)
 
         t_first = trends[0].get("first_detected_at") if trends else None
@@ -538,37 +570,340 @@ def run_groundtruth_report(sb):
 
         if not reels and not trends:
             cls = "NEVER_SAMPLED"
-        elif not matched_pl and not trends:
-            cls = "SAMPLED_NOT_FLAGGED"
-        elif matched_pl and not trends:
-            cls = "FLAGGED_NO_TREND"
-        elif matched_pl and trends:
-            t_dt = parse_dt(t_first)
-            p_dt = parse_dt(p_first)
-            lead_val = (t_dt - p_dt).total_seconds() / 3600.0
-            lead_h = f"{lead_val:+.1f}h"
-            cls = "FLAGGED_THEN_TREND" if lead_val >= 0 else "TREND_THEN_FLAGGED"
-        else:
-            cls = "CAUGHT_FIRST_BY_TREND"
+        elif trends:
+            if matched_pl:
+                t_dt = parse_dt(t_first)
+                p_dt = parse_dt(p_first)
+                lead_val = (t_dt - p_dt).total_seconds() / 3600.0
+                lead_h = f"{lead_val:+.1f}h"
+                cls = "FLAGGED_THEN_TREND" if lead_val >= 0 else "TREND_THEN_FLAGGED"
+            else:
+                cls = "CAUGHT_FIRST_BY_TREND"
+        else: # no trend
+            if matched_pl:
+                cls = "FLAGGED_NO_TREND"
+            else:
+                cls = "SAMPLED_NOT_FLAGGED"
 
         classes[cls] = classes.get(cls, 0) + 1
         tid = trends[0]["id"] if trends else 0
         tst = trends[0].get("status") if trends else ""
-        t_info = f"id={tid} ({tst})" if trends else "None"
-        print(f"{title:<22} | {cls:<22} | {len(reels):<5} | {len(creators):<8} | {max_v:<10} | {t_info:<24} | {lead_h}")
+        t_det = trends[0].get("first_detected_at")[:16] if trends and trends[0].get("first_detected_at") else ""
+        t_info = f"#{tid} ({tst}, {t_det})" if trends else "None"
+        pl_info = f"{matched_pl[0]['flagged_at'][:16]} (run:{matched_pl[0].get('run_id')})" if matched_pl else "None"
+        aids_str = ",".join(aids[:2]) + (f"(+{len(aids)-2})" if len(aids) > 2 else "") if aids else "None"
 
-    print("\nSummary Counts per Class:")
+        print(f"\n[{title}] by [{artist or 'NULL'}]")
+        print(f"  Class       : {cls} (Lead: {lead_h})")
+        print(f"  Audio IDs   : {aids_str}")
+        print(f"  Reels/Creat.: {len(reels)} reels / {len(creators)} creators")
+        print(f"  Scraped At  : {scrape_range}")
+        print(f"  Trend       : {t_info}")
+        print(f"  Proof Log   : {pl_info}")
+
+    print("\n" + "=" * 80)
+    print("Summary Counts per Class:")
     for c, cnt in sorted(classes.items()):
         print(f"  {c:<24}: {cnt}")
     print("================================================================================\n")
 
 
+def run_coverage_report(sb):
+    """
+    Order 70 Part 6: Coverage measurement pipeline.
+    (a) Ground truth recall for songs older than 72h
+    (b) Breakout recall from audio_count_history
+    (c) Out-of-pool coverage from 6 random caption-mined tags
+    """
+    import asyncio
+    from camoufox.async_api import AsyncCamoufox
+
+    now = datetime.now(timezone.utc)
+    week_start = (now - timedelta(days=now.weekday())).date().isoformat()
+
+    def parse_dt(s):
+        if not s:
+            return None
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    print("=" * 80)
+    print("             COVERAGE MEASUREMENT PIPELINE (ORDER 70 PART 6)")
+    print("=" * 80)
+
+    # (a) Ground Truth Recall
+    print("\n--- (a) GROUND TRUTH RECALL ---")
+    gt_rows = sb.table("ground_truth").select("*").order("id", desc=False).execute().data or []
+    pl_res = sb.table("proof_log").select("flagged_at, audio_id, snapshot").execute()
+    all_proof = pl_res.data or []
+
+    cutoff_72h = (now - timedelta(hours=72)).date().isoformat()
+    eligible_gt = [g for g in gt_rows if g.get("first_noticed") and g.get("first_noticed") <= cutoff_72h]
+    n_gt = len(eligible_gt)
+    print(f"Total ground truth songs: {len(gt_rows)}, older than 72h: {n_gt}")
+
+    before_cnt = 0
+    within_72h_cnt = 0
+    missed_cnt = 0
+
+    for g in eligible_gt:
+        title = g.get("title") or ""
+        artist = g.get("artist") or ""
+        sk = g.get("song_key") or compute_song_key(title, artist)
+        q_token = title.split("/")[0].strip().split()[0] if title else ""
+        norm_t = (normalize_title(title) or "").strip()
+        fn_str = g.get("first_noticed")
+        reported_dt = datetime.fromisoformat(f"{fn_str}T00:00:00+00:00")
+
+        t_query = sb.table("trends").select("id, status, first_detected_at, audio_title, audio_artist, audio_id")
+        if q_token:
+            t_query = t_query.ilike("audio_title", f"%{q_token}%")
+        trends = []
+        for tr in (t_query.execute().data or []):
+            tr_aid = str(tr.get("audio_id") or "")
+            tr_title = tr.get("audio_title") or ""
+            tr_artist = tr.get("audio_artist") or ""
+            tr_sk = compute_song_key(tr_title, tr_artist)
+            tr_norm = (normalize_title(tr_title) or "").strip()
+            if (sk and tr_sk == sk) or (norm_t and tr_norm and (norm_t == tr_norm or norm_t in tr_norm or tr_norm in norm_t)):
+                trends.append(tr)
+
+        matched_pl = []
+        for p in all_proof:
+            p_sk = (p.get("snapshot") or {}).get("song_key")
+            if sk and p_sk == sk:
+                matched_pl.append(p)
+
+        first_t = parse_dt(trends[0]["first_detected_at"]) if trends and trends[0].get("first_detected_at") else None
+        first_p = parse_dt(matched_pl[0]["flagged_at"]) if matched_pl and matched_pl[0].get("flagged_at") else None
+
+        detection_candidates = [d for d in [first_t, first_p] if d is not None]
+        if not detection_candidates:
+            missed_cnt += 1
+            status = "MISSED"
+        else:
+            earliest_d = min(detection_candidates)
+            if earliest_d < reported_dt:
+                before_cnt += 1
+                status = f"BEFORE ({earliest_d.isoformat()[:10]} < {fn_str})"
+            elif earliest_d <= reported_dt + timedelta(hours=72):
+                within_72h_cnt += 1
+                status = f"WITHIN_72H ({earliest_d.isoformat()[:10]})"
+            else:
+                missed_cnt += 1
+                status = f"MISSED (caught later at {earliest_d.isoformat()[:10]})"
+        print(f"  {title:<22} | Reported: {fn_str} | Result: {status}")
+
+    share_before = (before_cnt / n_gt) if n_gt > 0 else 0.0
+    share_within_72h = (within_72h_cnt / n_gt) if n_gt > 0 else 0.0
+    share_missed = (missed_cnt / n_gt) if n_gt > 0 else 0.0
+
+    print(f"Ground Truth Recall: Before: {share_before:.1%} ({before_cnt}/{n_gt}) | Within 72h: {share_within_72h:.1%} ({within_72h_cnt}/{n_gt}) | Missed: {share_missed:.1%} ({missed_cnt}/{n_gt})")
+
+    # (b) Breakout Recall
+    print("\n--- (b) BREAKOUT RECALL (survivorship-biased) ---")
+    ach_res = sb.table("audio_count_history").select("audio_id, use_count, captured_at").order("captured_at", desc=False).limit(3000).execute()
+    by_aid = {}
+    for r in (ach_res.data or []):
+        aid = str(r["audio_id"])
+        by_aid.setdefault(aid, []).append(r)
+
+    breakouts = []
+    for aid, hist in by_aid.items():
+        for r in hist:
+            c = r.get("use_count") or 0
+            if c >= 100000:
+                dt = parse_dt(r["captured_at"])
+                breakouts.append((aid, dt, c, ">=100k"))
+                break
+        else:
+            if len(hist) >= 2:
+                f_dt = parse_dt(hist[0]["captured_at"])
+                f_c = hist[0].get("use_count") or 0
+                if f_c > 0:
+                    for r in hist[1:]:
+                        cur_dt = parse_dt(r["captured_at"])
+                        cur_c = r.get("use_count") or 0
+                        if (cur_dt - f_dt).total_seconds() <= 72 * 3600 and cur_c >= 3 * f_c:
+                            breakouts.append((aid, cur_dt, cur_c, f">=3x ({f_c}->{cur_c})"))
+                            break
+
+    n_bo = len(breakouts)
+    print(f"Total breakout audios found: {n_bo}")
+    lead_hours_list = []
+    caught_before_bo = 0
+
+    for aid, bo_dt, bo_c, bo_reason in breakouts:
+        p_matches = [parse_dt(p["flagged_at"]) for p in all_proof if str(p.get("audio_id") or "") == aid and parse_dt(p.get("flagged_at"))]
+        t_matches = [parse_dt(tr["first_detected_at"]) for tr in sb.table("trends").select("first_detected_at").eq("audio_id", aid).execute().data or [] if parse_dt(tr.get("first_detected_at"))]
+        det_candidates = [d for d in (p_matches + t_matches) if d is not None and d < bo_dt]
+        if det_candidates:
+            earliest_det = min(det_candidates)
+            lead_h = (bo_dt - earliest_det).total_seconds() / 3600.0
+            lead_hours_list.append(lead_h)
+            caught_before_bo += 1
+
+    share_bo_before = (caught_before_bo / n_bo) if n_bo > 0 else 0.0
+    median_lead_h = statistics.median(lead_hours_list) if lead_hours_list else 0.0
+    print(f"Breakout Recall: Caught before breakout: {share_bo_before:.1%} ({caught_before_bo}/{n_bo}) | Median Lead: {median_lead_h:+.1f}h")
+
+    # (c) Out-of-pool Coverage
+    print("\n--- (c) OUT-OF-POOL COVERAGE ---")
+    generic_stoplist = {
+        "explore", "explorepage", "viral", "fyp", "reels", "trending", "foryou",
+        "instagood", "instagram", "love", "like", "follow", "video", "reelsinstagram",
+        "trend", "reel", "viralvideo", "viralreels", "trendingreels", "foryoupage"
+    }
+    reg_res = sb.table("tag_registry").select("tag").execute()
+    registered_tags = {r["tag"].lower().lstrip("#") for r in (reg_res.data or []) if r.get("tag")}
+
+    reels_res = sb.table("reels").select("hashtags").not_.is_("hashtags", "null").limit(500).execute()
+    candidate_tags = set()
+    for r in (reels_res.data or []):
+        for h in (r.get("hashtags") or []):
+            t = str(h).lower().strip().lstrip("#")
+            if t and len(t) >= 4 and t not in registered_tags and t not in generic_stoplist:
+                candidate_tags.add(t)
+
+    random.seed(42)
+    sampled_tags = random.sample(sorted(candidate_tags), min(6, len(candidate_tags)))
+    print(f"Chosen 6 out-of-pool tags (seed=42): {sampled_tags}")
+
+    cookies_path = os.path.join(backend_dir, "cookies.json")
+    raw_cookies = []
+    if os.path.exists(cookies_path):
+        with open(cookies_path, "r", encoding="utf-8") as f:
+            raw_cookies = json.load(f)
+
+    formatted_cookies = [
+        {"name": c["name"], "value": c["value"], "domain": c.get("domain", ".instagram.com"), "path": c.get("path", "/")}
+        for c in raw_cookies if isinstance(c, dict) and "name" in c and "value" in c
+    ]
+
+    audio_counts_in_sample = {}
+
+    async def fetch_oop_tags():
+        async with AsyncCamoufox(headless=True) as browser:
+            ctx = await browser.new_context(no_viewport=True)
+            if formatted_cookies:
+                await ctx.add_cookies(formatted_cookies)
+            page = await ctx.new_page()
+
+            try:
+                await page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=25000)
+                await page.wait_for_timeout(3000)
+            except Exception:
+                pass
+
+            eval_script = """
+            async (tagName) => {
+                try {
+                    const url = `https://www.instagram.com/api/v1/tags/web_info/?tag_name=${encodeURIComponent(tagName)}`;
+                    const resp = await fetch(url, {
+                        headers: {
+                            'X-IG-App-ID': '936619743392459',
+                            'X-Requested-With': 'XMLHttpRequest',
+                            'Accept': '*/*'
+                        }
+                    });
+                    const status = resp.status;
+                    const data = await resp.json().catch(() => null);
+                    return { status, data };
+                } catch (err) {
+                    return { status: -1, error: err.toString() };
+                }
+            }
+            """
+
+            cutoff_media = now - timedelta(hours=72)
+            for idx, tag in enumerate(sampled_tags, start=1):
+                jitter = random.uniform(3.0, 8.0)
+                print(f"Loading tag #{tag} ({idx}/6, jitter {jitter:.1f}s)...")
+                await asyncio.sleep(jitter)
+
+                t0 = time.time()
+                res = await page.evaluate(eval_script, tag)
+                status = res.get("status")
+                dur = time.time() - t0
+                print(f"  HTTP status: {status} ({dur:.2f}s)")
+                if status == 429:
+                    print("FAIL: Instagram returned 429 Rate Limited.")
+                    raise RuntimeError("Instagram 429 Rate Limited")
+                if status != 200:
+                    continue
+
+                data = res.get("data") or {}
+                sections = (data.get("data") or {}).get("recent", {}).get("sections") or (data.get("data") or {}).get("top", {}).get("sections") or []
+                medias = []
+                for s in sections:
+                    for lay in s.get("layout_content", {}).get("medias", []):
+                        m = lay.get("media")
+                        if m:
+                            medias.append(m)
+
+                for m in medias:
+                    taken_at = m.get("taken_at")
+                    if taken_at:
+                        dt = datetime.fromtimestamp(taken_at, tz=timezone.utc)
+                        if dt < cutoff_media:
+                            continue
+                    music = m.get("music_metadata") or {}
+                    aud = m.get("audio") or {}
+                    is_orig = music.get("is_original_sound", True) and not music.get("music_info")
+                    aid = str(music.get("music_canonical_id") or aud.get("audio_id") or "")
+                    if aid and not is_orig:
+                        audio_counts_in_sample[aid] = audio_counts_in_sample.get(aid, 0) + 1
+
+    try:
+        asyncio.run(fetch_oop_tags())
+    except Exception as e:
+        print(f"Out-of-pool fetch notice: {e}")
+
+    popular_oop_aids = [aid for aid, cnt in audio_counts_in_sample.items() if cnt >= 2]
+    n_oop = len(popular_oop_aids)
+    present_cnt = 0
+    if popular_oop_aids:
+        cutoff_7d = (now - timedelta(days=7)).isoformat()
+        our_reels = sb.table("reels").select("audio_id").in_("audio_id", popular_oop_aids).gte("scraped_at", cutoff_7d).execute().data or []
+        our_aids = {str(r["audio_id"]) for r in our_reels}
+        present_cnt = sum(1 for aid in popular_oop_aids if aid in our_aids)
+
+    share_oop = (present_cnt / n_oop) if n_oop > 0 else 0.0
+    print(f"Out-of-pool coverage: {share_oop:.1%} ({present_cnt}/{n_oop}) present in our last 7 days reels")
+
+    # Store in coverage_report
+    report_rows = [
+        {"week_start": week_start, "metric": "ground_truth_before", "value": float(share_before), "n": n_gt, "note": "share flagged/trended before reported_at"},
+        {"week_start": week_start, "metric": "ground_truth_within_72h", "value": float(share_within_72h), "n": n_gt, "note": "share caught within 72h after reported_at"},
+        {"week_start": week_start, "metric": "ground_truth_missed", "value": float(share_missed), "n": n_gt, "note": "share missed"},
+        {"week_start": week_start, "metric": "breakout_recall_before", "value": float(share_bo_before), "n": n_bo, "note": "survivorship-biased: only tracked audios"},
+        {"week_start": week_start, "metric": "breakout_lead_hours", "value": float(median_lead_h), "n": len(lead_hours_list), "note": "median lead hours before breakout"},
+        {"week_start": week_start, "metric": "out_of_pool_coverage", "value": float(share_oop), "n": n_oop, "note": "6 caption-mined tags (seed=42)"},
+    ]
+
+    try:
+        sb.table("coverage_report").insert(report_rows).execute()
+        print("Inserted coverage_report rows successfully.")
+    except Exception as ie:
+        print(f"Error inserting coverage_report rows: {ie}")
+
+    print("\n" + "=" * 80)
+    print("                     PART 6.3: COVERAGE METRICS SUMMARY")
+    print("=" * 80)
+    for r in report_rows:
+        val_str = f"{r['value']:.1%}" if "hours" not in r["metric"] else f"{r['value']:+.1f}h"
+        thin_str = " (TOO THIN TO QUOTE: n < 30)" if r["n"] < 30 else " (VALID: n >= 30)"
+        print(f"  {r['metric']:<26}: {val_str:<8} (n={r['n']}){thin_str}")
+    print("=" * 80 + "\n")
+
+
 def main():
-    parser = argparse.ArgumentParser(description="Order 61/65 Miss Diagnosis & Scoreboard")
+    parser = argparse.ArgumentParser(description="Order 61/65/70 Miss Diagnosis & Scoreboard")
     parser.add_argument("--report", action="store_true", help="Generate daily watchlist breakout conversion report")
     parser.add_argument("--scoreboard", action="store_true", help="Generate Order 65 detection scoreboard")
     parser.add_argument("--song-trends", action="store_true", help="Generate Order 65 Part 3.2 song-level trends report")
     parser.add_argument("--groundtruth", action="store_true", help="Generate Order 68 Part 4.2 ground truth audit")
+    parser.add_argument("--coverage", action="store_true", help="Generate Order 70 Part 6 coverage report")
     args = parser.parse_args()
 
     load_dotenv(os.path.join(backend_dir, ".env"))
@@ -582,6 +917,8 @@ def main():
         run_scoreboard(sb)
     elif args.groundtruth:
         run_groundtruth_report(sb)
+    elif args.coverage:
+        run_coverage_report(sb)
     elif args.song_trends:
         run_song_level_trends_report(sb)
     elif args.report:
@@ -592,4 +929,5 @@ def main():
 
 if __name__ == "__main__":
     main()
+
 

@@ -1429,8 +1429,6 @@ def get_watchlist(limit: int = 30):
         res = supabase.table("watchlist") \
             .select("song_key, audio_id, score, status, first_reels, first_creators, reasons, flagged_at, run_id") \
             .eq("status", "active") \
-            .order("score", desc=True) \
-            .limit(100) \
             .execute()
 
         candidates = res.data or []
@@ -1438,25 +1436,52 @@ def get_watchlist(limit: int = 30):
         for w in candidates:
             aid = str(w.get("audio_id") or "").strip()
             sk = w.get("song_key") or ""
+            reasons = w.get("reasons") or {}
+
+            # Real v3 score
+            score_val = w.get("score")
+            if score_val is None:
+                score_val = reasons.get("score") or reasons.get("total_score")
+            score = float(score_val) if score_val is not None else 0.0
+
+            title = reasons.get("title") or (sk.split("|")[0] if "|" in sk else None)
+            artist = reasons.get("artist") or (sk.split("|")[1] if "|" in sk else None)
+
+            # Combined creators & reels
+            creators_cnt = reasons.get("distinct_creators") or w.get("first_creators") or 0
+            reels_cnt = reasons.get("total_reels") or reasons.get("reels_72h") or w.get("first_reels") or 0
+            newest_posted_at = reasons.get("newest_taken_at") or w.get("flagged_at")
+
             # Exclude if has song-level trend
             if aid in trend_aids or sk in trend_keys:
                 continue
             # Exclude invalid audio IDs or original audio
             if not aid or aid.lower() in ("0", "unknown", "none", "null"):
                 continue
-            reasons = w.get("reasons") or {}
-            title = (reasons.get("title") or "").lower()
-            if title in ("original audio", "original sound") or "original audio" in sk.lower():
+            if title and title.lower() in ("original audio", "original sound") or "original audio" in sk.lower():
                 continue
-            # Distinct creators >= 3
-            creators_cnt = reasons.get("distinct_creators") or w.get("first_creators", 0)
+            # Distinct combined creators >= 3
             if creators_cnt < 3:
                 continue
-            filtered.append(w)
-            if len(filtered) >= limit:
-                break
 
-        return filtered
+            example_link = f"https://www.instagram.com/reels/audio/{aid}/"
+
+            filtered.append({
+                "song_key": sk,
+                "title": title,
+                "artist": artist,
+                "score": round(score, 2),
+                "creators": creators_cnt,
+                "reels": reels_cnt,
+                "newest_reel_posted_at": newest_posted_at,
+                "example_reel_link": example_link,
+                "audio_id": aid,
+                "run_id": w.get("run_id"),
+                "status": "active"
+            })
+
+        filtered.sort(key=lambda x: x["score"], reverse=True)
+        return filtered[:limit]
     except Exception as e:
         logger.exception(f"Error fetching watchlist: {e}")
         raise HTTPException(status_code=500, detail=str(e))

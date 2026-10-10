@@ -374,14 +374,11 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     return "bg-primary/10 text-primary dark:text-primary border-primary/20";
   };
 
-  const isSingleCreator = (
-    trend.creator_tier === "SINGLE_CREATOR" ||
-    (trend.creator_count !== undefined && trend.creator_count <= 1) ||
-    (trend.distinct_creators !== undefined && trend.distinct_creators <= 1)
-  );
+  const isVerifiedSingle = trend.spread_status === "VERIFIED_SINGLE";
 
   const getOpportunityScoreStatus = (score?: number, globalSat?: number) => {
-    if (isSingleCreator) return null;
+    // Hide 'Act now/Film now' ONLY for VERIFIED_SINGLE
+    if (isVerifiedSingle) return null;
     if (score === undefined || score === 0) {
       if (globalSat !== undefined && globalSat < 30) return "🚀 Early discovery window open";
       return null;
@@ -429,13 +426,22 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           </span>
         )}
 
-        {isSingleCreator ? (
+        {/* Show 'N creators / M reels' on every card */}
+        <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+          👥 {trend.creator_count ?? trend.distinct_creators ?? 1} creators / {trend.reelCount ?? 0} reels
+        </span>
+
+        {/* Badge 'Spread unverified' for UNVERIFIED */}
+        {trend.spread_status === "UNVERIFIED" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+            🔍 Spread unverified
+          </span>
+        )}
+
+        {/* Badge 'Single-creator signal' ONLY for VERIFIED_SINGLE */}
+        {trend.spread_status === "VERIFIED_SINGLE" && (
           <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/20 text-zinc-300 border border-zinc-500/30 px-2.5 py-0.5 text-[9px] font-bold">
             👤 Single-creator signal
-          </span>
-        ) : (
-          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-bold">
-            👥 {trend.creator_count ?? trend.distinct_creators ?? 1} creators / {trend.reelCount ?? 0} reels
           </span>
         )}
 

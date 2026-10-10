@@ -574,63 +574,276 @@ CONTENT_TYPE_NORMALIZE = {
 _MERGED_COUNTS_CACHE: dict = {}
 _MERGED_COUNTS_CACHE_TS: float = 0.0
 
-def _get_live_reels_stats(audio_ids_tuple: tuple) -> tuple:
+def _get_live_reels_and_probe_stats(audio_ids_tuple: tuple, song_key: str = None) -> dict:
     global _MERGED_COUNTS_CACHE, _MERGED_COUNTS_CACHE_TS
     now = time.time()
     if now - _MERGED_COUNTS_CACHE_TS > 300:
         _MERGED_COUNTS_CACHE.clear()
         _MERGED_COUNTS_CACHE_TS = now
 
-    if audio_ids_tuple in _MERGED_COUNTS_CACHE:
-        return _MERGED_COUNTS_CACHE[audio_ids_tuple]
+    cache_k = (audio_ids_tuple, song_key)
+    if cache_k in _MERGED_COUNTS_CACHE:
+        return _MERGED_COUNTS_CACHE[cache_k]
 
     if not supabase or not audio_ids_tuple:
-        return 0, 0
+        res_default = {
+            "reel_count": 0,
+            "own_creators": set(),
+            "probe_creators": set(),
+            "has_probe_24h": False,
+            "is_probe_single_verified": False,
+        }
+        _MERGED_COUNTS_CACHE[cache_k] = res_default
+        return res_default
 
     try:
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        now_dt = datetime.now(timezone.utc)
+        cutoff_7d = (now_dt - timedelta(days=7)).isoformat()
+        cutoff_24h = (now_dt - timedelta(hours=24)).isoformat()
+
         res = supabase.table("reels") \
             .select("audio_id, owner_username") \
             .in_("audio_id", list(audio_ids_tuple)) \
-            .gte("created_at", cutoff) \
+            .gte("created_at", cutoff_7d) \
             .execute()
         reels = res.data or []
-        creators = {r.get("owner_username") for r in reels if r.get("owner_username")}
-        stats = (len(reels), len(creators))
-        _MERGED_COUNTS_CACHE[audio_ids_tuple] = stats
+        own_creators = {r.get("owner_username") for r in reels if r.get("owner_username")}
+
+        probe_creators = set()
+        q_pr = supabase.table("probe_reels").select("creator").gte("taken_at", cutoff_7d)
+        if song_key:
+            q_pr = q_pr.or_(f"audio_id.in.({','.join(audio_ids_tuple)}),song_key.eq.{song_key}")
+        else:
+            q_pr = q_pr.in_("audio_id", list(audio_ids_tuple))
+        res_pr = q_pr.execute()
+        for pr in (res_pr.data or []):
+            if pr.get("creator"):
+                probe_creators.add(pr["creator"])
+
+        has_probe_24h = False
+        is_probe_single_verified = False
+        q_pl = supabase.table("probe_log").select("http_status, medias, creators").gte("ts", cutoff_24h).eq("http_status", 200)
+        if song_key:
+            q_pl = q_pl.or_(f"candidate_audio_id.in.({','.join(audio_ids_tuple)}),song_key.eq.{song_key}")
+        else:
+            q_pl = q_pl.in_("candidate_audio_id", list(audio_ids_tuple))
+        res_pl = q_pl.execute()
+        for pl in (res_pl.data or []):
+            has_probe_24h = True
+            m_cnt = int(pl.get("medias") or 0)
+            c_cnt = int(pl.get("creators") or 0)
+            if m_cnt >= 12 and c_cnt <= 1:
+                is_probe_single_verified = True
+
+        stats = {
+            "reel_count": len(reels),
+            "own_creators": own_creators,
+            "probe_creators": probe_creators,
+            "has_probe_24h": has_probe_24h,
+            "is_probe_single_verified": is_probe_single_verified,
+        }
+        _MERGED_COUNTS_CACHE[cache_k] = stats
         return stats
     except Exception as e:
-        logger.debug(f"Error fetching live reels stats for {audio_ids_tuple}: {e}")
-        return 0, 0
+        logger.debug(f"Error fetching live reels and probe stats: {e}")
+        return {
+            "reel_count": 0,
+            "own_creators": set(),
+            "probe_creators": set(),
+            "has_probe_24h": False,
+            "is_probe_single_verified": False,
+        }
+
+def _get_live_reels_stats(audio_ids_tuple: tuple) -> tuple:
+    stats = _get_live_reels_and_probe_stats(audio_ids_tuple)
+    return stats["reel_count"], len(stats["own_creators"])
+
+def _prefetch_live_reels_and_probe_stats(groups: dict):
+    global _MERGED_COUNTS_CACHE, _MERGED_COUNTS_CACHE_TS
+    if not supabase:
+        return
+
+    from song_key import compute_song_key
+    now_dt = datetime.now(timezone.utc)
+    cutoff_7d = (now_dt - timedelta(days=7)).isoformat()
+    cutoff_24h = (now_dt - timedelta(hours=24)).isoformat()
+
+    all_aids_set = set()
+    all_sks_set = set()
+
+    for key, group in groups.items():
+        for x in group:
+            aid = str(x.get("audio_id") or "").strip()
+            if aid and aid not in ("None", "0", "Unknown"):
+                all_aids_set.add(aid)
+            sk = compute_song_key(x.get("audio_title"), x.get("audio_artist"))
+            if sk:
+                all_sks_set.add(sk)
+
+    # 1. Fetch own reels in chunks
+    reels_by_aid = {}
+    CHUNK = 50
+    aids_list = list(all_aids_set)
+    for i in range(0, len(aids_list), CHUNK):
+        chunk = aids_list[i:i + CHUNK]
+        try:
+            res = supabase.table("reels") \
+                .select("audio_id, owner_username") \
+                .in_("audio_id", chunk) \
+                .gte("created_at", cutoff_7d) \
+                .execute()
+            for r in (res.data or []):
+                aid = str(r.get("audio_id") or "").strip()
+                u = r.get("owner_username")
+                if aid and u:
+                    reels_by_aid.setdefault(aid, set()).add(u)
+        except Exception as e:
+            logger.debug(f"Error prefetching reels: {e}")
+
+    # 2. Fetch probe reels (7d cutoff)
+    probe_by_aid = {}
+    probe_by_sk = {}
+    try:
+        res_pr = supabase.table("probe_reels") \
+            .select("audio_id, song_key, creator") \
+            .gte("taken_at", cutoff_7d) \
+            .execute()
+        for pr in (res_pr.data or []):
+            aid = str(pr.get("audio_id") or "").strip()
+            sk = pr.get("song_key")
+            c = pr.get("creator")
+            if aid and c:
+                probe_by_aid.setdefault(aid, set()).add(c)
+            if sk and c:
+                probe_by_sk.setdefault(sk, set()).add(c)
+    except Exception as e:
+        logger.debug(f"Error prefetching probe_reels: {e}")
+
+    # 3. Fetch probe log in 24h
+    probes_24h_by_aid = {}
+    probes_24h_by_sk = {}
+    try:
+        res_pl = supabase.table("probe_log") \
+            .select("candidate_audio_id, song_key, http_status, medias, creators") \
+            .gte("ts", cutoff_24h) \
+            .eq("http_status", 200) \
+            .execute()
+        for pl in (res_pl.data or []):
+            aid = str(pl.get("candidate_audio_id") or "").strip()
+            sk = pl.get("song_key")
+            m_cnt = int(pl.get("medias") or 0)
+            c_cnt = int(pl.get("creators") or 0)
+            is_single = (m_cnt >= 12 and c_cnt <= 1)
+            if aid:
+                probes_24h_by_aid[aid] = is_single
+            if sk:
+                probes_24h_by_sk[sk] = is_single
+    except Exception as e:
+        logger.debug(f"Error prefetching probe_log: {e}")
+
+    # Populate cache for all groups
+    for key, group in groups.items():
+        canonical = max(group, key=lambda x: int(x.get("reel_count") or 0)) if len(group) > 1 else group[0]
+        group_aids = []
+        for x in group:
+            aid = str(x.get("audio_id") or "").strip()
+            if aid and aid not in ("None", "0", "Unknown") and aid not in group_aids:
+                group_aids.append(aid)
+        aids_tuple = tuple(sorted(group_aids))
+        sk = compute_song_key(canonical.get("audio_title"), canonical.get("audio_artist"))
+
+        own_creators = set()
+        reel_count = 0
+        for aid in aids_tuple:
+            if aid in reels_by_aid:
+                own_creators.update(reels_by_aid[aid])
+                reel_count += len(reels_by_aid[aid])
+
+        probe_creators = set()
+        for aid in aids_tuple:
+            if aid in probe_by_aid:
+                probe_creators.update(probe_by_aid[aid])
+        if sk and sk in probe_by_sk:
+            probe_creators.update(probe_by_sk[sk])
+
+        has_probe_24h = False
+        is_probe_single_verified = False
+        for aid in aids_tuple:
+            if aid in probes_24h_by_aid:
+                has_probe_24h = True
+                if probes_24h_by_aid[aid]:
+                    is_probe_single_verified = True
+        if sk and sk in probes_24h_by_sk:
+            has_probe_24h = True
+            if probes_24h_by_sk[sk]:
+                is_probe_single_verified = True
+
+        cache_k = (aids_tuple, sk)
+        _MERGED_COUNTS_CACHE[cache_k] = {
+            "reel_count": reel_count,
+            "own_creators": own_creators,
+            "probe_creators": probe_creators,
+            "has_probe_24h": has_probe_24h,
+            "is_probe_single_verified": is_probe_single_verified,
+        }
+    _MERGED_COUNTS_CACHE_TS = time.time()
 
 def _enrich_trend_creators(t: dict, all_aids: list):
-    creators_set = set()
-    for r in t.get("top_reels") or []:
-        if r.get("owner_username"):
-            creators_set.add(r["owner_username"])
+    from song_key import compute_song_key
+    sk = compute_song_key(t.get("audio_title"), t.get("audio_artist"))
+
+    top_reels_creators = {r["owner_username"] for r in (t.get("top_reels") or []) if r.get("owner_username")}
 
     if all_aids:
-        act_reels_cnt, act_creators_cnt = _get_live_reels_stats(tuple(sorted(all_aids)))
-        if act_reels_cnt > int(t.get("reel_count") or 0):
-            t["reel_count"] = act_reels_cnt
-        live_creators = max(act_creators_cnt, len(creators_set), int(t.get("distinct_creators") or 0), 1)
+        stats = _get_live_reels_and_probe_stats(tuple(sorted(all_aids)), sk)
+        own_creators = stats["own_creators"].union(top_reels_creators)
+        probe_creators = stats["probe_creators"]
+        act_reels_cnt = stats["reel_count"]
+        has_probe_24h = stats["has_probe_24h"]
+        is_probe_single_verified = stats["is_probe_single_verified"]
     else:
-        live_creators = max(len(creators_set), int(t.get("distinct_creators") or 0), 1)
+        own_creators = top_reels_creators
+        probe_creators = set()
+        act_reels_cnt = 0
+        has_probe_24h = False
+        is_probe_single_verified = False
 
-    t["distinct_creators"] = live_creators
-    t["creator_count"] = live_creators
+    if act_reels_cnt > int(t.get("reel_count") or 0):
+        t["reel_count"] = act_reels_cnt
 
-    if live_creators >= 6:
+    combined_creators = own_creators.union(probe_creators)
+    combined_cnt = max(len(combined_creators), int(t.get("distinct_creators") or 0), 1)
+    own_cnt = len(own_creators)
+
+    t["distinct_creators"] = combined_cnt
+    t["creator_count"] = combined_cnt
+
+    if combined_cnt >= 6:
         tier = "TRENDING"
-    elif live_creators >= 3:
+    elif combined_cnt >= 3:
         tier = "RISING"
-    elif live_creators == 2:
+    elif combined_cnt == 2:
         tier = "EARLY"
     else:
         tier = "SINGLE_CREATOR"
     t["creator_tier"] = tier
 
-    if live_creators < 3:
+    # Spread status (Order 70 Part 3.4)
+    # VERIFIED_MULTI (>=3 combined), EARLY (2), UNVERIFIED (own <=2 and no successful probe in 24h),
+    # VERIFIED_SINGLE (a successful probe scanned >=12 medias and found 1 creator)
+    if combined_cnt >= 3:
+        spread_status = "VERIFIED_MULTI"
+    elif combined_cnt == 2:
+        spread_status = "EARLY"
+    elif is_probe_single_verified:
+        spread_status = "VERIFIED_SINGLE"
+    else:
+        spread_status = "UNVERIFIED"
+
+    t["spread_status"] = spread_status
+
+    # Part 3.5: Generated 'Why this works' text only when own data has >=3 distinct creators; otherwise null
+    if own_cnt < 3:
         t["why_this_works"] = None
         t["used_for_note"] = None
 
@@ -747,9 +960,9 @@ def _normalize_trends(trends: list) -> list:
             t["views_delta_last_run"] = top_reels[0].get("views_delta_last_run") or 0
 
 
-        # Mandatory Shazam / iTunes Music Catalog Language Pass
-        curr_lang = t.get("detected_language") or t.get("language") or "en"
-        if curr_lang in ("en", "unknown") and (t.get("audio_title") or t.get("audio_artist")):
+        # Mandatory Shazam / iTunes Music Catalog Language Pass (cached)
+        curr_lang = t.get("language_final") or t.get("detected_language") or t.get("language")
+        if (not curr_lang or curr_lang in ("unknown",)) and (t.get("audio_title") or t.get("audio_artist")):
             try:
                 from language_detection import resolve_via_music_catalog
                 catalog_lang = resolve_via_music_catalog(t.get("audio_title"), t.get("audio_artist"))
@@ -786,6 +999,8 @@ def _normalize_trends(trends: list) -> list:
         sk = compute_song_key(t.get("audio_title"), t.get("audio_artist"))
         key = sk or str(t.get("audio_id") or t.get("id"))
         groups.setdefault(key, []).append(t)
+
+    _prefetch_live_reels_and_probe_stats(groups)
 
     merged_trends = []
     for key, group in groups.items():
