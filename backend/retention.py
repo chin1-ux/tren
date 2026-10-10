@@ -65,10 +65,14 @@ def run_retention():
             cur.execute("DELETE FROM probe_log WHERE ts < NOW() - INTERVAL '14 days';")
             n_pl = cur.rowcount
 
+            # 7. watchlist (status != 'active' older than 30 days; proof_log is NEVER deleted)
+            cur.execute("DELETE FROM watchlist WHERE status != 'active' AND flagged_at < NOW() - INTERVAL '30 days';")
+            n_wl = cur.rowcount
+
             cur.close()
             conn.close()
 
-            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}")
+            print(f"RETENTION SUMMARY (psycopg2): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}, watchlist={n_wl}")
             return
         except Exception as pg_err:
             logger.warning(f"Direct connection pruning failed or unreachable ({pg_err}). Falling back to Supabase REST client...")
@@ -114,7 +118,11 @@ def run_retention():
     res_pl = sb.table("probe_log").delete().lt("ts", d14_ago).execute()
     n_pl = len(res_pl.data or [])
 
-    print(f"RETENTION SUMMARY (REST): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}")
+    # 7. watchlist (status != 'active' older than 30 days; proof_log is NEVER deleted)
+    res_wl = sb.table("watchlist").delete().neq("status", "active").lt("flagged_at", d30_ago).execute()
+    n_wl = len(res_wl.data or [])
+
+    print(f"RETENTION SUMMARY (REST): reel_snapshots={n_rs}, news_api_cache={n_news}, audio_trend_scores={n_ats}, audio_count_history={n_ach}, probe_reels={n_pr}, probe_log={n_pl}, watchlist={n_wl}")
 
 if __name__ == "__main__":
     run_retention()

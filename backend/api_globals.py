@@ -705,7 +705,70 @@ def _normalize_trends(trends: list) -> list:
             continue
         clean_trends.append(t)
 
-    return clean_trends
+    # Order 65 Part 3.1: API-layer merge for rows sharing song_key
+    from song_key import compute_song_key
+
+    STATUS_PRIORITY = {
+        "rising": 6,
+        "resurging": 5,
+        "emerging": 4,
+        "peaked": 3,
+        "saturated": 2,
+        "expired": 1,
+        "unqualified": 0,
+    }
+
+    groups: dict[str, list] = {}
+    for t in clean_trends:
+        sk = compute_song_key(t.get("audio_title"), t.get("audio_artist"))
+        key = sk or str(t.get("audio_id") or t.get("id"))
+        groups.setdefault(key, []).append(t)
+
+    merged_trends = []
+    for key, group in groups.items():
+        if len(group) == 1:
+            t = dict(group[0])
+            t["all_audio_ids"] = [str(t.get("audio_id"))] if t.get("audio_id") else []
+            merged_trends.append(t)
+            continue
+
+        canonical = max(group, key=lambda x: int(x.get("reel_count") or 0))
+        t = dict(canonical)
+
+        all_aids = []
+        for x in group:
+            aid = str(x.get("audio_id") or "").strip()
+            if aid and aid not in ("None", "0", "Unknown") and aid not in all_aids:
+                all_aids.append(aid)
+        t["all_audio_ids"] = all_aids
+        t["audio_id"] = canonical.get("audio_id") or (all_aids[0] if all_aids else None)
+        t["reel_count"] = sum(int(x.get("reel_count") or 0) for x in group)
+
+        # Merge top_reels and count distinct creators
+        combined_top = []
+        seen_rids = set()
+        for x in group:
+            for r in x.get("top_reels") or []:
+                rid = r.get("reel_id")
+                if rid and rid not in seen_rids:
+                    seen_rids.add(rid)
+                    combined_top.append(r)
+        combined_top.sort(key=lambda r: int(r.get("view_count") or 0), reverse=True)
+        t["top_reels"] = combined_top[:3]
+
+        creators_set = set()
+        for r in combined_top:
+            if r.get("owner_username"):
+                creators_set.add(r["owner_username"])
+        t["distinct_creators"] = max(len(creators_set), sum(int(x.get("distinct_creators") or 0) for x in group))
+
+        t["status"] = max(
+            (x.get("status") or "emerging" for x in group),
+            key=lambda s: STATUS_PRIORITY.get(s.lower(), 0),
+        )
+        merged_trends.append(t)
+
+    return merged_trends
 
 
 def _trend_priority_key(trend: dict, user_niche: str = "all", user_lang: str = "all") -> tuple[float, int, int, float, float]:

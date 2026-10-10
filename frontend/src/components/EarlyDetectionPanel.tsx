@@ -48,6 +48,10 @@ export function EarlyDetectionPanel() {
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
+  // Order 65 Part 7.1: Minimal read-only 'Early signals' behind feature flag (defaults to OFF)
+  const SHOW_EARLY_SIGNALS = false;
+  const [earlySignals, setEarlySignals] = useState<any[]>([]);
+
   const userPlan = useEffectivePlan();
 
   useEffect(() => {
@@ -68,8 +72,18 @@ export function EarlyDetectionPanel() {
           setAlreadyTrending(data.already_trending || []);
           setNewOnSpotify(data.new_on_spotify || []);
           setLastRefreshed(new Date());
-          setLoading(false);
-          return;
+        }
+      }
+
+      if (SHOW_EARLY_SIGNALS) {
+        try {
+          const wlRes = await apiFetch("/api/trends/watchlist?limit=10");
+          if (wlRes.ok) {
+            const wlData = await wlRes.json();
+            setEarlySignals(wlData || []);
+          }
+        } catch (e) {
+          console.debug("watchlist fetch error:", e);
         }
       }
     } catch (err) {
@@ -311,6 +325,29 @@ export function EarlyDetectionPanel() {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* Order 65 Part 7.1: Minimal read-only 'Early signals' section behind feature flag */}
+        {SHOW_EARLY_SIGNALS && earlySignals.length > 0 && (
+          <div className="space-y-4 pt-4 border-t border-border/40">
+            <div className="flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" />
+              <h3 className="text-sm font-semibold font-display text-foreground">Early Signals (Watchlist)</h3>
+            </div>
+            <div className="grid gap-2">
+              {earlySignals.map((item, idx) => (
+                <div key={idx} className="flex items-center justify-between p-3 rounded-xl bg-card/60 border border-border/50 text-xs">
+                  <div className="min-w-0 flex-1">
+                    <p className="font-semibold text-foreground truncate">{item.song_key || item.audio_id}</p>
+                    <p className="text-muted-foreground text-[11px]">Score: {item.score} · Creators: {item.first_creators || 0} · Reels: {item.first_reels || 0}</p>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary text-[10px] font-medium uppercase tracking-wide">
+                    {item.status || "active"}
+                  </span>
+                </div>
+              ))}
+            </div>
           </div>
         )}
 

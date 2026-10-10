@@ -1403,3 +1403,44 @@ def get_niche_trends(
     except Exception as e:
         logger.exception(f"Error fetching niche trends: {e}")
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/api/trends/watchlist")
+def get_watchlist(limit: int = 30):
+    """
+    Order 65 Part 7.1: Active watchlist songs ordered by score desc.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        res = supabase.table("watchlist") \
+            .select("song_key, audio_id, score, status, first_reels, first_creators, reasons, flagged_at, run_id") \
+            .in_("status", ["active", "watching"]) \
+            .order("score", desc=True) \
+            .limit(limit) \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        logger.exception(f"Error fetching watchlist: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/api/trends/proof")
+def get_proof_log(limit: int = 50):
+    """
+    Order 65 Part 7.1: Proof log entries where run_id is not null.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase not configured")
+    try:
+        res = supabase.table("proof_log") \
+            .select("id, audio_id, flagged_at, reasons, snapshot, run_id") \
+            .not_.is_("run_id", "null") \
+            .order("flagged_at", desc=True) \
+            .limit(limit) \
+            .execute()
+        return res.data or []
+    except Exception as e:
+        logger.exception(f"Error fetching proof_log: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+

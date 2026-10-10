@@ -61,19 +61,19 @@ def is_latin_string(text: str) -> bool:
 
 def derive_tag_variants(title: str, artist: Optional[str]) -> Tuple[List[str], Optional[str]]:
     """
-    Order 64 Part B3 Tag Derivation:
-    If title is Devanagari/Thai/Bengali/Tamil etc., do NOT probe by native-script tag;
-    try (a) artist name if Latin (>=4 chars), else (b) skip and record skip_reason='indic_script'.
-    Otherwise, standard tag derivation:
-    1. Title token (clean alphanumeric of normalized title)
-    2. Title token + first artist token (if artist exists)
+    Order 65 Part 4.2:
+    If title is Devanagari/Thai/Indic:
+    Check for Latin title transliteration in title (e.g. 'Tu Aur Chal' in 'तू और चल (Tu Aur Chal)').
+    If Latin tokens found (>= 4 chars), use clean Latin title tag.
+    Do NOT fall back to artist-name hashtag alone (which pulls unrelated artist posts).
+    If no Latin title tag can be derived, skip with skip_reason='indic_script_no_latin_tag'.
     """
     if has_indic_or_thai(title):
-        a_norm = normalize_artist(artist)
-        if a_norm and is_latin_string(a_norm) and len(a_norm) >= 4:
-            return [a_norm], None
-        else:
-            return [], "indic_script"
+        latin_words = re.findall(r'[a-zA-Z0-9]+', title)
+        latin_clean = "".join(w.lower() for w in latin_words if len(w) >= 2)
+        if latin_clean and len(latin_clean) >= 4 and not latin_clean.startswith("mix"):
+            return [latin_clean], None
+        return [], "indic_script_no_latin_tag"
 
     t_norm = normalize_title(title)
     if not t_norm:
@@ -193,12 +193,16 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
                 "max_views": 0,
                 "max_velocity": 0.0,
                 "hot_reels": 0,
+                "newest_posted_at": None,
             }
         st = song_stats[sk]
         u = r.get("owner_username")
         if u:
             st["creators"].add(u)
         st["reels"] += 1
+        p_at = r.get("posted_at") or r.get("created_at")
+        if p_at and (st.get("newest_posted_at") is None or p_at > st.get("newest_posted_at")):
+            st["newest_posted_at"] = p_at
         v_cnt = int(r.get("view_count") or 0)
         v_score = float(r.get("velocity_score") or 0.0)
         if v_cnt > st["max_views"]:
@@ -229,7 +233,7 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
     # Import watchlist score calculator
     from watchlist import calculate_v3_score
 
-    # (a) EARLY candidates: 2-5 distinct creators in own reels over 72h, ranked by watchlist score
+    # (a) EARLY candidates: 2-5 distinct creators in own reels over 72h, ranked by (creators desc, recency desc, score desc)
     early_pool: List[Dict[str, Any]] = []
     for sk, st in song_stats.items():
         n_creators = len(st["creators"])
@@ -249,9 +253,10 @@ def compute_candidates(sb, dry_run: bool = False) -> Tuple[List[Dict[str, Any]],
                 "velocity": st["max_velocity"],
                 "views": st["max_views"],
                 "creators_count": n_creators,
+                "newest_posted_at": str(st.get("newest_posted_at") or ""),
                 "score": score,
             })
-    early_pool.sort(key=lambda x: x["score"], reverse=True)
+    early_pool.sort(key=lambda x: (x["creators_count"], str(x["newest_posted_at"]), x["score"]), reverse=True)
 
     # (b) HOT-UNKNOWN candidates: hot p95 reel, song not in trends, own creators < 6, ranked by velocity desc
     hot_unknown_pool: List[Dict[str, Any]] = []
@@ -493,6 +498,7 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
                             "trigger": cand.get("trigger"),
                             "candidate_audio_id": cand.get("audio_id"),
                             "song_key": cand["song_key"],
+                            "skip_reason": skip_reason,
                             "http_status": 0,
                             "medias": 0,
                             "matched": 0,
@@ -578,8 +584,13 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
                         m_title = (music.get("title") or orig.get("original_audio_title") or "").strip()
                         m_title_norm = normalize_title(m_title) or ""
 
+                        m_artist = (music.get("artist_name") or orig.get("artist_name") or "").strip()
+                        m_sk = compute_song_key(m_title, m_artist)
+
                         is_match = False
                         if any(aid in cand["known_audio_ids"] for aid in m_aids):
+                            is_match = True
+                        elif m_sk and m_sk == cand["song_key"]:
                             is_match = True
                         elif is_coverage and cand_norm_title and (cand_norm_title == m_title_norm or cand_norm_title in m_title_norm):
                             is_match = True
