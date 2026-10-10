@@ -48,8 +48,8 @@ export function EarlyDetectionPanel() {
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  // Order 65 Part 7.1: Minimal read-only 'Early signals' behind feature flag (defaults to OFF)
-  const SHOW_EARLY_SIGNALS = false;
+  // Order 68 Part 8: Early signals flag enabled
+  const SHOW_EARLY_SIGNALS = true;
   const [earlySignals, setEarlySignals] = useState<any[]>([]);
 
   const userPlan = useEffectivePlan();
