@@ -16,7 +16,7 @@ import re
 import argparse
 import statistics
 from datetime import datetime, timezone, timedelta
-from typing import Dict, List, Any, Optional, Set
+from typing import Dict, List, Any, Optional, Set, Tuple
 from dotenv import load_dotenv
 
 backend_dir = os.path.dirname(os.path.abspath(__file__))
