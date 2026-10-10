@@ -119,6 +119,9 @@ export interface ApiTrend {
     relevance_score: number;
   }>;
   niche_relevance?: Record<string, number>;
+  ig_use_count?: number | null;
+  ig_count_captured_at?: string | null;
+  count_growth_x?: number | null;
 }
 
 export interface ApiCaptionKit {
@@ -350,8 +353,11 @@ export interface UiTrend {
   firstDetectedAt?: string | null;
   creator_count?: number;
   creator_tier?: string;
-  spread_status?: "VERIFIED_MULTI" | "EARLY" | "UNVERIFIED" | "VERIFIED_SINGLE";
+  spread_status?: "VERIFIED_MULTI" | "EARLY" | "UNVERIFIED" | "VERIFIED_SINGLE" | "HIGH_USAGE";
   distinct_creators?: number;
+  ig_use_count?: number | null;
+  ig_count_captured_at?: string | null;
+  count_growth_x?: number | null;
 
   // niche intelligence fields (from niche_relevance_engine)
   adaptation_briefs?: Record<string, {
@@ -438,6 +444,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     creator_tier: t.creator_tier,
     spread_status: t.spread_status,
     distinct_creators: t.distinct_creators,
+    ig_use_count: t.ig_use_count ?? null,
+    ig_count_captured_at: t.ig_count_captured_at ?? null,
+    count_growth_x: t.count_growth_x ?? null,
     used_for: t.used_for ?? null,
     used_for_note: t.used_for_note ?? null,
     top_reels: t.top_reels ?? [],

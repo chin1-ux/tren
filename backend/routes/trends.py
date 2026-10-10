@@ -32,6 +32,7 @@ def get_trends(
     languages: Optional[str] = None,
     sort: Optional[str] = "newest",
     niche: Optional[str] = None,
+    limit: Optional[int] = 50,
     current_user: str = Depends(get_current_user)
 ):
     """
@@ -164,6 +165,10 @@ def get_trends(
         else:
             # Default or sort=="newest": strictly newest audio detected on top
             trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
+
+        # Order 71 Part E2: Cap first page to limit (<=50) so payload <= 300 KB
+        page_limit = min(int(limit), 50) if limit else 50
+        trends = trends[:page_limit]
 
         # Cache the result in Redis for 5 minutes
         if standard_queue and standard_queue.connection:
@@ -1416,14 +1421,46 @@ def get_watchlist(limit: int = 30):
         raise HTTPException(status_code=500, detail="Supabase not configured")
     try:
         from song_key import compute_song_key
-        # Fetch active trend identifiers to exclude
-        trends_res = supabase.table("trends").select("audio_id, audio_title, audio_artist").execute()
-        trend_aids = {str(t["audio_id"]) for t in (trends_res.data or []) if t.get("audio_id")}
+        from collections import Counter
+
+        # Order 71 Part D3: Paginate all non-unqualified trends to ensure comprehensive deduplication
+        all_trends = []
+        offset = 0
+        while True:
+            t_chunk = supabase.table("trends") \
+                .select("audio_id, audio_title, audio_artist, status") \
+                .neq("status", "unqualified") \
+                .order("id", desc=False) \
+                .range(offset, offset + 999) \
+                .execute().data or []
+            all_trends.extend(t_chunk)
+            if len(t_chunk) < 1000:
+                break
+            offset += 1000
+
+        trend_aids = {str(t["audio_id"]) for t in all_trends if t.get("audio_id")}
         trend_keys = {
             compute_song_key(t.get("audio_title"), t.get("audio_artist"))
-            for t in (trends_res.data or [])
+            for t in all_trends
             if compute_song_key(t.get("audio_title"), t.get("audio_artist"))
         }
+
+        # Fetch count history for established song check (Order 71 Part C3)
+        now_dt = datetime.now(timezone.utc)
+        h30d_ago = (now_dt - timedelta(days=30)).isoformat()
+        ach_res = supabase.table("audio_count_history") \
+            .select("audio_id, use_count") \
+            .gte("captured_at", h30d_ago) \
+            .not_.is_("use_count", "null") \
+            .order("captured_at", desc=True) \
+            .execute()
+        latest_counts = {}
+        for r in (ach_res.data or []):
+            aid_k = str(r.get("audio_id"))
+            if aid_k not in latest_counts:
+                latest_counts[aid_k] = r.get("use_count") or 0
+
+        P95_30D = 2400000  # 95th percentile of 30d readings
 
         # Fetch watchlist entries with status 'active'
         res = supabase.table("watchlist") \
@@ -1444,7 +1481,7 @@ def get_watchlist(limit: int = 30):
                 score_val = reasons.get("score") or reasons.get("total_score")
             score = float(score_val) if score_val is not None else 0.0
 
-            title = reasons.get("title") or (sk.split("|")[0] if "|" in sk else None)
+            title = reasons.get("title") or (sk.split("|")[0] if "|" in sk else None) or "Unknown Title"
             artist = reasons.get("artist") or (sk.split("|")[1] if "|" in sk else None)
 
             # Combined creators & reels
@@ -1452,7 +1489,7 @@ def get_watchlist(limit: int = 30):
             reels_cnt = reasons.get("total_reels") or reasons.get("reels_72h") or w.get("first_reels") or 0
             newest_posted_at = reasons.get("newest_taken_at") or w.get("flagged_at")
 
-            # Exclude if has song-level trend
+            # Exclude if has song-level trend whose status is not 'unqualified'
             if aid in trend_aids or sk in trend_keys:
                 continue
             # Exclude invalid audio IDs or original audio
@@ -1463,6 +1500,20 @@ def get_watchlist(limit: int = 30):
             # Distinct combined creators >= 3
             if creators_cnt < 3:
                 continue
+
+            # Exclude established songs (Order 71 Part C3)
+            use_cnt = latest_counts.get(aid, 0)
+            if use_cnt >= P95_30D:
+                continue
+
+            # Fill artist from reels if missing or Unknown
+            if not artist or artist.lower() in ("unknown", "null", "none"):
+                reels_res = supabase.table("reels").select("audio_artist").eq("audio_id", aid).limit(20).execute().data or []
+                artists = [r["audio_artist"].strip() for r in reels_res if r.get("audio_artist") and r["audio_artist"].strip().lower() not in ("unknown", "null", "none")]
+                if artists:
+                    artist = Counter(artists).most_common(1)[0][0]
+                else:
+                    artist = "Unknown"
 
             example_link = f"https://www.instagram.com/reels/audio/{aid}/"
 

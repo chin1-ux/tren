@@ -79,27 +79,51 @@ def run_audio_capture():
         logger.info(f"Daily audio capture cap reached ({daily_count}/150). Skipping run.")
         return
 
-    # 2. Watchlist Priority (Order 61 Part E2): measure active watchlist audios first (re-measure every 6h)
-    h6_ago = (now_utc - timedelta(hours=6)).isoformat()
-    wl_res = sb.table("watchlist").select("audio_id").eq("status", "watching").execute()
-    active_wl_aids = [r["audio_id"] for r in (wl_res.data or []) if r.get("audio_id")]
+    # 2. Priority Selection (Order 71 Part C1):
+    # Audios of trends and watchlist with <=2 own creators and no reading in 24h get capture priority.
+    h24_ago = (now_utc - timedelta(hours=24)).isoformat()
+    recent_24h_res = sb.table("audio_count_history").select("audio_id").gte("captured_at", h24_ago).execute()
+    measured_24h = {str(r["audio_id"]) for r in (recent_24h_res.data or []) if r.get("audio_id")}
 
-    # Check which watchlist audios were measured in last 6h
-    measured_6h = set()
-    if active_wl_aids:
-        ach_6h = sb.table("audio_count_history").select("audio_id").in_("audio_id", active_wl_aids).gte("captured_at", h6_ago).execute()
-        measured_6h = {r["audio_id"] for r in (ach_6h.data or []) if r.get("audio_id")}
+    priority_aids = []
 
-    watchlist_targets = [aid for aid in active_wl_aids if aid not in measured_6h][:15]
+    # Priority A: Trends with <= 2 creators and no reading in 24h
+    try:
+        trends_res = sb.table("trends").select("audio_id, reel_count").in_("status", ["rising", "emerging", "resurging"]).execute()
+        for t in (trends_res.data or []):
+            aid = str(t.get("audio_id") or "").strip()
+            if aid and aid not in ("0", "Unknown") and aid not in measured_24h:
+                if (t.get("reel_count") or 1) <= 5:  # small / emerging trends
+                    if aid not in priority_aids:
+                        priority_aids.append(aid)
+    except Exception as te:
+        logger.warning(f"Error querying trends for capture priority: {te}")
+
+    # Priority B: Watchlist audios with <= 2 creators and no reading in 24h
+    try:
+        wl_res = sb.table("watchlist").select("audio_id, first_creators, reasons").in_("status", ["active", "watching"]).execute()
+        for w in (wl_res.data or []):
+            aid = str(w.get("audio_id") or "").strip()
+            reasons = w.get("reasons") or {}
+            creators = reasons.get("distinct_creators") or w.get("first_creators") or 1
+            if aid and aid not in ("0", "Unknown") and aid not in measured_24h and creators <= 2:
+                if aid not in priority_aids:
+                    priority_aids.append(aid)
+    except Exception as we:
+        logger.warning(f"Error querying watchlist for capture priority: {we}")
+
+    # Allocate up to 15 slots for priority targets
+    priority_targets = priority_aids[:15]
+    logger.info(f"Identified {len(priority_aids)} priority targets (<=2 creators, no reading in 24h). Selected top {len(priority_targets)}.")
 
     # 3. Exclude audios measured in last 3h for general candidates
     h3_ago = (now_utc - timedelta(hours=3)).isoformat()
     recent_res = sb.table("audio_count_history").select("audio_id").gte("captured_at", h3_ago).execute()
-    recent_measured = set(r["audio_id"] for r in (recent_res.data or []))
-    recent_measured.update(watchlist_targets)
+    recent_measured = set(str(r["audio_id"]) for r in (recent_res.data or []) if r.get("audio_id"))
+    recent_measured.update(priority_targets)
 
     # 4. Fetch additional candidates from reels in rolling 72h window if under 15 cap
-    candidates_needed = 15 - len(watchlist_targets)
+    candidates_needed = 15 - len(priority_targets)
     candidate_targets = []
     if candidates_needed > 0:
         h72_ago = (now_utc - timedelta(hours=72)).isoformat()
@@ -112,6 +136,7 @@ def run_audio_capture():
                 .select("audio_id, owner_username") \
                 .gte("created_at", h72_ago) \
                 .not_.is_("audio_id", "null") \
+                .order("id", desc=False) \
                 .range(offset, offset + PAGE_SIZE - 1) \
                 .execute()
             data = res.data or []
@@ -145,7 +170,7 @@ def run_audio_capture():
         candidate_targets = eligible[:candidates_needed]
 
     # Combine: (audio_id, creators, reels)
-    targets = [(aid, 0, 0) for aid in watchlist_targets] + candidate_targets
+    targets = [(aid, 0, 0) for aid in priority_targets] + candidate_targets
 
     if not targets:
         logger.info("No eligible audio capture targets for this cycle.")

@@ -700,8 +700,8 @@ def run_coverage_report(sb):
 
     print(f"Ground Truth Recall: Before: {share_before:.1%} ({before_cnt}/{n_gt}) | Within 72h: {share_within_72h:.1%} ({within_72h_cnt}/{n_gt}) | Missed: {share_missed:.1%} ({missed_cnt}/{n_gt})")
 
-    # (b) Breakout Recall
-    print("\n--- (b) BREAKOUT RECALL (survivorship-biased) ---")
+    # (b) Breakout Recall (Order 71 Part B1)
+    print("\n--- (b) BREAKOUT RECALL (survivorship-biased, strict 3x in 72h, base >= 1000) ---")
     ach_res = sb.table("audio_count_history").select("audio_id, use_count, captured_at").order("captured_at", desc=False).limit(3000).execute()
     by_aid = {}
     for r in (ach_res.data or []):
@@ -710,23 +710,19 @@ def run_coverage_report(sb):
 
     breakouts = []
     for aid, hist in by_aid.items():
-        for r in hist:
-            c = r.get("use_count") or 0
-            if c >= 100000:
-                dt = parse_dt(r["captured_at"])
-                breakouts.append((aid, dt, c, ">=100k"))
+        if len(hist) < 2:
+            continue
+        hist_sorted = sorted(hist, key=lambda x: parse_dt(x["captured_at"]))
+        f_dt = parse_dt(hist_sorted[0]["captured_at"])
+        f_c = hist_sorted[0].get("use_count") or 0
+        if f_c < 1000:
+            continue  # Initial reading must be >= 1000
+        for r in hist_sorted[1:]:
+            cur_dt = parse_dt(r["captured_at"])
+            cur_c = r.get("use_count") or 0
+            if (cur_dt - f_dt).total_seconds() <= 72 * 3600 and cur_c >= 3 * f_c:
+                breakouts.append((aid, cur_dt, cur_c, f">=3x ({f_c}->{cur_c})"))
                 break
-        else:
-            if len(hist) >= 2:
-                f_dt = parse_dt(hist[0]["captured_at"])
-                f_c = hist[0].get("use_count") or 0
-                if f_c > 0:
-                    for r in hist[1:]:
-                        cur_dt = parse_dt(r["captured_at"])
-                        cur_c = r.get("use_count") or 0
-                        if (cur_dt - f_dt).total_seconds() <= 72 * 3600 and cur_c >= 3 * f_c:
-                            breakouts.append((aid, cur_dt, cur_c, f">=3x ({f_c}->{cur_c})"))
-                            break
 
     n_bo = len(breakouts)
     print(f"Total breakout audios found: {n_bo}")

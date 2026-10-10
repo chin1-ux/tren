@@ -734,12 +734,26 @@ def _prefetch_live_reels_and_probe_stats(groups: dict):
             m_cnt = int(pl.get("medias") or 0)
             c_cnt = int(pl.get("creators") or 0)
             is_single = (m_cnt >= 12 and c_cnt <= 1)
-            if aid:
-                probes_24h_by_aid[aid] = is_single
             if sk:
                 probes_24h_by_sk[sk] = is_single
     except Exception as e:
         logger.debug(f"Error prefetching probe_log: {e}")
+
+    # 4. Fetch audio_count_history readings (Order 71 Part C2)
+    counts_by_aid = {}
+    try:
+        res_ach = supabase.table("audio_count_history") \
+            .select("audio_id, use_count, captured_at") \
+            .in_("audio_id", list(all_unique_aids)) \
+            .not_.is_("use_count", "null") \
+            .order("captured_at", desc=True) \
+            .execute()
+        for r in (res_ach.data or []):
+            aid = str(r.get("audio_id") or "").strip()
+            if aid:
+                counts_by_aid.setdefault(aid, []).append(r)
+    except Exception as e:
+        logger.debug(f"Error prefetching audio_count_history: {e}")
 
     # Populate cache for all groups
     for key, group in groups.items():
@@ -778,6 +792,31 @@ def _prefetch_live_reels_and_probe_stats(groups: dict):
             if probes_24h_by_sk[sk]:
                 is_probe_single_verified = True
 
+        ig_use_count = None
+        ig_count_captured_at = None
+        count_growth_x = None
+        for aid in aids_tuple:
+            if aid in counts_by_aid:
+                readings = counts_by_aid[aid]
+                if readings:
+                    latest = readings[0]
+                    ig_use_count = latest.get("use_count")
+                    ig_count_captured_at = latest.get("captured_at")
+                    if len(readings) >= 2 and latest.get("captured_at"):
+                        try:
+                            l_dt = datetime.fromisoformat(latest["captured_at"].replace("Z", "+00:00"))
+                            for prev in readings[1:]:
+                                if prev.get("captured_at"):
+                                    p_dt = datetime.fromisoformat(prev["captured_at"].replace("Z", "+00:00"))
+                                    if (l_dt - p_dt).total_seconds() <= 72 * 3600:
+                                        p_cnt = prev.get("use_count") or 0
+                                        if p_cnt > 0 and ig_use_count:
+                                            count_growth_x = round(float(ig_use_count) / float(p_cnt), 2)
+                                            break
+                        except Exception:
+                            pass
+                    break
+
         cache_k = (aids_tuple, sk)
         _MERGED_COUNTS_CACHE[cache_k] = {
             "reel_count": reel_count,
@@ -785,6 +824,9 @@ def _prefetch_live_reels_and_probe_stats(groups: dict):
             "probe_creators": probe_creators,
             "has_probe_24h": has_probe_24h,
             "is_probe_single_verified": is_probe_single_verified,
+            "ig_use_count": ig_use_count,
+            "ig_count_captured_at": ig_count_captured_at,
+            "count_growth_x": count_growth_x,
         }
     _MERGED_COUNTS_CACHE_TS = time.time()
 
@@ -801,12 +843,18 @@ def _enrich_trend_creators(t: dict, all_aids: list):
         act_reels_cnt = stats["reel_count"]
         has_probe_24h = stats["has_probe_24h"]
         is_probe_single_verified = stats["is_probe_single_verified"]
+        ig_use_count = stats.get("ig_use_count")
+        ig_count_captured_at = stats.get("ig_count_captured_at")
+        count_growth_x = stats.get("count_growth_x")
     else:
         own_creators = top_reels_creators
         probe_creators = set()
         act_reels_cnt = 0
         has_probe_24h = False
         is_probe_single_verified = False
+        ig_use_count = None
+        ig_count_captured_at = None
+        count_growth_x = None
 
     if act_reels_cnt > int(t.get("reel_count") or 0):
         t["reel_count"] = act_reels_cnt
@@ -828,15 +876,24 @@ def _enrich_trend_creators(t: dict, all_aids: list):
         tier = "SINGLE_CREATOR"
     t["creator_tier"] = tier
 
-    # Spread status (Order 70 Part 3.4)
+    # Order 71 Part C2: Count-based spread fields
+    t["ig_use_count"] = ig_use_count
+    t["ig_count_captured_at"] = ig_count_captured_at
+    t["count_growth_x"] = count_growth_x
+
+    # Spread status (Order 70/71 Part C2)
     # VERIFIED_MULTI (>=3 combined), EARLY (2), UNVERIFIED (own <=2 and no successful probe in 24h),
     # VERIFIED_SINGLE (a successful probe scanned >=12 medias and found 1 creator)
+    # HIGH_USAGE (own <= 2 and ig_use_count >= 1300000 [75th percentile of 7d readings])
+    P75_7D = 1300000
     if combined_cnt >= 3:
         spread_status = "VERIFIED_MULTI"
     elif combined_cnt == 2:
         spread_status = "EARLY"
     elif is_probe_single_verified:
         spread_status = "VERIFIED_SINGLE"
+    elif ig_use_count is not None and ig_use_count >= P75_7D and own_cnt <= 2:
+        spread_status = "HIGH_USAGE"
     else:
         spread_status = "UNVERIFIED"
 
@@ -960,17 +1017,8 @@ def _normalize_trends(trends: list) -> list:
             t["views_delta_last_run"] = top_reels[0].get("views_delta_last_run") or 0
 
 
-        # Mandatory Shazam / iTunes Music Catalog Language Pass (cached)
-        curr_lang = t.get("language_final") or t.get("detected_language") or t.get("language")
-        if (not curr_lang or curr_lang in ("unknown",)) and (t.get("audio_title") or t.get("audio_artist")):
-            try:
-                from language_detection import resolve_via_music_catalog
-                catalog_lang = resolve_via_music_catalog(t.get("audio_title"), t.get("audio_artist"))
-                if catalog_lang:
-                    t["detected_language"] = catalog_lang
-                    t["language"] = catalog_lang
-            except Exception as _shazam_err:
-                logger.debug(f"_normalize_trends: Shazam language pass error for {t.get('audio_title')}: {_shazam_err}")
+        # Order 71 Part E1: External HTTP catalog lookup removed from request path.
+        # Language is read directly from stored DB columns (language_final / language).
             
     # Filter out unqualified or flagged self-promotional trends
     clean_trends = []
@@ -1010,6 +1058,11 @@ def _normalize_trends(trends: list) -> list:
             all_aids = [aid] if aid and aid not in ("None", "0", "Unknown") else []
             t["all_audio_ids"] = all_aids
             _enrich_trend_creators(t, all_aids)
+            # Order 71 Part E2: Strip heavy debug/raw LLM fields to keep payload <= 300 KB
+            for f in ("raw_llm_response", "exogenous_correlation", "raw_payload", "raw_metadata", "metadata", "llm_raw_output", "status_reason", "sample_captions", "edit_style", "llm_analysis_raw", "embedding", "cluster_id", "batch_id", "processed_by"):
+                t.pop(f, None)
+            if t.get("top_reels"):
+                t["top_reels"] = t["top_reels"][:2]
             merged_trends.append(t)
             continue
 
@@ -1025,7 +1078,7 @@ def _normalize_trends(trends: list) -> list:
         t["audio_id"] = canonical.get("audio_id") or (all_aids[0] if all_aids else None)
         t["reel_count"] = sum(int(x.get("reel_count") or 0) for x in group)
 
-        # Merge top_reels showing one per distinct creator first, up to 5
+        # Merge top_reels showing one per distinct creator first, up to 2
         combined_top = []
         seen_rids = set()
         for x in group:
@@ -1046,7 +1099,7 @@ def _normalize_trends(trends: list) -> list:
                 distinct_creator_reels.append(r)
             else:
                 other_reels.append(r)
-        t["top_reels"] = (distinct_creator_reels + other_reels)[:5]
+        t["top_reels"] = (distinct_creator_reels + other_reels)[:2]
 
         _enrich_trend_creators(t, all_aids)
 
@@ -1054,6 +1107,11 @@ def _normalize_trends(trends: list) -> list:
             (x.get("status") or "emerging" for x in group),
             key=lambda s: STATUS_PRIORITY.get(s.lower(), 0),
         )
+
+        # Order 71 Part E2: Strip heavy debug/raw LLM fields to keep payload <= 300 KB
+        for f in ("raw_llm_response", "exogenous_correlation", "raw_payload", "raw_metadata", "metadata", "llm_raw_output", "status_reason", "sample_captions", "edit_style", "llm_analysis_raw", "embedding", "cluster_id", "batch_id", "processed_by"):
+            t.pop(f, None)
+
         merged_trends.append(t)
 
     return merged_trends

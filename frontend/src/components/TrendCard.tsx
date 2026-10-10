@@ -431,8 +431,22 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           👥 {trend.creator_count ?? trend.distinct_creators ?? 1} creators / {trend.reelCount ?? 0} reels
         </span>
 
-        {/* Badge 'Spread unverified' for UNVERIFIED */}
-        {trend.spread_status === "UNVERIFIED" && (
+        {/* Show 'about N reels on Instagram' on every card that has a reading */}
+        {trend.ig_use_count != null && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-indigo-500/15 text-indigo-300 border border-indigo-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+            📊 about {formatViews(trend.ig_use_count)} reels on Instagram
+          </span>
+        )}
+
+        {/* Badge 'High usage on Instagram' for HIGH_USAGE */}
+        {trend.spread_status === "HIGH_USAGE" && (
+          <span className="inline-flex items-center gap-1 rounded-full bg-violet-500/20 text-violet-300 border border-violet-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+            🌟 High usage on Instagram
+          </span>
+        )}
+
+        {/* Badge 'Spread unverified' ONLY when there is no reading */}
+        {trend.spread_status === "UNVERIFIED" && trend.ig_use_count == null && (
           <span className="inline-flex items-center gap-1 rounded-full bg-amber-500/20 text-amber-300 border border-amber-500/30 px-2.5 py-0.5 text-[9px] font-bold">
             🔍 Spread unverified
           </span>
