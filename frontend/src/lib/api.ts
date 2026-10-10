@@ -348,6 +348,9 @@ export interface UiTrend {
   audioGenre?: string;
   audioLabel?: string;
   firstDetectedAt?: string | null;
+  creator_count?: number;
+  creator_tier?: string;
+  distinct_creators?: number;
 
   // niche intelligence fields (from niche_relevance_engine)
   adaptation_briefs?: Record<string, {
@@ -430,6 +433,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     // v2 new fields
     audioId: t.audio_id ?? null,
     audioUseCount: t.audio_use_count ?? 0,
+    creator_count: t.creator_count,
+    creator_tier: t.creator_tier,
+    distinct_creators: t.distinct_creators,
     used_for: t.used_for ?? null,
     used_for_note: t.used_for_note ?? null,
     top_reels: t.top_reels ?? [],

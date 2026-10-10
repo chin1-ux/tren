@@ -22,6 +22,11 @@ backend_dir = os.path.dirname(os.path.abspath(__file__))
 if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
+try:
+    sys.stdout.reconfigure(encoding='utf-8')
+except Exception:
+    pass
+
 from song_key import compute_song_key, normalize_title, normalize_artist
 from supabase import create_client
 
@@ -465,10 +470,96 @@ def run_scoreboard(sb):
                 unflagged_bo += 1
 
         readings_cnt = readings_by_day.get(d, 0)
+        # Order 68 Part 2.3: Breakout requires >=2 real audio_count_history readings. If 0 readings, breakouts must be 0 / N/A.
+        if readings_cnt == 0:
+            day_breakouts = 0
+            med_l = "N/A"
+            unflagged_bo = 0
+
         print(f"{d:<12} | {flagged_cnt:<8} | {day_breakouts:<10} | {med_l:<16} | {unflagged_bo:<20} | {readings_cnt}")
 
     print("\n* Note on numbers: Readings on 2026-10-09/10 represent new initial baseline captures (<24h history).")
     print("  Growth-based breakouts (>=3x in 72h) will become meaningful once >=72h of continuous CI captures accumulate.")
+    print("================================================================================\n")
+    run_groundtruth_report(sb)
+
+
+def run_groundtruth_report(sb):
+    """
+    Order 68 Part 4.2: Ground truth audit from DB values.
+    Classes: NEVER_SAMPLED | SAMPLED_NOT_FLAGGED | FLAGGED_NO_TREND | FLAGGED_THEN_TREND | TREND_THEN_FLAGGED | CAUGHT_FIRST_BY_TREND
+    """
+    print("================================================================================")
+    print("                ORDER 68 PART 4.2: GROUND TRUTH AUDIT")
+    print("================================================================================\n")
+
+    def parse_dt(s):
+        if not s:
+            return None
+        dt = datetime.fromisoformat(s.replace("Z", "+00:00"))
+        return dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+    gt_rows = sb.table("ground_truth").select("*").order("id", desc=False).execute().data or []
+    if not gt_rows:
+        print("No ground truth rows found in database.")
+        return
+
+    pl_res = sb.table("proof_log").select("flagged_at, run_id, audio_id, snapshot").execute()
+    all_proof = pl_res.data or []
+
+    classes = {}
+    print(f"{'Song':<22} | {'Class':<22} | {'Reels':<5} | {'Creators':<8} | {'Max Views':<10} | {'Trend Status':<24} | {'Lead'}")
+    print("-" * 105)
+
+    for g in gt_rows:
+        title = g.get("title") or ""
+        artist = g.get("artist") or ""
+        sk = g.get("song_key") or compute_song_key(title, artist)
+        q_title = title.split("/")[0].strip()
+
+        r_res = sb.table("reels").select("id, audio_id, owner_username, view_count, posted_at, created_at, audio_title").ilike("audio_title", f"%{q_title}%").execute()
+        reels = r_res.data or []
+        aids = list({str(r["audio_id"]) for r in reels if r.get("audio_id")})
+        creators = list({r["owner_username"] for r in reels if r.get("owner_username")})
+        max_v = max([int(r.get("view_count") or 0) for r in reels] or [0])
+
+        t_res = sb.table("trends").select("id, status, first_detected_at, audio_title").ilike("audio_title", f"%{q_title}%").execute()
+        trends = t_res.data or []
+
+        matched_pl = []
+        for p in all_proof:
+            p_sk = (p.get("snapshot") or {}).get("song_key")
+            if p_sk == sk or str(p.get("audio_id")) in aids:
+                matched_pl.append(p)
+
+        t_first = trends[0].get("first_detected_at") if trends else None
+        p_first = matched_pl[0].get("flagged_at") if matched_pl else None
+        lead_h = "N/A"
+
+        if not reels and not trends:
+            cls = "NEVER_SAMPLED"
+        elif not matched_pl and not trends:
+            cls = "SAMPLED_NOT_FLAGGED"
+        elif matched_pl and not trends:
+            cls = "FLAGGED_NO_TREND"
+        elif matched_pl and trends:
+            t_dt = parse_dt(t_first)
+            p_dt = parse_dt(p_first)
+            lead_val = (t_dt - p_dt).total_seconds() / 3600.0
+            lead_h = f"{lead_val:+.1f}h"
+            cls = "FLAGGED_THEN_TREND" if lead_val >= 0 else "TREND_THEN_FLAGGED"
+        else:
+            cls = "CAUGHT_FIRST_BY_TREND"
+
+        classes[cls] = classes.get(cls, 0) + 1
+        tid = trends[0]["id"] if trends else 0
+        tst = trends[0].get("status") if trends else ""
+        t_info = f"id={tid} ({tst})" if trends else "None"
+        print(f"{title:<22} | {cls:<22} | {len(reels):<5} | {len(creators):<8} | {max_v:<10} | {t_info:<24} | {lead_h}")
+
+    print("\nSummary Counts per Class:")
+    for c, cnt in sorted(classes.items()):
+        print(f"  {c:<24}: {cnt}")
     print("================================================================================\n")
 
 
@@ -477,6 +568,7 @@ def main():
     parser.add_argument("--report", action="store_true", help="Generate daily watchlist breakout conversion report")
     parser.add_argument("--scoreboard", action="store_true", help="Generate Order 65 detection scoreboard")
     parser.add_argument("--song-trends", action="store_true", help="Generate Order 65 Part 3.2 song-level trends report")
+    parser.add_argument("--groundtruth", action="store_true", help="Generate Order 68 Part 4.2 ground truth audit")
     args = parser.parse_args()
 
     load_dotenv(os.path.join(backend_dir, ".env"))
@@ -488,6 +580,8 @@ def main():
 
     if args.scoreboard:
         run_scoreboard(sb)
+    elif args.groundtruth:
+        run_groundtruth_report(sb)
     elif args.song_trends:
         run_song_level_trends_report(sb)
     elif args.report:

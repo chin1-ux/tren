@@ -374,7 +374,14 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
     return "bg-primary/10 text-primary dark:text-primary border-primary/20";
   };
 
+  const isSingleCreator = (
+    trend.creator_tier === "SINGLE_CREATOR" ||
+    (trend.creator_count !== undefined && trend.creator_count <= 1) ||
+    (trend.distinct_creators !== undefined && trend.distinct_creators <= 1)
+  );
+
   const getOpportunityScoreStatus = (score?: number, globalSat?: number) => {
+    if (isSingleCreator) return null;
     if (score === undefined || score === 0) {
       if (globalSat !== undefined && globalSat < 30) return "🚀 Early discovery window open";
       return null;
@@ -419,6 +426,16 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         {trend.used_for && (
           <span className="inline-flex items-center gap-1 rounded-full bg-cyan-500/15 text-cyan-300 border border-cyan-500/30 px-2.5 py-0.5 text-[9px] font-extrabold uppercase tracking-wider">
             🎯 Used for: {trend.used_for}
+          </span>
+        )}
+
+        {isSingleCreator ? (
+          <span className="inline-flex items-center gap-1 rounded-full bg-zinc-500/20 text-zinc-300 border border-zinc-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+            👤 Single-creator signal
+          </span>
+        ) : (
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 text-emerald-300 border border-emerald-500/30 px-2.5 py-0.5 text-[9px] font-bold">
+            👥 {trend.creator_count ?? trend.distinct_creators ?? 1} creators / {trend.reelCount ?? 0} reels
           </span>
         )}
 
@@ -476,7 +493,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
         <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
         
         {/* Used For 1-line Creator Format Note */}
-        {trend.used_for_note && (
+        {trend.used_for_note && !isSingleCreator && (trend.creator_count === undefined || trend.creator_count >= 3) && (
           <div className="mt-1.5 rounded-lg bg-primary/10 border border-primary/20 p-2 text-xs text-foreground/90 font-medium leading-snug">
             💡 <span className="font-bold text-primary">Why this works:</span> {trend.used_for_note}
           </div>
@@ -515,7 +532,7 @@ export function TrendCard({ trend, onDanceTap, selectedNiche }: Props) {
           <span className="text-[10px] text-muted-foreground font-semibold flex items-center gap-1">
             <Video className="h-3 w-3 text-primary" /> Creator Reels:
           </span>
-          {trend.top_reels.slice(0, 3).map((reel, idx) => (
+          {trend.top_reels.slice(0, 5).map((reel, idx) => (
             <a
               key={idx}
               href={reel.reel_url || (reel.reel_id ? `https://www.instagram.com/reel/${reel.reel_id}/` : "#")}

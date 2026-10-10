@@ -571,6 +571,69 @@ CONTENT_TYPE_NORMALIZE = {
     "romance/relationship": "romance_relationship",
 }
 
+_MERGED_COUNTS_CACHE: dict = {}
+_MERGED_COUNTS_CACHE_TS: float = 0.0
+
+def _get_live_reels_stats(audio_ids_tuple: tuple) -> tuple:
+    global _MERGED_COUNTS_CACHE, _MERGED_COUNTS_CACHE_TS
+    now = time.time()
+    if now - _MERGED_COUNTS_CACHE_TS > 300:
+        _MERGED_COUNTS_CACHE.clear()
+        _MERGED_COUNTS_CACHE_TS = now
+
+    if audio_ids_tuple in _MERGED_COUNTS_CACHE:
+        return _MERGED_COUNTS_CACHE[audio_ids_tuple]
+
+    if not supabase or not audio_ids_tuple:
+        return 0, 0
+
+    try:
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        res = supabase.table("reels") \
+            .select("audio_id, owner_username") \
+            .in_("audio_id", list(audio_ids_tuple)) \
+            .gte("created_at", cutoff) \
+            .execute()
+        reels = res.data or []
+        creators = {r.get("owner_username") for r in reels if r.get("owner_username")}
+        stats = (len(reels), len(creators))
+        _MERGED_COUNTS_CACHE[audio_ids_tuple] = stats
+        return stats
+    except Exception as e:
+        logger.debug(f"Error fetching live reels stats for {audio_ids_tuple}: {e}")
+        return 0, 0
+
+def _enrich_trend_creators(t: dict, all_aids: list):
+    creators_set = set()
+    for r in t.get("top_reels") or []:
+        if r.get("owner_username"):
+            creators_set.add(r["owner_username"])
+
+    if all_aids:
+        act_reels_cnt, act_creators_cnt = _get_live_reels_stats(tuple(sorted(all_aids)))
+        if act_reels_cnt > int(t.get("reel_count") or 0):
+            t["reel_count"] = act_reels_cnt
+        live_creators = max(act_creators_cnt, len(creators_set), int(t.get("distinct_creators") or 0), 1)
+    else:
+        live_creators = max(len(creators_set), int(t.get("distinct_creators") or 0), 1)
+
+    t["distinct_creators"] = live_creators
+    t["creator_count"] = live_creators
+
+    if live_creators >= 6:
+        tier = "TRENDING"
+    elif live_creators >= 3:
+        tier = "RISING"
+    elif live_creators == 2:
+        tier = "EARLY"
+    else:
+        tier = "SINGLE_CREATOR"
+    t["creator_tier"] = tier
+
+    if live_creators < 3:
+        t["why_this_works"] = None
+        t["used_for_note"] = None
+
 def _normalize_trends(trends: list) -> list:
     """Normalize content_type and inject song/artist aliases on each trend row."""
     if not trends:
@@ -728,7 +791,10 @@ def _normalize_trends(trends: list) -> list:
     for key, group in groups.items():
         if len(group) == 1:
             t = dict(group[0])
-            t["all_audio_ids"] = [str(t.get("audio_id"))] if t.get("audio_id") else []
+            aid = str(t.get("audio_id") or "").strip()
+            all_aids = [aid] if aid and aid not in ("None", "0", "Unknown") else []
+            t["all_audio_ids"] = all_aids
+            _enrich_trend_creators(t, all_aids)
             merged_trends.append(t)
             continue
 
@@ -744,7 +810,7 @@ def _normalize_trends(trends: list) -> list:
         t["audio_id"] = canonical.get("audio_id") or (all_aids[0] if all_aids else None)
         t["reel_count"] = sum(int(x.get("reel_count") or 0) for x in group)
 
-        # Merge top_reels and count distinct creators
+        # Merge top_reels showing one per distinct creator first, up to 5
         combined_top = []
         seen_rids = set()
         for x in group:
@@ -754,31 +820,20 @@ def _normalize_trends(trends: list) -> list:
                     seen_rids.add(rid)
                     combined_top.append(r)
         combined_top.sort(key=lambda r: int(r.get("view_count") or 0), reverse=True)
-        t["top_reels"] = combined_top[:3]
 
-        creators_set = set()
+        distinct_creator_reels = []
+        other_reels = []
+        seen_creators_top = set()
         for r in combined_top:
-            if r.get("owner_username"):
-                creators_set.add(r["owner_username"])
-        t["distinct_creators"] = max(len(creators_set), sum(int(x.get("distinct_creators") or 0) for x in group))
+            u = r.get("owner_username")
+            if u and u not in seen_creators_top:
+                seen_creators_top.add(u)
+                distinct_creator_reels.append(r)
+            else:
+                other_reels.append(r)
+        t["top_reels"] = (distinct_creator_reels + other_reels)[:5]
 
-        # Order 66 Part 5.3: Enrich merged trends with fresh reels-based counts if stored trend rows are stale
-        if all_aids and supabase:
-            try:
-                res_actual = supabase.table("reels") \
-                    .select("audio_id, owner_username") \
-                    .in_("audio_id", all_aids) \
-                    .gte("created_at", (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()) \
-                    .execute()
-                actual_reels = res_actual.data or []
-                if actual_reels:
-                    act_creators = {r.get("owner_username") for r in actual_reels if r.get("owner_username")}
-                    if len(actual_reels) > t["reel_count"]:
-                        t["reel_count"] = len(actual_reels)
-                    if len(act_creators) > t["distinct_creators"]:
-                        t["distinct_creators"] = len(act_creators)
-            except Exception as _act_err:
-                logger.debug(f"Could not refresh live reel counts for merged trend: {_act_err}")
+        _enrich_trend_creators(t, all_aids)
 
         t["status"] = max(
             (x.get("status") or "emerging" for x in group),

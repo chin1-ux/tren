@@ -1408,18 +1408,55 @@ def get_niche_trends(
 @router.get("/api/trends/watchlist")
 def get_watchlist(limit: int = 30):
     """
-    Order 65 Part 7.1: Active watchlist songs ordered by score desc.
+    Order 68 Part 2.2: Active watchlist songs:
+    status 'active', >=3 distinct creators within 72h counting own reels + probe_reels with taken_at <=72h,
+    no song-level trend, not original audio, ordered by score desc, limit 30.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase not configured")
     try:
+        from song_key import compute_song_key
+        # Fetch active trend identifiers to exclude
+        trends_res = supabase.table("trends").select("audio_id, audio_title, audio_artist").execute()
+        trend_aids = {str(t["audio_id"]) for t in (trends_res.data or []) if t.get("audio_id")}
+        trend_keys = {
+            compute_song_key(t.get("audio_title"), t.get("audio_artist"))
+            for t in (trends_res.data or [])
+            if compute_song_key(t.get("audio_title"), t.get("audio_artist"))
+        }
+
+        # Fetch watchlist entries with status 'active'
         res = supabase.table("watchlist") \
             .select("song_key, audio_id, score, status, first_reels, first_creators, reasons, flagged_at, run_id") \
-            .in_("status", ["active", "watching"]) \
+            .eq("status", "active") \
             .order("score", desc=True) \
-            .limit(limit) \
+            .limit(100) \
             .execute()
-        return res.data or []
+
+        candidates = res.data or []
+        filtered = []
+        for w in candidates:
+            aid = str(w.get("audio_id") or "").strip()
+            sk = w.get("song_key") or ""
+            # Exclude if has song-level trend
+            if aid in trend_aids or sk in trend_keys:
+                continue
+            # Exclude invalid audio IDs or original audio
+            if not aid or aid.lower() in ("0", "unknown", "none", "null"):
+                continue
+            reasons = w.get("reasons") or {}
+            title = (reasons.get("title") or "").lower()
+            if title in ("original audio", "original sound") or "original audio" in sk.lower():
+                continue
+            # Distinct creators >= 3
+            creators_cnt = reasons.get("distinct_creators") or w.get("first_creators", 0)
+            if creators_cnt < 3:
+                continue
+            filtered.append(w)
+            if len(filtered) >= limit:
+                break
+
+        return filtered
     except Exception as e:
         logger.exception(f"Error fetching watchlist: {e}")
         raise HTTPException(status_code=500, detail=str(e))

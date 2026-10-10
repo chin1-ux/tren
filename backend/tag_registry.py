@@ -101,16 +101,34 @@ def select_tags_for_run(mode: str, slot_cap: Optional[int] = None) -> Tuple[List
         """, (mode,))
         rotating_pool = [r[0] for r in cur.fetchall()]
 
-        # 4. Mode-specific special pools:
+        # 4. Generic exploration trial slots (2 slots per mode rotating through #reels, #viral, #trending, #explorepage)
+        cur.execute("""
+            SELECT tag FROM tag_registry
+            WHERE mode = %s AND kind = 'trial' AND notes = 'generic_exploration' AND status = 'active'
+            ORDER BY runs ASC, last_run_at ASC NULLS FIRST, tag ASC
+            LIMIT 2;
+        """, (mode,))
+        generic_trials_selected = [r[0] for r in cur.fetchall()]
+
+        # 5. Mined / dynamic trial slots (up to 4 slots per mode)
+        cur.execute("""
+            SELECT tag FROM tag_registry
+            WHERE mode = %s AND kind = 'mined' AND status = 'active' AND runs < 6
+            ORDER BY runs ASC, last_run_at ASC NULLS FIRST, tag ASC
+            LIMIT 4;
+        """, (mode,))
+        mined_selected = [r[0] for r in cur.fetchall()]
+
+        # 6. Mode-specific special pools:
         trials_selected = []
         cross_lag_selected = []
         probation_selected = []
 
         if mode == "global":
-            # Trials: max 4 slots
+            # Trials: other trials (reach/native) max 4 slots
             cur.execute("""
                 SELECT tag FROM tag_registry
-                WHERE mode = 'global' AND kind = 'trial' AND status = 'active'
+                WHERE mode = 'global' AND kind = 'trial' AND (notes IS NULL OR notes != 'generic_exploration') AND status = 'active'
                 ORDER BY runs ASC, last_run_at ASC NULLS FIRST, tag ASC
                 LIMIT 4;
             """, )
@@ -155,15 +173,21 @@ def select_tags_for_run(mode: str, slot_cap: Optional[int] = None) -> Tuple[List
         # Add Active Events
         add_tags(event_tags)
 
+        # Add Generic exploration trials (2 slots)
+        add_tags(generic_trials_selected, limit=2)
+
+        # Add Mined tags (up to 4 slots)
+        add_tags(mined_selected, limit=4)
+
         if mode == "india":
-            # Target: 4 cross_lag, 12 rotating, probation up to cap
+            # Target: 4 cross_lag, rotating, probation up to cap
             add_tags(cross_lag_selected, limit=4)
             add_tags(rotating_pool, limit=12)
             add_tags(probation_selected)
             # If still slots left, fill with remaining rotating
             add_tags(rotating_pool)
         else: # global
-            # Target: 4 trials, 12 rotating, fill remaining with rotating
+            # Target: 4 reach/language trials, 12 rotating, fill remaining with rotating
             add_tags(trials_selected, limit=4)
             add_tags(rotating_pool, limit=12)
             add_tags(rotating_pool)
@@ -189,6 +213,8 @@ def select_tags_for_run(mode: str, slot_cap: Optional[int] = None) -> Tuple[List
             "core_count": len([t for t in selected_tags if t in set(core_tags)]),
             "event_count": len([t for t in selected_tags if t in set(event_tags)]),
             "rotating_count": len([t for t in selected_tags if t in set(rotating_pool)]),
+            "generic_trial_count": len([t for t in selected_tags if t in set(generic_trials_selected)]),
+            "mined_count": len([t for t in selected_tags if t in set(mined_selected)]),
             "trial_count": len([t for t in selected_tags if t in set(trials_selected)]),
             "cross_lag_count": len([t for t in selected_tags if t in set(cross_lag_selected)]),
             "probation_count": len([t for t in selected_tags if t in set(probation_selected)]),

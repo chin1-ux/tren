@@ -59,32 +59,46 @@ def is_latin_string(text: str) -> bool:
     return all(ord(c) < 128 for c in text)
 
 
-def derive_tag_variants(title: str, artist: Optional[str]) -> Tuple[List[str], Optional[str]]:
+def derive_tag_variants(title: str, artist: Optional[str]) -> Tuple[List[Tuple[str, str]], Optional[str]]:
     """
-    Order 65 Part 4.2:
-    If title is Devanagari/Thai/Indic:
-    Check for Latin title transliteration in title (e.g. 'Tu Aur Chal' in 'तू और चल (Tu Aur Chal)').
-    If Latin tokens found (>= 4 chars), use clean Latin title tag.
-    Do NOT fall back to artist-name hashtag alone (which pulls unrelated artist posts).
-    If no Latin title tag can be derived, skip with skip_reason='indic_script_no_latin_tag'.
+    Order 68 Part 4.3:
+    For titles with >=2 words derive up to 2 tags:
+    - Underscore-joined (first for non-Latin scripts) and concatenated.
+    - Stop at the first that returns >=1 media matched by audio_id or song_key.
+    - Record tag_variant in probe_log (additive column).
     """
     if has_indic_or_thai(title):
         latin_words = re.findall(r'[a-zA-Z0-9]+', title)
         latin_clean = "".join(w.lower() for w in latin_words if len(w) >= 2)
         if latin_clean and len(latin_clean) >= 4 and not latin_clean.startswith("mix"):
-            return [latin_clean], None
+            return [(latin_clean, "latin_translit")], None
         return [], "indic_script_no_latin_tag"
+
+    # Check words in title
+    clean_title = re.sub(r'[^\w\s]', '', title.strip())
+    words = [w for w in re.split(r'[\s_]+', clean_title) if w]
+    is_latin = is_latin_string(title)
+
+    if len(words) >= 2:
+        tag_underscore = '_'.join(w.lower() for w in words)
+        tag_concat = ''.join(w.lower() for w in words)
+        if not is_latin:
+            # Underscore-joined first for non-Latin scripts (e.g. Arabic #امشي_بثقه)
+            return [(tag_underscore, "underscore"), (tag_concat, "concatenated")], None
+        else:
+            # Concatenated first for Latin scripts
+            return [(tag_concat, "concatenated"), (tag_underscore, "underscore")], None
 
     t_norm = normalize_title(title)
     if not t_norm:
         return [], "invalid_title"
 
-    variants = [t_norm]
+    variants = [(t_norm, "single")]
     a_norm = normalize_artist(artist)
     if a_norm:
         combo = f"{t_norm}{a_norm}"
         if combo != t_norm:
-            variants.append(combo)
+            variants.append((combo, "artist_combo"))
 
     return variants[:2], None
 
@@ -516,7 +530,8 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
             cand_norm_title = normalize_title(title)
             is_coverage = cand.get("trigger") == "coverage"
 
-            for v_idx, tag in enumerate(tag_variants):
+            for v_idx, tag_item in enumerate(tag_variants):
+                tag, var_name = tag_item if isinstance(tag_item, tuple) else (tag_item, "default")
                 if probes_executed >= run_budget:
                     break
 
@@ -629,6 +644,7 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
                     try:
                         pl_entry = {
                             "tag": tag,
+                            "tag_variant": var_name,
                             "trigger": cand.get("trigger"),
                             "candidate_audio_id": cand.get("audio_id"),
                             "song_key": cand["song_key"],
@@ -644,12 +660,12 @@ async def run_probe_session(candidates: List[Dict[str, Any]], sb, dry_run: bool 
 
                 total_matched_reels += len(matched_rows)
                 logger.info(
-                    f"Probe #{probes_executed}: tag=#{tag} [{cand.get('trigger')}] -> status={status}, "
+                    f"Probe #{probes_executed}: tag=#{tag} [{var_name}] [{cand.get('trigger')}] -> status={status}, "
                     f"medias={len(medias)}, matched={len(matched_rows)}, creators={len(creators)} ({call_duration}s)"
                 )
 
-                # If first variant matched or 200 with matches, do NOT try second variant
-                if len(matched_rows) > 0 or status != 404 and len(medias) > 0:
+                # Stop at the first that returns >=1 media matched BY audio_id or song_key
+                if len(matched_rows) > 0:
                     break
 
                 # Jitter before potential variant 2

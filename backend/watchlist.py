@@ -78,8 +78,8 @@ def evaluate_watchlist(dry_run: bool = False, target_time: Optional[datetime] = 
     h72_ago = (ref_time - timedelta(hours=72)).isoformat()
     ref_iso = ref_time.isoformat()
 
-    # 1. Fetch audios in active trends detected ON OR BEFORE ref_iso (to exclude)
-    t_query = sb.table("trends").select("audio_id, audio_title, audio_artist").neq("status", "unqualified")
+    # 1. Fetch audios in ALL trends (to exclude any song that has a song-level trend)
+    t_query = sb.table("trends").select("audio_id, audio_title, audio_artist")
     if target_time:
         t_query = t_query.lte("first_detected_at", ref_iso)
     trends_res = t_query.execute()
@@ -139,12 +139,16 @@ def evaluate_watchlist(dry_run: bool = False, target_time: Optional[datetime] = 
         for r in data:
             if r.get("is_original_audio"):
                 continue
-            sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
-            if not sk or sk in trend_keys:
+            r_title = (r.get("audio_title") or "").strip()
+            if r_title.lower() in ("original audio", "original sound") or "original audio" in r_title.lower():
                 continue
-
             aid = str(r.get("audio_id") or "").strip()
-            if aid and aid in trend_audio_ids:
+            if not aid or aid.lower() in ("none", "0", "unknown", "null"):
+                continue
+            if aid in trend_audio_ids:
+                continue
+            sk = compute_song_key(r.get("audio_title"), r.get("audio_artist"))
+            if not sk or sk in trend_keys or "original audio" in sk.lower():
                 continue
 
             if sk not in song_groups:
@@ -200,8 +204,11 @@ def evaluate_watchlist(dry_run: bool = False, target_time: Optional[datetime] = 
             .execute()
         pr_data = pr_res.data or []
         for pr in pr_data:
+            aid = str(pr.get("audio_id") or "").strip()
+            if not aid or aid.lower() in ("none", "0", "unknown", "null") or aid in trend_audio_ids:
+                continue
             sk = pr.get("song_key")
-            if not sk or sk in trend_keys:
+            if not sk or sk in trend_keys or "original audio" in sk.lower():
                 continue
 
             if sk not in song_groups:
@@ -358,7 +365,7 @@ def evaluate_watchlist(dry_run: bool = False, target_time: Optional[datetime] = 
                 "audio_id": aid,
                 "song_key": sk,
                 "score": cand["score"],
-                "status": "watching",
+                "status": "active",
                 "first_reels": cand["reels"],
                 "first_creators": cand["creators"],
                 "reasons": cand["reasons"],
