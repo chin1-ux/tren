@@ -48,8 +48,8 @@ export function EarlyDetectionPanel() {
   const [fallbackReason, setFallbackReason] = useState<string | null>(null);
   const [lastRefreshed, setLastRefreshed] = useState<Date | null>(null);
 
-  // Order 68 Part 8: Early signals flag enabled
-  const SHOW_EARLY_SIGNALS = true;
+  // Order 70 Part 1.1: Early signals flag reset to false
+  const SHOW_EARLY_SIGNALS = false;
   const [earlySignals, setEarlySignals] = useState<any[]>([]);
 
   const userPlan = useEffectivePlan();
