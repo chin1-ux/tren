@@ -771,6 +771,14 @@ export async function fetchResurgingTrends(language?: string, niche?: string, la
   }
 }
 
+export async function fetchLastDetectedTimes(): Promise<Record<string, string | null>> {
+  try {
+    return await http<Record<string, string | null>>("/api/trends/last-detected");
+  } catch {
+    return {};
+  }
+}
+
 export interface ScraperRunInfo {
   run_id: number;
   letter: string;

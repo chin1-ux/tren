@@ -400,16 +400,33 @@ def get_emerging_trends(
         
         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-        q = q.or_(
+        q_48 = q.or_(
             f"first_detected_at.gte.{emerging_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff})"
         )
 
-        q = _apply_languages_filter(q, language, languages)
-        q = q.order("velocity_avg", desc=True)
-        q = q.limit(100)
-        res = q.execute()
+        q_48 = _apply_languages_filter(q_48, language, languages)
+        q_48 = q_48.order("velocity_avg", desc=True)
+        q_48 = q_48.limit(100)
+        res = q_48.execute()
         trends = _normalize_trends(res.data or [])
+
+        # Fallback 1: If 0 emerging trends found in last 48h, look back up to 7 days
+        # so valid pre-viral emerging trends do not abruptly vanish if scraper pace slows
+        if len(trends) == 0:
+            try:
+                emerging_cutoff_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+                q_7d = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
+                q_7d = q_7d.or_(
+                    f"first_detected_at.gte.{emerging_cutoff_7d},"
+                    f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff_7d})"
+                )
+                q_7d = _apply_languages_filter(q_7d, language, languages)
+                q_7d = q_7d.order("velocity_avg", desc=True).limit(50)
+                res_7d = q_7d.execute()
+                trends = _normalize_trends(res_7d.data or [])
+            except Exception as _lookback_err:
+                logger.warning(f"Emerging 7d lookback error: {_lookback_err}")
 
         # Fallback blending: if emerging count is below 5, blend in fresh rising/resurging trends detected in last 48h
         if len(trends) < 5:
@@ -422,6 +439,7 @@ def get_emerging_trends(
                 for b in blended:
                     if b.get("id") not in existing_ids:
                         b["is_recently_promoted_fallback"] = True
+                        b["status"] = "emerging"
                         trends.append(b)
             except Exception as _blend_err:
                 logger.warning(f"Emerging fallback blending error: {_blend_err}")
@@ -467,6 +485,38 @@ def get_emerging_trends(
     except Exception as e:
         logger.error(f"Error fetching emerging trends: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/api/trends/last-detected")
+def get_last_detected_times():
+    """
+    Returns the newest detection timestamp per trend status.
+    Used by frontend empty states across all tabs to inform users
+    when a trend of that category was last detected.
+    """
+    if not supabase:
+        return JSONResponse(content={})
+    try:
+        statuses = ["emerging", "rising", "resurging", "peaked", "expired"]
+        result = {}
+        for st in statuses:
+            r = (
+                supabase.table("trends")
+                .select("status, first_detected_at, created_at")
+                .eq("status", st)
+                .order("first_detected_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if r.data:
+                item = r.data[0]
+                result[st] = item.get("first_detected_at") or item.get("created_at")
+            else:
+                result[st] = None
+        return JSONResponse(content=result, headers={"Cache-Control": "public, max-age=60"})
+    except Exception as e:
+        logger.error(f"Error fetching last detected times: {e}")
+        return JSONResponse(content={})
 
 
 

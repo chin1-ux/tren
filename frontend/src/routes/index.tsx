@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, type UiTrend, type ScraperRunInfo } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -282,6 +282,15 @@ function TrendsFeed() {
   });
 
   const {
+    data: lastDetectedTimes,
+  } = useQuery({
+    queryKey: ["trends-last-detected"],
+    queryFn: () => fetchLastDetectedTimes(),
+    staleTime: 60_000,
+    enabled: secondaryReady,
+  });
+
+  const {
     data: risingData,
     isLoading: risingLoading,
     isError: risingError,
@@ -375,8 +384,8 @@ function TrendsFeed() {
     const deduplicatedExpired: UiTrend[] = [];
 
     audioToTrend.forEach(({ trend }) => {
-      if (trend.status === "rising") deduplicatedRising.push(trend);
-      else if (trend.status === "emerging") deduplicatedEmerging.push(trend);
+      if (trend.status === "emerging" || trend.isEmerging) deduplicatedEmerging.push(trend);
+      else if (trend.status === "rising") deduplicatedRising.push(trend);
       else if (trend.status === "resurging") deduplicatedResurging.push(trend);
       else if (trend.status === "peaked") deduplicatedPeaked.push(trend);
       else if (trend.status === "expired") deduplicatedExpired.push(trend);
@@ -920,15 +929,39 @@ function TrendsFeed() {
           </>
         ) : !isError && trends.length === 0 ? (
           <div className="glass-card p-12 text-center">
-            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : "🎵"}</p>
+            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : filters.lifecycle === "emerging" ? "🚨" : "🎵"}</p>
             <p className="text-base font-semibold">
-              {showTargetedOnly ? "Your targeted workspace is empty" : "No trends found for this filter"}
+              {showTargetedOnly
+                ? "Your targeted workspace is empty"
+                : filters.lifecycle !== "all"
+                ? `No ${filters.lifecycle} trends found`
+                : "No trends found for this filter"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {showTargetedOnly
                 ? "Click 'Target Trend' on any trend card to save and track your targeted audios here."
-                : "Try selecting \"All\" or a different niche / language to discover more viral audios."}
+                : "Our active trend rail is monitoring the ecosystem continuously."}
             </p>
+            {(() => {
+              const tabKey = showTargetedOnly ? null : filters.lifecycle;
+              const lastTime = tabKey && tabKey !== "all" ? lastDetectedTimes?.[tabKey] : null;
+              if (!lastTime) return null;
+              try {
+                const d = new Date(lastTime);
+                const diffHours = Math.max(0, Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60)));
+                const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+                const relPart = diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                return (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/40 bg-muted/50 px-3.5 py-1 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse" />
+                    <span>Last <strong>{tabKey}</strong> detected: {datePart} at {timePart} ({relPart})</span>
+                  </div>
+                );
+              } catch {
+                return null;
+              }
+            })()}
           </div>
         ) : (
           <div className="flex flex-col gap-4">
