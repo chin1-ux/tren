@@ -94,7 +94,10 @@ export const Route = createRootRouteWithContext<{ queryClient: QueryClient }>()(
       { rel: "icon", type: "image/png", sizes: "512x512", href: "/icon-512.png" },
       { rel: "preconnect", href: "https://fonts.googleapis.com" },
       { rel: "preconnect", href: "https://fonts.gstatic.com", crossOrigin: "anonymous" },
-      { rel: "stylesheet", href: "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" },
+      {
+        rel: "stylesheet",
+        href: "https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400;12..96,500;12..96,600;12..96,700;12..96,800&family=JetBrains+Mono:wght@400;500;700&display=optional",
+      },
     ],
   }),
   shellComponent: RootShell,
@@ -182,10 +185,10 @@ function RootComponent() {
             <AnimatePresence mode="wait">
               <motion.div
                 key={currentPath}
-                initial={{ opacity: 0, y: 10 }}
+                initial={{ opacity: 0, y: 8 }}
                 animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0, y: -10 }}
-                transition={{ duration: 0.25, ease: "easeInOut" }}
+                exit={{ opacity: 0, y: -8 }}
+                transition={{ duration: 0.18, ease: "easeInOut" }}
                 className="flex flex-col w-full"
               >
                 <Outlet />
@@ -205,9 +208,9 @@ function RootComponent() {
                 border: "1px solid var(--border)",
                 color: "var(--text-100)",
                 fontFamily: "var(--font-sans)",
-            boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
-          },
-        }}
+                boxShadow: "0 10px 30px rgba(0,0,0,0.3)",
+              },
+            }}
           />
         </AuthWrapper>
       </AuthProvider>

@@ -1,5 +1,5 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useRef, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
@@ -173,38 +173,44 @@ function TrendsFeed() {
   const userPlan = useEffectivePlan();
   const { loading: isAuthLoading } = useAuth();
 
+  const [isPendingFilter, startFilterTransition] = useTransition();
+
   const updateFilter = useCallback((updated: Partial<FilterState>) => {
     setDisplayLimit(15);
-    setFilters((prev) => {
-      const next = { ...prev, ...updated };
-      if (typeof window !== "undefined") {
-        if (updated.language !== undefined) {
-          localStorage.setItem("trendrop_pref_language", updated.language);
+    startFilterTransition(() => {
+      setFilters((prev) => {
+        const next = { ...prev, ...updated };
+        if (typeof window !== "undefined") {
+          if (updated.language !== undefined) {
+            localStorage.setItem("trendrop_pref_language", updated.language);
+          }
+          if (updated.niches !== undefined) {
+            localStorage.setItem("trendrop_pref_niches", JSON.stringify(updated.niches));
+            localStorage.setItem("trendrop_pref_niche", updated.niches.length === 1 ? updated.niches[0] : updated.niches.join(","));
+          }
         }
-        if (updated.niches !== undefined) {
-          localStorage.setItem("trendrop_pref_niches", JSON.stringify(updated.niches));
-          localStorage.setItem("trendrop_pref_niche", updated.niches.length === 1 ? updated.niches[0] : updated.niches.join(","));
-        }
-      }
-      return next;
+        return next;
+      });
     });
   }, []);
 
   const resetAllFilters = useCallback(() => {
     setDisplayLimit(15);
     setShowTargetedOnly(false);
-    setFilters({
-      lifecycle: "all",
-      urgency: "all",
-      minOpportunityScore: 0,
-      minVelocity: 0,
-      outlierOnly: false,
-      goldenHourOnly: false,
-      niches: ["all"],
-      language: "all",
-      format: "all",
-      freshnessPreset: "all",
-      selectedRunIds: [],
+    startFilterTransition(() => {
+      setFilters({
+        lifecycle: "all",
+        urgency: "all",
+        minOpportunityScore: 0,
+        minVelocity: 0,
+        outlierOnly: false,
+        goldenHourOnly: false,
+        niches: ["all"],
+        language: "all",
+        format: "all",
+        freshnessPreset: "all",
+        selectedRunIds: [],
+      });
     });
     if (typeof window !== "undefined") {
       localStorage.setItem("trendrop_pref_language", "all");
@@ -212,6 +218,7 @@ function TrendsFeed() {
       localStorage.setItem("trendrop_pref_niche", "all");
     }
   }, []);
+
 
   // Calculate active filter count for badge
   const activeFilterCount = useMemo(() => {
@@ -252,10 +259,11 @@ function TrendsFeed() {
     return () => clearInterval(id);
   }, []);
 
-  // Stagger secondary queries by 300ms so rising & emerging get 100% initial bandwidth
+  // Stagger secondary queries by 1500ms so rising & emerging get full initial bandwidth.
+  // Peaked, expired, resurging, targeted, scraper-runs are non-critical for first paint.
   const [secondaryReady, setSecondaryReady] = useState(false);
   useEffect(() => {
-    const timer = setTimeout(() => setSecondaryReady(true), 300);
+    const timer = setTimeout(() => setSecondaryReady(true), 1500);
     return () => clearTimeout(timer);
   }, []);
 
@@ -697,7 +705,7 @@ function TrendsFeed() {
       </div>
 
       {/* ── Feed Search & Unified Filter Controls ─────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border/80">
+      <div className="sticky top-0 z-20 sticky-header bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border/80">
         {/* Top Control Bar: Search Input + Modern Filter Action Button */}
         <div className="flex items-center gap-2 mb-2.5">
           <div className="relative flex-1">
@@ -1012,18 +1020,20 @@ function TrendsFeed() {
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
 
-      {/* Multi-Dimensional Intelligence Filters Modal */}
-      <TrendFiltersModal
-        isOpen={showFilterDrawer}
-        onClose={() => setShowFilterDrawer(false)}
-        filters={filters}
-        onChange={updateFilter}
-        onReset={resetAllFilters}
-        nichesList={NICHES}
-        languagesList={LANGUAGES}
-        totalResultsCount={trends.length}
-        scraperRuns={scraperRuns}
-      />
+      {/* Multi-Dimensional Intelligence Filters Modal — lazy-mounted on first open */}
+      {showFilterDrawer && (
+        <TrendFiltersModal
+          isOpen={showFilterDrawer}
+          onClose={() => setShowFilterDrawer(false)}
+          filters={filters}
+          onChange={updateFilter}
+          onReset={resetAllFilters}
+          nichesList={NICHES}
+          languagesList={LANGUAGES}
+          totalResultsCount={trends.length}
+          scraperRuns={scraperRuns}
+        />
+      )}
 
     </div>
   );

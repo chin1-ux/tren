@@ -29,6 +29,36 @@ export default defineConfig({
         },
       },
     },
+    build: {
+      // Target modern browsers: smaller bundle, no legacy polyfills
+      target: 'esnext',
+      // Show compressed bundle sizes in build output
+      reportCompressedSize: true,
+      rollupOptions: {
+        output: {
+          // Vendor chunk splitting for optimal long-term caching:
+          // Users returning to the app get cache hits on all vendor chunks
+          // even when app code changes.
+          manualChunks(id) {
+            if (!id.includes('node_modules')) return;
+            // Heavy animation engine — changes rarely, must be cached independently
+            if (id.includes('framer-motion') || id.includes('motion')) return 'vendor-motion';
+            // Icon library — tree-shaken but still ~30KB, cache independently
+            if (id.includes('lucide-react')) return 'vendor-icons';
+            // Core React runtime — never changes between deploys
+            if (id.includes('react-dom') || id.includes('/react/')) return 'vendor-react';
+            // Radix UI primitives — stable, large, cache separately
+            if (id.includes('@radix-ui')) return 'vendor-radix';
+            // Data/chart libraries
+            if (id.includes('recharts') || id.includes('three')) return 'vendor-viz';
+            // Supabase client — auth/DB, changes rarely
+            if (id.includes('@supabase')) return 'vendor-supabase';
+            // TanStack ecosystem (router, query, start)
+            if (id.includes('@tanstack')) return 'vendor-tanstack';
+          },
+        },
+      },
+    },
     plugins: [
       VitePWA({
         registerType: "autoUpdate",

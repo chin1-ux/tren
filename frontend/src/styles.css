@@ -259,25 +259,35 @@
 /* ── Glass Card ──────────────────────────────────────────────────────────────── */
 .glass-card {
   background: rgba(255, 255, 255, 0.03);
-  backdrop-filter: blur(24px);
-  -webkit-backdrop-filter: blur(24px);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
   border: 1px solid rgba(255, 255, 255, 0.07);
   border-radius: var(--radius-xl);
-  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
-  box-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.15);
 }
 
 .glass-card:hover {
-  transform: translateY(-4px) scale(1.005);
-  background: rgba(255, 255, 255, 0.05);
-  border-color: rgba(255, 255, 255, 0.12);
-  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px rgba(255, 255, 255, 0.02);
+  transform: translateY(-3px);
+  border-color: rgba(255, 255, 255, 0.14);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.35);
 }
 
 /* ── 3D Tilt card ────────────────────────────────────────────────────────────── */
 .tilt-card {
-  transform-style: preserve-3d;
+  /* GPU-promote card layer to avoid layout repaints on transform */
+  will-change: transform;
+  contain: layout style paint;
   transition: transform 0.25s cubic-bezier(0.25, 1, 0.5, 1), box-shadow 0.25s ease, border-color 0.25s ease;
+}
+
+/* ── Sticky header GPU promotion ─────────────────────────────────────────────── */
+.sticky-header {
+  will-change: transform;
+  transform: translateZ(0);
+  -webkit-transform: translateZ(0);
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
 }
 
 /* ── Gradient text ───────────────────────────────────────────────────────────── */
@@ -317,35 +327,18 @@
 }
 
 
-/* ── Glowing Pulsating Borders (Tron Legacy Dark & Light mode) ── */
-@keyframes neonGlowDark {
-  0%, 100% {
-    border-color: rgba(6, 182, 212, 0.4); /* Neon Cyan */
-    box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 8px rgba(6, 182, 212, 0.2), inset 0 0 8px rgba(6, 182, 212, 0.1);
-  }
-  50% {
-    border-color: rgba(168, 85, 247, 0.8); /* Neon Purple/Pink */
-    box-shadow: 0 12px 32px rgba(0,0,0,0.5), 0 0 16px rgba(168, 85, 247, 0.6), inset 0 0 16px rgba(168, 85, 247, 0.2);
-  }
-}
-
-@keyframes neonGlowLight {
-  0%, 100% {
-    border-color: rgba(230, 57, 70, 0.4);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.04), 0 0 6px rgba(230, 57, 70, 0.2);
-  }
-  50% {
-    border-color: rgba(244, 162, 97, 0.8);
-    box-shadow: 0 8px 30px rgba(0,0,0,0.06), 0 0 12px rgba(244, 162, 97, 0.5);
-  }
-}
-
+/* ── Subtle hover glow (CSS transition — no infinite animation) ─────────────── */
+/* Previously these were infinite box-shadow keyframe animations on EVERY card,
+   causing massive repaints. Now replaced with simple hover transitions.
+   Tailwind v4 @utility must have at least one property, so we set a no-op. */
 @utility card-glow-dark {
-  animation: neonGlowDark 3s ease-in-out infinite;
+  /* Removed infinite neonGlow animation. Hover styles are in .tilt-card CSS. */
+  opacity: 1;
 }
 
 @utility card-glow-light {
-  animation: neonGlowLight 3s ease-in-out infinite;
+  /* Removed infinite neonGlow animation. Hover styles are in .tilt-card CSS. */
+  opacity: 1;
 }
 
 /* ── Neon border ─────────────────────────────────────────────────────────────── */

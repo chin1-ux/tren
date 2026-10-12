@@ -9,10 +9,10 @@ import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTrendReels, toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
+import { fetchTrendReels, toggleTrendTarget } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendPreviewModal } from "./TrendPreviewModal";
 import { TrendProofSection } from "./TrendProofSection";
@@ -209,12 +209,11 @@ function SaturationBar({
           <span className="font-bold text-foreground">{Math.round(pct)}%</span>
         </div>
       </div>
+      {/* GPU-accelerated CSS scaleX instead of JS-driven width animation */}
       <div className="h-1.5 w-full rounded-full bg-white/5 overflow-hidden">
-        <motion.div
-          className={`h-full rounded-full ${barColor}`}
-          initial={{ width: 0 }}
-          animate={{ width: `${Math.min(100, pct)}%` }}
-          transition={{ duration: 0.6, ease: "easeOut" }}
+        <div
+          className={`h-full rounded-full ${barColor} origin-left transition-transform duration-700 ease-out`}
+          style={{ transform: `scaleX(${Math.min(1, pct / 100)})` }}
         />
       </div>
     </div>
@@ -294,16 +293,9 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const cardRef = useRef<HTMLElement>(null);
   const queryClient = useQueryClient();
 
-  const { data: targetedTrends = [] } = useQuery({
-    queryKey: ["trends-targeted"],
-    queryFn: fetchTargetedTrends,
-    staleTime: 60_000,
-    enabled: propIsTargeted === undefined,
-  });
-
-  const isTargeted = propIsTargeted !== undefined
-    ? propIsTargeted
-    : targetedTrends.some((t: any) => String(t.id) === String(trend.id));
+  // isTargeted is always passed as a prop from the parent (pre-computed targetedSet).
+  // The fallback query was removed — it was creating N useQuery subscriptions for N cards.
+  const isTargeted = propIsTargeted ?? false;
 
   // Saved trend tracking is hydrated after mount to avoid SSR/client text mismatch.
   useEffect(() => {
@@ -413,18 +405,25 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
   const hasCreatorBreakout = trend.hasCreatorOutlier || reels?.some((r) => r.is_creator_outlier) || false;
 
-  // 3D tilt
+  // 3D tilt — only on non-touch (pointer) devices; mobile has no hover
+  const isTouchDevice = typeof window !== "undefined" && window.matchMedia("(hover: none)").matches;
+
   const onMouseMove = useCallback((e: React.MouseEvent<HTMLElement>) => {
-    if (!cardRef.current) return;
+    if (isTouchDevice || !cardRef.current) return;
     const rect = cardRef.current.getBoundingClientRect();
-    const rotX = (((e.clientY - rect.top) / rect.height) - 0.5) * -6;
-    const rotY = (((e.clientX - rect.left) / rect.width) - 0.5) * 6;
-    cardRef.current.style.transform = `perspective(800px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(4px)`;
-  }, []);
+    const rotX = (((e.clientY - rect.top) / rect.height) - 0.5) * -5;
+    const rotY = (((e.clientX - rect.left) / rect.width) - 0.5) * 5;
+    // Use requestAnimationFrame to throttle style mutations
+    requestAnimationFrame(() => {
+      if (cardRef.current) {
+        cardRef.current.style.transform = `perspective(900px) rotateX(${rotX}deg) rotateY(${rotY}deg) translateZ(3px)`;
+      }
+    });
+  }, [isTouchDevice]);
 
   const onMouseLeave = useCallback(() => {
     if (!cardRef.current) return;
-    cardRef.current.style.transform = "perspective(800px) rotateX(0deg) rotateY(0deg) translateZ(0)";
+    cardRef.current.style.transform = "";
   }, []);
 
   const copyCaption = (e: React.MouseEvent) => {
@@ -472,16 +471,12 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   };
 
   return (
-    <motion.article
+    <article
       ref={cardRef as any}
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={() => setIsExpanded(!isExpanded)}
-      initial={{ opacity: 0, y: 20 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.4, ease: "easeOut" }}
-      whileHover={{ y: -4, boxShadow: "0 15px 40px rgba(0,0,0,0.4)" }}
-      className={`tilt-card relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} card-glow-light dark:card-glow-dark ${isEmerging ? "animate-pulse-urgent" : ""}`}
+      className={`tilt-card animate-fade-in-up relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
     >
       {/* Opportunity Score Indicator removed from absolute — now in badge row below as ml-auto item */}
 
@@ -1006,7 +1001,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
       />
-    </motion.article>
+    </article>
   );
 });
 
