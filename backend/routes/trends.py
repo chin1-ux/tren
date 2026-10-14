@@ -428,22 +428,6 @@ def get_emerging_trends(
             except Exception as _lookback_err:
                 logger.warning(f"Emerging 7d lookback error: {_lookback_err}")
 
-        # Fallback blending: if emerging count is below 5, blend in fresh rising/resurging trends detected in last 48h
-        if len(trends) < 5:
-            try:
-                q_blend = supabase.table("trends").select("*").in_("status", ["rising", "resurging"]).eq("is_voiceover", False).eq("is_seed_data", False).gte("first_detected_at", emerging_cutoff)
-                q_blend = _apply_languages_filter(q_blend, language, languages)
-                res_blend = q_blend.order("first_detected_at", desc=True).limit(10 - len(trends)).execute()
-                blended = _normalize_trends(res_blend.data or [])
-                existing_ids = {t.get("id") for t in trends}
-                for b in blended:
-                    if b.get("id") not in existing_ids:
-                        b["is_recently_promoted_fallback"] = True
-                        b["status"] = "emerging"
-                        trends.append(b)
-            except Exception as _blend_err:
-                logger.warning(f"Emerging fallback blending error: {_blend_err}")
-
         # --- 70/30 Distribution for Emerging tab ---
         active_lang = languages or language
         if not active_lang or active_lang == "all":
