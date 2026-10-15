@@ -410,20 +410,46 @@ def get_emerging_trends(
         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
         q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
         
-        # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
-        emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
-        q_48 = q.or_(
+        # 72-hour retention gate for Emerging tab (widened from 48h to capture more pre-viral trends)
+        # Fixes: only 2 emerging audios shown when scraper pace slows
+        emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
+        q_72 = q.or_(
             f"first_detected_at.gte.{emerging_cutoff},"
             f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff})"
         )
 
-        q_48 = _apply_languages_filter(q_48, language, languages)
-        q_48 = q_48.order("velocity_avg", desc=True)
-        q_48 = q_48.limit(100)
-        res = q_48.execute()
+        q_72 = _apply_languages_filter(q_72, language, languages)
+        q_72 = q_72.order("velocity_avg", desc=True)
+        q_72 = q_72.limit(100)
+        res = q_72.execute()
         trends = _normalize_trends(res.data or [])
 
-        # Fallback 1: If 0 emerging trends found in last 48h, look back up to 7 days
+        # Supplement: pull recently-scraped PENDING audios (last 24h) as "just detected" signals.
+        # These haven't been LLM-classified yet but are real live scrapes.
+        try:
+            pending_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            q_pending = supabase.table("trends").select(FEED_CARD_COLUMNS) \
+                .eq("status", "pending").eq("is_voiceover", False).eq("is_seed_data", False) \
+                .or_(
+                    f"first_detected_at.gte.{pending_cutoff},"
+                    f"and(first_detected_at.is.null,created_at.gte.{pending_cutoff})"
+                )
+            q_pending = _apply_languages_filter(q_pending, language, languages)
+            q_pending = q_pending.order("audio_use_count", desc=True).limit(30)
+            res_pending = q_pending.execute()
+            pending_trends = _normalize_trends(res_pending.data or [])
+            # Mark them as emerging for the feed and deduplicate by audio_id
+            existing_audio_ids = {t.get("audio_id") for t in trends if t.get("audio_id")}
+            for pt in pending_trends:
+                if pt.get("audio_id") not in existing_audio_ids:
+                    pt["status"] = "emerging"   # surface as emerging in UI
+                    pt["_is_just_detected"] = True
+                    trends.append(pt)
+                    existing_audio_ids.add(pt.get("audio_id"))
+        except Exception as _pending_err:
+            logger.warning(f"Pending supplement error: {_pending_err}")
+
+        # Fallback: If still 0 emerging trends found, look back up to 7 days
         # so valid pre-viral emerging trends do not abruptly vanish if scraper pace slows
         if len(trends) == 0:
             try:

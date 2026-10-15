@@ -164,6 +164,35 @@ function getTargetedSaturationMeta(count: number): { label: string; color: strin
   return { label: `${count} targeting`, color: "text-primary border-primary/20", bgColor: "bg-primary/10" };
 }
 
+// ── Score humanizers (Fix #5: no raw numbers for regular users) ───────────────
+
+/** Converts raw velocity multiplier to a plain-English phrase */
+function humanizeVelocity(v: number): { label: string; color: string } {
+  if (v >= 50) return { label: "🔥 Exploding",      color: "text-rose-400" };
+  if (v >= 20) return { label: "⚡ Moving fast",    color: "text-amber-400" };
+  if (v >= 8)  return { label: "📈 Gaining steam",  color: "text-emerald-400" };
+  if (v >= 2)  return { label: "🌱 Quietly growing",color: "text-sky-400" };
+  return       { label: "💤 Slow",                  color: "text-muted-foreground" };
+}
+
+/** Converts hours-remaining to readable urgency */
+function humanizeWindow(hrs: number): { label: string; color: string } {
+  if (hrs <= 0)  return { label: "Expired",          color: "text-slate-400" };
+  if (hrs <= 6)  return { label: "⏰ Last few hours", color: "text-rose-400" };
+  if (hrs <= 24) return { label: "⏳ Today only",     color: "text-amber-400" };
+  if (hrs <= 72) return { label: "📅 A few days left",color: "text-emerald-400" };
+  return         { label: "🟢 Wide open",             color: "text-emerald-400" };
+}
+
+/** Converts saturation % to a plain-English signal */
+function humanizeSaturation(pct: number): { label: string; color: string } {
+  if (pct <= 0)  return { label: "—",                color: "text-muted-foreground" };
+  if (pct < 20)  return { label: "🟢 First mover",   color: "text-emerald-400" };
+  if (pct < 40)  return { label: "🟡 Getting popular",color: "text-amber-400" };
+  if (pct < 65)  return { label: "🟠 Competitive",   color: "text-orange-400" };
+  return         { label: "🔴 Saturated",             color: "text-red-400" };
+}
+
 const formatViews = (v: number) => {
   if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
   if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
@@ -476,7 +505,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       onMouseMove={onMouseMove}
       onMouseLeave={onMouseLeave}
       onClick={() => setIsExpanded(!isExpanded)}
-      className={`tilt-card animate-fade-in-up relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()} ${isEmerging ? "animate-pulse-urgent" : ""}`}
+      className={`tilt-card animate-fade-in-up relative rounded-2xl p-5 cursor-pointer overflow-hidden space-y-4 ${getBorderClass()}`}
     >
       {/* Opportunity Score Indicator removed from absolute — now in badge row below as ml-auto item */}
 
@@ -686,8 +715,38 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         </div>
       )}
 
-      {/* ── 3. Chips row ─── */}
+      {/* ── 3. Chips row: humanized signals + format tags ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
+        {/* Velocity — human label, not a number */}
+        {velocityStrength > 0 && (() => {
+          const vel = humanizeVelocity(velocityStrength);
+          return (
+            <Chip className={`font-bold border-0 bg-white/[0.04] ${vel.color}`}>
+              {vel.label}
+            </Chip>
+          );
+        })()}
+
+        {/* Saturation — human label */}
+        {(globalPct > 0 || indiaPct > 0) && (() => {
+          const sat = humanizeSaturation(indiaPct > 0 ? indiaPct : globalPct);
+          return (
+            <Chip className={`font-semibold border-0 bg-white/[0.04] ${sat.color}`}>
+              {sat.label}
+            </Chip>
+          );
+        })()}
+
+        {/* Window — human label */}
+        {trend.hoursLeft !== undefined && trend.hoursLeft > 0 && (() => {
+          const win = humanizeWindow(trend.hoursLeft);
+          return (
+            <Chip className={`font-semibold border-0 bg-white/[0.04] ${win.color}`}>
+              {win.label}
+            </Chip>
+          );
+        })()}
+
         {trend.isRegionalCrossover && trend.crossoverFromLanguage && (
           <Chip className="bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/35 font-bold">
             🔀 {trend.crossoverFromLanguage} crossover
@@ -706,25 +765,20 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         )}
       </div>
 
-      {/* Expand hint */}
+      {/* Expand hint + Preview button */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
-        {(() => {
-          const scraped = formatApiDateIst(trend.firstDetectedAt);
-          return scraped ? (
-            <span
-              title={`First scraped: ${scraped} IST`}
-              className="flex items-center gap-1 text-[9px] text-muted-foreground/50 font-mono tabular-nums"
-            >
-              <svg className="h-2.5 w-2.5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <circle cx="12" cy="12" r="10" />
-                <polyline points="12 6 12 12 16 14" />
-              </svg>
-              {scraped} IST
-            </span>
-          ) : null;
-        })()}
-        {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        <div className="flex items-center gap-2">
+          {/* Quick preview — opens modal without expanding card (Fix #4) */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPreviewModal(true); }}
+            className="flex items-center gap-1 text-[10px] font-bold text-primary/70 hover:text-primary transition-colors"
+            title="Quick preview — see reels using this audio"
+          >
+            <Eye className="h-3 w-3" /> Preview
+          </button>
+          {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+        </div>
       </div>
 
       {/* ── Expanded section ─────────────────────────────────────────────── */}
@@ -1020,10 +1074,15 @@ function ScorePill({ label, value, tone }: { label: string; value: number; tone:
     tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
     tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
                      "bg-primary/10 text-primary border-primary/20";
+  // Human label instead of raw number (Fix #5)
+  const humanLabel =
+    tone === "good" ? "Great" :
+    tone === "mid"  ? "Good" :
+                     "Needs Work";
   return (
     <div className={`rounded-lg border px-2 py-2 text-center ${clz}`}>
       <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{label}</p>
-      <p className="text-sm font-extrabold mt-0.5">{Math.round(value * 100)}</p>
+      <p className="text-xs font-extrabold mt-0.5">{humanLabel}</p>
     </div>
   );
 }

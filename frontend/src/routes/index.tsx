@@ -306,8 +306,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends", filters.language, sortMode, activeLanguages],
     queryFn: () => fetchTrends(filters.language, sortMode, undefined, activeLanguages),
-    staleTime: 2 * 60_000,
-    refetchInterval: 15 * 60_000, // 15 min gentle polling (scraper runs every 3h)
+    staleTime: 10 * 60_000,          // scraper runs every 6h — 10min is fresh enough
+    refetchInterval: 20 * 60_000,    // gentle 20min polling
+    refetchOnWindowFocus: false,      // CRITICAL: stops re-fetch on every tab switch
     placeholderData: (prev) => prev,
   });
 
@@ -319,8 +320,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", filters.language, activeLanguages],
     queryFn: () => fetchEmergingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 2 * 60_000,
-    refetchInterval: 15 * 60_000, // 15 min gentle polling
+    staleTime: 10 * 60_000,
+    refetchInterval: 20 * 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
@@ -332,8 +334,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-peaked", filters.language, activeLanguages],
     queryFn: () => fetchPeakedTrends(filters.language, undefined, activeLanguages),
-    staleTime: 15 * 60_000,
-    refetchInterval: 45 * 60_000,
+    staleTime: 30 * 60_000,
+    refetchInterval: 60 * 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
   });
@@ -346,8 +349,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-expired", filters.language, activeLanguages],
     queryFn: () => fetchExpiredTrends(filters.language, undefined, activeLanguages),
-    staleTime: 30 * 60_000,
-    refetchInterval: 60 * 60_000,
+    staleTime: 60 * 60_000,
+    refetchInterval: 120 * 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
   });
@@ -360,8 +364,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-resurging", filters.language, activeLanguages],
     queryFn: () => fetchResurgingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 5 * 60_000,
-    refetchInterval: 20 * 60_000,
+    staleTime: 10 * 60_000,
+    refetchInterval: 30 * 60_000,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
   });
@@ -786,14 +791,12 @@ function TrendsFeed() {
 
           <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
 
-          {/* Lifecycle Filter Pills */}
+          {/* Lifecycle Filter Pills — Peaked/Expired moved to Filters modal to reduce cognitive load */}
           {[
-            { id: "all", label: "All Trends" },
-            { id: "emerging", label: "🚨 Emerging" },
-            { id: "rising", label: "📈 Rising" },
-            { id: "resurging", label: "🔄 Comeback" },
-            { id: "peaked", label: "📉 Peaked" },
-            { id: "expired", label: "⛔ Expired" },
+            { id: "all",       label: "All Trends",    count: undefined },
+            { id: "emerging",  label: "⚡ New",         count: deduplicatedTrends.emerging.length || undefined },
+            { id: "rising",    label: "🚀 Rising",      count: undefined },
+            { id: "resurging", label: "♻️ Comeback",   count: undefined },
           ].map((st) => {
             const isSelected = !showTargetedOnly && filters.lifecycle === st.id;
             return (
@@ -805,13 +808,18 @@ function TrendsFeed() {
                   updateFilter({ lifecycle: st.id });
                   setDisplayLimit(15);
                 }}
-                className={`flex-shrink-0 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   isSelected
                     ? "bg-primary text-white shadow-sm shadow-primary/30 ring-1 ring-primary/40 font-bold"
                     : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
                 {st.label}
+                {st.count !== undefined && st.count > 0 && (
+                  <span className="h-4 min-w-[16px] px-1 rounded-full bg-pink-500 text-white text-[9px] font-extrabold flex items-center justify-center">
+                    {st.count}
+                  </span>
+                )}
               </button>
             );
           })}
