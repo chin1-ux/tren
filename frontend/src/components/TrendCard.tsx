@@ -734,33 +734,31 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         </div>
       )}
 
-      {/* ── 2.8 Prominent Live Audio Preview (High visibility, 0s load) ── */}
+      {/* ── 2.8 Native Audio Preview Action (Blends seamlessly with dark card glass) ── */}
       <button
         type="button"
         onClick={openLiveInstagramPreview}
-        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500/20 via-pink-500/15 to-purple-500/20 hover:from-rose-500/30 hover:to-purple-500/30 border border-rose-500/40 hover:border-rose-500/70 text-white font-bold text-xs transition-all duration-200 group shadow-sm hover:shadow-rose-500/10 cursor-pointer"
-        title="Open live phone-sized Instagram audio page companion window (scroll reels, hear audio)"
+        className="group relative w-full flex items-center justify-between px-3 py-2 rounded-xl bg-white/[0.03] hover:bg-white/[0.06] border border-white/[0.08] hover:border-rose-500/40 text-foreground transition-all duration-200 cursor-pointer overflow-hidden shadow-xs hover:shadow-[0_4px_20px_rgba(244,63,94,0.12)]"
+        title="Open phone-sized Instagram audio companion window"
       >
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-rose-500/25 border border-rose-500/50 flex items-center justify-center text-rose-300 group-hover:scale-105 group-hover:bg-rose-500/35 transition-all">
-            <Play className="h-3.5 w-3.5 fill-rose-300 ml-0.5" />
+        <div className="flex items-center gap-2.5 min-w-0">
+          <div className="w-6 h-6 rounded-lg bg-rose-500/15 border border-rose-500/25 flex items-center justify-center text-rose-400 group-hover:bg-rose-500/25 group-hover:scale-105 transition-all shrink-0">
+            <Play className="h-3 w-3 fill-rose-400 ml-0.5" />
           </div>
-          <div className="text-left">
-            <span className="block text-xs font-extrabold text-white group-hover:text-rose-100 flex items-center gap-1.5">
-              <span>Preview Audio on Instagram</span>
-              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold uppercase tracking-wider">
-                Live Window
-              </span>
+          <div className="flex items-center gap-2 min-w-0">
+            <span className="text-xs font-bold text-foreground/90 group-hover:text-rose-400 transition-colors truncate">
+              Preview Audio on Instagram
             </span>
-            <span className="block text-[10px] text-zinc-400 font-normal">
-              Scroll real reels & hear audio directly (0s load)
+            <span className="text-[10px] text-muted-foreground/60 hidden sm:inline">
+              • Live phone window
             </span>
           </div>
         </div>
-        <div className="flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-black/40 border border-rose-500/30 px-2.5 py-1 rounded-lg shrink-0 group-hover:border-rose-400 transition-colors">
+
+        <div className="flex items-center gap-1 text-[11px] font-bold text-rose-400/90 group-hover:text-rose-300 bg-rose-500/10 group-hover:bg-rose-500/20 border border-rose-500/20 px-2 py-0.5 rounded-md shrink-0 transition-colors">
           <AppWindow className="h-3 w-3" />
-          <span>Preview</span>
-          <ExternalLink className="h-3 w-3 opacity-70" />
+          <span>Open</span>
+          <ExternalLink className="h-2.5 w-2.5 opacity-70" />
         </div>
       </button>
 
