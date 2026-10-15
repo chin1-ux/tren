@@ -207,6 +207,50 @@ function formatAudioUseCount(count: number, fallbackReelCount?: number): string 
   return countToUse.toString();
 }
 
+/** Resolves real creator strategy from whyThisWorks, used_for_note, idealContentDescription and dynamic fallbacks */
+function getTailoredCreatorStrategy(trend: UiTrend) {
+  // 1. Hook (First 3 seconds)
+  let hook = trend.whyThisWorks;
+  if (!hook || hook.trim().length === 0 || hook.includes("Not enough data")) {
+    if (trend.used_for_note) {
+      hook = `High retention format: ${trend.used_for_note}. Hook the audience within 0-2s before the drop.`;
+    } else if (trend.isDance || trend.category === "Dance") {
+      hook = "Match the initial beat drop at 0:02 with a crisp camera zoom or reveal transition to maximize 3-second hold rate.";
+    } else if (trend.isNarrativeEdit || trend.category === "Narrative") {
+      hook = "Open with high-contrast text overlay posing a polarizing scenario or question in the first 2 seconds.";
+    } else {
+      hook = `Lead with an instant visual payoff or dynamic transition in the first 3 seconds to sync with '${trend.song}'.`;
+    }
+  }
+
+  // 2. Content Concept & Editing
+  let concept = trend.idealContentDescription;
+  if (!concept || concept.trim().length === 0 || concept.includes("Not enough data")) {
+    if (trend.used_for_note) {
+      concept = trend.used_for_note;
+    } else if (trend.used_for) {
+      concept = `Tailored for ${trend.used_for} reels. Film fast-paced 7-15s clips featuring high-motion B-roll or relatable point-of-view storytelling.`;
+    } else {
+      concept = `Sync your key visual cuts to the rhythmic pacing of '${trend.song}'. Best formatted as punchy 9-18s short-form reels with crisp pacing.`;
+    }
+  }
+
+  return { hook, concept };
+}
+
+/** Formats IST hour into human-friendly window */
+function formatPostTimeIst(hour?: number): string {
+  if (hour === undefined || hour === null) return "7:00 PM – 9:00 PM IST (Evening Peak Window)";
+  const h = hour % 24;
+  const period = h >= 12 ? "PM" : "AM";
+  const displayHour = h % 12 === 0 ? 12 : h % 12;
+  const windowLabel =
+    h >= 6 && h < 11 ? "Morning Peak" :
+    h >= 11 && h < 16 ? "Midday Engagement" :
+    h >= 16 && h < 21 ? "Prime Evening Window" : "Late Night Scroll Window";
+  return `${displayHour}:00 ${period} IST (${windowLabel})`;
+}
+
 // formatScrapedAt replaced by shared formatApiDateIst from @/lib/time (IST -5h30m bug fix)
 
 /** Saturation bar component (Global / India) */
@@ -866,14 +910,17 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
               })()}
 
               {/* Hook */}
-              <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
-                <p className="text-xs text-foreground/90 leading-relaxed">
-                  {trend.llmClassificationStatus === "completed" 
-                    ? (trend.whyThisWorks || "No hook advice available.") 
-                    : "Not enough data yet for a tailored strategy."}
-                </p>
-              </div>
+              {(() => {
+                const { hook } = getTailoredCreatorStrategy(trend);
+                return (
+                  <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
+                    <p className="text-xs text-foreground/90 leading-relaxed font-medium">
+                      {hook}
+                    </p>
+                  </div>
+                );
+              })()}
 
               {/* Trial reel badge row */}
               <div className="flex items-center gap-2 flex-wrap">
@@ -919,28 +966,28 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             )}
 
             {/* Content Concept */}
-            <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
-              <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
-                {trend.llmClassificationStatus === "completed" 
-                  ? (trend.idealContentDescription || "No content concept available.") 
-                  : "Not enough data yet for a tailored strategy."}
-              </p>
-            </div>
-
-
+            {(() => {
+              const { concept } = getTailoredCreatorStrategy(trend);
+              return (
+                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
+                  <p className="text-xs text-foreground/85 mt-1 leading-relaxed">
+                    {concept}
+                  </p>
+                </div>
+              );
+            })()}
 
             {/* Creator scores */}
             <div className="space-y-2">
-              {trend.optimalPostHourIst !== undefined && (
-                <div className="flex items-center text-[11px] text-muted-foreground">
-                  <span>Best post time: {trend.optimalPostHourIst}:00 IST</span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
+                <span>🕒 Optimal Post Window:</span>
+                <strong className="text-foreground font-semibold">{formatPostTimeIst(trend.optimalPostHourIst)}</strong>
+              </div>
               <div className="grid grid-cols-3 gap-2">
-                <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
-                <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
-                <ScorePill label="Space" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Audience Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Hook Power" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Market Space" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
               </div>
             </div>
 
@@ -1088,18 +1135,19 @@ function Chip({ children, className = "" }: { children: React.ReactNode; classNa
 
 function ScorePill({ label, value, tone }: { label: string; value: number; tone: "good" | "mid" | "bad" }) {
   const clz =
-    tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
-    tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
-                     "bg-primary/10 text-primary border-primary/20";
-  // Human label instead of raw number (Fix #5)
+    tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" :
+    tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/25" :
+                     "bg-rose-500/10 text-rose-400 border-rose-500/25";
   const humanLabel =
-    tone === "good" ? "Great" :
-    tone === "mid"  ? "Good" :
-                     "Needs Work";
+    tone === "good" ? "High Potential" :
+    tone === "mid"  ? "Moderate" :
+                     "Needs Strategy";
+  const pct = Math.round(value * 100);
   return (
-    <div className={`rounded-lg border px-2 py-2 text-center ${clz}`}>
-      <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{label}</p>
-      <p className="text-xs font-extrabold mt-0.5">{humanLabel}</p>
+    <div className={`rounded-xl border px-2 py-2 text-center transition-all ${clz}`}>
+      <p className="text-[9px] font-bold uppercase tracking-wider opacity-75 truncate">{label}</p>
+      <p className="text-xs font-black mt-0.5">{humanLabel}</p>
+      <p className="text-[10px] opacity-75 mt-0.5 font-semibold">{pct}% score</p>
     </div>
   );
 }
