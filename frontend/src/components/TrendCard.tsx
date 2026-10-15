@@ -398,6 +398,24 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const nicheTag = trend.nicheTag ?? "general";
   const audioId = trend.audioId;
   const audioUrl = buildAudioUrl(audioId, trend.song);
+
+  const openLiveInstagramPreview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetAudioUrl = audioUrl || (trend.audioId ? `https://www.instagram.com/reels/audio/${trend.audioId}/` : null);
+    if (!targetAudioUrl) {
+      toast.error("Audio link unavailable");
+      return;
+    }
+    const width = 430;
+    const height = 820;
+    const left = window.screen.width ? Math.max(0, (window.screen.width - width) / 2) : 120;
+    const top = window.screen.height ? Math.max(0, (window.screen.height - height) / 2) : 80;
+    window.open(
+      targetAudioUrl,
+      "InstagramAudioWindow",
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
+    );
+  };
   const saturationCount = trend.saturationCount ?? 0;
   const vibeTag = trend.vibeTag ?? "general";
 
@@ -674,21 +692,33 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         })()}
       </div>
 
-      {/* ── 2. Audio use count ────────────────────────────────────────────── */}
-      {audioUseCount > 0 && (
-        <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
-          <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
-          <span className="text-muted-foreground">Reels using this audio:</span>
-          <div className="flex items-center gap-1.5 ml-auto">
-            {trend.viewsDelta !== undefined && trend.viewsDelta > 0 && (
-              <span className="text-[10px] font-bold text-emerald-400 mr-1 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-                📈 +{formatViews(trend.viewsDelta)}
-              </span>
-            )}
-            <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount, trend.reelCount)}</span>
-          </div>
+      {/* ── 2. Audio use count with Single Integrated Preview Button ── */}
+      <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
+        <div className="flex items-center gap-2 min-w-0">
+          <Music2 className="h-3.5 w-3.5 text-rose-400 shrink-0" />
+          <span className="text-muted-foreground truncate">Reels:</span>
+          <span className="font-bold text-foreground shrink-0">
+            {audioUseCount > 0 ? formatAudioUseCount(audioUseCount, trend.reelCount) : "Early signal"}
+          </span>
+          {trend.viewsDelta !== undefined && trend.viewsDelta > 0 && (
+            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded hidden sm:inline">
+              +{formatViews(trend.viewsDelta)}
+            </span>
+          )}
         </div>
-      )}
+
+        {/* The single, official Preview Audio button on the card */}
+        <button
+          type="button"
+          onClick={openLiveInstagramPreview}
+          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-500/50 px-2.5 py-1 text-[11px] font-bold text-rose-300 transition-all shrink-0 cursor-pointer shadow-xs active:scale-95"
+          title="Open live phone-sized Instagram audio companion window"
+        >
+          <Play className="w-2.5 h-2.5 fill-rose-300" />
+          <span>Preview Audio</span>
+          <ExternalLink className="w-2.5 h-2.5 opacity-70" />
+        </button>
+      </div>
 
       {/* ── 2.5 Real Reel Examples Chips ─────────────────────────────────────── */}
       {trend.top_reels && trend.top_reels.length > 0 && (
