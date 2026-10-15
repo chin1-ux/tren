@@ -3,7 +3,8 @@ import {
   Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
   Bookmark, BookmarkCheck, HelpCircle,
-  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
+  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2,
+  Play, AppWindow
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -398,6 +399,24 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const nicheTag = trend.nicheTag ?? "general";
   const audioId = trend.audioId;
   const audioUrl = buildAudioUrl(audioId, trend.song);
+
+  const openLiveInstagramPreview = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const targetAudioUrl = audioUrl || (trend.audioId ? `https://www.instagram.com/reels/audio/${trend.audioId}/` : null);
+    if (!targetAudioUrl) {
+      toast.error("Audio link unavailable");
+      return;
+    }
+    const width = 430;
+    const height = 820;
+    const left = window.screen.width ? Math.max(0, (window.screen.width - width) / 2) : 120;
+    const top = window.screen.height ? Math.max(0, (window.screen.height - height) / 2) : 80;
+    window.open(
+      targetAudioUrl,
+      "InstagramAudioWindow",
+      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
+    );
+  };
   const saturationCount = trend.saturationCount ?? 0;
   const vibeTag = trend.vibeTag ?? "general";
 
@@ -715,6 +734,36 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         </div>
       )}
 
+      {/* ── 2.8 Prominent Live Audio Preview (High visibility, 0s load) ── */}
+      <button
+        type="button"
+        onClick={openLiveInstagramPreview}
+        className="w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl bg-gradient-to-r from-rose-500/20 via-pink-500/15 to-purple-500/20 hover:from-rose-500/30 hover:to-purple-500/30 border border-rose-500/40 hover:border-rose-500/70 text-white font-bold text-xs transition-all duration-200 group shadow-sm hover:shadow-rose-500/10 cursor-pointer"
+        title="Open live phone-sized Instagram audio page companion window (scroll reels, hear audio)"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 rounded-lg bg-rose-500/25 border border-rose-500/50 flex items-center justify-center text-rose-300 group-hover:scale-105 group-hover:bg-rose-500/35 transition-all">
+            <Play className="h-3.5 w-3.5 fill-rose-300 ml-0.5" />
+          </div>
+          <div className="text-left">
+            <span className="block text-xs font-extrabold text-white group-hover:text-rose-100 flex items-center gap-1.5">
+              <span>Preview Audio on Instagram</span>
+              <span className="text-[9px] px-1.5 py-0.2 rounded-full bg-rose-500/30 border border-rose-500/40 text-rose-300 font-bold uppercase tracking-wider">
+                Live Window
+              </span>
+            </span>
+            <span className="block text-[10px] text-zinc-400 font-normal">
+              Scroll real reels & hear audio directly (0s load)
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1 text-[11px] font-bold text-rose-300 bg-black/40 border border-rose-500/30 px-2.5 py-1 rounded-lg shrink-0 group-hover:border-rose-400 transition-colors">
+          <AppWindow className="h-3 w-3" />
+          <span>Preview</span>
+          <ExternalLink className="h-3 w-3 opacity-70" />
+        </div>
+      </button>
+
       {/* ── 3. Chips row: humanized signals + format tags ─── */}
       <div className="flex flex-wrap gap-1.5 min-w-0">
         {/* Velocity — human label, not a number */}
@@ -769,13 +818,13 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
         <div className="flex items-center gap-2">
-          {/* Quick preview — opens modal without expanding card (Fix #4) */}
+          {/* Quick preview — opens live companion window directly */}
           <button
-            onClick={(e) => { e.stopPropagation(); setShowPreviewModal(true); }}
-            className="flex items-center gap-1 text-[10px] font-bold text-primary/70 hover:text-primary transition-colors"
-            title="Quick preview — see reels using this audio"
+            onClick={openLiveInstagramPreview}
+            className="flex items-center gap-1.5 text-[11px] font-extrabold text-rose-400 hover:text-rose-300 transition-colors bg-rose-500/10 px-2.5 py-1 rounded-lg border border-rose-500/25"
+            title="Open live phone-sized Instagram audio companion window"
           >
-            <Eye className="h-3 w-3" /> Preview
+            <AppWindow className="h-3 w-3" /> Preview
           </button>
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
