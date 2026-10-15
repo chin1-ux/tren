@@ -233,6 +233,32 @@ def _send_cron_heartbeat():
         logging.warning(f"Failed to send cron heartbeat email: {heartbeat_err}")
 
 
+# --- Telemetry: Pipeline Database Egress Tracking ---
+import re
+import httpx
+
+_pipeline_db_stats = {"calls": 0, "bytes": 0, "by_table": {}}
+_orig_httpx_send_cron = getattr(httpx.Client, "_orig_send_unpatched", httpx.Client.send)
+httpx.Client._orig_send_unpatched = _orig_httpx_send_cron
+
+def _telemetry_httpx_send_cron(self, request, *args, **kwargs):
+    response = _orig_httpx_send_cron(self, request, *args, **kwargs)
+    try:
+        m = re.search(r'/rest/v1/([a-zA-Z0-9_]+)', str(request.url.path))
+        tbl = m.group(1) if m else 'other'
+        b = len(response.content) if hasattr(response, "content") else 0
+        _pipeline_db_stats["calls"] += 1
+        _pipeline_db_stats["bytes"] += b
+        if tbl not in _pipeline_db_stats["by_table"]:
+            _pipeline_db_stats["by_table"][tbl] = {"calls": 0, "bytes": 0}
+        _pipeline_db_stats["by_table"][tbl]["calls"] += 1
+        _pipeline_db_stats["by_table"][tbl]["bytes"] += b
+    except Exception:
+        pass
+    return response
+
+httpx.Client.send = _telemetry_httpx_send_cron
+
 def _get_supabase():
     load_dotenv()
     if not os.getenv("SUPABASE_URL"):
@@ -318,7 +344,49 @@ def run_full_pipeline(stages: list = None):
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
     if scrape_mode == "global":
-        global_tags = "trendingaudio,trendingsound,trendingsong,trendingmusic,viralaudio,viralsong,viralmusic,trendingreels,viralreels,speedupsongs,speedup,slowedandreverb,remixreels,mashup,capcuttemplate,transitionreels,lipsync,dancechallenge,phonk,phonkmusic,brazilianphonk,funkbrasileiro,reelsbrasil,kpop,kpopdance,reggaeton,musicalatina,afrobeats,amapiano,arabicmusic,hardstyle,eurodance"
+        global_tags = ",".join([
+            # ── CORE AUDIO SIGNALS ────────────────────────────────────────────────────
+            "trendingaudio", "trendingsound", "trendingsong", "trendingmusic",
+            "viralaudio", "viralsong", "viralmusic", "reelsaudio",
+            "speedupsongs", "speedup", "slowedandreverb", "remixreels", "mashup",
+            "djremix", "remixsong",
+            # ── FORMAT / EDIT SIGNALS ─────────────────────────────────────────────────
+            "capcuttemplate", "transitionreels", "lipsync", "dancechallenge",
+            "trendingreels", "viralreels",
+            # ── US / UK AUDIO ─────────────────────────────────────────────────────────
+            "hiphop", "hiphopreels", "rnbmusic", "rnbvibes", "trapmusic",
+            "popmusic", "indiepop", "indiemusic",
+            "ukdrill", "ukrap", "ukrnb", "drill", "grime", "ukgarage", "ukmusic",
+            # ── BRAZIL (restored DB-confirmed drops: funkbrasil #9, passinho #5) ──────
+            "phonk", "phonkmusic", "brazilianphonk", "funkbrasil", "funkbrasileiro",
+            "passinho", "funkmtg", "montagem", "reelsbrasil",
+            "pagode", "sertanejo", "baile",
+            # ── RUSSIA / CIS PHONK (restored: driftphonk, darkphonk, speedupphonk) ───
+            "driftphonk", "darkphonk", "speedupphonk", "russianphonk", "russianmusic",
+            # ── AFROBEATS / AMAPIANO (restored: afrobeatsreels, afrodance, naijamusic) ─
+            "afrobeats", "afrobeatsreels", "afrodance", "naijamusic", "afropop",
+            "amapiano", "amapianovibes", "amapianodance",
+            # ── K-POP ─────────────────────────────────────────────────────────────────
+            "kpop", "kpopdance", "kpopedit", "kpopchoreography",
+            # ── LATIN / SPANISH (restored: perreo, spanishmusic) ─────────────────────
+            "reggaeton", "musicalatina", "latinpop", "bachata",
+            "perreo", "spanishmusic", "latinvibes", "latinreels",
+            # ── ARABIC (expanded from 1 tag to full cluster) ─────────────────────────
+            "arabicmusic", "arabicsongs", "arabicpop", "arabicvibes",
+            "khaleejimusic", "saudimusic", "gulfmusic", "arabicreels",
+            # ── INDONESIA / SEA (zero coverage before — 2nd most-active IG country) ──
+            "jedagjedug", "laguviral", "musikalagu", "indonesiareels",
+            "indotrending", "koplo", "dangdut",
+            # ── EDM / ELECTRONIC ──────────────────────────────────────────────────────
+            "hardstyle", "eurodance", "edm", "electronicmusic",
+            # ── LOFI / ACOUSTIC / AESTHETIC ───────────────────────────────────────────
+            "lofimusic", "lofireels", "chillmusic", "acousticcovers", "aestheticreels",
+            # ── GLOBAL ARTISTS (Tyla-tier audio wave drivers per region) ─────────────
+            "tyla", "badbunny", "drake",
+            "sabrinacarpenter", "anitta", "rosalia",
+            "burnaboy", "straykids", "newjeans",
+            "theweeknd", "sza", "dojacat", "icespice",
+        ])
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
 
@@ -849,7 +917,7 @@ def run_full_pipeline(stages: list = None):
     status = "success" if not run_state.get("cutoff_reason") else "partial"
     try:
         sb = _get_supabase()
-        sb.table("cron_runs").insert({
+        payload = {
             "run_at": start.isoformat(),
             "completed_at": completed_at.isoformat(),
             "duration_seconds": round(elapsed, 3),
@@ -874,7 +942,13 @@ def run_full_pipeline(stages: list = None):
             "audio_watchlist_updated": audio_watchlist_updated,
             "creator_watchlist_checked": creator_watchlist_checked,
             "creator_watchlist_found": creator_watchlist_found,
-        }).execute()
+            "stage_timings": {"db_stats": _pipeline_db_stats},
+        }
+        try:
+            sb.table("cron_runs").insert(payload).execute()
+        except Exception as e_timing:
+            payload.pop("stage_timings", None)
+            sb.table("cron_runs").insert(payload).execute()
     except Exception as e:
         logging.warning(f"Could not log cron run to Supabase: {e}")
 

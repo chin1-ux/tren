@@ -243,6 +243,114 @@ class InstagramScraper:
                 "reggaeton", "latinmusic", "spanishmusic", "perreo",
                 # Hip-hop / R&B / Pop
                 "hiphop", "hiphopreels", "rnbmusic", "popmusic"
+            ],
+
+            # ── HARYANA (top content-producing state — zero coverage before this) ──────
+            # Research: Haryanvi music drives attitude, gym, and dance reels pan-India;
+            # Sapna Choudhary tracks recycled heavily for dance challenges
+            "INDIA_HARYANA": [
+                "haryanvisong", "haryanvireels", "haryanvidance", "haryanvimusic",
+                "haryanvivibes", "haryanvibeat", "sapnachoudhary",
+                "badmaash", "desiattitude", "jatlife", "jatswag", "rjaat"
+            ],
+
+            # ── UP + BHOJPURI (massive Tier-2/3 creator economy) ─────────────────────
+            # Research: UP creators dominate comedy, slice-of-life, and Bhojpuri folk reels;
+            # bhojpurireels intentionally excluded per Chinmay's instruction (Oct 15 2026)
+            "INDIA_UP_BHOJPURI": [
+                "bhojpurisongs", "bhojpuridance", "bhojpuriviral",
+                "bhojpuribeats", "bhojpurigaane", "bhojpurifilm",
+                "upreel", "bhojpuriworld"
+            ],
+
+            # ── MARATHI / MAHARASHTRA ─────────────────────────────────────────────────
+            # Research: Lavani, Dhol-Tasha, Sanju Rathod tracks dominate Maharashtra reels;
+            # marathimulgi + traditional attire reels pull massive engagement
+            "INDIA_MARATHI": [
+                "marathisongs", "marathiviral", "marathimulgi",
+                "marathidance", "lavani", "maharashtrian",
+                "mumbaikars", "punediaries", "Maharashtra"
+            ],
+
+            # ── BENGALI (3rd most-spoken Indian language — zero coverage before this) ─
+            # Research: Kolkata/West Bengal + Bangladesh diaspora create massive reel volumes
+            "INDIA_BENGALI": [
+                "bengalireels", "bengalisong", "banglamusic", "kolkatareels",
+                "bengalidance", "bengaliviral", "tollywood_bengali"
+            ],
+
+            # ── RAJASTHANI / INDIAN FOLK ─────────────────────────────────────────────
+            # Research: Folk-fusion reels trend heavily during festive seasons;
+            # rural/semi-urban creator explosion driving folk audio discovery
+            "INDIA_FOLK": [
+                "rajasthanireels", "rajasthanisongs", "rajasthanifolk",
+                "folkmusic", "folksong", "indianfolk", "rajput",
+                "assamesereels", "bihu"
+            ],
+
+            # ── INDIA AESTHETIC AUDIO ─────────────────────────────────────────────────
+            # Research: Slowed+reverb Hindi and lo-fi Bollywood = dominant aesthetic-reel
+            # audio category; creators doing photo dumps, night drives, couple reels
+            "INDIA_AESTHETIC_AUDIO": [
+                "slowedreverb", "slowedsong", "lofi_hindi", "hindilofisong",
+                "aesthetic_hindi", "moodysong", "bollywoodlofi",
+                "sadreels", "feelingsong", "aashiqi"
+            ],
+
+            # ── WEDDING / FESTIVE AUDIO ───────────────────────────────────────────────
+            # Research: Wedding choreography and Navratri/Garba reels spike seasonally
+            # and consistently drive audio discovery for dance categories
+            "INDIA_WEDDING_FESTIVAL": [
+                "weddingchoreography", "sangeetdance", "garbavibes",
+                "navratrispecial", "weddingsong", "baraat",
+                "diwali_vibes", "holireels", "festivalreels"
+            ],
+
+            # ── SHAYARI / STATUS VIDEO FORMAT ─────────────────────────────────────────
+            # Research: WhatsApp-status-format reels and shayari audio are India-specific
+            # discovery vectors that drive audio use counts significantly
+            "INDIA_STATUS_SHAYARI": [
+                "statusvideo", "whatsappstatus", "shayarireels",
+                "poetryreels", "motivational_shayari", "dardebayan"
+            ],
+
+            # ── INDIA ARTISTS ─────────────────────────────────────────────────────────
+            # Research: These artists are India's "Tyla equivalents" — each drives
+            # a disproportionate share of trending reel audio across categories.
+            # Karan Aujla = #1 pan-India audio wave driver (Ed Sheeran collab, record views).
+            # Anirudh Ravichander = primary engine for Tamil + pan-India dance/gym audio.
+            # AP Dhillon + Diljit = dominant Punjabi aesthetic & lifestyle audio.
+            "INDIA_ARTISTS": [
+                "karanaujla", "apdhillon", "diljitdosanjh",
+                "anirudhravichander", "gurrandhawa", "yoyohoneysingh",
+                "badshah", "arijitsingh", "pritam",
+                "thamanS", "devisriprasad", "sidsriram"
+            ],
+
+            # ── GLOBAL ARTISTS ────────────────────────────────────────────────────────
+            # Research: These artists drive disproportionate reel-audio waves globally,
+            # the way Tyla anchors afrobeats/amapiano discovery.
+            # Tyla (SA): CHANEL + amapiano wave — fashion, GRWM, aesthetic lifestyle.
+            # Bad Bunny (PR): reggaeton global export — beach, party, dance challenge.
+            # Drake (CA): NOKIA + rap flexes — gym, car, lifestyle edits.
+            # Sabrina Carpenter: pop hooks — OOTD, GRWM, transitions.
+            # Anitta (BR): Brazil crossover — biggest Latin-Brazilian female driver.
+            # Rosalia (ES): Spanish/Latin artistic edits — fashion & dance hybrid.
+            # Burna Boy (NG): afrobeats + crossover — same Tyla-tier for Afrobeats.
+            # Stray Kids + NewJeans: K-pop challenge + aesthetic audio wave.
+            "GLOBAL_ARTISTS": [
+                "tyla", "tylamusic",
+                "badbunny", "badbunnymusic",
+                "drake", "drakemusic",
+                "sabrinacarpenter",
+                "anitta", "anitta_official",
+                "rosalia", "rosaliamusic",
+                "burnaboy",
+                "straykids", "newjeans",
+                "bts", "blackpink",
+                "theweeknd", "weeknd",
+                "sza", "szamusic",
+                "dojacat", "icespice"
             ]
         }
 
