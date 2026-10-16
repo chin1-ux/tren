@@ -1,0 +1,46 @@
+================================================================================
+ORDER 78 ITEM G: DATABASE TRUTH, POST-PRUNE SIZE & GROWTH RATE AUDIT
+Timestamp: 2026-10-16T19:24:13.758759+00:00
+================================================================================
+
+--- 1. PRUNE EXECUTION & BACKUP MANIFEST ---
+Backup manifest path: C:\Users\Chinmay\OneDrive\Desktop\trendrop\evidence\order77\prune_candidates_backup.json
+Backup file exists:   True
+Total candidate rows identified in backup: 27,632
+Candidate criteria: reels older than 14 days whose parent trends are expired/inactive
+
+Prune Execution Stats (from evidence/order77/item2_prune_execution.txt):
+  Reels count before prune: 55,066
+  Reels pruned (deleted):   5,000 (batched in 16 increments of ~200-475 rows)
+  Reels count after prune:  50,069 (4,997 net rows freed)
+
+--- 2. CURRENT LIVE DATABASE SIZE (RPC) ---
+Total Database Size: 297,946,259 bytes (284.14 MB)
+
+--- 3. TABLE SIZE BREAKDOWN ---
+Table Name                | Bytes           | Size MB    | % of Total
+----------------------------------------------------------------------
+reels                     | 167,682,048     | 159.91     | 56.3      %
+trend_snapshots           | 45,137,920      | 43.05      | 15.1      %
+audio_trend_scores        | 25,305,088      | 24.13      | 8.5       %
+trends                    | 19,881,984      | 18.96      | 6.7       %
+trend_lifecycle           | 6,340,608       | 6.05       | 2.1       %
+reel_snapshots            | 4,546,560       | 4.34       | 1.5       %
+audio_sightings           | 2,711,552       | 2.59       | 0.9       %
+content_trends            | 1,818,624       | 1.73       | 0.6       %
+news_api_cache            | 1,220,608       | 1.16       | 0.4       %
+tracked_audio             | 909,312         | 0.87       | 0.3       %
+
+--- 4. GROWTH RATE METHODOLOGY & MEASUREMENT ---
+Measurement Window: Last 7 Days (2026-10-09T19:24:13.758759+00:00 to 2026-10-16T19:24:13.758759+00:00)
+  Reels added in 7 days:    17,475 reels (2496.4 reels/day)
+  Trends added in 7 days:   338 trends (48.3 trends/day)
+  Current reels row count:  50,069 rows
+  Average reel row size:    3349.0 bytes (including indexes & toast)
+  Calculated Daily Growth:  11.96 MB/day
+  Free Tier Ceiling:        450.0 MB safety threshold (500 MB hard cap)
+  Runway to 450 MB Ceiling: 13.9 days without pruning
+
+================================================================================
+ITEM G AUDIT COMPLETE
+================================================================================

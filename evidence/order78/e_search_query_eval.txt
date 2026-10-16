@@ -1,0 +1,96 @@
+========================================================================================================================
+ORDER 78 ITEM E: SEARCH / ASK-IT NATURAL LANGUAGE QUERY EVALUATION
+Timestamp: 2026-10-16T19:32:12.087585+00:00
+========================================================================================================================
+
+Evaluating query: 'asdf qwer' (Type: gibberish)
+----------------------------------------------------------------------------------------------------
+Intent:        Unrecognized or gibberish search
+Direct Answer: No trends found matching 'asdf qwer'. Try searching for a specific niche (e.g. 'gym motivation'), language, or song title.
+Results Count: 0
+
+Evaluating query: 'gym workout motivation' (Type: niche)
+----------------------------------------------------------------------------------------------------
+Intent:        search for Instagram Reels related to gym workout motivation
+Direct Answer: To find the best gym workout motivation videos on Instagram Reels, follow these steps:
+Results Count: 5
+  - [rising] 'Say My Name' by Destiny's Child (Niche: general, Lang: en)
+  - [rising] 'Tu Mera Hero' by Mika Singh, Shefali Alvares (Niche: fitness, Lang: hi)
+  - [resurging] 'The Baddest (feat. Lovlee)' by bradeazy, HUMAN404 (Niche: general, Lang: en)
+  - [unqualified] 'Bow Bow Bow' by Zeddy Will, jhonniedamnd, Big Boogie, Kstylis (Niche: general, Lang: en)
+  - [resurging] 'Venus and Flower' by Austin Farwell (Niche: general, Lang: en)
+
+Evaluating query: 'punjabi dance party' (Type: language_niche)
+----------------------------------------------------------------------------------------------------
+Intent:        search for Punjabi dance party-related content on Instagram Reels
+Direct Answer: To find Punjabi dance party-related content on Instagram Reels, follow these steps:
+Results Count: 5
+  - [unqualified] 'Desi Kalakaar' by Yo Yo Honey Singh (Niche: general, Lang: pa)
+  - [resurging] 'GAME' by Shooter Kahlon, Sidhu Moose Wala (Niche: general, Lang: pa)
+  - [unqualified] 'Chalray Chalray Waal Mondhe Rakhdae Kaali Shawl' by Vihaan Narang (Niche: general, Lang: en)
+  - [unqualified] 'Behja' by Parmish Verma, Starboy X, MC SQUARE (Niche: general, Lang: pa)
+  - [unqualified] 'Yellae Lama (From "7 Aum Arivu")' by Harris Jayaraj, Vijay Prakash, Karthik, Shruti Haasan, Shalini Singh, Na. Muthukumar (Niche: general, Lang: ta)
+
+Evaluating query: 'sad emotional acoustic hindi' (Type: language_mood)
+----------------------------------------------------------------------------------------------------
+Intent:        search for emotional Hindi acoustic songs for Instagram Reels
+Direct Answer: To find the best emotional Hindi acoustic songs for your Instagram Reels, consider searching within the 'devotional' niche. You can use keywords like 'sad' and 'emotional' to narrow down your results. Additionally, specifying the language as 'hi' will filter the search for Hindi content.
+Results Count: 5
+  - [rising] 'Hath Jod Ke Khadi Hoon Maiya' by Anuradha Paudwal, Amar Utpal (Niche: general, Lang: hi)
+  - [resurging] 'Ambabai Gondhalala Ye' by Ajay - Atul, Ajay Gogavale, Guru Thakur (Niche: devotional, Lang: mr)
+  - [resurging] 'Halariya' by Rajan Kapra (Niche: devotional, Lang: hi)
+  - [peaked] 'Aakhri Ishq (Flute Cover) (Intrumental)' by JB RagaMix (Niche: general, Lang: hi)
+  - [resurging] 'Dugga Elo' by Monali Thakur, Guddu (Niche: comedy, Lang: hi)
+
+Evaluating query: 'travel aesthetic vlog' (Type: niche)
+----------------------------------------------------------------------------------------------------
+Intent:        search for travel aesthetic videos on Instagram Reels
+Direct Answer: To find the latest and engaging travel aesthetic videos on Instagram Reels, follow these steps:
+Results Count: 5
+  - [emerging] 'Melhor Agora (Ao Vivo)' by Filipe Ret (Niche: general, Lang: en)
+  - [resurging] 'Maa Brahmacharini Amritwani' by Sikha Rana (Niche: travel, Lang: hi)
+  - [resurging] 'Sadeness' by Enigma (Niche: general, Lang: en)
+  - [rising] 'Sara 'Perche' Ti Amo' by The Sorrento Singers (Niche: general, Lang: en)
+  - [rising] 'The Moment' by Dhruv Goel (Niche: general, Lang: en)
+
+Evaluating query: 'cooking recipe background' (Type: niche)
+----------------------------------------------------------------------------------------------------
+Intent:        search for cooking recipe background audio on Instagram Reels
+Direct Answer: To find cooking recipe background audio for your Instagram Reels, follow these steps:
+Results Count: 5
+  - [emerging] 'Ee Manathum' by K. S. Chithra, Sharath (Niche: general, Lang: ml)
+  - [rising] 'The Great Pumpkin Waltz' by Vince Guaraldi (Niche: general, Lang: en)
+  - [peaked] 'Tu Te Main' by Prince Kapil, Himanshu Kapil, JOBXN (Niche: general, Lang: en)
+  - [resurging] 'Dil Se' by Karthik, Shwetha Mohan (Niche: food, Lang: ta)
+  - [peaked] 'Desi Girl (From "Dostana")' by Vishal & Shekhar, Shankar Mahadevan, Sunidhi Chauhan, Vishal Dadlani (Niche: general, Lang: hi)
+
+Evaluating query: 'tamil viral bgm' (Type: language)
+----------------------------------------------------------------------------------------------------
+Intent:        search for Tamil viral BGM audio for Instagram Reels
+Direct Answer: To find the best Tamil viral BGM audio for your Instagram Reels, consider searching within the 'music' category and filter by 'viral' and 'Tamil'. You can also explore trending sounds in the Tamil community by checking popular accounts and hashtags.
+Results Count: 1
+  - [peaked] 'Cute Kids' by Sundar C Babu, Ganga, Varsha Renjith (Niche: music, Lang: hi)
+
+Evaluating query: 'zxcvbnm lkjhgfdsa' (Type: gibberish)
+----------------------------------------------------------------------------------------------------
+Intent:        Unrecognized or gibberish search
+Direct Answer: No trends found matching 'zxcvbnm lkjhgfdsa'. Try searching for a specific niche (e.g. 'gym motivation'), language, or song title.
+Results Count: 0
+
+========================================================================================================================
+FINAL PER-QUERY EVALUATION TABLE
+========================================================================================================================
+Query                        | Intent                    | Results  | Verdict  | Reason
+------------------------------------------------------------------------------------------------------------------------
+asdf qwer                    | Unrecognized or gibberish | 0        | PASS     | Clean empty state returned; 0 random trends returned.
+gym workout motivation       | search for Instagram Reel | 5        | PASS     | Returned 5 relevant trends with intent: 'search for Instagram Reels related to gym workout motivation'.
+punjabi dance party          | search for Punjabi dance  | 5        | PASS     | Returned 5 relevant trends with intent: 'search for Punjabi dance party-related content on Instagram Reels'.
+sad emotional acoustic hindi | search for emotional Hind | 5        | PASS     | Returned 5 relevant trends with intent: 'search for emotional Hindi acoustic songs for Instagram Reels'.
+travel aesthetic vlog        | search for travel aesthet | 5        | PASS     | Returned 5 relevant trends with intent: 'search for travel aesthetic videos on Instagram Reels'.
+cooking recipe background    | search for cooking recipe | 5        | PASS     | Returned 5 relevant trends with intent: 'search for cooking recipe background audio on Instagram Reels'.
+tamil viral bgm              | search for Tamil viral BG | 1        | PASS     | Returned 1 relevant trends with intent: 'search for Tamil viral BGM audio for Instagram Reels'.
+zxcvbnm lkjhgfdsa            | Unrecognized or gibberish | 0        | PASS     | Clean empty state returned; 0 random trends returned.
+------------------------------------------------------------------------------------------------------------------------
+
+Overall Search Evaluation Verdict: [ALL PASS]
+========================================================================================================================

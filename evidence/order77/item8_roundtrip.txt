@@ -1,0 +1,19 @@
+================================================================================
+ORDER 77: SUPABASE STORAGE ROUNDTRIP & CACHE-CONTROL HEADER EVIDENCE
+================================================================================
+Test Reel Shortcode: DeVe4iSyhM0
+Source Image URL   : https://scontent-dfw6-2.cdninstagram.com/v/t51.82787-15/844474736_1845...
+Original Image Size: 317445 bytes (310.00 KB)
+Compressed WebP    : 12676 bytes (12.38 KB) [Target <= 10 KB: False]
+
+Upload Status: UploadResponse(path='test_DeVe4iSyhM0.webp', full_path='reels-preview/test_DeVe4iSyhM0.webp', fullPath='reels-preview/test_DeVe4iSyhM0.webp')
+Public URL   : https://gxxpvstrvphwhlqbvymv.supabase.co/storage/v1/object/public/reels-preview/test_DeVe4iSyhM0.webp
+
+Download Verification:
+  HTTP Status  : 200
+  Bytes Read   : 12676
+  Content-Type : image/webp
+  Cache-Control: public, max-age=31536000, immutable
+
+Cleanup Status: [{'name': 'test_DeVe4iSyhM0.webp', 'bucket_id': 'reels-preview', 'owner': '', 'owner_id': '', 'version': 'ff7da47e-1b94-4f72-9677-00726a6e29b6', 'id': '975f08a9-9e71-4ef9-aa73-43eb4e653c2f', 'updated_at': '2026-10-16T18:54:16.573Z', 'created_at': '2026-10-16T18:54:16.573Z', 'last_accessed_at': '2026-10-16T18:54:16.573Z', 'metadata': {'eTag': '"14210c9bdfd1c1b99131c4ade049477a"', 'size': 12676, 'mimetype': 'image/webp', 'cacheControl': 'max-age=31536000, immutable', 'lastModified': '2026-10-16T18:54:17.000Z', 'contentLength': 12676, 'httpStatusCode': 200}, 'user_metadata': {}, 'archived_at': None, 'is_delete_marker': False, 'is_versioned': False}]
+================================================================================

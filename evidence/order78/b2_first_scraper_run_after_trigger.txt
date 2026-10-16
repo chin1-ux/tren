@@ -1,0 +1,244 @@
+================================================================================
+ORDER 78 ITEM B2: FIRST SCRAPER_CRON RUN AFTER TRIGGER DEPLOYMENT
+Timestamp: 2026-10-16T19:08:26.147058+00:00
+================================================================================
+
+Found 16 cron_runs recorded since trigger deployment (2026-10-15T17:00:00):
+ - Run ID 961 | Created: 2026-10-15T17:27:36.594443 | Status: success | New Trends: 0 | Reels: 0 | Cutoff/Error: None
+ - Run ID 962 | Created: 2026-10-15T18:04:05.126927 | Status: success | New Trends: 28 | Reels: 487 | Cutoff/Error: None
+ - Run ID 963 | Created: 2026-10-15T18:25:11.635923 | Status: success | New Trends: 0 | Reels: 360 | Cutoff/Error: None
+ - Run ID 964 | Created: 2026-10-15T19:30:18.816354 | Status: success | New Trends: 17 | Reels: 487 | Cutoff/Error: None
+ - Run ID 965 | Created: 2026-10-15T22:25:58.320078 | Status: success | New Trends: 8 | Reels: 267 | Cutoff/Error: None
+ - Run ID 966 | Created: 2026-10-15T23:24:19.719742 | Status: success | New Trends: 0 | Reels: 0 | Cutoff/Error: None
+ - Run ID 967 | Created: 2026-10-15T23:28:06.485477 | Status: success | New Trends: 3 | Reels: 231 | Cutoff/Error: None
+ - Run ID 968 | Created: 2026-10-16T05:34:48.541772 | Status: success | New Trends: 10 | Reels: 370 | Cutoff/Error: None
+ - Run ID 969 | Created: 2026-10-16T06:48:59.694349 | Status: success | New Trends: 10 | Reels: 309 | Cutoff/Error: None
+ - Run ID 970 | Created: 2026-10-16T07:45:06.845332 | Status: success | New Trends: 8 | Reels: 285 | Cutoff/Error: None
+ - Run ID 971 | Created: 2026-10-16T09:22:02.960819 | Status: success | New Trends: 0 | Reels: 0 | Cutoff/Error: None
+ - Run ID 972 | Created: 2026-10-16T12:35:59.487771 | Status: success | New Trends: 4 | Reels: 270 | Cutoff/Error: None
+ - Run ID 973 | Created: 2026-10-16T13:37:42.510684 | Status: success | New Trends: 14 | Reels: 319 | Cutoff/Error: None
+ - Run ID 977 | Created: 2026-10-16T17:04:16.517092 | Status: success | New Trends: 0 | Reels: 0 | Cutoff/Error: None
+ - Run ID 978 | Created: 2026-10-16T17:42:29.386167 | Status: success | New Trends: 6 | Reels: 301 | Cutoff/Error: None
+ - Run ID 979 | Created: 2026-10-16T18:36:01.558159 | Status: success | New Trends: 13 | Reels: 336 | Cutoff/Error: None
+
+================================================================================
+DETAILS OF FIRST SCRAPER RUN AFTER TRIGGER DEPLOYMENT (ID: 961)
+================================================================================
+{
+  "id": 961,
+  "created_at": "2026-10-15T17:27:36.594443",
+  "completed_at": "2026-10-15T17:27:36.393862+00:00",
+  "duration_seconds": 596.381,
+  "scrape_mode": "india",
+  "groq_keys_detected": 3,
+  "gemini_keys_detected": 0,
+  "reels_scraped": 0,
+  "reels_skipped_low_engagement": 0,
+  "classification_success": 0,
+  "classification_failed_429": 0,
+  "uploads_skipped_oversized": 0,
+  "pending_backfilled": 0,
+  "stage": "snapshot_write",
+  "cutoff_reason": null,
+  "new_reels_count": 0,
+  "new_trends_count": 0,
+  "run_at": "2026-10-15T17:17:40.013297+00:00",
+  "trend_ids": [],
+  "status": "success",
+  "new_trends_found": 0,
+  "trend_detection_skipped": false,
+  "audio_watchlist_checked": 0,
+  "audio_watchlist_updated": 0,
+  "creator_watchlist_checked": 0,
+  "creator_watchlist_found": 0,
+  "rate_limited_429": false,
+  "reels_scraped_count": 0,
+  "trends_promoted_count": 0,
+  "stage_timings": {
+    "db_stats": {
+      "bytes": 13363203,
+      "calls": 4133,
+      "by_table": {
+        "reels": {
+          "bytes": 319023,
+          "calls": 3281
+        },
+        "trends": {
+          "bytes": 12851904,
+          "calls": 663
+        },
+        "cron_runs": {
+          "bytes": 13330,
+          "calls": 1
+        },
+        "trend_snapshots": {
+          "bytes": 178944,
+          "calls": 187
+        },
+        "creator_baselines": {
+          "bytes": 2,
+          "calls": 1
+        }
+      }
+    }
+  },
+  "github_run_id": null,
+  "trigger_source": null,
+  "deferred_candidates": 0
+}
+
+================================================================================
+DETAILS OF FIRST RUN WITH NEW TREND UPSERTS (ID: 962)
+Status: success | New Trends Upserted: 28 | Reels Scraped: 487
+================================================================================
+{
+  "id": 962,
+  "created_at": "2026-10-15T18:04:05.126927",
+  "completed_at": "2026-10-15T18:04:04.885346+00:00",
+  "duration_seconds": 3301.392,
+  "scrape_mode": "india",
+  "groq_keys_detected": 1,
+  "gemini_keys_detected": 1,
+  "reels_scraped": 487,
+  "reels_skipped_low_engagement": 66,
+  "classification_success": 0,
+  "classification_failed_429": 0,
+  "uploads_skipped_oversized": 0,
+  "pending_backfilled": 0,
+  "stage": "alerts",
+  "cutoff_reason": null,
+  "new_reels_count": 487,
+  "new_trends_count": 28,
+  "run_at": "2026-10-15T17:09:03.493275+00:00",
+  "trend_ids": [
+    7866,
+    7867,
+    7868,
+    7869,
+    7870,
+    7871,
+    7872,
+    7873,
+    7874,
+    7875,
+    7876,
+    7877,
+    7878,
+    7879,
+    7880,
+    7881,
+    7882,
+    7883,
+    7884,
+    7885,
+    7886,
+    7887,
+    7888,
+    7889,
+    7890,
+    7891,
+    7892,
+    7893
+  ],
+  "status": "success",
+  "new_trends_found": 28,
+  "trend_detection_skipped": false,
+  "audio_watchlist_checked": 15,
+  "audio_watchlist_updated": 13,
+  "creator_watchlist_checked": 8,
+  "creator_watchlist_found": 96,
+  "rate_limited_429": false,
+  "reels_scraped_count": 0,
+  "trends_promoted_count": 0,
+  "stage_timings": {
+    "db_stats": {
+      "bytes": 35531031,
+      "calls": 7609,
+      "by_table": {
+        "reels": {
+          "bytes": 19113836,
+          "calls": 4576
+        },
+        "trends": {
+          "bytes": 14751266,
+          "calls": 998
+        },
+        "cron_runs": {
+          "bytes": 13330,
+          "calls": 1
+        },
+        "tracked_audio": {
+          "bytes": 7606,
+          "calls": 47
+        },
+        "content_trends": {
+          "bytes": 54675,
+          "calls": 3
+        },
+        "news_api_cache": {
+          "bytes": 643789,
+          "calls": 184
+        },
+        "reel_snapshots": {
+          "bytes": 77617,
+          "calls": 22
+        },
+        "youtube_shorts": {
+          "bytes": 2,
+          "calls": 1
+        },
+        "cultural_events": {
+          "bytes": 680,
+          "calls": 1
+        },
+        "trend_lifecycle": {
+          "bytes": 106159,
+          "calls": 171
+        },
+        "trend_snapshots": {
+          "bytes": 180448,
+          "calls": 203
+        },
+        "creator_baselines": {
+          "bytes": 4665,
+          "calls": 25
+        },
+        "audio_trend_scores": {
+          "bytes": 568559,
+          "calls": 12
+        },
+        "audio_official_counts": {
+          "bytes": 8399,
+          "calls": 1365
+        }
+      }
+    }
+  },
+  "github_run_id": null,
+  "trigger_source": null,
+  "deferred_candidates": 0
+}
+
+================================================================================
+GITHUB ACTIONS RUNS ON chin1-ux/tren:
+================================================================================
+completed	success	build(deps): bump @tanstack/react-start from 1.168.25 to 1.169.2 in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/tanstack/react-start-1.169.2	pull_request	38949627786	22s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump mcp from 1.28.1 to 1.30.0	CI Smoke Test	dependabot/uv/mcp-1.30.0	pull_request	38949626146	23s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump @tanstack/start-server-core and @tanstack/react-start in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/multi-e405bc50cb	pull_request	38949606929	19s	2026-10-16T18:44:10Z
+completed	success	Order 77 Audio Page Extraction Probe	Order 77 Audio Page Extraction Probe	main	workflow_dispatch	38949475597	1m3s	2026-10-16T18:43:08Z
+completed	success	npm_and_yarn in /frontend for @tanstack/react-start - Update #1631996196	Dependabot Updates	main	dynamic	38949438322	1m22s	2026-10-16T18:42:50Z
+completed	success	npm_and_yarn in /frontend for @tanstack/start-server-core - Update #1631996261	Dependabot Updates	main	dynamic	38949438182	1m15s	2026-10-16T18:42:50Z
+completed	success	uv in /. for mcp - Update #1631996224	Dependabot Updates	main	dynamic	38949438142	1m25s	2026-10-16T18:42:50Z
+completed	success	ci(order77): add Step A live audio probe workflow and script	CI Smoke Test	main	push	38949410458	24s	2026-10-16T18:42:37Z
+in_progress		Scraper (Main Account - 6h Fallback)	Scraper (Main Account - 6h Fallback)	main	schedule	38940228787	1h37m53s	2026-10-16T17:30:35Z
+completed	success	LLM Classification Batch	LLM Classification Batch	main	schedule	38936314100	2m30s	2026-10-16T17:00:16Z
+completed	success	Emergency LLM Classification	Emergency LLM Classification	main	schedule	38935585990	25s	2026-10-16T16:54:35Z
+completed	success	Trend Refresh (Main Account - 8h)	Trend Refresh (Main Account - 8h)	main	schedule	38935384814	11m21s	2026-10-16T16:53:00Z
+completed	success	Pending Trends Timeout Fallback	Pending Trends Timeout Fallback	main	schedule	38935264808	23s	2026-10-16T16:52:03Z
+completed	success	Trendrop Scheduled Scraper Pipeline Cron	Trendrop Scheduled Scraper Pipeline Cron	main	schedule	38934423898	57m14s	2026-10-16T16:45:21Z
+completed	success	Cron Heartbeat Watchdog	Cron Heartbeat Watchdog	main	schedule	38906090393	22s	2026-10-16T13:12:34Z
+
+
+================================================================================
+ITEM B2 COMPLETE
+================================================================================

@@ -1,0 +1,78 @@
+================================================================================
+ORDER 78 ITEM B4: 3 LIVE TREND CARDS WITH CORRECT FIRST CAUGHT / LAST SEEN
+Timestamp: 2026-10-16T19:18:44.775818+00:00
+================================================================================
+Retrieved 10 trends from production https://trendrop-black.vercel.app/api/feed?limit=10.
+
+--- TREND CARD 1 ---
+  ID:                7989
+  Title:             Paniththuli (From "Raangi")
+  Artist:            C. Sathya, Kabilan, Chinmayi Sripada
+  Status:            rising
+  First Caught:      2026-10-16T17:32:38.458304
+  Last Seen:         None
+  Status Changed:    2026-10-16T18:20:12.038841+00:00
+  Created At:        2026-10-16T18:20:12.038841+00:00
+
+RAW API JSON SNIPPET:
+{
+  "id": 7989,
+  "audio_title": "Paniththuli (From \"Raangi\")",
+  "audio_artist": "C. Sathya, Kabilan, Chinmayi Sripada",
+  "status": "rising",
+  "first_detected_at": "2026-10-16T17:32:38.458304",
+  "last_seen_at": null,
+  "status_changed_at": "2026-10-16T18:20:12.038841+00:00",
+  "created_at": "2026-10-16T18:20:12.038841+00:00"
+}
+--------------------------------------------------------------------------------
+
+--- TREND CARD 2 ---
+  ID:                7983
+  Title:             Fight Or Flight
+  Artist:            Adam Griffith
+  Status:            rising
+  First Caught:      2026-10-16T17:32:38.458304
+  Last Seen:         None
+  Status Changed:    2026-10-16T18:19:46.121722+00:00
+  Created At:        2026-10-16T18:19:46.121722+00:00
+
+RAW API JSON SNIPPET:
+{
+  "id": 7983,
+  "audio_title": "Fight Or Flight",
+  "audio_artist": "Adam Griffith",
+  "status": "rising",
+  "first_detected_at": "2026-10-16T17:32:38.458304",
+  "last_seen_at": null,
+  "status_changed_at": "2026-10-16T18:19:46.121722+00:00",
+  "created_at": "2026-10-16T18:19:46.121722+00:00"
+}
+--------------------------------------------------------------------------------
+
+--- TREND CARD 3 ---
+  ID:                7985
+  Title:             Idarkuthaane Aasaipattai
+  Artist:            D. Imman, Vaikom Vijayalakshmi, Madhan Karky
+  Status:            rising
+  First Caught:      2026-10-16T17:32:38.458304
+  Last Seen:         None
+  Status Changed:    2026-10-16T18:19:55.916793+00:00
+  Created At:        2026-10-16T18:19:55.916793+00:00
+
+RAW API JSON SNIPPET:
+{
+  "id": 7985,
+  "audio_title": "Idarkuthaane Aasaipattai",
+  "audio_artist": "D. Imman, Vaikom Vijayalakshmi, Madhan Karky",
+  "status": "rising",
+  "first_detected_at": "2026-10-16T17:32:38.458304",
+  "last_seen_at": null,
+  "status_changed_at": "2026-10-16T18:19:55.916793+00:00",
+  "created_at": "2026-10-16T18:19:55.916793+00:00"
+}
+--------------------------------------------------------------------------------
+
+================================================================================
+ITEM B4 API JSON VERIFIED
+================================================================================

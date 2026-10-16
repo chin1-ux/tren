@@ -1,0 +1,77 @@
+===============================================================================================
+ORDER 78 ITEM A: LOCAL AUDIO PAGE PROBE & THUMBNAIL TEST (ALL 5 AUDIOS)
+Timestamp: 2026-10-16 19:41:49 UTC
+Platform: Local PC
+===============================================================================================
+[OK] Loaded 12 cookies from backend/cookies.json
+[OK] Injected session cookies into context.
+
+[1/5] Probing audio: 'Naina' (ID: 2191461117582801)
+URL: https://www.instagram.com/reels/audio/2191461117582801/
+Initial navigation status: 200
+Extracted 12 reels in 13.73s (Login wall: False, Challenge: False)
+Thumbnails successfully downloaded: 0/12
+  [1] https://www.instagram.com/reel/Dd-2MIuTZ2A/ | @unknown         | Thumb: 0 B
+  [2] https://www.instagram.com/reel/DdlX9XXTW2R/ | @unknown         | Thumb: 0 B
+  [3] https://www.instagram.com/reel/DdsqruXNXMU/ | @unknown         | Thumb: 0 B
+  [4] https://www.instagram.com/reel/DdlJJzFNtzQ/ | @unknown         | Thumb: 0 B
+  [5] https://www.instagram.com/reel/Dd3w8dkzBq0/ | @unknown         | Thumb: 0 B
+
+[2/5] Probing audio: 'Sadeness' (ID: 474517893035258)
+URL: https://www.instagram.com/reels/audio/474517893035258/
+Initial navigation status: 200
+Extracted 24 reels in 11.88s (Login wall: False, Challenge: False)
+Thumbnails successfully downloaded: 0/24
+  [1] https://www.instagram.com/reel/DdordVUxHq7/ | @unknown         | Thumb: 0 B
+  [2] https://www.instagram.com/reel/DdyhBsex9Ay/ | @unknown         | Thumb: 0 B
+  [3] https://www.instagram.com/reel/DdiZ3JeokNe/ | @unknown         | Thumb: 0 B
+  [4] https://www.instagram.com/reel/Def3JTESA_1/ | @unknown         | Thumb: 0 B
+  [5] https://www.instagram.com/reel/DdbnqsqIszN/ | @unknown         | Thumb: 0 B
+
+[3/5] Probing audio: 'Yetu Pone' (ID: 1434534261149691)
+URL: https://www.instagram.com/reels/audio/1434534261149691/
+Initial navigation status: 200
+Extracted 24 reels in 13.03s (Login wall: False, Challenge: False)
+Thumbnails successfully downloaded: 0/24
+  [1] https://www.instagram.com/reel/DecOvRVP6HN/ | @unknown         | Thumb: 0 B
+  [2] https://www.instagram.com/reel/DeTvws6xdy9/ | @unknown         | Thumb: 0 B
+  [3] https://www.instagram.com/reel/Dd8NN8uJrH1/ | @unknown         | Thumb: 0 B
+  [4] https://www.instagram.com/reel/Dd3Rbrxpbdg/ | @unknown         | Thumb: 0 B
+  [5] https://www.instagram.com/reel/DeUitmUJ_jm/ | @unknown         | Thumb: 0 B
+
+[4/5] Probing audio: 'Nenjukulle Nee' (ID: 278125558187905)
+URL: https://www.instagram.com/reels/audio/278125558187905/
+Initial navigation status: 200
+Extracted 24 reels in 11.66s (Login wall: False, Challenge: False)
+Thumbnails successfully downloaded: 0/24
+  [1] https://www.instagram.com/reel/DeJ8ItKzjOT/ | @unknown         | Thumb: 0 B
+  [2] https://www.instagram.com/reel/Dd08VYohpGS/ | @unknown         | Thumb: 0 B
+  [3] https://www.instagram.com/reel/DeJD3M2yvLJ/ | @unknown         | Thumb: 0 B
+  [4] https://www.instagram.com/reel/Dd_exU5J4GH/ | @unknown         | Thumb: 0 B
+  [5] https://www.instagram.com/reel/Ddv-EGYINfR/ | @unknown         | Thumb: 0 B
+
+[5/5] Probing audio: 'Milegi Milegi' (ID: 368085497101907)
+URL: https://www.instagram.com/reels/audio/368085497101907/
+Initial navigation status: 200
+Extracted 24 reels in 11.36s (Login wall: False, Challenge: False)
+Thumbnails successfully downloaded: 0/24
+  [1] https://www.instagram.com/reel/DdoZsw9CKAU/ | @unknown         | Thumb: 0 B
+  [2] https://www.instagram.com/reel/DececO1zVce/ | @unknown         | Thumb: 0 B
+  [3] https://www.instagram.com/reel/DeQfKqNPact/ | @unknown         | Thumb: 0 B
+  [4] https://www.instagram.com/reel/DeUhqIyPaDo/ | @unknown         | Thumb: 0 B
+  [5] https://www.instagram.com/reel/DeHig9yzqZZ/ | @unknown         | Thumb: 0 B
+
+===============================================================================================
+LOCAL PROBE RESULTS SUMMARY
+===============================================================================================
+Audio Name           | Audio ID           | Reels    | Thumbs   | Time (s)   | Gate (>=8)
+-----------------------------------------------------------------------------------------------
+Naina                | 2191461117582801   | 12       | 0        | 13.7       | PASS
+Sadeness             | 474517893035258    | 24       | 0        | 11.9       | PASS
+Yetu Pone            | 1434534261149691   | 24       | 0        | 13.0       | PASS
+Nenjukulle Nee       | 278125558187905    | 24       | 0        | 11.7       | PASS
+Milegi Milegi        | 368085497101907    | 24       | 0        | 11.4       | PASS
+-----------------------------------------------------------------------------------------------
+Gate Verdict: 5/5 audios have >= 8 reels.
+NEW GATE RESULT: PASS (>= 3 of 5)
+===============================================================================================

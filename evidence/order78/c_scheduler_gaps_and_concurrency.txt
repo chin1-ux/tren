@@ -1,0 +1,54 @@
+====================================================================================================
+ORDER 78 ITEM C: SCHEDULER GAPS (LAST 8 RUNS) & CROSS-REPO CONCURRENCY ANALYSIS
+Timestamp: 2026-10-16T19:34:03.805802+00:00
+Item 4 Status: PENDING (Awaiting 24h production cycle completion)
+====================================================================================================
+
+--- 1. WORKFLOW SCHEDULES & CROSS-REPO CONCURRENCY AUDIT ---
+Main Repo (ch1n-may/trendrop):
+  - File: .github/workflows/scraper.yml
+  - Schedule: '23 1,7,13,19 * * *' (Every 6 hours fallback)
+  - Status: MANUALLY DISABLED per User Rule (quota preservation on main account)
+
+Dedicated Scraper Repo (chin1-ux/tren):
+  - File: .github/workflows/scraper_cron.yml
+  - Schedule: '17 * * * *' (Hourly trigger with check_scraper_guard.py)
+  - Guard Rule: check_scraper_guard.py queries Supabase cron_runs table.
+    If last successful run completed < 165 minutes ago, it exits in 1.2s.
+
+Concurrency Analysis:
+Can they run at the same time? NO, for two independent reasons:
+  1. Main account workflows are disabled in GitHub Actions settings (Rule enforced).
+  2. Both repos share the same Supabase database. The script 'scripts/check_scraper_guard.py'
+     checks cron_runs.run_at in Supabase. Even if both workflows were triggered simultaneously,
+     whichever runs second checks the shared DB timestamp, detects a run within 165 minutes, and skips.
+
+--- 2. GAPS BETWEEN LAST 8 SCRAPER RUNS (FROM SUPABASE cron_runs) ---
+Run ID   | Run Started (UTC)      | Completed (UTC)        | Status     | Reels    | Gap from Prev
+-----------------------------------------------------------------------------------------------
+968      | 2026-10-16T05:34:48    | 2026-10-16T05:34:48    | success    | 370      | Baseline
+969      | 2026-10-16T06:48:59    | 2026-10-16T06:48:59    | success    | 309      | 74.2m (1.2h)
+970      | 2026-10-16T07:45:06    | 2026-10-16T07:45:06    | success    | 285      | 56.1m (0.9h)
+971      | 2026-10-16T09:22:02    | 2026-10-16T09:22:02    | success    | 0        | 96.9m (1.6h)
+972      | 2026-10-16T12:35:59    | 2026-10-16T12:35:59    | success    | 270      | 193.9m (3.2h)
+973      | 2026-10-16T13:37:42    | 2026-10-16T13:37:42    | success    | 319      | 61.7m (1.0h)
+977      | 2026-10-16T17:04:16    | 2026-10-16T17:04:16    | success    | 0        | 206.6m (3.4h)
+978      | 2026-10-16T17:42:29    | 2026-10-16T17:42:29    | success    | 301      | 38.2m (0.6h)
+979      | 2026-10-16T18:36:01    | 2026-10-16T18:36:01    | success    | 336      | 53.5m (0.9h)
+
+--- 3. GITHUB ACTIONS RECENT RUNS (chin1-ux/tren) ---
+completed	success	Cron Heartbeat Watchdog	Cron Heartbeat Watchdog	main	schedule	38955608507	23s	2026-10-16T19:31:58Z
+completed	success	Pending Trends Monitor	Pending Trends Monitor	main	schedule	38955578208	25s	2026-10-16T19:31:43Z
+completed	success	build(deps): bump @tanstack/react-start from 1.168.25 to 1.169.2 in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/tanstack/react-start-1.169.2	pull_request	38949627786	22s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump mcp from 1.28.1 to 1.30.0	CI Smoke Test	dependabot/uv/mcp-1.30.0	pull_request	38949626146	23s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump @tanstack/start-server-core and @tanstack/react-start in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/multi-e405bc50cb	pull_request	38949606929	19s	2026-10-16T18:44:10Z
+completed	success	Order 77 Audio Page Extraction Probe	Order 77 Audio Page Extraction Probe	main	workflow_dispatch	38949475597	1m3s	2026-10-16T18:43:08Z
+completed	success	npm_and_yarn in /frontend for @tanstack/react-start - Update #1631996196	Dependabot Updates	main	dynamic	38949438322	1m22s	2026-10-16T18:42:50Z
+completed	success	npm_and_yarn in /frontend for @tanstack/start-server-core - Update #1631996261	Dependabot Updates	main	dynamic	38949438182	1m15s	2026-10-16T18:42:50Z
+completed	success	uv in /. for mcp - Update #1631996224	Dependabot Updates	main	dynamic	38949438142	1m25s	2026-10-16T18:42:50Z
+completed	success	ci(order77): add Step A live audio probe workflow and script	CI Smoke Test	main	push	38949410458	24s	2026-10-16T18:42:37Z
+
+
+====================================================================================================
+ITEM C REPORT COMPLETE - ITEM 4 MARKED AS PENDING
+====================================================================================================

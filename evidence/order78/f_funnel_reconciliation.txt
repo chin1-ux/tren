@@ -1,0 +1,45 @@
+================================================================================
+ORDER 78 ITEM F: SCRAPER YIELD FUNNEL RECONCILIATION
+Timestamp: 2026-10-16T19:25:16.646763+00:00
+================================================================================
+
+--- 1. METRIC DEFINITIONS ---
+1. Scraped Reels: Total Instagram reel posts scraped across hashtags and explorer grid.
+   (Source: cron_runs.new_reels_count / reels_scraped)
+2. Candidates: Audio groups with >=2 reels passing preliminary velocity & creator thresholds.
+   (Source: Ingestion pipeline cluster grouping stage)
+3. Confirmed Audios: Qualified audio clusters meeting production confidence & signal thresholds.
+   (Source: Qualified audio clusters before deduplicating against existing DB trends)
+4. New Trends Created: Net NEW rows inserted into the 'trends' table during this run.
+   (Source: cron_runs.new_trends_found)
+
+--- 2. WHY ORDER 77 REPORTED ~32 CONFIRMED VS ORDER 73 REPORTING ~100 ---
+Root Cause Analysis:
+In Order 77 Item 9, 6 out of the 10 sampled runs (runs 947, 949, 950, 952, 953, 958)
+had NULL/0 in their candidate & confirmed telemetry fields because telemetry tracking was added in Migration 001.
+The script treated missing telemetry as 0, which diluted the 10-run average to 31.6:
+  (90 + 94 + 70 + 62 + 0 + 0 + 0 + 0 + 0 + 0) / 10 = 31.6.
+For the 4 runs where telemetry was properly captured, the average was actually 79.0 confirmed/run.
+In contrast, Order 73 counted total active trends updated/sighted in the DB across all categories (~100).
+Therefore, confirmed yield did NOT genuinely collapse; it was a telemetry reporting artifact where missing runs were counted as 0.
+
+--- 3. RAW DATA FOR LAST 10 SCRAPER RUNS (FROM cron_runs) ---
+Run ID   | Timestamp (UTC)        | Status     | Reels Scraped   | New Trends   | Duration (s)
+----------------------------------------------------------------------------------------
+967      | 2026-10-15T23:28:06    | success    | 231             | 3            | 3604.9      
+968      | 2026-10-16T05:34:48    | success    | 370             | 10           | 3212.5      
+969      | 2026-10-16T06:48:59    | success    | 309             | 10           | 3044.1      
+970      | 2026-10-16T07:45:06    | success    | 285             | 8            | 3239.3      
+971      | 2026-10-16T09:22:02    | success    | 0               | 0            | 480.7       
+972      | 2026-10-16T12:35:59    | success    | 270             | 4            | 3686.1      
+973      | 2026-10-16T13:37:42    | success    | 319             | 14           | 3890.6      
+977      | 2026-10-16T17:04:16    | success    | 0               | 0            | 646.8       
+978      | 2026-10-16T17:42:29    | success    | 301             | 6            | 3364.2      
+979      | 2026-10-16T18:36:01    | success    | 336             | 13           | 3806.6      
+----------------------------------------------------------------------------------------
+TOTAL    | 10 RUNS                | ALL OK     | 2421            | 68           |
+AVERAGE  | PER RUN                | -          | 242.1           | 6.8          |
+
+================================================================================
+ITEM F RECONCILIATION COMPLETE
+================================================================================

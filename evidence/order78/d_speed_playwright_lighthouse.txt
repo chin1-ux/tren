@@ -1,0 +1,30 @@
+==========================================================================================
+ORDER 78 ITEM D: PRODUCTION SPEED MEASUREMENT (MOBILE 390x844, FAST 4G)
+Timestamp: 2026-10-16T19:36:29.151Z
+URL: https://trendrop-black.vercel.app
+==========================================================================================
+
+--- STARTING COLD LOAD NAVIGATION ---
+[SUCCESS] First card visible in: 20746 ms (20.746s)
+
+--- CORE WEB VITALS ON FAST 4G ---
+Time to First Card:  20.746s
+Largest Contentful Paint (LCP): 20.696s
+Total Network Idle Time:        20.754s
+
+--- TOP 10 SLOWEST REQUESTS (FAST 4G) ---
+Method | Duration   | URL
+------------------------------------------------------------------------------------------
+GET    | 10040ms    | https://trendrop-black.vercel.app/
+GET    | 6483ms     | https://trendrop-black.vercel.app/api/feed?limit=30
+GET    | 5151ms     | https://trendrop-black.vercel.app/api/trends/targeted
+GET    | 4993ms     | https://trendrop-black.vercel.app/api/trends/runs?limit=6
+POST   | 4842ms     | https://trendrop-black.vercel.app/api/auth/verify
+GET    | 2042ms     | https://trendrop-black.vercel.app/assets/index-BhZjJP1Z.js
+GET    | 1663ms     | https://trendrop-black.vercel.app/assets/vendor-supabase-CPBQX_2L.js
+GET    | 1658ms     | https://trendrop-black.vercel.app/assets/vendor-react-CSrlDwFb.js
+GET    | 1456ms     | https://trendrop-black.vercel.app/assets/vendor-motion-CNoSqbQt.js
+GET    | 1138ms     | https://fonts.gstatic.com/s/bricolagegrotesque/v9/3y9K6as8bTXq_nANB...
+
+--- VERDICT ---
+[PARTIAL] First cards visible in 20.746s. Target < 2.0s on Fast 4G.

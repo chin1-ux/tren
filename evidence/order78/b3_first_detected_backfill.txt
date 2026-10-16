@@ -1,0 +1,51 @@
+================================================================================
+ORDER 78 ITEM B3: FIRST_DETECTED_AT AUDIT & BACKFILL INVESTIGATION
+Timestamp: 2026-10-16T19:15:30.789249+00:00
+================================================================================
+
+--- 1. FETCHING TRENDS FROM DATABASE ---
+Total active trends fetched: 1114
+Emerging trends: 78 | Rising: 147 | Resurging: 889
+
+--- 2. BATCH QUERYING REELS MIN(scraped_at) ---
+Unique active audio_ids to check: 1114
+Found reels for 1114 of 1114 active audios.
+
+--- 3. AUDIT & DRY-RUN RESULTS ---
+Active trends checked: 1114
+Active trends with earlier reel sighting (shift > 10m): 0 (0.0%)
+Currently-emerging trends leaving 7-day window upon backfill: 0
+Active trends with zero remaining reels: 0
+[PASS] Item 2 safe pruning did NOT delete reels for ANY active trend.
+
+Honest check: 0 currently-emerging trends will leave the 7-day window.
+
+--- 4. WATCHLIST / AUDIO-FIRST PROMOTION PATH FIX ---
+Analysis of promotion stamping in backend:
+In backend/trend_detector.py line 430, first_detected_at was stamped with 'now.isoformat()'.
+Fix: stamp first_detected_at with min_scraped_at from the constituent reels group:
+  Constituent reels earliest timestamp: min((r.get('scraped_at') for r in group_reels if r.get('scraped_at')), default=now.isoformat())
+
+================================================================================
+ITEM B3 INVESTIGATION COMPLETE
+================================================================================
+e refined to:
+
+CREATE OR REPLACE FUNCTION protect_first_detected_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  -- If updating to an EARLIER timestamp (truth backfill), allow it!
+  -- If updating to a LATER timestamp (re-scrape attempting to reset to 'now'), preserve OLD!
+  IF OLD.first_detected_at IS NOT NULL THEN
+    IF NEW.first_detected_at IS NULL OR NEW.first_detected_at > OLD.first_detected_at THEN
+      NEW.first_detected_at := OLD.first_detected_at;
+    END IF;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+
+================================================================================
+ITEM B3 AUDIT & DRY-RUN COMPLETE
+================================================================================

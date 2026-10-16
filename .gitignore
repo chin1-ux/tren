@@ -11,6 +11,8 @@ venv/
 .venv/
 backend/venv/
 backend/.venv/
+backend/venv_shazam/
+*venv*/
 
 # Logs
 *.log
@@ -28,6 +30,7 @@ backend/outputs/
 health_check.json
 trends_output.json
 api.log
+evidence/**/old_payloads.json
 
 # Vercel build artifacts
 .vercel/

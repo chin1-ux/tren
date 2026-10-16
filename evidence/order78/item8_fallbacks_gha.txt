@@ -1,0 +1,25 @@
+==========================================================================================
+ORDER 78 ITEM A4: 3 THUMBNAIL EXTRACTION FALLBACKS TEST (30 REELS)
+Sample Size: 30 reels
+==========================================================================================
+
+--- TESTING METHOD B: /reel/<sc>/embed/ EmbeddedMediaImage ---
+  [01] Dd-2MIuTZ2A -> EmbeddedMediaImage FOUND: https://instagram.fblr1-10.fna.fbcdn.net/v/t51.71878-15/8310...
+  [02] DdlX9XXTW2R -> EmbeddedMediaImage FOUND: https://instagram.fblr24-2.fna.fbcdn.net/v/t51.82787-15/7971...
+  [03] DdsqruXNXMU -> EmbeddedMediaImage FOUND: https://instagram.fblr1-5.fna.fbcdn.net/v/t51.71878-15/82121...
+Method B Success: 25/30 (83.3%)
+
+--- TESTING METHOD C: Tokenless oEmbed endpoint ---
+  [01] Dd-2MIuTZ2A -> Error: Expecting value: line 1 column 1 (char 0)
+  [02] DdlX9XXTW2R -> Error: Expecting value: line 1 column 1 (char 0)
+  [03] DdsqruXNXMU -> Error: Expecting value: line 1 column 1 (char 0)
+Method C Success: 0/30 (0.0%)
+
+==========================================================================================
+METHOD COMPARISON & RECOMMENDATION
+==========================================================================================
+Method A (In-session background-image download): 100% on audio page (proven in Item A)
+Method B (/reel/<sc>/embed/ EmbeddedMediaImage): 25/30 (83.3%)
+Method C (Tokenless oEmbed endpoint)           : 0/30 (0.0%)
+Recommended Method for Production: Method B (/reel/<sc>/embed/) works reliably tokenless without cookies!
+==========================================================================================

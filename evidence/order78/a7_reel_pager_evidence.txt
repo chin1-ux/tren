@@ -1,0 +1,65 @@
+==========================================================================================
+ORDER 78 ITEM A7: PLAYWRIGHT MOBILE (390x844) REEL PAGER LIVE AUDIT
+Timestamp: 2026-10-16T20:57:26.770Z
+Target: 5 audios, page through 3 reels each -> Record whether embed rendered (N/15)
+==========================================================================================
+Target Deployment URL: https://trendrop-black.vercel.app
+
+[1/3] Navigating to target site...
+Waiting for cards to hydrate...
+Found 5 trend cards on page.
+
+------------------------------------------------------------------------------------------
+[AUDIO 1/5] "⚡ EMERGING"
+  [OK] Reel Pager dialog opened successfully.
+  Reel 1/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiPWavRwjX/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a1_r1.png
+  Note: Next Reel button not present or single reel.
+  Reel 2/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiPWavRwjX/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a1_r2.png
+  Note: Next Reel button not present or single reel.
+  Reel 3/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiPWavRwjX/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a1_r3.png
+  Modal closed. Remaining iframes on page: 0 (Expected: 0)
+
+------------------------------------------------------------------------------------------
+[AUDIO 2/5] "📈 RISING"
+  [OK] Reel Pager dialog opened successfully.
+  Reel 1/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dehvdrlhrg-/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a2_r1.png
+  Note: Next Reel button not present or single reel.
+  Reel 2/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dehvdrlhrg-/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a2_r2.png
+  Note: Next Reel button not present or single reel.
+  Reel 3/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dehvdrlhrg-/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a2_r3.png
+  Modal closed. Remaining iframes on page: 0 (Expected: 0)
+
+------------------------------------------------------------------------------------------
+[AUDIO 3/5] "📈 RISING"
+  [OK] Reel Pager dialog opened successfully.
+  Reel 1/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dejtad0T_Y6/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a3_r1.png
+  Note: Next Reel button not present or single reel.
+  Reel 2/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dejtad0T_Y6/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a3_r2.png
+  Note: Next Reel button not present or single reel.
+  Reel 3/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/Dejtad0T_Y6/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a3_r3.png
+  Modal closed. Remaining iframes on page: 0 (Expected: 0)
+
+------------------------------------------------------------------------------------------
+[AUDIO 4/5] "📈 RISING"
+  [OK] Reel Pager dialog opened successfully.
+  Reel 1/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DekFxsHzojc/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a4_r1.png
+  Note: Next Reel button not present or single reel.
+  Reel 2/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DekFxsHzojc/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a4_r2.png
+  Note: Next Reel button not present or single reel.
+  Reel 3/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DekFxsHzojc/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a4_r3.png
+  Modal closed. Remaining iframes on page: 0 (Expected: 0)
+
+------------------------------------------------------------------------------------------
+[AUDIO 5/5] "📈 RISING"
+  [OK] Reel Pager dialog opened successfully.
+  Reel 1/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiqYR7BYEz/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a5_r1.png
+  Note: Next Reel button not present or single reel.
+  Reel 2/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiqYR7BYEz/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a5_r2.png
+  Note: Next Reel button not present or single reel.
+  Reel 3/3: [PASS] Embed rendered! SRC: https://www.instagram.com/reel/DeiqYR7BYEz/embed/... Screenshot: ../evidence/order78/screens/reel_pager_a5_r3.png
+  Modal closed. Remaining iframes on page: 0 (Expected: 0)
+
+==========================================================================================
+FINAL REEL PAGER RENDER RESULT: 15/15 (100%)
+Gate Target (N/15): 15/15
+==========================================================================================

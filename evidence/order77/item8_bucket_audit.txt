@@ -1,0 +1,13 @@
+================================================================================
+ORDER 77: SUPABASE STORAGE BUCKET AUDIT RAW EVIDENCE
+================================================================================
+Found 1 bucket(s):
+ - ID: 'reels-preview' | Name: 'reels-preview' | Public: True | Created: 2026-07-24 13:39:46.145000+00:00
+
+Bucket 'reels-preview' exists:
+  Public Access     : True
+  Total Files       : 0
+  Total Bytes       : 0 bytes (0.0000 MB)
+  What writes to it : None (verified via codebase grep; only legacy prune block existed in cron_job.py)
+  Reuse Plan        : Reusing empty bucket directly; zero risk to existing user assets.
+================================================================================

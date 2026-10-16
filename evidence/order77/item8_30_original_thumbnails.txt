@@ -1,0 +1,46 @@
+================================================================================
+ORDER 77: 30 ORIGINAL THUMBNAIL COMPRESSION TEST (TARGET: <= 10 KB)
+================================================================================
+[01/30] DeeFtnnojbF  | Orig: JPEG 640x1136 ( 21.8 KB) -> WebP:  4714 B (4.60 KB) | Target <=10KB: True
+[02/30] Decpzzth3DH  | Orig: JPEG 1080x1920 (222.6 KB) -> WebP: 10032 B (9.80 KB) | Target <=10KB: True
+[03/30] DeStHV4hiMB  | Orig: JPEG 1290x2294 (284.4 KB) -> WebP:  9602 B (9.38 KB) | Target <=10KB: True
+[04/30] DeZAat3OD_e  | Orig: JPEG 640x1146 ( 21.8 KB) -> WebP:  3804 B (3.71 KB) | Target <=10KB: True
+[05/30] Deh57FZP_16  | Orig: JPEG 1290x2294 (245.0 KB) -> WebP: 10118 B (9.88 KB) | Target <=10KB: True
+[06/30] DeiTeG_xOZ_  | Orig: JPEG 720x405 ( 36.5 KB) -> WebP:  5580 B (5.45 KB) | Target <=10KB: True
+[07/30] DejvahKOl8J  | Orig: JPEG 720x1280 (134.0 KB) -> WebP: 10060 B (9.82 KB) | Target <=10KB: True
+[08/30] DehszLMMdgW  | Orig: JPEG 640x1136 ( 30.2 KB) -> WebP:  6792 B (6.63 KB) | Target <=10KB: True
+[09/30] DekAaZnkexK  | Orig: JPEG 1080x1440 ( 50.3 KB) -> WebP:  4320 B (4.22 KB) | Target <=10KB: True
+[10/30] Deg9vQmvyzx  | Orig: JPEG 640x1136 ( 24.0 KB) -> WebP:  5604 B (5.47 KB) | Target <=10KB: True
+[11/30] DefiupRNKPJ  | Orig: JPEG 1124x2000 (214.4 KB) -> WebP:  9400 B (9.18 KB) | Target <=10KB: True
+[12/30] DekBQEuMpRU  | Orig: JPEG 1320x2347 (145.1 KB) -> WebP:  7876 B (7.69 KB) | Target <=10KB: True
+[13/30] Dehvdrlhrg-  | Orig: JPEG 720x1280 (246.3 KB) -> WebP:  8908 B (8.70 KB) | Target <=10KB: True
+[14/30] Dec4YnXRWuX  | Orig: JPEG 1170x2080 (192.6 KB) -> WebP:  9856 B (9.62 KB) | Target <=10KB: True
+[15/30] DekB3ZvykaQ  | Orig: JPEG 1290x2294 (284.2 KB) -> WebP:  8048 B (7.86 KB) | Target <=10KB: True
+[16/30] DekBbNRTeVa  | Orig: JPEG 640x1136 (125.7 KB) -> WebP:  9554 B (9.33 KB) | Target <=10KB: True
+[17/30] Dej275FBS1E  | Orig: JPEG 1284x2283 (239.0 KB) -> WebP:  9276 B (9.06 KB) | Target <=10KB: True
+[18/30] Dej0lieMZEX  | Orig: JPEG 1242x2208 (177.8 KB) -> WebP:  7872 B (7.69 KB) | Target <=10KB: True
+[19/30] Dej7orvTCtO  | Orig: JPEG 640x1136 (  9.1 KB) -> WebP:  2024 B (1.98 KB) | Target <=10KB: True
+[20/30] Dej97ucud_G  | Orig: JPEG 640x1136 ( 25.0 KB) -> WebP:  6068 B (5.93 KB) | Target <=10KB: True
+[21/30] Dej1qpDsM7y  | Orig: JPEG 640x1136 ( 44.7 KB) -> WebP:  9718 B (9.49 KB) | Target <=10KB: True
+[22/30] Dej0mKOBrRv  | Orig: JPEG 1206x2144 (313.9 KB) -> WebP:  9842 B (9.61 KB) | Target <=10KB: True
+[23/30] DekHDmgzRBG  | Orig: JPEG 480x854 (  7.6 KB) -> WebP:   366 B (0.36 KB) | Target <=10KB: True
+[24/30] DekEkMCT7lF  | Orig: JPEG 480x854 (  7.6 KB) -> WebP:   366 B (0.36 KB) | Target <=10KB: True
+[25/30] Dej1ihZzVS8  | Orig: JPEG 1206x2144 (311.0 KB) -> WebP:  9088 B (8.88 KB) | Target <=10KB: True
+[26/30] Dej6gUpsu3U  | Orig: JPEG 1290x2294 (414.8 KB) -> WebP:  9880 B (9.65 KB) | Target <=10KB: True
+[27/30] Dej7Y2Wy3_I  | Orig: JPEG 1206x2144 (358.2 KB) -> WebP:  9664 B (9.44 KB) | Target <=10KB: True
+[28/30] DekG24JtCFI  | Orig: JPEG 640x1136 (156.0 KB) -> WebP:  9710 B (9.48 KB) | Target <=10KB: True
+[29/30] Dej1UVcuNd-  | Orig: JPEG 1179x2096 (179.8 KB) -> WebP:  5920 B (5.78 KB) | Target <=10KB: True
+[30/30] Dej_yujy7rN  | Orig: JPEG 640x360 ( 47.4 KB) -> WebP:  8468 B (8.27 KB) | Target <=10KB: True
+
+================================================================================
+ORIGINAL THUMBNAILS COMPRESSION SUMMARY (30 SAMPLES)
+================================================================================
+Total Original Images Processed : 30
+All Original Formats Verified   : {'JPEG'}
+Min Compressed Bytes            : 366 B (0.36 KB)
+p50 (Median) Bytes              : 8688.0 B (8.48 KB)
+p95 Bytes                       : 10047.4 B (9.81 KB)
+Max Bytes                       : 10118 B (9.88 KB)
+Mean (Average) Bytes            : 7417.7 B (7.24 KB)
+Target Threshold (<= 10,240 B)  : PASSED (100% <= 10 KB)
+================================================================================

@@ -1,0 +1,99 @@
+=====================================================================================
+ORDER 77 ITEM 8 STEP A: LIVE AUDIO PAGE EXTRACTION GATE (GITHUB ACTIONS RUNNER)
+Date: 2026-10-16 18:43:37 UTC
+Runner OS: Linux
+=====================================================================================
+[OK] Loaded 12 Instagram session cookies from backend/cookies.json
+[OK] Injected cookies into browser context
+
+[1/5] Probing audio: 'Naina' (ID: 2191461117582801)
+URL: https://www.instagram.com/reels/audio/2191461117582801/
+Navigation status: 200 in 0.85s
+Landed URL: https://www.instagram.com/reels/audio/2191461117582801/
+Extraction completed in: 3.03s
+Total reels found      : 0
+Login Wall             : False
+Challenge              : False
+HTTP 429               : False
+
+[2/5] Probing audio: 'Sadeness' (ID: 474517893035258)
+URL: https://www.instagram.com/reels/audio/474517893035258/
+Navigation status: 200 in 4.34s
+Landed URL: https://www.instagram.com/reels/audio/474517893035258/
+Extraction completed in: 6.50s
+Total reels found      : 12
+Login Wall             : False
+Challenge              : False
+HTTP 429               : False
+Extracted Reels Sample:
+   [01] https://www.instagram.com/reel/DdyhBsex9Ay/ | Creator: @unknown         | Thumb bytes: 0 B
+   [02] https://www.instagram.com/reel/DdiZ3JeokNe/ | Creator: @unknown         | Thumb bytes: 0 B
+   [03] https://www.instagram.com/reel/Def3JTESA_1/ | Creator: @unknown         | Thumb bytes: 0 B
+   [04] https://www.instagram.com/reel/DdbnqsqIszN/ | Creator: @unknown         | Thumb bytes: 0 B
+   [05] https://www.instagram.com/reel/DdUFk0Gtxfh/ | Creator: @unknown         | Thumb bytes: 0 B
+   [06] https://www.instagram.com/reel/Dd1rZ1-Ne7-/ | Creator: @unknown         | Thumb bytes: 0 B
+   [07] https://www.instagram.com/reel/DeJgh6KKjZM/ | Creator: @unknown         | Thumb bytes: 0 B
+   [08] https://www.instagram.com/reel/Dd3gieRzBEf/ | Creator: @unknown         | Thumb bytes: 0 B
+   [09] https://www.instagram.com/reel/DeLy6uhy_Xx/ | Creator: @unknown         | Thumb bytes: 0 B
+   [10] https://www.instagram.com/reel/DedpIOmMGgp/ | Creator: @unknown         | Thumb bytes: 0 B
+   [11] https://www.instagram.com/reel/DdwEK9pxvFF/ | Creator: @unknown         | Thumb bytes: 0 B
+   [12] https://www.instagram.com/reel/Dd9ag9hSHhL/ | Creator: @unknown         | Thumb bytes: 0 B
+
+[3/5] Probing audio: 'Yetu Pone' (ID: 1434534261149691)
+URL: https://www.instagram.com/reels/audio/1434534261149691/
+Navigation status: 200 in 4.67s
+Landed URL: https://www.instagram.com/reels/audio/1434534261149691/
+Extraction completed in: 6.73s
+Total reels found      : 0
+Login Wall             : False
+Challenge              : False
+HTTP 429               : False
+
+[4/5] Probing audio: 'Nenjukulle Nee' (ID: 278125558187905)
+URL: https://www.instagram.com/reels/audio/278125558187905/
+Navigation status: 200 in 3.41s
+Landed URL: https://www.instagram.com/reels/audio/278125558187905/
+Extraction completed in: 5.62s
+Total reels found      : 12
+Login Wall             : False
+Challenge              : False
+HTTP 429               : False
+Extracted Reels Sample:
+   [01] https://www.instagram.com/reel/DeJ8ItKzjOT/ | Creator: @unknown         | Thumb bytes: 0 B
+   [02] https://www.instagram.com/reel/Dd08VYohpGS/ | Creator: @unknown         | Thumb bytes: 0 B
+   [03] https://www.instagram.com/reel/DeJD3M2yvLJ/ | Creator: @unknown         | Thumb bytes: 0 B
+   [04] https://www.instagram.com/reel/Dd_exU5J4GH/ | Creator: @unknown         | Thumb bytes: 0 B
+   [05] https://www.instagram.com/reel/Ddv-EGYINfR/ | Creator: @unknown         | Thumb bytes: 0 B
+   [06] https://www.instagram.com/reel/DeEekF9utr8/ | Creator: @unknown         | Thumb bytes: 0 B
+   [07] https://www.instagram.com/reel/DdlylpJpN_W/ | Creator: @unknown         | Thumb bytes: 0 B
+   [08] https://www.instagram.com/reel/DdtZo3CqZK4/ | Creator: @unknown         | Thumb bytes: 0 B
+   [09] https://www.instagram.com/reel/DeRdmVup6_8/ | Creator: @unknown         | Thumb bytes: 0 B
+   [10] https://www.instagram.com/reel/DdwcWTbpqnq/ | Creator: @unknown         | Thumb bytes: 0 B
+   [11] https://www.instagram.com/reel/DeNwS4DTEk2/ | Creator: @unknown         | Thumb bytes: 0 B
+   [12] https://www.instagram.com/reel/DeX-IXlzD6U/ | Creator: @unknown         | Thumb bytes: 0 B
+
+[5/5] Probing audio: 'Milegi Milegi' (ID: 368085497101907)
+URL: https://www.instagram.com/reels/audio/368085497101907/
+Navigation status: 200 in 4.08s
+Landed URL: https://www.instagram.com/reels/audio/368085497101907/
+Extraction completed in: 6.27s
+Total reels found      : 0
+Login Wall             : False
+Challenge              : False
+HTTP 429               : False
+
+=====================================================================================
+STEP A GATE EVALUATION & SUMMARY
+=====================================================================================
+Audio 'Naina          ' | Reels:  0 (>=8: False) | Thumbs: 0/0 | Time: 3.03s | Wall: False | 429: False
+Audio 'Sadeness       ' | Reels: 12 (>=8: True) | Thumbs: 0/12 | Time: 6.5s | Wall: False | 429: False
+Audio 'Yetu Pone      ' | Reels:  0 (>=8: False) | Thumbs: 0/0 | Time: 6.73s | Wall: False | 429: False
+Audio 'Nenjukulle Nee ' | Reels: 12 (>=8: True) | Thumbs: 0/12 | Time: 5.62s | Wall: False | 429: False
+Audio 'Milegi Milegi  ' | Reels:  0 (>=8: False) | Thumbs: 0/0 | Time: 6.27s | Wall: False | 429: False
+-------------------------------------------------------------------------------------
+Audios with >= 8 reels           : 2/5 (Required: >= 3)
+Thumbnail in-session success rate: 0.0% (Required: >= 80%)
+
+>>> GATE STATUS: FAILED <<<
+Per Order 77 Rule: Step A failed. Halting Item 8. Shipping 'Open on Instagram' fallback only.
+=====================================================================================

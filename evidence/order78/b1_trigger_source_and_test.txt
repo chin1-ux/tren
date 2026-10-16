@@ -1,0 +1,50 @@
+================================================================================
+ORDER 78 ITEM B1: TRIGGER SOURCE & SILENT PRESERVATION TEST
+Timestamp: 2026-10-16T19:07:21.474920+00:00
+================================================================================
+
+--- 1. TRIGGER DEFINITION (from migrations/017_order77_db_truth_and_triggers.sql) ---
+CREATE OR REPLACE FUNCTION protect_first_detected_at()
+RETURNS TRIGGER AS $$
+BEGIN
+  IF OLD.first_detected_at IS NOT NULL THEN
+    NEW.first_detected_at := OLD.first_detected_at;
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS no_overwrite_first_detected ON trends;
+CREATE TRIGGER no_overwrite_first_detected
+  BEFORE UPDATE ON trends
+  FOR EACH ROW
+  EXECUTE FUNCTION protect_first_detected_at();
+
+ANALYSIS:
+The trigger DOES NOT RAISE an exception.
+Instead, when OLD.first_detected_at IS NOT NULL, it assigns: NEW.first_detected_at := OLD.first_detected_at
+and returns NEW. This silently preserves the original first_detected_at timestamp without failing upserts.
+
+--- 2. LIVE DB TEST: UPSERT WITH CONFLICTING FIRST_DETECTED_AT ---
+Step 2a: Inserting test trend with audio_id='test_order78_audio_trigger_check' and first_detected_at='2026-09-01T10:00:00+00:00'...
+  Inserted row id: 7997
+  first_detected_at: 2026-09-01T10:00:00
+
+Step 2b: Performing UPSERT on existing row (on_conflict='audio_id') with new first_detected_at='2026-10-17T09:00:00+00:00' and updated audio_title...
+  Upsert HTTP call succeeded with NO exception raised!
+
+Step 2c: Verifying values after upsert:
+  audio_title:       Order 78 Trigger Safety Test Audio (Updated via Upsert)
+  last_seen_at:      2026-10-17T09:00:00+00:00 (updated to 2026-10-17T09:00:00+00:00)
+  first_detected_at: 2026-09-01T10:00:00
+
+[VERDICT: PASS]
+Trigger silently preserved OLD.first_detected_at (2026-09-01).
+Upsert succeeded without raising an error. Scraper writes are 100% safe.
+
+Step 2d: Cleaning up test row...
+  Test row deleted.
+
+================================================================================
+ITEM B1 TEST COMPLETE
+================================================================================
