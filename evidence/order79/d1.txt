@@ -1,0 +1,344 @@
+UTC Time: 2026-10-15T07:41:05Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_d1_golden_drift.py
+
+=====================================================================================
+ORDER 79: D1 GOLDEN FILE DRIFT AUDIT
+=====================================================================================
+
+-------------------------------------------------------------------------------------
+COMMIT AUDIT: c1422f3
+-------------------------------------------------------------------------------------
+Metadata: c1422f3 chinmay Thu Oct 8 18:43:47 2026 +0530 feat(order-51): discovery engine (hashtags + keywords), observability and recall KPI
+Golden files stat:
+commit c1422f3c1b698918dfcc66032f43f7646eb5072e
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Thu Oct 8 18:43:47 2026 +0530
+
+    feat(order-51): discovery engine (hashtags + keywords), observability and recall KPI
+
+ backend/instagram_scraper_browser.py | 21 +++++++++++++++++++++
+ backend/trend_engine.py              | 16 ++++++++++++++++
+ 2 files changed, 37 insertions(+)
+Golden files diff (-w):
+commit c1422f3c1b698918dfcc66032f43f7646eb5072e
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Thu Oct 8 18:43:47 2026 +0530
+
+    feat(order-51): discovery engine (hashtags + keywords), observability and recall KPI
+
+diff --git a/backend/instagram_scraper_browser.py b/backend/instagram_scraper_browser.py
+index 4375173..65d46a5 100644
+--- a/backend/instagram_scraper_browser.py
++++ b/backend/instagram_scraper_browser.py
+@@ -1505,6 +1505,7 @@ Return ONLY valid JSON, no markdown, no explanation:
+                 "is_original_audio": is_original_audio,
+                 "audio_use": audio_use,
+                 "source_hashtag_pool": source_hashtag_pool,
++                "source_tag": tag,
+             })
+ 
+         if not candidates:
+@@ -1676,6 +1677,7 @@ Return ONLY valid JSON, no markdown, no explanation:
+                 "window_hours_remaining": window,
+                 "content_tone": meta.get("content_tone", "unknown"),
+                 "niche_tag": classify_niche(c["caption"], c["hashtags"], source_hashtag_pool=source_hashtag_pool),
++                "source_tag": c.get("source_tag"),
+             })
+ 
+             # Video storage (permanently disabled)
+@@ -1728,6 +1730,25 @@ Return ONLY valid JSON, no markdown, no explanation:
+                 try:
+                     self.supabase.table("reels").upsert(chunk, on_conflict="reel_id").execute()
+                     saved_reel_ids.update(r["reel_id"] for r in chunk)
++
++                    # Audio Sightings lightweight telemetry (additive, non-fatal)
++                    sightings = [
++                        {
++                            "audio_id": r.get("audio_id"),
++                            "reel_id": r.get("reel_id"),
++                            "views": r.get("view_count"),
++                            "likes": r.get("like_count"),
++                            "taken_at": r.get("posted_at"),
++                            "source_tag": r.get("source_tag"),
++                            "seen_at": datetime.now(timezone.utc).isoformat(),
++                        }
++                        for r in chunk if r.get("audio_id") and r.get("reel_id")
++                    ]
++                    if sightings:
++                        try:
++                            self.supabase.table("audio_sightings").insert(sightings).execute()
++                        except Exception as sight_err:
++                            logger.debug(f"audio_sightings insert failed (non-fatal): {sight_err}")
+                 except Exception as e:
+                     # Salvage: retry this chunk row-by-row so one poisoned row
+                     # cannot discard its neighbours.
+diff --git a/backend/trend_engine.py b/backend/trend_engine.py
+index a1c59a0..210ddb2 100644
+--- a/backend/trend_engine.py
++++ b/backend/trend_engine.py
+@@ -789,6 +789,12 @@ class TrendEngine:
+ 
+             # STEP 4: Evaluate each audio group
+             confirmed = []
++            gate_drops = {
++                "3_reel": 0,
++                "engagement": 0,
++                "creator_diversity": 0,
++                "velocity_floor": 0,
++            }
+ 
+             for (title, artist), group_reels in audio_groups.items():
+                 representative_audio_id = next((str(r.get("audio_id")) for r in group_reels if r.get("audio_id")), None)
+@@ -946,6 +952,7 @@ class TrendEngine:
+ 
+                 # We need at least 3 recently scraped high-velocity reels to confirm a trend, UNLESS it is a breakout single reel
+                 if len(high_velocity_reels) < 3 and not is_breakout_single_reel:
++                    gate_drops["3_reel"] += 1
+                     logging.debug(
+                         f"Audio '{title}' failed 3-reel threshold check "
+                         f"(found {len(high_velocity_reels)} recent high-velocity reels, "
+@@ -1072,6 +1079,7 @@ class TrendEngine:
+                 # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
+                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
+                 if not has_valid_engagement:
++                    gate_drops["engagement"] += 1
+                     continue
+ 
+                 max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+@@ -1094,12 +1102,14 @@ class TrendEngine:
+                 # Require at least 2 distinct creator accounts for emerging, and at least 3 distinct creators for rising.
+                 # Single-creator self-promotional audios (e.g. speechplaninc with 12 reels from 1 account) are strictly skipped.
+                 if creator_count < 2 and not (is_valid_single_creator_breakout or (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0)):
++                    gate_drops["creator_diversity"] += 1
+                     logging.debug(f"Creator diversity gate: skipping '{title}' | {artist} — only {creator_count} distinct creator account(s)")
+                     continue
+ 
+                 # Active Velocity Floor Gate:
+                 # Require max_velocity >= 0.3 or recent_6h_avg > 0.0 to eliminate dead audios with zero velocity.
+                 if max_velocity < 0.3 and recent_6h_avg == 0.0:
++                    gate_drops["velocity_floor"] += 1
+                     logging.debug(f"Velocity floor gate: skipping '{title}' | {artist} — max_velocity={max_velocity}, recent_6h_avg={recent_6h_avg}")
+                     continue
+ 
+@@ -1159,6 +1169,12 @@ class TrendEngine:
+                     }),
+                 })
+ 
++            logging.info(
++                f"[GATE TELEMETRY] Evaluated {len(audio_groups)} candidates | "
++                f"Dropped: 3-reel={gate_drops['3_reel']}, engagement={gate_drops['engagement']}, "
++                f"creator-diversity={gate_drops['creator_diversity']}, velocity-floor={gate_drops['velocity_floor']} | "
++                f"Confirmed: {len(confirmed)}"
++            )
+             logging.info(f"Confirmed {len(confirmed)} new trends for Groq classification")
+ 
+             # Keep all confirmed candidates. The old "top 7" slice silently dropped the
+
+-------------------------------------------------------------------------------------
+COMMIT AUDIT: a2f5799
+-------------------------------------------------------------------------------------
+Metadata: a2f5799 chinmay Fri Oct 2 14:04:36 2026 +0530 feat(scraper): native-script country clusters (BR, KR, ES, RU, Global Edits) & origin resolution
+Golden files stat:
+commit a2f5799589e61c60186589bc655b325c4dfa06e4
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Fri Oct 2 14:04:36 2026 +0530
+
+    feat(scraper): native-script country clusters (BR, KR, ES, RU, Global Edits) & origin resolution
+
+ backend/instagram_scraper_browser.py | 58 ++++++++++++++++++++++--------------
+ 1 file changed, 35 insertions(+), 23 deletions(-)
+Golden files diff (-w):
+commit a2f5799589e61c60186589bc655b325c4dfa06e4
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Fri Oct 2 14:04:36 2026 +0530
+
+    feat(scraper): native-script country clusters (BR, KR, ES, RU, Global Edits) & origin resolution
+
+diff --git a/backend/instagram_scraper_browser.py b/backend/instagram_scraper_browser.py
+index ac1a25a..4375173 100644
+--- a/backend/instagram_scraper_browser.py
++++ b/backend/instagram_scraper_browser.py
+@@ -221,28 +221,25 @@ class InstagramScraper:
+                 "sportsreels", "neerajchopra", "kabaddi"
+             ],
+             # ── GLOBAL_DISCOVERY ─────────────────────────────────────────────────
+-            # DB-validated: reggaeton #10, kpop #10, funkbrasil #9, passinho #5, afrobeats #5
+-            # Research: tags real creators put on their posts (not curator aggregators)
++            # Country-clustered native discovery: Brazil (BR), Korea (KR), Latin (ES), Russia (RU), Global Edits (EN)
+             "GLOBAL_DISCOVERY": [
+-                # Core: real creators tag their audio-driven posts with these
+-                "viralaudio", "trendingsound", "viralmusic", "reelsaudio",
+-                "trendingaudio", "viralsong", "speedupsongs", "remixreels",
+-                # Dance/challenge (audio is the reason these get posted)
+-                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
+-                # Brazilian Phonk & Funk — DB confirmed: funkbrasil #9, passinho #5
+-                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic",
+-                "speedupphonk", "driftphonk", "darkphonk",
+-                "passinho", "funkmtg", "montagem",
+-                # Amapiano (huge in 2025-26, crossover with afrobeats)
+-                "amapiano", "amapianovibes", "amapianodance",
+-                # Afrobeats — DB confirmed: afrobeats #5, naijamusic growing
+-                "afrobeats", "afrobeatsreels", "amapiano", "afrodance", "naijamusic",
+-                # K-Pop — DB confirmed: kpop #10
+-                "kpop", "kpopdance", "kpopedit", "kpopchoreography",
+-                # Latin/Spanish — DB confirmed: reggaeton #10
+-                "reggaeton", "latinmusic", "spanishmusic", "perreo",
+-                # Hip-hop / R&B / Pop
+-                "hiphop", "hiphopreels", "rnbmusic", "popmusic"
++                # Brazil (Baile Funk & MTG Phonk)
++                "funkmtg", "passinho",
++                # South Korea (Seoul Dance & K-Pop Challenges)
++                "릴스", "음악추천",
++                # Latin America & Spain (Reggaeton & Urbano)
++                "perreo", "latintrend",
++                # Russia & CIS (Speedup & Transition Phonk)
++                "рилс", "хочуврек",
++                # Global Edits & Breakout Pop
++                "viralaudio", "speedupsongs",
++                # Secondary Regional & Genre Seeds
++                "funkbrasil", "dancabrasil", "reelsbrasil", "mtgphonk",
++                "케이팝", "챌린지", "kpopdance", "kpopedit",
++                "reggaetonurbano", "spanishmusic", "latinreels",
++                "тренд", "музыка",
++                "remixreels", "trendingsound", "brazilianphonk",
++                "afrobeats", "amapiano", "filmtok", "popmusic"
+             ]
+         }
+ 
+@@ -1200,12 +1197,27 @@ class InstagramScraper:
+ 
+         looks_indian = _looks_indian_audio(audio_name, reel.get("audio_artist"), caption)
+ 
+-        # If audio language is an Indian language code, force origin to IN
+-        # This fixes the case where a Tamil/Telugu artist isn't in _INDIAN_ORIGIN_HINTS
++        # Country origin resolution
+         if audio_lang in _INDIAN_LANG_CODES:
+             trend_origin = "IN"
+             creator_country = "IN"
+             confidence = 0.92
++        elif audio_lang == "ko":
++            trend_origin = "KR"
++            creator_country = "KR"
++            confidence = 0.92
++        elif audio_lang == "pt":
++            trend_origin = "BR"
++            creator_country = "BR"
++            confidence = 0.92
++        elif audio_lang == "ru":
++            trend_origin = "RU"
++            creator_country = "RU"
++            confidence = 0.92
++        elif audio_lang == "es":
++            trend_origin = "ES"
++            creator_country = "ES"
++            confidence = 0.90
+         elif looks_indian:
+             trend_origin = "IN"
+             creator_country = "IN"
+
+-------------------------------------------------------------------------------------
+COMMIT AUDIT: 362d224
+-------------------------------------------------------------------------------------
+Metadata: 362d224 chinmay Fri Oct 9 01:58:16 2026 +0530 Order 59: ship retention, 45m timeouts, approved engagement gate, audio capture, watchlist v2, audio expand
+Golden files stat:
+commit 362d224d4b9a42814a0c069e27d6c63ef4f60196
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Fri Oct 9 01:58:16 2026 +0530
+
+    Order 59: ship retention, 45m timeouts, approved engagement gate, audio capture, watchlist v2, audio expand
+
+ backend/trend_engine.py | 12 +++++++++++-
+ 1 file changed, 11 insertions(+), 1 deletion(-)
+Golden files diff (-w):
+commit 362d224d4b9a42814a0c069e27d6c63ef4f60196
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Fri Oct 9 01:58:16 2026 +0530
+
+    Order 59: ship retention, 45m timeouts, approved engagement gate, audio capture, watchlist v2, audio expand
+
+diff --git a/backend/trend_engine.py b/backend/trend_engine.py
+index 210ddb2..f925c61 100644
+--- a/backend/trend_engine.py
++++ b/backend/trend_engine.py
+@@ -1076,8 +1076,18 @@ class TrendEngine:
+                 EMERGING_USE_THRESHOLD = 150000
+                 RISING_USE_THRESHOLD = 500000
+ 
+-                # Engagement Quality Gate: At least one reel in the candidate group must have like_count >= 10.
++                # Engagement Quality Gate with Hidden-Likes Fallback:
++                # Standard: At least one reel in candidate group has like_count >= 10.
++                # Fallback: When likes are hidden/unavailable on all reels (like_count <= 5),
++                # require at least one reel with comment_count >= 2 OR view_count >= 5000 (calibrated to p25).
+                 has_valid_engagement = any((r.get("like_count") or 0) >= 10 for r in group_reels)
++                if not has_valid_engagement:
++                    all_likes_hidden = all((r.get("like_count") or 0) <= 5 for r in group_reels)
++                    if all_likes_hidden:
++                        has_valid_engagement = any(
++                            (r.get("comment_count") or 0) >= 2 or (r.get("view_count") or 0) >= 5000
++                            for r in group_reels
++                        )
+                 if not has_valid_engagement:
+                     gate_drops["engagement"] += 1
+                     continue
+
+-------------------------------------------------------------------------------------
+REMOTE PRESENCE AUDIT
+-------------------------------------------------------------------------------------
+Configured remotes:
+origin	https://github.com/ch1n-may/trendrop.git (fetch)
+origin	https://github.com/ch1n-may/trendrop.git (push)
+tren1	https://@github.com/chin1-ux/tren.git (fetch)
+tren1	https://@github.com/chin1-ux/tren.git (push)
+Branches containing c1422f3:
+tren1-order75
+  tren1-sync
+  remotes/origin/order59-sync
+  remotes/origin/order60-sync
+  remotes/origin/order61-sync
+  remotes/origin/order62-sync
+  remotes/origin/order64-sync
+  remotes/origin/order65-sync
+  remotes/origin/order68-sync
+  remotes/origin/order70-sync
+  remotes/origin/order71-sync
+  remotes/tren1/HEAD -> tren1/main
+  remotes/tren1/main
+Branches containing a2f5799:
+tren1-order75
+  tren1-sync
+  remotes/origin/order59-sync
+  remotes/origin/order60-sync
+  remotes/origin/order61-sync
+  remotes/origin/order62-sync
+  remotes/origin/order64-sync
+  remotes/origin/order65-sync
+  remotes/origin/order68-sync
+  remotes/origin/order70-sync
+  remotes/origin/order71-sync
+  remotes/tren1/HEAD -> tren1/main
+  remotes/tren1/copilot/diagnose-queued-scrapers
+  remotes/tren1/dependabot/npm_and_yarn/frontend/multi-902b741385
+  remotes/tren1/dependabot/npm_and_yarn/frontend/seroval-1.6.8
+  remotes/tren1/dependabot/npm_and_yarn/frontend/source-map-js-1.2.2
+  remotes/tren1/dependabot/uv/multidict-6.9.1
+  remotes/tren1/main
+Branches containing 362d224:
+tren1-order75
+  tren1-sync
+  remotes/origin/order59-sync
+  remotes/origin/order60-sync
+  remotes/origin/order61-sync
+  remotes/origin/order62-sync
+  remotes/origin/order64-sync
+  remotes/origin/order65-sync
+  remotes/origin/order68-sync
+  remotes/origin/order70-sync
+  remotes/origin/order71-sync
+  remotes/tren1/HEAD -> tren1/main
+  remotes/tren1/main
+
+=====================================================================================
+D1 AUDIT COMPLETE
+=====================================================================================

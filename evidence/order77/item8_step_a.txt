@@ -1,0 +1,37 @@
+================================================================================
+ORDER 77 ITEM 8 - STEP A: AUDIO PAGE EXTRACTION PROOF
+Timestamp: 2026-10-15T17:24:57.493951+00:00
+================================================================================
+
+Probing [Naina] (audio_id: 2191461117582801)...
+  Reels extracted: 0 | Thumbs DL: 0 (0 B) | Time: 7.02s | Challenge: False
+
+Probing [Sadeness] (audio_id: 474517893035258)...
+  Reels extracted: 0 | Thumbs DL: 0 (0 B) | Time: 5.30s | Challenge: False
+
+Probing [Yetu Pone] (audio_id: 1434534261149691)...
+  Reels extracted: 12 | Thumbs DL: 12 (1,012,470 B) | Time: 11.02s | Challenge: False
+  Sample shortcodes: ['DecOvRVP6HN', 'DeTvws6xdy9', 'Dd3Rbrxpbdg', 'Dd8NN8uJrH1']
+
+Probing [Nenjukulle Nee] (audio_id: 278125558187905)...
+  Reels extracted: 12 | Thumbs DL: 12 (1,647,027 B) | Time: 7.05s | Challenge: False
+  Sample shortcodes: ['DeJ8ItKzjOT', 'Dd08VYohpGS', 'Dd_exU5J4GH', 'DeJD3M2yvLJ']
+
+Probing [Milegi Milegi] (audio_id: 368085497101907)...
+  Reels extracted: 12 | Thumbs DL: 12 (1,553,376 B) | Time: 5.92s | Challenge: False
+  Sample shortcodes: ['DdoZsw9CKAU', 'Ddyxdc9zOyp', 'DeQfKqNPact', 'DeUhqIyPaDo']
+
+================================================================================
+STEP A PROBE SUMMARY TABLE:
+--------------------------------------------------------------------------------
+Audio            | Audio ID           | Reels  | Thumbs DL  | Thumb KB   | Time (s) | Challenge
+--------------------------------------------------------------------------------
+Naina            | 2191461117582801   | 0      | 0          | 0 KB       | 7.02     | False
+Sadeness         | 474517893035258    | 0      | 0          | 0 KB       | 5.3      | False
+Yetu Pone        | 1434534261149691   | 12     | 12         | 988.7 KB   | 11.02    | False
+Nenjukulle Nee   | 278125558187905    | 12     | 12         | 1608.4 KB  | 7.05     | False
+Milegi Milegi    | 368085497101907    | 12     | 12         | 1517.0 KB  | 5.92     | False
+--------------------------------------------------------------------------------
+Average reels extracted per audio: 7.2
+GATE RESULT: FAIL (Average reels extracted 7.2 < 8 threshold)
+================================================================================

@@ -1,0 +1,157 @@
+UTC Time: 2026-10-15T05:49:32Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/run_order78_c1.py
+
+================================================================================
+ORDER 78: C1 MERGE HYGIENE (origin/main vs tren1-order75)
+================================================================================
+
+--- 1. Full Stat Diff (-w --ignore-cr-at-eol) ---
+
+$ git diff -w --ignore-cr-at-eol --stat origin/main..tren1-order75
+ .agents/AGENTS.md                                  |   16 -
+ .github/workflows/classification_sweep.yml         |   53 +
+ .github/workflows/coverage_report.yml              |   41 +
+ .github/workflows/health_check.yml                 |   42 +
+ .github/workflows/retention.yml                    |   36 +
+ .github/workflows/scraper.yml                      |   75 +-
+ .github/workflows/scraper_cron.yml                 |   72 +
+ backend/.env.example                               |   31 -
+ backend/api.py                                     |   76 +-
+ backend/api_globals.py                             |  594 ++++--
+ backend/audio_capture.py                           |  321 ++++
+ backend/audio_expand.py                            |  253 +++
+ backend/audio_probe.py                             |  779 ++++++++
+ backend/auth.py                                    |   16 -
+ backend/backfill_language.py                       |    2 +
+ backend/classification_rules.py                    |   17 +-
+ backend/creator_tools.py                           |  232 ---
+ backend/cron_auto_classifier.py                    |    7 +-
+ backend/cron_job.py                                |  232 ++-
+ backend/cultural_event_calendar.py                 | 1940 +++-----------------
+ backend/diagnose_miss.py                           |  946 ++++++++++
+ backend/event_monitor.py                           |   26 -
+ backend/heartbeat_monitor.py                       |   57 +-
+ backend/instagram_scraper_browser.py               |   79 +-
+ backend/keyword_scraper.py                         |  241 +++
+ backend/language_classifier.py                     |   20 +-
+ backend/language_detection.py                      |   20 +-
+ backend/migrations/009_order51_discovery_terms.sql |   64 +
+ .../migrations/010_order60_run_id_and_status.sql   |   11 +
+ ...11_order61_watchlist_score_and_probe_tables.sql |   43 +
+ backend/migrations/013_tag_registry.sql            |   38 +
+ backend/migrations/014_ground_truth.sql            |   15 +
+ .../migrations/015_ground_truth_first_noticed.sql  |    3 +
+ backend/migrations/016_coverage_report.sql         |   14 +
+ .../migrations/017_immutable_first_detected_at.sql |   47 +
+ .../018_add_cron_runs_telemetry_columns.sql        |    9 +
+ .../migrations/019_db_size_and_retention_rpcs.sql  |   44 +
+ backend/niche_relevance_engine.py                  |    3 -
+ backend/nightly_llm_batch.py                       |    2 +-
+ backend/notify_telegram.py                         |   93 +
+ backend/plan_enforcement.py                        |    6 -
+ backend/recall_check.py                            |  295 +++
+ backend/retention.py                               |  153 ++
+ backend/routes/ai.py                               |  211 +--
+ backend/routes/auth.py                             |  182 +-
+ backend/routes/india.py                            |   63 -
+ backend/routes/system.py                           |    6 +-
+ backend/routes/trends.py                           |  605 +++---
+ backend/schemas.py                                 |   16 -
+ backend/seed_charts.py                             |   51 +-
+ backend/song_key.py                                |  187 ++
+ backend/tag_allocator.py                           |  149 ++
+ backend/tag_registry.py                            |  407 ++++
+ backend/trend_engine.py                            |   28 +-
+ backend/watchlist.py                               |  413 +++++
+ frontend/public/favicon.ico                        |  Bin 8214 -> 22344 bytes
+ frontend/public/google_oauth_logo.png              |  Bin 77751 -> 0 bytes
+ frontend/public/icon-192.png                       |  Bin 15904 -> 22344 bytes
+ frontend/public/icon-512.png                       |  Bin 77751 -> 821667 bytes
+ frontend/public/logo.png                           |  Bin 202883 -> 437344 bytes
+ frontend/src/components/AudioIdentityCard.tsx      |  143 +-
+ frontend/src/components/BottomTabBar.tsx           |   33 +-
+ frontend/src/components/EarlyDetectionPanel.tsx    |   98 +-
+ frontend/src/components/FestiveViralRadar.tsx      |  631 -------
+ frontend/src/components/GlobalAudioPlayer.tsx      |  210 ---
+ frontend/src/components/ParticleBackground.tsx     |  208 ++-
+ frontend/src/components/RegionalFestivalPanel.tsx  |   19 +-
+ frontend/src/components/TrendCard.tsx              |  312 +---
+ frontend/src/components/TrendFiltersModal.tsx      |  515 ------
+ frontend/src/components/TrendPreviewModal.tsx      |    2 +-
+ frontend/src/components/TrenddropLogo.tsx          |   26 +-
+ frontend/src/components/ui/tabs.tsx                |    2 +-
+ frontend/src/contexts/AuthContext.tsx              |  260 +--
+ frontend/src/lib/api.ts                            |  227 +--
+ frontend/src/lib/audio-resolver.ts                 |  364 ----
+ frontend/src/lib/indianAudioDetector.ts            |  235 ---
+ frontend/src/lib/time.ts                           |   31 -
+ frontend/src/router.tsx                            |    8 +-
+ frontend/src/routes/__root.tsx                     |   19 +-
+ frontend/src/routes/admin.login.tsx                |    3 +-
+ frontend/src/routes/dashboard.tsx                  |   95 +-
+ frontend/src/routes/data-rights.tsx                |   16 +-
+ frontend/src/routes/generate.tsx                   |    2 +-
+ frontend/src/routes/ideas.tsx                      |  106 +-
+ frontend/src/routes/index.tsx                      | 1017 +++-------
+ frontend/src/routes/login.tsx                      |  189 +-
+ frontend/src/routes/privacy.tsx                    |   11 +-
+ frontend/src/routes/settings.tsx                   |   56 +-
+ frontend/src/routes/signup.tsx                     |  364 +++-
+ frontend/src/routes/studio.tsx                     |  410 +----
+ frontend/src/routes/terms.tsx                      |   11 +-
+ frontend/src/routes/trend.$id.tsx                  |  174 +-
+ frontend/src/store/useAudioStore.ts                |  227 ---
+ frontend/src/styles.css                            |   87 +-
+ frontend/vite.config.ts                            |   32 +-
+ scripts/acceptance_check.py                        |  289 +++
+ scripts/classification_sweep.py                    |   60 +
+ scripts/contract_test_feed.py                      |  213 +++
+ scripts/health_check.py                            |   69 +-
+ scripts/order71_partA.py                           |   75 +
+ scripts/order71_partB1.py                          |  122 ++
+ scripts/order71_partB2.py                          |  199 ++
+ scripts/order71_partC1.py                          |   47 +
+ scripts/order71_partC3_D3.py                       |  139 ++
+ scripts/order71_partD1.py                          |   40 +
+ scripts/order71_partD2.py                          |   55 +
+ scripts/order71_partD4.py                          |   75 +
+ scripts/order71_partE_latency.py                   |   58 +
+ vercel.json                                        |    1 +
+ 109 files changed, 9216 insertions(+), 7751 deletions(-)
+
+
+--- 2. Golden Files Audit ---
+
+>>> Checking Golden File: backend/instagram_scraper_browser.py
+
+$ git log --oneline origin/main..tren1-order75 -- backend/instagram_scraper_browser.py
+c1422f3 feat(order-51): discovery engine (hashtags + keywords), observability and recall KPI
+a2f5799 feat(scraper): native-script country clusters (BR, KR, ES, RU, Global Edits) & origin resolution
+
+
+$ git diff -w --ignore-cr-at-eol --stat origin/main..tren1-order75 -- backend/instagram_scraper_browser.py
+ backend/instagram_scraper_browser.py | 79 +++++++++++++++++++++++++-----------
+ 1 file changed, 56 insertions(+), 23 deletions(-)
+
+
+>>> Checking Golden File: backend/trend_engine.py
+
+$ git log --oneline origin/main..tren1-order75 -- backend/trend_engine.py
+362d224 Order 59: ship retention, 45m timeouts, approved engagement gate, audio capture, watchlist v2, audio expand
+c1422f3 feat(order-51): discovery engine (hashtags + keywords), observability and recall KPI
+
+
+$ git diff -w --ignore-cr-at-eol --stat origin/main..tren1-order75 -- backend/trend_engine.py
+ backend/trend_engine.py | 28 +++++++++++++++++++++++++++-
+ 1 file changed, 27 insertions(+), 1 deletion(-)
+
+
+>>> Checking Golden File: backend/spotify_fetcher.py
+
+$ git log --oneline origin/main..tren1-order75 -- backend/spotify_fetcher.py
+
+
+$ git diff -w --ignore-cr-at-eol --stat origin/main..tren1-order75 -- backend/spotify_fetcher.py
+

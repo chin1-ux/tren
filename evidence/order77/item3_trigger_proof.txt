@@ -1,0 +1,19 @@
+================================================================================
+ORDER 77 ITEM 3: FIRST_DETECTED_AT IMMUTABILITY TRIGGER TEST
+================================================================================
+1. Inserting test trend with first_detected_at = 2026-09-01T12:00:00+00:00...
+   Inserted: 2026-09-01T12:00:00
+
+2. Attempting UPDATE to first_detected_at = 2026-10-15T18:00:00+00:00...
+
+3. Read-back values from DB:
+   first_detected_at = 2026-09-01T12:00:00
+   last_seen_at      = 2026-10-15T17:45:05.001154+00:00
+   audio_title       = Trigger Test Audio (Updated Title)
+
+[PASS] Trigger successfully BLOCKED the overwrite! first_detected_at is immutable.
+
+4. Cleaned up test row.
+================================================================================
+TRIGGER VERIFICATION COMPLETE
+================================================================================

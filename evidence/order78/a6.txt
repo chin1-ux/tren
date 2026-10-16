@@ -1,0 +1,6 @@
+UTC Time: 2026-10-15T03:31:03Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: git show origin/main:frontend/src/components/TrendCard.tsx
+
+NO MATCHES FOUND FOR isSingleCreator

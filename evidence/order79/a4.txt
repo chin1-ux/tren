@@ -1,0 +1,39 @@
+UTC Time: 2026-10-15T07:39:03Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: node frontend/test_order79_playwright.mjs
+
+=====================================================================================
+ORDER 79: A4 PLAYWRIGHT SUITE EXTENDED (RISING, EMERGING, PEAKED, COMEBACK, EXPIRED)
+=====================================================================================
+
+1. Testing innerText equality across all 5 tabs (Old select * vs New select FEED_CARD_COLUMNS)...
+  Collecting card texts for SLIM payload (select FEED_CARD_COLUMNS)...
+  Collecting card texts for FULL payload (select *)...
+  Tab Rising: 10/10 cards matched exactly (100% equality: true)
+  Tab Emerging: 10/10 cards matched exactly (100% equality: true)
+  Tab Peaked: 10/10 cards matched exactly (100% equality: true)
+  Tab Comeback: 10/10 cards matched exactly (100% equality: true)
+  Tab Expired: 10/10 cards matched exactly (100% equality: true)
+
+2. Opening Detail View for 3 trends from different tabs...
+  Testing detail view for trend 7843 (from Rising)...
+    Detail view loaded: true (text length: 818)
+  Testing detail view for trend 7853 (from Emerging)...
+    Detail view loaded: true (text length: 872)
+  Testing detail view for trend 7856 (from Peaked)...
+    Detail view loaded: true (text length: 1317)
+
+3. Testing Save to Workspace (Target action)...
+  Target button found: true
+  Successfully clicked target/save button.
+
+4. Applying Language Filter Preference and verifying feed rendering...
+  Rendered cards under Hindi filter: 15
+
+5. Testing Search Query Filter...
+  Rendered cards with query 'love': 15
+
+=====================================================================================
+ORDER 79: A4 PLAYWRIGHT SUITE PASSED SUCCESSFULLY (ALL 5 TABS & ACTIONS OK)!
+=====================================================================================

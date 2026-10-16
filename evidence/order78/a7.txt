@@ -1,0 +1,25 @@
+UTC Time: 2026-10-15T05:33:31Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: node frontend/test_order78_a7_prod.mjs
+
+=====================================================================================
+ORDER 78: A7 PLAYWRIGHT COLD LOAD BASELINE (PRODUCTION: trendrop-black.vercel.app)
+=====================================================================================
+Cold Page Load on Production Homepage (https://trendrop-black.vercel.app)...
+
+========================================================
+COLD LOAD /api/ CALLS WITH STATUS AND BYTES (PRODUCTION):
+========================================================
+┌─────────┬──────────────────────────────────────────────────────────┬────────┬───────┐
+│ (index) │ url                                                      │ status │ bytes │
+├─────────┼──────────────────────────────────────────────────────────┼────────┼───────┤
+│ 0       │ 'https://trendrop-black.vercel.app/api/auth/verify'      │ 200    │ 128   │
+│ 1       │ 'https://trendrop-black.vercel.app/api/trends/targeted'  │ 200    │ 2     │
+│ 2       │ 'https://trendrop-black.vercel.app/api/trends/emerging?' │ 200    │ 82343 │
+└─────────┴──────────────────────────────────────────────────────────┴────────┴───────┘
+Total Production Cold Load /api/ Transfer: 82473 bytes (80.54 KB)
+
+=====================================================================================
+A7 PRODUCTION BASELINE MEASUREMENT COMPLETED
+=====================================================================================

@@ -1,0 +1,60 @@
+UTC Time: 2026-10-15T05:50:33Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/run_order78_c2.py
+
+================================================================================
+ORDER 78: C2 LINE ENDINGS & GIT DIFF AUDIT ON 08cf1d5
+================================================================================
+
+--- 1. git diff --stat WITHOUT -w ---
+
+$ git diff --stat 08cf1d5^ 08cf1d5 -- backend/cron_job.py
+ backend/cron_job.py | 1236 ++++++++++++++++++++++++++++-----------------------
+ 1 file changed, 684 insertions(+), 552 deletions(-)
+
+
+--- 2. git diff --stat WITH -w ---
+
+$ git diff -w --stat 08cf1d5^ 08cf1d5 -- backend/cron_job.py
+ backend/cron_job.py | 160 +++++++++++++++++++++++++++++++++++++++++++++++-----
+ 1 file changed, 146 insertions(+), 14 deletions(-)
+
+
+--- 3. Current git config core.autocrlf ---
+
+$ git config --get core.autocrlf
+true
+
+
+$ git config --get-all core.autocrlf
+true
+
+
+================================================================================
+PROPOSED .gitattributes (text=auto eol=lf) - DO NOT COMMIT:
+================================================================================
+# Auto-normalize line endings to LF across all repositories and platforms
+* text=auto eol=lf
+
+# Python, TypeScript, JavaScript, SQL, YAML, JSON, Markdown explicitly LF
+*.py text eol=lf
+*.ts text eol=lf
+*.tsx text eol=lf
+*.js text eol=lf
+*.mjs text eol=lf
+*.sql text eol=lf
+*.yml text eol=lf
+*.yaml text eol=lf
+*.json text eol=lf
+*.md text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+
+# Binary files
+*.png binary
+*.ico binary
+*.jpg binary
+*.jpeg binary
+*.gif binary
+*.webp binary

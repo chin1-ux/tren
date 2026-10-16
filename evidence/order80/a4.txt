@@ -1,0 +1,61 @@
+=====================================================================================
+ORDER 80: A4 RUN 38647275918 & CRON_RUNS ROW 957 RECONCILIATION
+=====================================================================================
+
+1. VERBATIM CONTENT OF evidence/order79/c3.txt:
+-------------------------------------------------------------------------------------
+UTC Time: 2026-10-15T07:41:22Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: gh run view 38647275918 --repo chin1-ux/tren --json status,conclusion,headSha,createdAt,updatedAt,jobs
+
+{"conclusion":"failure","createdAt":"2026-10-14T22:23:11Z","headSha":"08cf1d521f278c4e6ecd1e7fc68cd73e3b57ce5f","jobs":[{"completedAt":"2026-10-14T23:45:36Z","conclusion":"failure","databaseId":116144424264,"name":"run-pipeline","startedAt":"2026-10-14T22:42:36Z","status":"completed","steps":[{"completedAt":"2026-10-14T22:42:38Z","conclusion":"success","name":"Set up job","number":1,"startedAt":"2026-10-14T22:42:37Z","status":"completed"},{"completedAt":"2026-10-14T22:42:39Z","conclusion":"success","name":"Checkout repository","number":2,"startedAt":"2026-10-14T22:42:38Z","status":"completed"},{"completedAt":"2026-10-14T22:42:42Z","conclusion":"success","name":"Set up Python","number":3,"startedAt":"2026-10-14T22:42:39Z","status":"completed"},{"completedAt":"2026-10-14T22:42:42Z","conclusion":"success","name":"Cache apt packages","number":4,"startedAt":"2026-10-14T22:42:42Z","status":"completed"},{"completedAt":"2026-10-14T22:42:43Z","conclusion":"success","name":"Cache Camoufox browser binaries","number":5,"startedAt":"2026-10-14T22:42:42Z","status":"completed"},{"completedAt":"2026-10-14T22:43:25Z","conclusion":"success","name":"Install dependencies","number":6,"startedAt":"2026-10-14T22:42:43Z","status":"completed"},{"completedAt":"2026-10-14T22:43:33Z","conclusion":"success","name":"Install system deps for Camoufox browser","number":7,"startedAt":"2026-10-14T22:43:25Z","status":"completed"},{"completedAt":"2026-10-14T22:43:58Z","conclusion":"success","name":"Install Camoufox browser","number":8,"startedAt":"2026-10-14T22:43:33Z","status":"completed"},{"completedAt":"2026-10-14T22:43:58Z","conclusion":"success","name":"Create cookies.json","number":9,"startedAt":"2026-10-14T22:43:58Z","status":"completed"},{"completedAt":"2026-10-14T22:44:32Z","conclusion":"success","name":"Run DB migrations","number":10,"startedAt":"2026-10-14T22:43:58Z","status":"completed"},{"completedAt":"2026-10-14T22:44:32Z","conclusion":"success","name":"Initialize auth system","number":11,"startedAt":"2026-10-14T22:44:32Z","status":"completed"},{"completedAt":"2026-10-14T23:34:42Z","conclusion":"failure","name":"Run pipeline (India mode)","number":12,"startedAt":"2026-10-14T22:44:32Z","status":"completed"},{"completedAt":"2026-10-14T23:34:42Z","conclusion":"skipped","name":"Run pipeline (Global mode)","number":13,"startedAt":"2026-10-14T23:34:42Z","status":"completed"},{"completedAt":"2026-10-14T23:34:42Z","conclusion":"skipped","name":"Verify scraper run","number":14,"startedAt":"2026-10-14T23:34:42Z","status":"completed"},{"completedAt":"2026-10-14T23:39:15Z","conclusion":"success","name":"Run Audio-First Capture","number":15,"startedAt":"2026-10-14T23:34:42Z","status":"completed"},{"completedAt":"2026-10-14T23:45:10Z","conclusion":"success","name":"Run Audio Probe","number":16,"startedAt":"2026-10-14T23:39:15Z","status":"completed"},{"completedAt":"2026-10-14T23:45:11Z","conclusion":"success","name":"Run Sighting Expansion","number":17,"startedAt":"2026-10-14T23:45:10Z","status":"completed"},{"completedAt":"2026-10-14T23:45:32Z","conclusion":"success","name":"Run Watchlist Evaluation","number":18,"startedAt":"2026-10-14T23:45:11Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"success","name":"Upload scraper browser log artifact","number":19,"startedAt":"2026-10-14T23:45:32Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"skipped","name":"Post Cache Camoufox browser binaries","number":35,"startedAt":"2026-10-14T23:45:33Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"skipped","name":"Post Cache apt packages","number":36,"startedAt":"2026-10-14T23:45:33Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"skipped","name":"Post Set up Python","number":37,"startedAt":"2026-10-14T23:45:33Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"success","name":"Post Checkout repository","number":38,"startedAt":"2026-10-14T23:45:33Z","status":"completed"},{"completedAt":"2026-10-14T23:45:33Z","conclusion":"success","name":"Complete job","number":39,"startedAt":"2026-10-14T23:45:33Z","status":"completed"}],"url":"https://github.com/chin1-ux/tren/actions/runs/38647275918/job/116144424264"}],"status":"completed","updatedAt":"2026-10-14T23:45:36Z"}
+
+2. RECONCILIATION OF STEP NAMES:
+-------------------------------------------------------------------------------------
+There are two distinct scraper workflow files across the codebase:
+A. `.github/workflows/scraper_cron.yml` (on main repository `ch1n-may/trendrop`):
+   - Defined at `.github/workflows/scraper_cron.yml:28`
+   - Step Name: `name: Run Full Scraper & Detection Pipeline`
+   - Command: `python backend/cron_job.py`
+   - Status: Manually disabled to preserve main account GitHub Actions quota.
+B. `.github/workflows/scraper.yml` (on dedicated scraper repository `chin1-ux/tren`):
+   - Defined at `.github/workflows/scraper.yml:104`
+   - Step Name: `name: Run pipeline (India mode)` (step 12 in run 38647275918)
+   - Command: `python backend/manual_run_and_check.py --stages schema,scrape,backfill,detect,refresh,snapshots,alerts`
+   - Status: Active running cron on `chin1-ux/tren`.
+Conclusion: Run 38647275918 ran on `chin1-ux/tren` executing `.github/workflows/scraper.yml`, where Step 12 is named `Run pipeline (India mode)`.
+
+3. WHAT WROTE CRON_RUNS ROW 957 WITH total_pipeline_seconds 2999.38:
+-------------------------------------------------------------------------------------
+- File:Line: `backend/cron_job.py:967-1010` (inside commit `08cf1d521f278c4e6ecd1e7fc68cd73e3b57ce5f` on `chin1-ux/tren`).
+- Mechanism:
+  In commit `08cf1d5`, the pipeline execution was wrapped inside a `try ... finally:` block:
+  ```python
+  finally:
+      if t_post_start:
+          stage_timings["post_steps_seconds"] = round(time.monotonic() - t_post_start, 2)
+          
+      elapsed = (datetime.now(timezone.utc) - start).total_seconds()
+      completed_at = datetime.now(timezone.utc)
+      stage_timings["total_pipeline_seconds"] = round(elapsed, 2)
+      ...
+      try:
+          sb = _get_supabase()
+          sb.table("cron_runs").insert({
+              "run_at": start.isoformat(),
+              "completed_at": completed_at.isoformat(),
+              "duration_seconds": round(elapsed, 3),
+              "status": status,
+              "stage_timings": stage_timings,
+              ...
+          }).execute()
+      except Exception as e:
+          logging.warning(f"Could not log cron run to Supabase: {e}")
+  ```
+- How row 957 was written when killed at 3000s:
+  1. The GitHub Actions runner enforces a step timeout of 50 minutes (3,000 seconds).
+  2. At timestamp `23:34:42Z` (~2,999.38 seconds into step 12), GitHub Actions sent `SIGTERM` to the process group.
+  3. In Python, receiving `SIGTERM` / termination triggers exception unwind, executing the `finally:` block before exit.
+  4. The `finally:` block measured `elapsed = (now - start) = 2999.38s`, constructed `stage_timings["total_pipeline_seconds"] = 2999.38`, and executed the HTTP POST to Supabase `cron_runs` table.
+  5. The insert completed, creating row 957, immediately after which the runner terminated the step with exit code 143/failure.

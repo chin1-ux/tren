@@ -1,0 +1,62 @@
+UTC Time: 2026-10-15T05:30:10Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: node frontend/test_order78_playwright.mjs
+
+=====================================================================================
+ORDER 78: A5 PLAYWRIGHT SUITE ON HOTFIX BRANCH
+=====================================================================================
+
+1. Cold Page Load on Homepage (Rising Feed)...
+
+========================================================
+COLD LOAD /api/ CALLS WITH STATUS AND BYTES:
+========================================================
+┌─────────┬─────────────────────────────┬────────┬────────┐
+│ (index) │ url                         │ status │ bytes  │
+├─────────┼─────────────────────────────┼────────┼────────┤
+│ 0       │ '/api/auth/verify'          │ 200    │ 128    │
+│ 1       │ '/api/trends/targeted'      │ 200    │ 2      │
+│ 2       │ '/api/trends/runs?limit=6'  │ 200    │ 1472   │
+│ 3       │ '/api/trends/emerging?'     │ 200    │ 37030  │
+│ 4       │ '/api/trends/resurging?'    │ 200    │ 116408 │
+│ 5       │ '/api/trends/peaked?'       │ 200    │ 334309 │
+│ 6       │ '/api/trends/last-detected' │ 200    │ 195    │
+│ 7       │ '/api/trends/expired?'      │ 200    │ 366753 │
+│ 8       │ '/api/trends?sort=newest'   │ 200    │ 307547 │
+└─────────┴─────────────────────────────┴────────┴────────┘
+Total Cold Load /api/ Transfer: 1163844 bytes (1136.57 KB)
+
+2. Checking Card Reel Chips and Thumbnail...
+Rising feed rendered cards: 15
+Card with reel chips: true
+Card with thumbnail: false
+
+3. Testing Detail View for used_for text (/trend/7808)...
+Detail view contains used_for / viral text: true
+
+4. Testing Every Tab (0 HTTP >= 400)...
+  Tab Rising    : rendered 15 cards
+  Tab Emerging  : rendered 13 cards
+  Tab Comeback  : rendered 15 cards
+  Tab Peaked    : rendered 15 cards
+  Tab Expired   : rendered 15 cards
+Tab HTTP failures (status >= 400): 0
+
+5. Testing innerText equality of first 10 cards: Old (select *) vs New (select FEED_CARD_COLUMNS)...
+
+--- Comparing First 10 Cards on Tab: Rising ---
+  Comparing 10 cards...
+  Tab Rising: 10/10 cards matched exactly (100% innerText equality: true)
+
+--- Comparing First 10 Cards on Tab: Emerging ---
+  Comparing 10 cards...
+  Tab Emerging: 10/10 cards matched exactly (100% innerText equality: true)
+
+--- Comparing First 10 Cards on Tab: Peaked ---
+  Comparing 10 cards...
+  Tab Peaked: 10/10 cards matched exactly (100% innerText equality: true)
+
+=====================================================================================
+PLAYWRIGHT SUITE PASSED SUCCESSFULLY (ALL ASSERTIONS OK)!
+=====================================================================================

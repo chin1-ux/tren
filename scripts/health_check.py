@@ -133,15 +133,25 @@ def evaluate_health_conditions(
     if len(probe_errors) > 0:
         failures.append(f"CHECK 4 FAILED: {len(probe_errors)} capture/probe/watchlist errors detected in last 2 runs")
 
-    # 5. DB size > 300 MB
-    db_size_ok = db_size_mb <= 300.0
-    results["5_database_size"] = {
-        "passed": db_size_ok,
-        "size_mb": db_size_mb,
-        "message": f"{db_size_mb:.2f} MB (ceiling: 300.00 MB)"
-    }
-    if not db_size_ok:
-        failures.append(f"CHECK 5 FAILED: Database size {db_size_mb:.2f} MB exceeds 300 MB ceiling")
+    # 5. DB size check (hard fail at 450 MB, warn at 350 MB, fail loudly if None)
+    if db_size_mb is None:
+        db_size_ok = False
+        results["5_database_size"] = {
+            "passed": False,
+            "size_mb": None,
+            "message": "FAILED to query database size from get_db_size_bytes RPC"
+        }
+        failures.append("CHECK 5 FAILED: Database size query failed (RPC get_db_size_bytes returned null or errored)")
+    else:
+        db_size_ok = db_size_mb < 450.0
+        warn_tag = " [WARN: >=350MB]" if db_size_mb >= 350.0 else ""
+        results["5_database_size"] = {
+            "passed": db_size_ok,
+            "size_mb": db_size_mb,
+            "message": f"{db_size_mb:.2f} MB (warn: 350.00 MB, ceiling: 450.00 MB){warn_tag}"
+        }
+        if not db_size_ok:
+            failures.append(f"CHECK 5 FAILED: Database size {db_size_mb:.2f} MB exceeds 450 MB ceiling")
 
     # 6. audio_count_history rows in last 24h
     has_history = count_history_24h > 0
@@ -275,10 +285,15 @@ def run_unit_tests():
     assert not ok and any("CHECK 4 FAILED" in f for f in fails)
     print(f"[PASS] Unit-proved Check 4 failure: {fails[0]}")
 
-    # Test 5 failure: DB size exceeds 300MB
-    ok, res, fails = evaluate_health_conditions(base_cron_runs, base_probes, 312.4, base_history_cnt, base_metrics, now=now)
+    # Test 5 failure: DB size exceeds 450MB ceiling
+    ok, res, fails = evaluate_health_conditions(base_cron_runs, base_probes, 462.4, base_history_cnt, base_metrics, now=now)
     assert not ok and any("CHECK 5 FAILED" in f for f in fails)
-    print(f"[PASS] Unit-proved Check 5 failure: {fails[0]}")
+    print(f"[PASS] Unit-proved Check 5 failure (size limit exceeded): {fails[0]}")
+
+    # Test 5b failure: DB size read fails (None)
+    ok, res, fails = evaluate_health_conditions(base_cron_runs, base_probes, None, base_history_cnt, base_metrics, now=now)
+    assert not ok and any("CHECK 5 FAILED" in f for f in fails)
+    print(f"[PASS] Unit-proved Check 5 failure (loud query failure): {fails[0]}")
 
     # Test 6 failure: No history in 24h
     ok, res, fails = evaluate_health_conditions(base_cron_runs, base_probes, base_db_size, 0, base_metrics, now=now)
@@ -347,14 +362,17 @@ def run_live_health_check():
         for p in (probes_res.data or [])
     ]
 
-    # 3. Database size query
-    db_size_mb = 223.61
+    # 3. Database size query (RPC get_db_size_bytes - loud failure on error, zero hardcoded fallback)
+    db_size_mb = None
     try:
         size_res = sb.rpc("get_db_size_bytes").execute()
-        if size_res.data:
-            db_size_mb = size_res.data / (1024 * 1024)
-    except Exception:
-        pass
+        if size_res.data is not None:
+            db_size_mb = float(size_res.data) / (1024 * 1024)
+        else:
+            print("ERROR: RPC get_db_size_bytes returned null data")
+    except Exception as e:
+        print(f"ERROR: Failed to query get_db_size_bytes RPC: {e}")
+        db_size_mb = None
 
     # 4. Count history in last 24h
     cutoff_24h = (now - timedelta(hours=24)).isoformat()

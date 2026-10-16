@@ -1,0 +1,695 @@
+UTC Time: 2026-10-15T08:21:19Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/find_supabase_loops.py backend
+
+backend\venv\Lib\site-packages\future\backports\email\feedparser.py:37: SyntaxWarning: "\Z" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\Z"? A raw string is also an option.
+  NLCRE_eol = re.compile('(\r\n|\r|\n)\Z')
+backend\venv\Lib\site-packages\future\backports\email\utils.py:68: SyntaxWarning: "\A" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\A"? A raw string is also an option.
+  '([^\ud800-\udbff]|\A)[\udc00-\udfff]([^\udc00-\udfff]|\Z)').search
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:662: SyntaxWarning: "\(" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\("? A raw string is also an option.
+  '(', '\(').replace(
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:663: SyntaxWarning: "\)" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\)"? A raw string is also an option.
+  ')', '\)')
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1349: SyntaxWarning: "\]" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\]"? A raw string is also an option.
+  ''.join(ATOM_ENDS).replace('\\','\\\\').replace(']','\]'))).match
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1352: SyntaxWarning: "\]" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\]"? A raw string is also an option.
+  ''.join(TOKEN_ENDS).replace('\\','\\\\').replace(']','\]'))).match
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1354: SyntaxWarning: "\]" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\]"? A raw string is also an option.
+  ''.join(ATTRIBUTE_ENDS).replace('\\','\\\\').replace(']','\]'))).match
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1357: SyntaxWarning: "\]" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\]"? A raw string is also an option.
+  '\\','\\\\').replace(']','\]'))).match
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1541: SyntaxWarning: "\ " is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\ "? A raw string is also an option.
+  """ctext = <printable ascii except \ ( )>
+backend\venv\Lib\site-packages\future\backports\email\_header_value_parser.py:1876: SyntaxWarning: "\ " is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\ "? A raw string is also an option.
+  """ dtext = <printable ascii except \ [ ]> / obs-dtext
+backend\venv\Lib\site-packages\future\backports\html\parser.py:31: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  tagfind = re.compile('([a-zA-Z][-.a-zA-Z0-9:_]*)(?:\s|/(?!>))*')
+backend\venv\Lib\site-packages\future\backports\html\parser.py:79: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  endtagfind = re.compile('</\s*([a-zA-Z][-.a-zA-Z0-9:_]*)\s*>')
+backend\venv\Lib\site-packages\future\backports\http\client.py:29: SyntaxWarning: "\_" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\_"? A raw string is also an option.
+  |\____________________
+backend\venv\Lib\site-packages\future\backports\http\cookiejar.py:212: SyntaxWarning: "\d" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\d"? A raw string is also an option.
+  "(\d\d\d\d) (\d\d):(\d\d):(\d\d) GMT$", re.ASCII)
+backend\venv\Lib\site-packages\future\backports\http\cookiejar.py:294: SyntaxWarning: "\d" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\d"? A raw string is also an option.
+  (\d{4})              # year
+backend\venv\Lib\site-packages\future\backports\http\cookiejar.py:429: SyntaxWarning: "\s" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\s"? A raw string is also an option.
+  non_junk, nr_junk_chars = re.subn("^[=\s;]*", "", text)
+backend\venv\Lib\site-packages\future\backports\test\support.py:1945: SyntaxWarning: "\d" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\d"? A raw string is also an option.
+  m = re.match("2.6.(\d{1,2})", kernel_version)
+backend\venv\Lib\site-packages\future\backports\urllib\parse.py:957: SyntaxWarning: "\?" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\?"? A raw string is also an option.
+  _queryprog = re.compile('^(.*)\?([^?]*)$')
+backend\venv_shazam\Lib\site-packages\pydub\utils.py:300: SyntaxWarning: "\(" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\("? A raw string is also an option.
+  m = re.match('([su]([0-9]{1,2})p?) \(([0-9]{1,2}) bit\)$', token)
+backend\venv_shazam\Lib\site-packages\pydub\utils.py:301: SyntaxWarning: "\(" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\("? A raw string is also an option.
+  m2 = re.match('([su]([0-9]{1,2})p?)( \(default\))?$', token)
+backend\venv_shazam\Lib\site-packages\pydub\utils.py:310: SyntaxWarning: "\(" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\("? A raw string is also an option.
+  elif re.match('(flt)p?( \(default\))?$', token):
+backend\venv_shazam\Lib\site-packages\pydub\utils.py:314: SyntaxWarning: "\(" is an invalid escape sequence. Such sequences will not work in the future. Did you mean "\\("? A raw string is also an option.
+  elif re.match('(dbl)p?( \(default\))?$', token):
+
+=======================================================
+TABLE: reels
+=======================================================
+Total calls: 123 (Inside loops: 33, Outside loops: 90)
+
+--- [IN-LOOP CALLS] ---
+- backend/analyze_fallback_conditions.py:54
+    select: 'velocity_score'
+    loop: for days in time_windows (line 51)
+- backend/analyze_fallback_conditions.py:105
+    select: 'velocity_score'
+    loop: for day_offset in range(30) (line 101)
+- backend/api_globals.py:687
+    select: 'reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url'
+    loop: for i in range(0, len(audio_ids), chunk_size) (line 685)
+- backend/api_globals.py:721
+    select: 'reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url'
+    loop: for i in range(0, len(fallback_titles), chunk_size) (line 719)
+- backend/backfill_follower_counts.py:52
+    select: 'id, owner_username, owner_follower_count'
+    loop: while True (line 50)
+- backend/backfill_follower_counts.py:77
+    select: <no static .select() chained directly>
+    loop: while True (line 50) -> for u in updates (line 75)
+- backend/backfill_language_classification.py:66
+    select: 'caption'
+    loop: for row in rows (line 58)
+- backend/backfill_trend_languages.py:37
+    select: 'audio_id, caption_language'
+    loop: while True (line 36)
+- backend/check_cron_runs.py:64
+    select: 'id'
+    loop: for i in range(5) (line 60)
+- backend/check_query_truncation.py:53
+    select: 'id'
+    loop: for t in titles[:50] (line 52)
+- backend/compare_audio_scoped_7d.py:35
+    select: 'id, reel_id, owner_username, caption, view_count, like_count, audio_id, audio_title, audio_artist, created_at'
+    loop: while True (line 34)
+- backend/cron_job.py:445
+    select: <no static .select() chained directly>
+    loop: for r in backfill_reels (line 421)
+- backend/cron_job.py:459
+    select: <no static .select() chained directly>
+    loop: for r in backfill_reels (line 421)
+- backend/cron_job.py:636
+    select: <no static .select() chained directly>
+    loop: for r in cw_reels (line 622)
+- backend/cron_job.py:756
+    select: <no static .select() chained directly>
+    loop: for r in all_reels (line 754)
+- backend/hybrid_signal_processor.py:70
+    select: '*'
+    loop: for pool_name in micro_pools (line 67) -> for hashtag in pool_hashtags (line 69)
+- backend/hybrid_signal_processor.py:162
+    select: '*'
+    loop: for pool_name in main_pools (line 159) -> for hashtag in pool_hashtags (line 161)
+- backend/instagram_scraper_browser.py:1513
+    select: 'reel_id'
+    loop: for i in range(0, len(all_reel_ids), CHUNK) (line 1511)
+- backend/instagram_scraper_browser.py:1535
+    select: 'owner_username, audio_id, audio_title, creator_country, view_count'
+    loop: for i in range(0, len(unique_audio_ids), CHUNK) (line 1533)
+- backend/instagram_scraper_browser.py:1717
+    select: <no static .select() chained directly>
+    loop: for i in range(0, len(inserted_reels), CHUNK) (line 1714)
+- backend/instagram_scraper_browser.py:1725
+    select: <no static .select() chained directly>
+    loop: for i in range(0, len(inserted_reels), CHUNK) (line 1714) -> for r in chunk (line 1723)
+- backend/instagram_scraper_browser.py:1798
+    select: 'audio_id'
+    loop: for i in range(0, len(untracked_ids), CHUNK) (line 1796)
+- backend/monitor_velocity_enrollment.py:100
+    select: 'reel_id, velocity_score, view_count, like_count, scraped_at'
+    loop: for audio in recent_tracked.data (line 94)
+- backend/monitor_velocity_enrollment.py:206
+    select: 'owner_username, caption'
+    loop: for audio in recent_tracked.data (line 200)
+- backend/run_external_signal_ingestion.py:72
+    select: 'id'
+    loop: for t in tracks (line 64) -> for tag in derived (line 69)
+- backend/run_format_trend_clustering.py:100
+    select: 'id, reel_id, owner_username, caption, caption_language, view_count, like_count, audio_id, audio_title, audio_artist, created_at'
+    loop: while True (line 98)
+- backend/trend_engine.py:734
+    select: '*'
+    loop: while True (line 733)
+- backend/trend_engine.py:901
+    select: '*'
+    loop: for ((title, artist), group_reels) in audio_groups.items() (line 793)
+- backend/scratch/find_test_audio.py:18
+    select: 'audio_id, audio_title, video_url, reel_id, created_at'
+    loop: while True (line 17)
+- backend/scratch/inspect_reels_language.py:24
+    select: 'id'
+    loop: for col in cols (line 22)
+- backend/scratch/inspect_reels_language.py:35
+    select: col
+    loop: for col in ['language', 'caption_language'] (line 33)
+- backend/scratch/verify_counter_ties.py:13
+    select: 'audio_id, caption_language'
+    loop: while True (line 12)
+- backend/scratch/verify_fix4_raw.py:26
+    select: 'owner_username'
+    loop: for r in rows (line 20)
+
+--- [OUT-OF-LOOP CALLS] ---
+- backend/analyze_fallback_conditions.py:74 | select: 'scraped_at'
+- backend/analyze_threshold_distribution.py:59 | select: 'audio_id, velocity_score, view_count, like_count, scraped_at'
+- backend/api.py:258 | select: 'id'
+- backend/api.py:264 | select: 'id'
+- backend/backfill_follower_counts.py:97 | select: 'owner_follower_count'
+- backend/caption_engine.py:188 | select: 'caption, like_count, comment_count'
+- backend/check_audio_use_count_population.py:32 | select: 'id, audio_use_count, audio_title, created_at'
+- backend/check_audio_use_count_population.py:54 | select: 'id, audio_use_count, audio_title'
+- backend/check_beretta_attribution.py:32 | select: '*'
+- backend/check_beretta_attribution.py:97 | select: '*'
+- backend/check_beretta_trend_eligibility.py:33 | select: '*'
+- backend/check_db.py:10 | select: 'reel_id,audio_title,scraped_at'
+- backend/check_db.py:11 | select: 'reel_id'
+- backend/check_hashtag_coverage.py:52 | select: 'hashtags'
+- backend/check_last_successful_scrape.py:54 | select: 'created_at'
+- backend/check_query_truncation.py:13 | select: 'id'
+- backend/check_query_truncation.py:23 | select: 'audio_title'
+- backend/check_query_truncation.py:27 | select: 'id'
+- backend/check_query_truncation.py:41 | select: 'reel_id, audio_title, audio_artist, velocity_score'
+- backend/check_query_truncation.py:45 | select: 'id'
+- backend/check_queue_capacity.py:64 | select: 'audio_id'
+- backend/check_queue_capacity.py:99 | select: 'audio_id, velocity_score, view_count, like_count'
+- backend/check_rising_trends.py:60 | select: 'audio_id, created_at'
+- backend/check_supabase_connection.py:57 | select: 'id'
+- backend/comment_scraper_pilot.py:46 | select: 'reel_id, pk'
+- backend/compare_cluster_thresholds.py:32 | select: 'id, reel_id, owner_username, caption, view_count, like_count, audio_id, audio_title, audio_artist, created_at'
+- backend/creator_analytics.py:124 | select: '*'
+- backend/creator_analytics.py:272 | select: 'created_at, view_count, like_count, comment_count, velocity_score'
+- backend/cron_job.py:259 | select: 'is_creator_outlier, semantic_niches'
+- backend/cron_job.py:412 | select: 'reel_id, video_url, owner_username, audio_backfill_attempts'
+- backend/cron_job.py:511 | select: 'audio_id'
+- backend/cron_job.py:668 | select: 'audio_title'
+- backend/cron_job.py:752 | select: 'reel_id, audio_title, audio_artist, caption'
+- backend/early_signal_detector.py:172 | select: 'owner_follower_count'
+- backend/format_trend_detector.py:152 | select: 'reel_id,caption,hashtags,owner_username,velocity_score,view_count,like_count,scraped_at,source_hashtag_pool'
+- backend/geographic_spread_analyzer.py:73 | select: 'caption'
+- backend/geographic_spread_analyzer.py:139 | select: 'caption'
+- backend/hashtag_velocity_tracker.py:111 | select: 'hashtags, created_at, velocity_score'
+- backend/hashtag_velocity_tracker.py:284 | select: 'hashtags'
+- backend/inspect_trend_7355.py:8 | select: 'reel_id, audio_title, audio_artist, owner_username, view_count, caption'
+- backend/instagram_scraper_browser.py:1173 | select: 'id'
+- backend/instagram_scraper_browser.py:1300 | select: <no static .select() chained directly>
+- backend/instagram_scraper_browser.py:2119 | select: 'audio_id'
+- backend/instagram_scraper_browser.py:2409 | select: <no static .select() chained directly>
+- backend/investigate_audio_use_count_population.py:44 | select: 'id, audio_use_count, audio_title, audio_artist, created_at, posted_at'
+- backend/investigate_queue_limit.py:61 | select: 'audio_id'
+- backend/manual_run_and_check.py:37 | select: 'id'
+- backend/monitor_velocity_enrollment.py:41 | select: 'velocity_score'
+- backend/realtime_velocity_tracker.py:162 | select: '*'
+- backend/revalidate_metrics.py:97 | select: 'id'
+- backend/revalidate_metrics.py:105 | select: 'id'
+- backend/revalidate_v2.py:61 | select: 'id'
+- backend/revalidate_v2.py:64 | select: 'id'
+- backend/run_caption_topic_clustering.py:40 | select: 'id, owner_username, caption, view_count, like_count, created_at, language'
+- backend/run_comment_trend_check.py:36 | select: 'reel_id, pk'
+- backend/run_comment_trend_check.py:100 | select: 'reel_id, pk'
+- backend/run_dynamic_hashtag_discovery.py:40 | select: '*'
+- backend/spotify_search_ingester.py:133 | select: 'audio_title, audio_artist'
+- backend/spotify_seeder.py:110 | select: 'audio_id, audio_title, audio_artist'
+- backend/test_dynamic_threshold.py:51 | select: 'velocity_score'
+- backend/test_dynamic_threshold.py:103 | select: 'audio_id, velocity_score'
+- backend/test_percentile_thresholds.py:52 | select: 'velocity_score'
+- backend/test_percentile_thresholds.py:93 | select: 'audio_id, velocity_score, view_count, like_count'
+- backend/trend_detector.py:221 | select: 'id, audio_title, audio_artist, audio_id, audio_use_count, velocity_score, creator_username, caption, posted_at, likes_count, comments_count, views_count'
+- backend/trend_engine.py:710 | select: 'reel_id'
+- backend/trend_engine.py:1489 | select: 'audio_id, owner_username, posted_at, velocity_score, reel_id, view_count, like_count, comment_count, audio_title, audio_artist'
+- backend/trend_engine.py:1643 | select: 'reel_id'
+- backend/trend_engine.py:1655 | select: 'audio_id, owner_username, posted_at, velocity_score, reel_id, view_count, like_count, comment_count, audio_title, audio_artist'
+- backend/trend_refresher.py:162 | select: 'reel_id, audio_title'
+- backend/trend_refresher.py:202 | select: 'reel_id, audio_title, scraped_at'
+- backend/trend_refresher.py:530 | select: 'audio_use_count'
+- backend/trend_refresher.py:538 | select: 'audio_use_count, audio_title'
+- backend/trend_refresher.py:583 | select: 'velocity_score, audio_title'
+- backend/trend_refresher.py:605 | select: 'owner_username, audio_title'
+- backend/verify_database_data.py:38 | select: 'id'
+- backend/verify_database_data.py:42 | select: 'reel_id, audio_title, audio_artist, view_count, owner_follower_count, scraped_at'
+- backend/verify_database_data.py:64 | select: 'reel_id, audio_title, audio_artist, owner_username, view_count, owner_follower_count, is_original_audio, audio_use_count'
+- backend/verify_final_fix.py:37 | select: 'created_at'
+- backend/routes/system.py:336 | select: '*'
+- backend/routes/system.py:365 | select: '*'
+- backend/routes/trends.py:1245 | select: '*'
+- backend/scratch/check_24h_audios.py:16 | select: 'audio_id, audio_title, video_url, reel_id, created_at'
+- backend/scratch/compare_cluster_thresholds.py:32 | select: 'id, reel_id, owner_username, caption, view_count, like_count, audio_id, audio_title, audio_artist, created_at'
+- backend/scratch/debug_ocr_discrepancy.py:43 | select: 'id, reel_id, audio_id, audio_title, video_url, created_at'
+- backend/scratch/ocr_fresh_reels_test.py:140 | select: 'id, reel_id, audio_id, audio_title, video_url, created_at'
+- backend/scratch/ocr_poc_video_overlay.py:134 | select: 'id, reel_id, audio_id, audio_title, audio_artist, video_url, created_at'
+- backend/scratch/ocr_poc_video_overlay.py:149 | select: 'id, reel_id, audio_id, audio_title, audio_artist, video_url, created_at'
+- backend/scratch/ocr_same_audio_cluster_test.py:136 | select: 'id, reel_id, audio_id, audio_title, video_url, created_at'
+- backend/scratch/ocr_same_audio_cluster_test.py:150 | select: 'id, reel_id, audio_id, audio_title, video_url, created_at'
+- backend/scratch/verify_error_masking_fix.py:29 | select: 'reel_id, audio_title, video_url'
+
+=======================================================
+TABLE: audio_official_counts
+=======================================================
+Total calls: 6 (Inside loops: 1, Outside loops: 5)
+
+--- [IN-LOOP CALLS] ---
+- backend/trend_engine.py:1082
+    select: 'official_count_velocity'
+    loop: for ((title, artist), group_reels) in audio_groups.items() (line 793)
+
+--- [OUT-OF-LOOP CALLS] ---
+- backend/check_audio_use_count_population.py:108 | select: '*'
+- backend/cron_job.py:535 | select: 'audio_id'
+- backend/instagram_scraper_browser.py:930 | select: 'official_use_count'
+- backend/instagram_scraper_browser.py:2340 | select: 'official_use_count, checked_at, precision_bucket'
+- backend/instagram_scraper_browser.py:2406 | select: <no static .select() chained directly>
+
+=======================================================
+TABLE: audio_trend_scores
+=======================================================
+Total calls: 13 (Inside loops: 4, Outside loops: 9)
+
+--- [IN-LOOP CALLS] ---
+- backend/backfill_trend_languages.py:85
+    select: 'id, audio_id'
+    loop: while True (line 84)
+- backend/backfill_trend_languages.py:136
+    select: <no static .select() chained directly>
+    loop: for (lang, ids) in ats_by_lang.items() (line 131) -> for i in range(0, len(ids), chunk_size) (line 134)
+- backend/trend_engine.py:1680
+    select: 'audio_id'
+    loop: for i in range(0, len(all_target_aids), 200) (line 1677)
+- backend/trend_engine.py:1761
+    select: <no static .select() chained directly>
+    loop: for i in range(0, len(scores_to_insert), 100) (line 1758)
+
+--- [OUT-OF-LOOP CALLS] ---
+- backend/trend_engine.py:1554 | select: 'id'
+- backend/routes/trends.py:932 | select: 'scrape_cycle_at'
+- backend/routes/trends.py:942 | select: '*'
+- backend/scratch/find_null_rows.py:8 | select: 'id, audio_id, created_at, language'
+- backend/scratch/fix_null_rows.py:9 | select: <no static .select() chained directly>
+- backend/scratch/fix_null_rows.py:12 | select: 'id'
+- backend/scratch/inspect_language_data.py:41 | select: 'audio_title, language, niche_tag, velocity_score'
+- backend/scratch/verify_counter_ties.py:38 | select: 'id'
+- backend/scratch/verify_counter_ties.py:39 | select: 'id'
+
+=======================================================
+TABLE: trends
+=======================================================
+Total calls: 195 (Inside loops: 43, Outside loops: 152)
+
+--- [IN-LOOP CALLS] ---
+- backend/backfill_language.py:118
+    select: <no static .select() chained directly>
+    loop: for (idx, row) in enumerate(rows, start=1) (line 63)
+- backend/backfill_language_classification.py:83
+    select: <no static .select() chained directly>
+    loop: for row in rows (line 58)
+- backend/backfill_local_fallback.py:41
+    select: 'id,audio_title,why_this_works,audio_cue_second,format_transferable,transfer_instructions'
+    loop: for status in TARGET_STATUSES (line 37) -> while True (line 39)
+- backend/backfill_local_fallback.py:70
+    select: <no static .select() chained directly>
+    loop: for status in TARGET_STATUSES (line 37) -> while True (line 39) -> for (tid, upd) in updates (line 68)
+- backend/backfill_merge_trends.py:40
+    select: 'id, audio_title, audio_artist, audio_id, velocity_avg, peak_velocity, reel_count, status, first_detected_at, audio_use_count, confidence, high_confidence'
+    loop: while True (line 39)
+- backend/backfill_merge_trends.py:128
+    select: <no static .select() chained directly>
+    loop: for ((norm_title, artist), group) in merge_groups.items() (line 105)
+- backend/backfill_merge_trends.py:138
+    select: <no static .select() chained directly>
+    loop: for ((norm_title, artist), group) in merge_groups.items() (line 105)
+- backend/backfill_pool_name_niches.py:61
+    select: <no static .select() chained directly>
+    loop: for h in hits (line 42)
+- backend/backfill_trend_state.py:92
+    select: <no static .select() chained directly>
+    loop: for trend in trends (line 24)
+- backend/check_all_status_filters.py:34
+    select: '*'
+    loop: for status in statuses (line 27)
+- backend/check_all_trend_statuses.py:30
+    select: '*'
+    loop: for status in statuses (line 28)
+- backend/check_beretta_trend_eligibility.py:170
+    select: '*'
+    loop: for ((title, artist), group_reels) in audio_groups.items() (line 58)
+- backend/check_beretta_trend_eligibility.py:177
+    select: '*'
+    loop: for ((title, artist), group_reels) in audio_groups.items() (line 58)
+- backend/cron_auto_classifier.py:275
+    select: <no static .select() chained directly>
+    loop: for (lcode, tids) in by_lang.items() (line 273)
+- backend/cron_auto_classifier.py:291
+    select: <no static .select() chained directly>
+    loop: for (tid, data) in used_for_map.items() (line 288)
+- backend/cron_job.py:746
+    select: <no static .select() chained directly>
+    loop: for t in active_trends (line 744)
+- backend/fix_pending_classifications.py:38
+    select: <no static .select() chained directly>
+    loop: for trend in pending_rising.data (line 33)
+- backend/get_order10_data.py:17
+    select: 'id, audio_title, audio_artist, status, reel_count, created_at, first_detected_at'
+    loop: while True (line 16)
+- backend/monitor_velocity_enrollment.py:135
+    select: 'id, status, first_detected_at'
+    loop: for audio in recent_tracked.data (line 94)
+- backend/nightly_llm_batch.py:123
+    select: <no static .select() chained directly>
+    loop: for trend in rows (line 98)
+- backend/nightly_llm_batch.py:146
+    select: <no static .select() chained directly>
+    loop: for trend in rows (line 98)
+- backend/pending_timeout_fallback.py:74
+    select: <no static .select() chained directly>
+    loop: for trend in stuck_trends (line 68)
+- backend/revert_test_changes.py:18
+    select: <no static .select() chained directly>
+    loop: for (tid, original_status) in reverts (line 17)
+- backend/revert_test_changes.py:20
+    select: 'id, audio_title, status'
+    loop: for (tid, original_status) in reverts (line 17)
+- backend/scratch_order10.py:17
+    select: 'id, status, reel_count'
+    loop: for st in ['comeback', 'peaked', 'rising', 'emerging'] (line 16)
+- backend/test_change_a.py:55
+    select: 'status, velocity_avg'
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_a.py:61
+    select: <no static .select() chained directly>
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_a.py:64
+    select: 'status, velocity_avg'
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_a.py:90
+    select: <no static .select() chained directly>
+    loop: for (status, row) in by_status.items() (line 89)
+- backend/test_change_b.py:51
+    select: 'id, status'
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_b.py:59
+    select: <no static .select() chained directly>
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_b.py:61
+    select: 'status, velocity_avg'
+    loop: for (status, row) in sorted(by_status.items()) (line 42)
+- backend/test_change_b.py:71
+    select: <no static .select() chained directly>
+    loop: for (status, row) in by_status.items() (line 70)
+- backend/trend_engine.py:883
+    select: <no static .select() chained directly>
+    loop: for ((title, artist), group_reels) in audio_groups.items() (line 793)
+- backend/trend_engine.py:1437
+    select: 'id, status'
+    loop: for trend in confirmed (line 1208)
+- backend/trend_engine.py:1446
+    select: <no static .select() chained directly>
+    loop: for trend in confirmed (line 1208)
+- backend/trend_engine.py:1450
+    select: <no static .select() chained directly>
+    loop: for trend in confirmed (line 1208)
+- backend/trend_engine.py:1459
+    select: <no static .select() chained directly>
+    loop: for trend in confirmed (line 1208)
+- backend/verify_api_counts.py:53
+    select: '*'
+    loop: for (status, config) in status_configs.items() (line 46)
+- backend/verify_api_counts.py:76
+    select: '*'
+    loop: for (status, config) in status_configs.items() (line 46)
+- backend/verify_database_data.py:53
+    select: 'id, audio_title, audio_artist, velocity_avg, first_detected_at, created_at'
+    loop: for status in ['emerging', 'rising', 'peaked', 'expired'] (line 52)
+- backend/verify_db_live.py:16
+    select: 'id'
+    loop: for status in ['rising', 'emerging', 'resurging', 'peaked', 'expired'] (line 15)
+- backend/routes/trends.py:500
+    select: 'status, first_detected_at, created_at'
+    loop: for st in statuses (line 498)
+
+--- [OUT-OF-LOOP CALLS] ---
+- backend/analyze_trends.py:30 | select: '*'
+- backend/api.py:261 | select: 'audio_title'
+- backend/api.py:887 | select: 'audio_url'
+- backend/api.py:1014 | select: 'id'
+- backend/api.py:1106 | select: 'id'
+- backend/api_globals.py:382 | select: 'id'
+- backend/backfill_language.py:48 | select: '*'
+- backend/backfill_language_classification.py:45 | select: 'id, audio_title, audio_artist, sample_captions, language'
+- backend/backfill_pool_name_niches.py:31 | select: 'id, audio_title, niche_tag, content_type, sample_captions'
+- backend/backfill_trend_state.py:19 | select: '*'
+- backend/caption_engine.py:83 | select: '*'
+- backend/check_all_trend_statuses.py:46 | select: 'id'
+- backend/check_api_responses.py:29 | select: '*'
+- backend/check_api_responses.py:75 | select: '*'
+- backend/check_audio_use_count_population.py:62 | select: 'audio_title, audio_artist'
+- backend/check_beretta_attribution.py:58 | select: '*'
+- backend/check_classification_filter.py:28 | select: '*'
+- backend/check_classification_filter.py:64 | select: '*'
+- backend/check_classification_filter.py:65 | select: '*'
+- backend/check_last_successful_scrape.py:72 | select: 'created_at'
+- backend/check_llm_classification_history.py:29 | select: '*'
+- backend/check_llm_classification_history.py:62 | select: '*'
+- backend/check_llm_classification_history.py:86 | select: '*'
+- backend/check_llm_classification_history.py:113 | select: '*'
+- backend/check_promotion_logic.py:29 | select: 'status'
+- backend/check_promotion_logic.py:31 | select: 'status'
+- backend/check_promotion_logic.py:48 | select: '*'
+- backend/check_promotion_logic.py:65 | select: '*'
+- backend/check_query_truncation.py:35 | select: 'audio_title'
+- backend/check_recent_trends.py:26 | select: 'id'
+- backend/check_recent_trends.py:31 | select: '*'
+- backend/check_recent_trends.py:48 | select: '*'
+- backend/check_remaining_dups.py:12 | select: 'id, audio_id, audio_title, velocity_avg, status, created_at'
+- backend/check_retry_logic.py:42 | select: '*'
+- backend/check_retry_logic.py:74 | select: '*'
+- backend/check_rising_classification_status.py:26 | select: '*'
+- backend/check_rising_classification_status.py:30 | select: '*'
+- backend/check_rising_classification_status.py:34 | select: '*'
+- backend/check_rising_classification_status.py:38 | select: '*'
+- backend/check_rising_trends.py:27 | select: '*'
+- backend/check_rising_with_delay.py:27 | select: '*'
+- backend/check_rising_with_delay.py:33 | select: '*'
+- backend/check_skipped_local_fallback.py:27 | select: '*'
+- backend/check_snapshots_bulk.py:14 | select: 'id, audio_id, velocity_avg, status, audio_title'
+- backend/check_snapshots_rls.py:63 | select: '*'
+- backend/check_snapshots_rls.py:89 | select: 'id'
+- backend/check_snapshots_rls.py:98 | select: '*'
+- backend/check_tie_cases.py:20 | select: 'id, audio_title, velocity_avg, status, created_at'
+- backend/creator_tools.py:240 | select: '*'
+- backend/creator_tools.py:388 | select: '*'
+- backend/creator_tools.py:513 | select: 'id, audio_title, audio_artist, status, velocity_avg, peak_velocity, saturation_score, optimal_post_hour_ist, why_this_works, first_detected_at, created_at, niche_tag'
+- backend/creator_tools.py:585 | select: 'audio_title, audio_artist, status, velocity_avg, saturation_score, niche_tag'
+- backend/cron_auto_classifier.py:253 | select: 'id, audio_title, audio_artist, sample_captions, language_final, used_for'
+- backend/cron_auto_classifier.py:314 | select: 'id'
+- backend/cron_job.py:111 | select: 'id, audio_id, audio_title, audio_artist, status, velocity_avg, is_voiceover, is_seed_data, window_hours_remaining, created_at, first_detected_at'
+- backend/cron_job.py:256 | select: 'discovery_source, semantic_niches, llm_classification_status, llm_retry_count, has_creator_outlier'
+- backend/cron_job.py:488 | select: 'audio_id'
+- backend/cron_job.py:742 | select: 'id, audio_title, audio_artist'
+- backend/early_trend_detection.py:200 | select: '*'
+- backend/fix_pending_classifications.py:26 | select: '*'
+- backend/fix_pending_classifications.py:49 | select: '*'
+- backend/inspect_trends.py:10 | select: 'id,audio_title,audio_artist,audio_id,status,audio_use_count'
+- backend/inspect_trend_7355.py:4 | select: '*'
+- backend/investigate_audio_use_count_population.py:75 | select: 'audio_title, audio_artist, status, first_detected_at'
+- backend/investigate_old_songs.py:35 | select: 'id, audio_title, audio_artist, first_detected_at, status, audio_use_count, velocity_avg, composite_score'
+- backend/manual_run_and_check.py:38 | select: 'id'
+- backend/nightly_llm_batch.py:86 | select: 'id,audio_title,audio_artist,niche_tag,content_tone,vibe_tag,language,sample_captions,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions'
+- backend/pending_timeout_fallback.py:35 | select: '*'
+- backend/pending_trends_monitor.py:33 | select: 'id'
+- backend/pending_trends_monitor.py:37 | select: 'id'
+- backend/pending_trends_monitor.py:42 | select: 'id'
+- backend/pending_trends_monitor.py:46 | select: 'id'
+- backend/preview_full_delete.py:16 | select: 'id, audio_id, audio_title, velocity_avg, status, created_at, reel_count'
+- backend/preview_trend_dedup.py:20 | select: 'id, audio_id, audio_title, velocity_avg, status, created_at, reel_count'
+- backend/revalidate_metrics.py:14 | select: 'id, audio_id, audio_title, audio_artist'
+- backend/revalidate_metrics.py:74 | select: 'id'
+- backend/revalidate_metrics.py:77 | select: 'id'
+- backend/revalidate_metrics.py:78 | select: 'id'
+- backend/revalidate_metrics.py:83 | select: 'velocity_avg, audio_title'
+- backend/revalidate_v2.py:16 | select: 'id, status, audio_title, audio_artist, velocity_avg, audio_id, first_detected_at'
+- backend/revalidate_v2.py:65 | select: 'id'
+- backend/rising_velocity.py:12 | select: 'velocity_avg, audio_title'
+- backend/run_dynamic_hashtag_discovery.py:50 | select: 'audio_id'
+- backend/run_trend_engine.py:56 | select: 'status'
+- backend/scratch_order10.py:10 | select: 'status'
+- backend/spotify_search_ingester.py:122 | select: 'audio_title, audio_artist'
+- backend/spotify_seeder.py:127 | select: 'audio_id, audio_title, audio_artist'
+- backend/test_alerts_pipeline.py:38 | select: <no static .select() chained directly>
+- backend/test_alerts_pipeline.py:77 | select: <no static .select() chained directly>
+- backend/test_apis.py:26 | select: 'id'
+- backend/test_change_a.py:28 | select: 'id, audio_id, audio_title, status, velocity_avg'
+- backend/test_change_b.py:30 | select: 'id, audio_title, audio_artist, status, velocity_avg'
+- backend/test_trend_consistency.py:42 | select: '*'
+- backend/trend_detector.py:245 | select: 'id, audio_id, title, artist, status'
+- backend/trend_detector.py:449 | select: 'id, status'
+- backend/trend_detector.py:454 | select: 'id, status'
+- backend/trend_detector.py:494 | select: <no static .select() chained directly>
+- backend/trend_detector.py:515 | select: <no static .select() chained directly>
+- backend/trend_detector.py:528 | select: <no static .select() chained directly>
+- backend/trend_detector.py:567 | select: <no static .select() chained directly>
+- backend/trend_detector.py:585 | select: '*'
+- backend/trend_refresher.py:98 | select: '*'
+- backend/trend_refresher.py:294 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:419 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:428 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:454 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:501 | select: 'audio_use_count'
+- backend/trend_refresher.py:505 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:562 | select: <no static .select() chained directly>
+- backend/trend_refresher.py:628 | select: 'velocity_avg'
+- backend/trend_refresher.py:683 | select: 'id,audio_title,audio_artist,velocity_avg'
+- backend/verify_active_trends.py:29 | select: 'id,audio_title,audio_artist,audio_id,status,audio_use_count'
+- backend/verify_db_live.py:21 | select: 'id, audio_title, audio_artist, status, language, language_final, discovery_source, trend_origin, created_at, first_detected_at'
+- backend/verify_db_live.py:27 | select: 'id, audio_title, audio_artist, status, language, language_final, discovery_source, trend_origin, created_at'
+- backend/verify_dedup_live.py:138 | select: 'id, audio_id, audio_title, velocity_avg, status, created_at, reel_count, first_detected_at'
+- backend/verify_final_fix.py:27 | select: '*'
+- backend/verify_final_fix.py:32 | select: '*'
+- backend/verify_final_fix.py:43 | select: 'created_at'
+- backend/verify_scraper_run.py:34 | select: 'id'
+- backend/verify_scraper_run.py:43 | select: '*'
+- backend/worker.py:70 | select: 'audio_url'
+- backend/routes/india.py:138 | select: 'audio_title, audio_artist'
+- backend/routes/system.py:18 | select: 'id, audio_title, audio_artist, status, first_detected_at, velocity_avg, niche_tag, language'
+- backend/routes/system.py:66 | select: 'id'
+- backend/routes/system.py:662 | select: '*'
+- backend/routes/system.py:701 | select: '*'
+- backend/routes/system.py:739 | select: '*'
+- backend/routes/trends.py:138 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:174 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:411 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:431 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:533 | select: 'id, audio_title, audio_artist, status, velocity_avg, creator_fit_score, hook_retention_score, saturation_penalty, window_hours_remaining, optimal_post_hour_ist, created_at, first_detected_at'
+- backend/routes/trends.py:629 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:740 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:779 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:838 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:893 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:974 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:986 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:1022 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:1087 | select: '*'
+- backend/routes/trends.py:1165 | select: FEED_CARD_COLUMNS
+- backend/routes/trends.py:1179 | select: '*'
+- backend/routes/trends.py:1200 | select: 'audio_id'
+- backend/routes/trends.py:1237 | select: 'audio_title, audio_artist'
+- backend/routes/trends.py:1408 | select: 'content_type, language'
+- backend/routes/trends.py:1417 | select: '*'
+- backend/routes/trends.py:1453 | select: '*'
+- backend/routes/trends.py:1545 | select: <no static .select() chained directly>
+- backend/routes/trends.py:1552 | select: <no static .select() chained directly>
+- backend/routes/trends.py:1660 | select: FEED_CARD_COLUMNS
+- backend/scratch/verify_fix4_raw.py:17 | select: 'id, audio_title, status, velocity_avg, global_saturation_pct, india_saturation_pct, window_hours_remaining, audio_use_count, confidence, peaking_score, discovery_source'
+
+=======================================================
+TABLE: users
+=======================================================
+Total calls: 88 (Inside loops: 7, Outside loops: 81)
+
+--- [IN-LOOP CALLS] ---
+- backend/admin_audit_cleanup.py:51
+    select: <no static .select() chained directly>
+    loop: for user in users_to_delete (line 50)
+- backend/alert_worker.py:132
+    select: 'phone_number'
+    loop: for alert in pending.data or [] (line 110)
+- backend/business_metrics.py:143
+    select: 'id'
+    loop: for plan in plans (line 138)
+- backend/cron_job.py:1002
+    select: <no static .select() chained directly>
+    loop: for u in old_users.data (line 997)
+- backend/revenue_tracker.py:79
+    select: 'id'
+    loop: for plan in plans (line 74)
+- backend/routes/admin.py:647
+    select: 'email'
+    loop: for log in res.data or [] (line 642)
+- backend/routes/admin.py:651
+    select: 'email'
+    loop: for log in res.data or [] (line 642)
+
+--- [OUT-OF-LOOP CALLS] ---
+- backend/admin_audit_cleanup.py:24 | select: '*'
+- backend/admin_audit_cleanup.py:34 | select: <no static .select() chained directly>
+- backend/admin_audit_cleanup.py:42 | select: 'email, plan, created_at'
+- backend/alert_system.py:72 | select: '*'
+- backend/api.py:751 | select: 'grace_period_ends_at'
+- backend/api.py:796 | select: <no static .select() chained directly>
+- backend/api.py:984 | select: 'plan'
+- backend/api.py:1461 | select: 'niche'
+- backend/api_globals.py:419 | select: 'niche, language_preference, user_id, plan'
+- backend/api_globals.py:481 | select: 'id, email'
+- backend/api_globals.py:495 | select: 'id'
+- backend/auth.py:38 | select: 'status'
+- backend/auth.py:84 | select: 'email, status'
+- backend/business_metrics.py:70 | select: 'id'
+- backend/business_metrics.py:77 | select: 'created_at'
+- backend/business_metrics.py:88 | select: 'id'
+- backend/check_user_plan.py:14 | select: 'email, plan, tier_id'
+- backend/create_cathrine_pro.py:57 | select: <no static .select() chained directly>
+- backend/create_pro_account.py:41 | select: <no static .select() chained directly>
+- backend/creator_tools.py:231 | select: 'niche, language_preference'
+- backend/cron_job.py:996 | select: 'email'
+- backend/device_fingerprint.py:216 | select: 'status'
+- backend/plan_enforcement.py:140 | select: 'id'
+- backend/plan_enforcement.py:173 | select: <no static .select() chained directly>
+- backend/plan_enforcement.py:178 | select: <no static .select() chained directly>
+- backend/plan_enforcement.py:238 | select: 'id, credits_remaining, credits_used_this_month'
+- backend/plan_enforcement.py:263 | select: <no static .select() chained directly>
+- backend/plan_enforcement.py:286 | select: 'credits_remaining'
+- backend/plan_enforcement.py:310 | select: 'usage_count'
+- backend/plan_enforcement.py:314 | select: <no static .select() chained directly>
+- backend/plan_enforcement.py:326 | select: 'phone_verified'
+- backend/revenue_tracker.py:180 | select: 'plan'
+- backend/run_order9_tests.py:36 | select: 'auth_token, email'
+- backend/test_alerts_pipeline.py:52 | select: <no static .select() chained directly>
+- backend/test_alerts_pipeline.py:75 | select: <no static .select() chained directly>
+- backend/test_cancellation_reason.py:43 | select: 'email, cancellation_reason, cancellation_date'
+- backend/test_cancellation_reason.py:67 | select: <no static .select() chained directly>
+- backend/test_cathrine_login.py:31 | select: '*'
+- backend/test_subscription_webhook.py:36 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:41 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:62 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:74 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:105 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:110 | select: <no static .select() chained directly>
+- backend/test_subscription_webhook.py:130 | select: <no static .select() chained directly>
+- backend/usage_tracker.py:54 | select: 'plan'
+- backend/usage_tracker.py:198 | select: 'usage_count'
+- backend/usage_tracker.py:206 | select: <no static .select() chained directly>
+- backend/user_management.py:70 | select: '*'
+- backend/user_management.py:93 | select: <no static .select() chained directly>
+- backend/user_management.py:118 | select: '*'
+- backend/user_management.py:148 | select: '*'
+- backend/user_management.py:186 | select: <no static .select() chained directly>
+- backend/user_management.py:231 | select: <no static .select() chained directly>
+- backend/user_management.py:271 | select: <no static .select() chained directly>
+- backend/user_management.py:429 | select: 'plan'
+- backend/routes/admin.py:182 | select: '*'
+- backend/routes/admin.py:207 | select: '*'
+- backend/routes/admin.py:253 | select: 'id'
+- backend/routes/admin.py:260 | select: 'id'
+- backend/routes/admin.py:316 | select: 'id'
+- backend/routes/admin.py:321 | select: <no static .select() chained directly>
+- backend/routes/admin.py:358 | select: 'id'
+- backend/routes/admin.py:363 | select: <no static .select() chained directly>
+- backend/routes/admin.py:625 | select: 'id'
+- backend/routes/auth.py:118 | select: '*'
+- backend/routes/auth.py:124 | select: <no static .select() chained directly>
+- backend/routes/auth.py:190 | select: 'status, niche, language_preference'
+- backend/routes/auth.py:289 | select: '*'
+- backend/routes/auth.py:297 | select: '*'
+- backend/routes/auth.py:315 | select: <no static .select() chained directly>
+- backend/routes/creator.py:33 | select: <no static .select() chained directly>
+- backend/routes/creator.py:57 | select: 'plan, credits_remaining, credits_used_this_month'
+- backend/routes/creator.py:85 | select: 'id, credits_remaining, credits_used_this_month, credits_reset_at'
+- backend/routes/system.py:165 | select: 'auth_token'
+- backend/routes/system.py:179 | select: <no static .select() chained directly>
+- backend/routes/system.py:253 | select: 'email'
+- backend/routes/system.py:262 | select: 'id, credits_remaining'
+- backend/routes/system.py:267 | select: <no static .select() chained directly>
+- backend/routes/users.py:131 | select: <no static .select() chained directly>
+- backend/scratch/inspect_user_prefs.py:19 | select: 'id, email, language_preference, preferred_niches, niche'

@@ -1,0 +1,7 @@
+UTC Time: 2026-10-15T05:34:28Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: git commit -m fix(api): slim feed card columns to cut Supabase egress payload by 61%
+
+[hotfix/egress-columns 33ea0c4] fix(api): slim feed card columns to cut Supabase egress payload by 61%
+ 1 file changed, 26 insertions(+), 14 deletions(-)

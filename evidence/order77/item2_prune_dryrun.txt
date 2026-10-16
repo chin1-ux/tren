@@ -1,0 +1,28 @@
+================================================================================
+ORDER 77 ITEM 2: SAFE REELS PRUNING DRY RUN
+Timestamp: 2026-10-15T17:50:35.795364+00:00
+================================================================================
+14-Day Age Cutoff: 2026-10-01T17:50:35.795433+00:00
+Active trend audio_ids protected: 1,000
+User saved/watchlist audio_ids protected: 153
+Total distinct protected audio_ids: 1,096
+Total current rows in reels table: 55,034
+Reels older than 14 days: 30,031
+
+Scanning reels older than 14 days for prune eligibility...
+  Scanned 10,000 rows... Found 9,443 candidates so far.
+  Scanned 20,000 rows... Found 18,608 candidates so far.
+  Scanned 30,000 rows... Found 27,602 candidates so far.
+
+================================================================================
+DRY RUN PRUNE SUMMARY:
+--------------------------------------------------------------------------------
+Total current reels         : 55,034
+Reels older than 14 days    : 30,031
+Protected old reels kept    : 2,399
+Prune candidates identified : 27,632 rows
+Estimated bytes to be freed : 80,409,120 bytes (76.68 MB)
+Projected post-prune rows   : 27,402
+Projected post-prune DB size: 196.20 MB
+Backup manifest saved to   : evidence/order77/prune_candidates_backup.json
+================================================================================

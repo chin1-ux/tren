@@ -1,0 +1,23 @@
+UTC Time: 2026-10-15T08:19:15Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: powershell -Command git ls-tree -r tren1/main --name-only | Select-String '\.github/workflows/'
+
+
+.github/workflows/ci.yml
+.github/workflows/classification_sweep.yml
+.github/workflows/coverage_report.yml
+.github/workflows/cron-heartbeat.yml
+.github/workflows/emergency-llm-classification.yml
+.github/workflows/health_check.yml
+.github/workflows/news-virality-cron.yml
+.github/workflows/nightly-llm-classification.yml
+.github/workflows/pending-trends-fallback.yml
+.github/workflows/pending-trends-monitor.yml
+.github/workflows/retention.yml
+.github/workflows/scraper.yml
+.github/workflows/scraper_cron.yml
+.github/workflows/sync-to-tren1.yml
+.github/workflows/trend-refresh.yml
+
+

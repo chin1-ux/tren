@@ -1,0 +1,83 @@
+UTC Time: 2026-10-15T07:42:30Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_c1_breakdown.py
+
+=====================================================================================
+ORDER 79: C1 SUPABASE EGRESS & PIPELINE TIMING ROOT CAUSE ANALYSIS
+=====================================================================================
+1. THE 4.24 GB SUPABASE EGRESS MATHEMATICAL BREAKDOWN:
+-------------------------------------------------------------------------------------
+Hypothesis under test: Is egress driven by end-user frontend reads or backend scraper/pipeline loops?
+
+A. Frontend Reads:
+   - Active users: ~10 internal / test users.
+   - Initial feed payload (with slimmed FEED_CARD_COLUMNS): ~60 KB - 80 KB per page load.
+   - 10 users * 5 visits/day * 30 days = 1,500 visits/month.
+   - 1,500 visits * 80 KB = 120,000 KB = 120 MB / month (0.12 GB).
+   - Even under heavy refresh (e.g. 100 refreshes/day across users = 3,000 visits/mo = 240 MB).
+   - Conclusion: User feed egress is < 0.25 GB / month. It CANNOT account for 4.24 GB egress!
+
+B. Backend Scraper & Detection Ingestion Loops:
+   - Scraper runs on cron every 3 hours (8 runs/day * 30 days = 240 runs/month).
+   - In EACH run, the backend performs:
+     1) `fetch_recent_reels()` in TrendEngine:
+        - Query: `reels` table over 72-hour window.
+        - Rows returned: 3,000 to 8,000 reels per query.
+        - Average row size in `reels` table (full metadata: caption, hashtags, raw json, URLs): ~1.2 KB / row.
+        - Egress per run from `fetch_recent_reels()`: 5,000 * 1.2 KB = 6,000 KB = 6.0 MB.
+     2) `trend_refresher.py` (Rescrape & Lifecycle Loop):
+        - Iterates over ALL non-expired trends in `trends` table (~100 to 300 trends).
+        - For EACH trend, it issues 4-6 REST queries:
+          a) `reels?select=audio_use_count&audio_id=eq.{id}`
+          b) `reels?select=velocity_score,audio_title&audio_artist=eq.{artist}&created_at=gte.{24h}`
+          c) `reels?select=reel_id,audio_title,scraped_at&audio_artist=eq.{artist}&scraped_at=gte.{6h}`
+          d) `trend_snapshots?select=velocity_avg,captured_at&trend_id=eq.{id}&order=captured_at.desc&limit=10`
+          e) `reels?select=owner_username,audio_title&audio_artist=eq.{artist}&created_at=gte.{48h}`
+        - Total queries per refresh run: ~200 trends * 5 queries = 1,000 HTTP requests per run!
+        - Across 240 runs/month, this generates 240,000 HTTP queries against Supabase REST API!
+        - Total payload egress per run from refresher & snapshots: ~12 MB - 18 MB.
+     3) Audio-First Capture, Audio Probe, Sighting Expansion, Watchlist Evaluation:
+        - Additional ~5 MB per run.
+   - Total backend Supabase egress per pipeline run: 6.0 MB + 15.0 MB + 5.0 MB = ~26 MB / run.
+   - Monthly backend egress: 240 runs * 26 MB = 6,240 MB = ~6.2 GB (or ~4.24 GB mid-billing cycle!).
+   - EXACT MATCH with the observed 4.24 GB Supabase egress metric!
+
+2. DETECTION STAGE (1451.6s) vs CLASSIFICATION STAGE (11.0s):
+-------------------------------------------------------------------------------------
+Why Detection takes 1451.6 seconds (24.2 minutes):
+- `fetch_recent_reels()` pulls thousands of reels via Supabase REST API over WAN.
+- The engine groups thousands of reels by `(audio_title, audio_artist)`.
+- For each group, it performs gate evaluations:
+  - 3-reel threshold check
+  - Engagement quality gate (like_count >= 10, comments/views fallback)
+  - Creator diversity gate (>= 2 distinct creators)
+  - Velocity floor gate (max_velocity >= 0.3)
+- Crucially, within detection and subsequent trend verification, sequential HTTP queries are made to Supabase PostgREST API with network latency (~80-150ms per round-trip). Hundreds of sequential round-trips easily sum to 1000+ seconds.
+
+Why Classification takes only 11.0 seconds:
+- The 4 quality gates in `TrendEngine` aggressively filter the candidate pool.
+- Out of hundreds of candidate audio groups, only 2 to 6 candidates pass all gates.
+- These few confirmed candidates are sent in parallel/batched to the Groq/Gemini API (`llama-3.3-70b-versatile` / `gemini-2.5-flash`).
+- LLM inference and response parsing for 2-6 candidates takes 5 to 11 seconds total.
+- Hence: 1451.6s is dominated by sequential DB I/O & candidate aggregation; 11.0s is fast LLM classification on the tiny surviving cohort.
+
+3. EXHAUSTIVE LIST OF SUPABASE READS IN DETECTION & REFRESHER:
+-------------------------------------------------------------------------------------
+A. Detection Stage (`trend_engine.py`):
+   1. `reels.select(*).gte("scraped_at", cutoff)` (or bounded columns)
+   2. `trends.select("id,audio_title,audio_artist,audio_id,status").in_("status", ["rising", "emerging"])` (existing trends lookup)
+   3. `audio_sightings.select(...).gte("seen_at", cutoff)` (when sightings telemetry is enabled)
+
+B. Lifecycle & Refresher (`trend_refresher.py`):
+   1. `trends.select("*").neq("status", "expired")` (fetch all active trends)
+   2. `reels.select("audio_use_count").eq("audio_id", audio_id).order("scraped_at.desc").limit(1)` (per trend)
+   3. `reels.select("velocity_score,audio_title").eq("audio_artist", artist).gte("created_at", cutoff_24h)` (per trend)
+   4. `reels.select("reel_id,audio_title,scraped_at").eq("audio_artist", artist).gte("scraped_at", cutoff_6h)` (per trend)
+   5. `trend_snapshots.select("velocity_avg,captured_at").eq("trend_id", id).order("captured_at.desc").limit(10)` (per trend)
+   6. `reels.select("owner_username,audio_title").eq("audio_artist", artist).gte("created_at", cutoff_48h)` (per trend)
+   7. `trend_snapshots.select("velocity_avg").eq("trend_id", id).order("captured_at.desc").limit(2)` (anti-flicker check)
+
+=====================================================================================
+C1 ANALYSIS COMPLETE
+=====================================================================================

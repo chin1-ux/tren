@@ -1,0 +1,88 @@
+UTC Time: 2026-10-15T05:48:41Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/test_b6_cron_runs_cols.py
+
+================================================================================
+ORDER 78: B6 SELECT TELEMETRY COLUMNS FROM LIVE cron_runs TABLE
+================================================================================
+
+Testing individual column selections from live cron_runs table:
+
+  Column 'stage_timings': SUCCESS (Sample value: {'classification': {'candidate_count': 0, 'retry_429_count': 0, 'classified_count': 0, 'call_latency_p50_ms': 0.0, 'call_latency_p95_ms': 0.0, 'deferred_candidates': 0}, 'scrape_seconds': 1194.85, 'inserts_seconds': 0.0, 'detection_seconds': 24.02, 'post_steps_seconds': 582.9, 'total_pipeline_seconds': 1976.46})
+  Column 'github_run_id': SUCCESS (Sample value: 38682801632)
+  Column 'trigger_source': SUCCESS (Sample value: schedule)
+  Column 'deferred_candidates': SUCCESS (Sample value: 0)
+  Column 'groq_keys_detected': SUCCESS (Sample value: 1)
+  Column 'gemini_keys_detected': SUCCESS (Sample value: 1)
+  Column 'classification_failed_429': SUCCESS (Sample value: 0)
+  Column 'classification_success': SUCCESS (Sample value: 0)
+
+--------------------------------------------------------------------------------
+Testing simultaneous select of the 4 Order 75 / Migration 018 telemetry columns:
+Result for 'id, stage_timings, github_run_id, trigger_source, deferred_candidates': SUCCESS!
+[
+  {
+    "id": 958,
+    "stage_timings": {
+      "classification": {
+        "candidate_count": 0,
+        "retry_429_count": 0,
+        "classified_count": 0,
+        "call_latency_p50_ms": 0.0,
+        "call_latency_p95_ms": 0.0,
+        "deferred_candidates": 0
+      },
+      "scrape_seconds": 1194.85,
+      "inserts_seconds": 0.0,
+      "detection_seconds": 24.02,
+      "post_steps_seconds": 582.9,
+      "total_pipeline_seconds": 1976.46
+    },
+    "github_run_id": "38682801632",
+    "trigger_source": "schedule",
+    "deferred_candidates": 0
+  },
+  {
+    "id": 957,
+    "stage_timings": {
+      "classification": {
+        "candidate_count": 103,
+        "retry_429_count": 0,
+        "classified_count": 94,
+        "call_latency_p50_ms": 109.05,
+        "call_latency_p95_ms": 391.51,
+        "deferred_candidates": 9
+      },
+      "scrape_seconds": 950.86,
+      "inserts_seconds": 0.0,
+      "detection_seconds": 1451.06,
+      "post_steps_seconds": 380.74,
+      "total_pipeline_seconds": 2999.38
+    },
+    "github_run_id": "38647275918",
+    "trigger_source": "schedule",
+    "deferred_candidates": 9
+  },
+  {
+    "id": 956,
+    "stage_timings": {
+      "classification": {
+        "candidate_count": 0,
+        "retry_429_count": 0,
+        "classified_count": 0,
+        "call_latency_p50_ms": 0.0,
+        "call_latency_p95_ms": 0.0,
+        "deferred_candidates": 0
+      },
+      "scrape_seconds": 0.0,
+      "inserts_seconds": 0.0,
+      "detection_seconds": 0.0,
+      "post_steps_seconds": 609.75,
+      "total_pipeline_seconds": 611.33
+    },
+    "github_run_id": "38653734050",
+    "trigger_source": "schedule",
+    "deferred_candidates": 0
+  }
+]

@@ -1,0 +1,58 @@
+UTC Time: 2026-10-15T07:43:08Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_c2_diff_draft.py
+
+=====================================================================================
+ORDER 79: C2 HTTPX.CLIENT.SEND TELEMETRY WRAPPER DRAFT (DIFF -W)
+=====================================================================================
+diff -w --git a/backend/cron_job.py b/backend/cron_job.py
+--- a/backend/cron_job.py
++++ b/backend/cron_job.py
+@@ -53,6 +53,42 @@ from unified_signal_processor import UnifiedSignalProcessor
+ from supabase import create_client
++import httpx
+ 
++# =====================================================================
++# HTTPX EGRESS & INGRESS TELEMETRY WRAPPER (SUPABASE REST AUDIT)
++# =====================================================================
++_orig_httpx_send = httpx.Client.send
++_supabase_telemetry = {
++    "total_http_requests": 0,
++    "supabase_requests": 0,
++    "supabase_download_bytes": 0,
++    "supabase_upload_bytes": 0,
++}
++
++def _metered_httpx_send(self, request: httpx.Request, *args, **kwargs) -> httpx.Response:
++    response = _orig_httpx_send(self, request, *args, **kwargs)
++    try:
++        url_str = str(request.url)
++        if "supabase.co" in url_str:
++            _supabase_telemetry["supabase_requests"] += 1
++            # Measure response body egress bytes
++            if hasattr(response, "content") and response.content:
++                _supabase_telemetry["supabase_download_bytes"] += len(response.content)
++            # Measure request body upload bytes
++            if hasattr(request, "content") and request.content:
++                _supabase_telemetry["supabase_upload_bytes"] += len(request.content)
++        _supabase_telemetry["total_http_requests"] += 1
++    except Exception as _tel_err:
++        logging.debug(f"[EGRESS TELEMETRY ERROR] {_tel_err}")
++    return response
++
++httpx.Client.send = _metered_httpx_send
++
++def get_supabase_egress_summary() -> dict:
++    dl_mb = _supabase_telemetry["supabase_download_bytes"] / (1024 * 1024)
++    ul_mb = _supabase_telemetry["supabase_upload_bytes"] / (1024 * 1024)
++    return {
++        **_supabase_telemetry,
++        "supabase_download_mb": round(dl_mb, 3),
++        "supabase_upload_mb": round(ul_mb, 3),
++    }
++# =====================================================================
+
+=====================================================================================
+C2 DRAFT COMPLETE (NON-COMMITTED SPECIFICATION)
+=====================================================================================

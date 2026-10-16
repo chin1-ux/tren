@@ -1,0 +1,34 @@
+UTC Time: 2026-10-15T06:15:57Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_a1_recompute_totals.py
+
+C:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\video_visual_analyzer.py:13: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-10-15 11:46:48,957 - redis_rate_limiter - INFO - redis_connected
+=====================================================================================
+ORDER 79: A1 RECOMPUTE A4 TOTALS VIA PYTHON SCRIPT
+=====================================================================================
+Endpoint                       | Rows  | Old Bytes    | New Bytes    | Saved Bytes  | Reduction %
+-----------------------------------------------------------------------------------------------
+/api/trends                    | 91    |    806,024 B |    321,009 B |    485,015 B |     60.17%
+/api/trends/rising             | 91    |    806,024 B |    321,009 B |    485,015 B |     60.17%
+/api/trends/emerging           | 13    |     86,447 B |     39,417 B |     47,030 B |     54.40%
+/api/trends/peaked             | 100   |    915,629 B |    349,700 B |    565,929 B |     61.81%
+/api/trends/resurging          | 25    |    270,585 B |    120,562 B |    150,023 B |     55.44%
+/api/trends/expired            | 100   |    979,605 B |    381,890 B |    597,715 B |     61.02%
+/api/trends/all-active         | 100   |    903,951 B |    354,501 B |    549,450 B |     60.78%
+/api/trends/peaking            | 20    |    135,976 B |     40,931 B |     95,045 B |     69.90%
+/api/trends/targeted           | 1     |     10,172 B |      4,102 B |      6,070 B |     59.67%
+-----------------------------------------------------------------------------------------------
+TOTAL (9 ENDPOINTS)            | -     |  4,914,413 B |  1,933,121 B |  2,981,292 B |     60.66%
+TOTAL (KB)                     | -     |    4799.23 KB |    1887.81 KB |    2911.42 KB |     60.66%
+TOTAL (MB)                     | -     |       4.69 MB |       1.84 MB |       2.84 MB |     60.66%
+=====================================================================================

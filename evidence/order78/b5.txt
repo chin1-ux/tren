@@ -1,0 +1,45 @@
+UTC Time: 2026-10-15T05:46:52Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/test_b5_classification_path.py
+
+================================================================================
+ORDER 78: B5 RUNNING REAL CLASSIFICATION PATH WITH STUBBED LLM & TIME_BUDGET=1
+================================================================================
+
+--- Running Candidates through Classification Loop ---
+Candidate #1 'Candidate Audio 1 (High Score)': classified=True, status=completed
+
+[TIME_BUDGET EXCEEDED] elapsed=1.108s >= 1s. Deferring remaining.
+Candidate #2 'Candidate Audio 2 (Mid Score)': classified=False, status=deferred
+Candidate #3 'Candidate Audio 3 (Low Score)': classified=False, status=deferred
+
+--- Evaluating Gate at Step 7 (trend_engine.py:1220) ---
+Candidate #1 'Candidate Audio 1 (High Score)': confidence=0.97 -> SAVED (Proceeds to DB insert)
+Candidate #2 'Candidate Audio 2 (Mid Score)': confidence=0.12 -> DROPPED (Skipped completely - never inserted to database!)
+Candidate #3 'Candidate Audio 3 (Low Score)': confidence=0.12 -> DROPPED (Skipped completely - never inserted to database!)
+
+================================================================================
+ANALYSIS: ARE DEFERRED CANDIDATES RETAINED AS PENDING OR DROPPED?
+================================================================================
+ANSWER: They are DROPPED. Because classify_single_trend returns False when the time budget is exceeded,
+trend['confidence'] remains 0.0 (or default). At Step 7 (line 1220), `if confidence <= 0.55:` triggers `continue`,
+dropping the candidate entirely instead of inserting it with llm_classification_status='pending'.
+
+================================================================================
+RETAIN-AS-PENDING DIFF FOR GATE (TEXT ONLY - DO NOT APPLY):
+================================================================================
+--- backend/trend_engine.py (current line ~1220)
++++ backend/trend_engine.py (retain-as-pending fix)
+@@ -1220,6 +1220,11 @@
++                # Retain candidates deferred by time budget or pending classification
++                is_deferred = trend.get("llm_classification_status") in ("deferred", "pending")
+                 if confidence <= 0.55:
+-                    logging.info(f"Skipping '{trend['audio_title']}' — low confidence ({confidence:.2f})")
+-                    continue
++                    if is_deferred:
++                        trend["llm_classification_status"] = "pending"
++                        trend["confidence"] = 0.56  # Allow pending trends through to DB so safety net can classify later
++                    else:
++                        logging.info(f"Skipping '{trend['audio_title']}' — low confidence ({confidence:.2f})")
++                        continue

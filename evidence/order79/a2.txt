@@ -1,0 +1,32 @@
+UTC Time: 2026-10-15T06:18:41Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_a2_full_contract_test.py
+
+C:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\video_visual_analyzer.py:13: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-10-15 11:49:27,313 - redis_rate_limiter - INFO - redis_connected
+===================================================================================================================
+ORDER 79: A2 FULL CONTRACT TEST ON ALL EDITED ENDPOINTS IN routes/trends.py
+===================================================================================================================
+Endpoint Route               | Function                 | Line        | Rows  | Old Bytes   | New Bytes   | Dropped | Diff Rows
+-------------------------------------------------------------------------------------------------------------------
+GET /api/trends              | get_trends               | 133 & 174   | 91    |   806,024 B |   321,009 B | 46      | 0        
+GET /api/trends/emerging     | get_emerging_trends      | 411 & 431   | 13    |    86,330 B |    39,300 B | 46      | 0        
+GET /api/trends/peaked       | get_peaked_trends        | 779         | 100   |   915,629 B |   349,700 B | 46      | 0        
+GET /api/trends/resurging    | get_resurging_trends     | 839         | 25    |   270,585 B |   120,562 B | 46      | 0        
+GET /api/trends/expired      | get_expired_trends       | 893         | 100   |   979,605 B |   381,890 B | 46      | 0        
+GET /api/trends/all-active   | get_all_active_trends    | 740         | 100   |   903,951 B |   354,501 B | 46      | 0        
+GET /api/trends/by-language  | get_trends_by_language   | 975 & 987   | 62    |   608,540 B |   228,581 B | 46      | 0        
+GET /api/trends/peaking      | get_peaking_trends       | 1023        | 20    |   148,371 B |    65,207 B | 46      | 0        
+GET /api/trends/targeted     | get_targeted_trends      | 1165        | 1     |    10,172 B |     4,102 B | 46      | 0        
+GET /api/trends/spotify-viral | get_spotify_viral_trends | 629         | 8     |    53,123 B |    24,681 B | 46      | 0        
+GET /api/niche/fitness       | get_niche_trends         | 1661        | 1     |     8,638 B |     4,828 B | 46      | 0        
+===================================================================================================================

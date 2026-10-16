@@ -1,0 +1,180 @@
+UTC Time: 2026-10-15T08:20:12Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/extract_workflow_on_blocks.py
+
+=== .github/workflows/ci.yml ===
+name: CI Smoke Test
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:  # Allow manual trigger
+
+=== .github/workflows/classification_sweep.yml ===
+name: Classification Sweep
+
+on:
+  workflow_run:
+    workflows:
+      - "Trendrop Scheduled Scraper Pipeline Cron"
+      - "Scraper (Main Account - 6h Fallback)"
+    types: [completed]
+  schedule:
+    - cron: '30 */3 * * *'
+  workflow_dispatch:
+    inputs:
+      limit:
+        default: '40'
+
+concurrency:
+  group: classification-sweep
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+=== .github/workflows/coverage_report.yml ===
+name: Weekly Coverage Report
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'  # Weekly on Monday at 03:17 UTC (off-minute)
+  workflow_dispatch:
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+=== .github/workflows/cron-heartbeat.yml ===
+name: Cron Heartbeat Watchdog
+
+on:
+  schedule:
+    - cron: '15 0,8,16 * * *'
+  workflow_dispatch:
+
+=== .github/workflows/emergency-llm-classification.yml ===
+name: Emergency LLM Classification
+
+on:
+  schedule:
+    - cron: '41 0,6,12,18 * * *'
+  workflow_dispatch: # Manual trigger
+
+=== .github/workflows/health_check.yml ===
+name: System Health Check
+
+on:
+  schedule:
+    - cron: '29 */6 * * *'  # Every 6 hours at off-minute 29 UTC
+  workflow_dispatch:
+
+concurrency:
+  group: health-check
+  cancel-in-progress: false
+
+=== .github/workflows/news-virality-cron.yml ===
+name: Run News Virality Predictor
+
+on:
+#  schedule:
+#    # EMERGENCY POSTURE: 1x/day (was 2x) — revert to 12h post-Sept 1 reset
+#    # NOTE: also broken — Groq API returns 404, see PROBLEMS.md
+#    - cron: '0 0 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+=== .github/workflows/nightly-llm-classification.yml ===
+name: LLM Classification Batch
+
+on:
+  schedule:
+    - cron: '53 0,12 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+concurrency:
+  group: llm-classification-${{ github.ref }}
+  cancel-in-progress: true
+
+=== .github/workflows/pending-trends-fallback.yml ===
+name: Pending Trends Timeout Fallback
+
+on:
+  schedule:
+    - cron: '29 0,12 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+=== .github/workflows/pending-trends-monitor.yml ===
+name: Pending Trends Monitor
+
+on:
+  schedule:
+    - cron: '11 0,8,16 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+=== .github/workflows/retention.yml ===
+name: Scheduled Data Retention Cleanup
+
+on:
+  schedule:
+    - cron: '43 2 * * *'  # Daily at 2:43 AM UTC (off-minute)
+  workflow_dispatch:
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+=== .github/workflows/scraper.yml ===
+name: Scraper (Main Account - 6h Fallback)
+
+on:
+  schedule:
+    - cron: '23 1,7,13,19 * * *'
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'Which mode to run'
+        required: false
+        default: 'india'
+        type: choice
+        options:
+          - both
+          - india
+          - global
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+=== .github/workflows/scraper_cron.yml ===
+name: Trendrop Scheduled Scraper Pipeline Cron
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
+  workflow_dispatch:        # Manual trigger button in GitHub UI
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+=== .github/workflows/sync-to-tren1.yml ===
+name: Sync to Dedicated Scraper Repo (chin1-ux/tren)
+
+on:
+  workflow_dispatch:
+
+=== .github/workflows/trend-refresh.yml ===
+name: Trend Refresh (Main Account - 8h)
+
+on:
+  schedule:
+    - cron: '37 4,12,20 * * *'
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+concurrency:
+  group: trend-refresh-${{ github.ref }}
+  cancel-in-progress: true
+

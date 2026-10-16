@@ -1,0 +1,96 @@
+=====================================================================================
+ORDER 80: A6 STATIC ANALYSIS: SUPABASE QUERIES & FRONTEND POLLING RATE
+=====================================================================================
+
+1. SUPABASE QUERIES PER REQUEST FOR EACH OF THE 8 FEED ENDPOINTS:
+-------------------------------------------------------------------------------------
+All feed endpoints pass their returned rows through `_normalize_trends()` in `backend/api_globals.py`.
+`_normalize_trends()` checks in-memory caches `_REELS_PREFETCH_CACHE` and `_REELS_FALLBACK_CACHE` (TTL: 300s).
+
+(1) GET /api/trends:
+  - Query 1: `backend/routes/trends.py:101-118`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS)...execute()`
+  - Query 2 (Cold cache only): `backend/api_globals.py:687-692`:
+    `supabase.table("reels").select("reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url").in_("audio_id", chunk).order("view_count", desc=True).limit(500)` (1 query per 50 distinct audio_ids)
+  - Query 3 (Cold cache fallback for trends missing audio_id): `backend/api_globals.py:721-726`:
+    `supabase.table("reels").select(...).in_("audio_title", chunk).order("view_count", desc=True).limit(500)`
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 4 queries.
+
+(2) GET /api/trends/emerging:
+  - Query 1: `backend/routes/trends.py:133-149`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging")...execute()`
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 3 queries.
+
+(3) GET /api/trends/peaked:
+  - Query 1: `backend/routes/trends.py:192-202`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "peaked")...execute()`
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 3 queries.
+
+(4) GET /api/trends/resurging:
+  - Query 1: `backend/routes/trends.py:214-224`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "resurging")...execute()`
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 3 queries.
+
+(5) GET /api/trends/expired:
+  - Query 1: `backend/routes/trends.py:237-247`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "expired")...execute()`
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 3 queries.
+
+(6) GET /api/trends/rising:
+  - Query 1: `backend/routes/trends.py:119`:
+    Points directly to `get_trends(...)` handler (`backend/routes/trends.py:101-118`).
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 4 queries.
+
+(7) GET /api/trends/peaking:
+  - Query 1: `backend/routes/trends.py:204-212`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).gte("peaking_score", 60)...execute()`
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 query; Cold cache = 2 to 3 queries.
+
+(8) GET /api/trends/all-active:
+  - Query 1: `backend/routes/trends.py:175-189`:
+    `supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["rising", "emerging", "resurging"])...execute()`
+  - Optional Query (if user token uncached): `backend/auth_system.py:180` (`users` lookup).
+  - Queries 2 & 3: `backend/api_globals.py:687-692` & `721-726` (reels prefetch if cold).
+  - Query Count: Warm cache = 1 (or 2 with auth) query; Cold cache = 2 to 4 queries.
+
+
+2. FRONTEND POLLING RATE & WINDOW FOCUS TRIGGER ANALYSIS:
+-------------------------------------------------------------------------------------
+Source Files Inspected:
+- Global QueryClient config: `frontend/src/router.tsx:18-20`
+- Feed queries & timers: `frontend/src/routes/index.tsx:270-367`
+
+A. Window Focus Behavior:
+- In `frontend/src/router.tsx:20`:
+  ```typescript
+  refetchOnWindowFocus: false, // Prevent jarring background refetches
+  ```
+- Result: WINDOW FOCUS TRIGGERS ZERO ENDPOINTS (0 /api/ requests on focus).
+
+B. Single Open Tab Background Polling Rate per Hour (on /):
+- `scraper-runs` (`/api/trends/runs`):
+  `refetchInterval: 5 * 60_000` (every 5 min) -> 12 calls / hour
+- `trends` (`/api/trends`):
+  `refetchInterval: 15 * 60_000` (every 15 min) -> 4 calls / hour
+- `trends-emerging` (`/api/trends/emerging`):
+  `refetchInterval: 15 * 60_000` (every 15 min) -> 4 calls / hour
+- `trends-resurging` (`/api/trends/resurging`):
+  `refetchInterval: 20 * 60_000` (every 20 min) -> 3 calls / hour
+- `trends-peaked` (`/api/trends/peaked`):
+  `refetchInterval: 45 * 60_000` (every 45 min) -> 1.33 calls / hour
+- `trends-expired` (`/api/trends/expired`):
+  `refetchInterval: 60 * 60_000` (every 60 min) -> 1 call / hour
+- `trends-targeted` (`/api/trends/targeted`):
+  No `refetchInterval` (mount only) -> 0 recurring calls / hour
+- `trends-last-detected` (`/api/trends/last-detected`):
+  No `refetchInterval` (mount only) -> 0 recurring calls / hour
+
+Total Background Calls: ~25.33 calls / hour per open browser tab.
+Egress Impact:
+At ~70 KB per feed response, 12 feed polls per hour = ~840 KB / hour per open tab (~20 MB / 24 hours per tab left open).

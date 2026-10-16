@@ -1,0 +1,41 @@
+UTC Time: 2026-10-15T08:16:20Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: powershell -Command Select-String -Path frontend/test_order79_playwright.mjs -Pattern normalizeCardText -Context 0,12
+
+
+> frontend\test_order79_playwright.mjs:35:function normalizeCardText(txt) {
+  frontend\test_order79_playwright.mjs:36:  return (txt || "")
+  frontend\test_order79_playwright.mjs:37:    .replace(/GROWTH\s+Tracking started\.\.\./g, "")
+  frontend\test_order79_playwright.mjs:38:    .replace(/\b\d+\s*(h|m|s|d)\s*ago\b/gi, "TIME_AGO")
+  frontend\test_order79_playwright.mjs:39:    .replace(/\s+/g, " ")
+  frontend\test_order79_playwright.mjs:40:    .trim();
+  frontend\test_order79_playwright.mjs:41:}
+  frontend\test_order79_playwright.mjs:42:
+  frontend\test_order79_playwright.mjs:43:async function runOrder79Playwright() {
+  frontend\test_order79_playwright.mjs:44:  console.log("=" .repeat(85));
+  frontend\test_order79_playwright.mjs:45:  console.log("ORDER 79: A4 PLAYWRIGHT SUITE EXTENDED (RISING, EMERGING, 
+PEAKED, COMEBACK, EXPIRED)");
+  frontend\test_order79_playwright.mjs:46:  console.log("=" .repeat(85));
+  frontend\test_order79_playwright.mjs:47:
+> frontend\test_order79_playwright.mjs:179:      if (normalizeCardText(sTexts[i]) === normalizeCardText(fTexts[i])) {
+  frontend\test_order79_playwright.mjs:180:        matched++;
+  frontend\test_order79_playwright.mjs:181:      } else {
+> frontend\test_order79_playwright.mjs:182:        const s = normalizeCardText(sTexts[i]);
+> frontend\test_order79_playwright.mjs:183:        const f = normalizeCardText(fTexts[i]);
+  frontend\test_order79_playwright.mjs:184:        console.error(`  Tab ${t.name} Card #${i+1} MISMATCH:`);
+  frontend\test_order79_playwright.mjs:185:        console.error(`    FULL (${f.length} chars): ${f}`);
+  frontend\test_order79_playwright.mjs:186:        console.error(`    SLIM (${s.length} chars): ${s}`);
+  frontend\test_order79_playwright.mjs:187:        for (let j = 0; j < Math.max(s.length, f.length); j++) {
+  frontend\test_order79_playwright.mjs:188:          if (s[j] !== f[j]) {
+  frontend\test_order79_playwright.mjs:189:            console.error(`    First difference at pos ${j}: FULL char 
+${JSON.stringify(f[j])} vs SLIM char ${JSON.stringify(s[j])}`);
+  frontend\test_order79_playwright.mjs:190:            console.error(`    Context: FULL "${f.slice(Math.max(0, j-20), 
+j+20)}" vs SLIM "${s.slice(Math.max(0, j-20), j+20)}"`);
+  frontend\test_order79_playwright.mjs:191:            break;
+  frontend\test_order79_playwright.mjs:192:          }
+  frontend\test_order79_playwright.mjs:193:        }
+  frontend\test_order79_playwright.mjs:194:      }
+  frontend\test_order79_playwright.mjs:195:    }
+
+

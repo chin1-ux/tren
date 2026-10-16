@@ -1,0 +1,84 @@
+UTC Time: 2026-10-15T08:34:57Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/measure_c2_feed_endpoints.py
+
+C:\Users\Chinmay\AppData\Local\Python\pythoncore-3.14-64\Lib\site-packages\fastapi\testclient.py:1: StarletteDeprecationWarning: Using `httpx` with `starlette.testclient` is deprecated; install `httpx2` instead.
+  from starlette.testclient import TestClient as TestClient  # noqa
+C:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\video_visual_analyzer.py:13: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-10-15 14:05:23,989 - redis_rate_limiter - INFO - redis_connected
+
+================================================================================
+ORDER 81 PART C2: LOCAL PRODUCTION SUPABASE MEASUREMENT (EACH FEED ENDPOINT ONCE)
+================================================================================
+
+Endpoint: /api/trends
+  Status: 200 | HTTP Response Payload: 289,540 B
+  Supabase DB Calls: 3 | Supabase DB Egress: 300,538 B
+  By Table:
+    - reels: 2 calls, 128,922 B
+    - trends: 1 calls, 171,616 B
+------------------------------------------------------------
+Endpoint: /api/trends/rising
+  Status: 200 | HTTP Response Payload: 289,540 B
+  Supabase DB Calls: 0 | Supabase DB Egress: 0 B
+  By Table:
+    (no direct Supabase queries executed - cache hit)
+------------------------------------------------------------
+Endpoint: /api/trends/emerging
+  Status: 200 | HTTP Response Payload: 51,133 B
+  Supabase DB Calls: 3 | Supabase DB Egress: 49,908 B
+  By Table:
+    - reels: 1 calls, 16,159 B
+    - trends: 1 calls, 33,747 B
+    - users: 1 calls, 2 B
+------------------------------------------------------------
+Endpoint: /api/trends/peaked
+  Status: 200 | HTTP Response Payload: 332,925 B
+  Supabase DB Calls: 3 | Supabase DB Egress: 332,772 B
+  By Table:
+    - reels: 2 calls, 124,787 B
+    - trends: 1 calls, 207,985 B
+------------------------------------------------------------
+Endpoint: /api/trends/expired
+  Status: 200 | HTTP Response Payload: 368,683 B
+  Supabase DB Calls: 3 | Supabase DB Egress: 409,366 B
+  By Table:
+    - reels: 2 calls, 204,817 B
+    - trends: 1 calls, 204,549 B
+------------------------------------------------------------
+Endpoint: /api/trends/resurging
+  Status: 200 | HTTP Response Payload: 121,102 B
+  Supabase DB Calls: 2 | Supabase DB Egress: 258,556 B
+  By Table:
+    - reels: 1 calls, 204,167 B
+    - trends: 1 calls, 54,389 B
+------------------------------------------------------------
+Endpoint: /api/trends/targeted
+  Status: 200 | HTTP Response Payload: 2 B
+  Supabase DB Calls: 1 | Supabase DB Egress: 2 B
+  By Table:
+    - trend_actions: 1 calls, 2 B
+------------------------------------------------------------
+Endpoint: /api/trends/peaking
+  Status: 200 | HTTP Response Payload: 2 B
+  Supabase DB Calls: 2 | Supabase DB Egress: 50,709 B
+  By Table:
+    - trend_snapshots: 1 calls, 12,249 B
+    - trends: 1 calls, 38,460 B
+------------------------------------------------------------
+
+================================================================================
+SUMMARY ACROSS ALL 8 FEED ENDPOINTS:
+  Total Supabase DB Calls: 17
+  Total Supabase DB Egress: 1,401,851 B (1.34 MB)
+================================================================================
+

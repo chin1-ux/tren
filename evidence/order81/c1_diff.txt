@@ -1,0 +1,128 @@
+UTC Time: 2026-10-15T08:28:42Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: git diff -w
+
+diff --git a/backend/api_globals.py b/backend/api_globals.py
+index 4755a4f..42ffffc 100644
+--- a/backend/api_globals.py
++++ b/backend/api_globals.py
+@@ -391,6 +391,36 @@ if supabase_url_debug and service_key_debug and create_client:
+         if "SUPABASE_SERVICE_ROLE_KEY" in os.environ:
+             del os.environ["SUPABASE_SERVICE_ROLE_KEY"]
+ 
++# --- Telemetry: Database Egress Tracking (Supabase / HTTPX Client Wrapper) ---
++import contextvars
++import re
++import httpx
++
++_db_telemetry_ctx: contextvars.ContextVar = contextvars.ContextVar("db_telemetry_stats", default=None)
++
++_orig_httpx_send = getattr(httpx.Client, "_orig_send_unpatched", httpx.Client.send)
++httpx.Client._orig_send_unpatched = _orig_httpx_send
++
++def _telemetry_httpx_send(self, request, *args, **kwargs):
++    response = _orig_httpx_send(self, request, *args, **kwargs)
++    try:
++        stats = _db_telemetry_ctx.get()
++        if stats is not None:
++            m = re.search(r'/rest/v1/([a-zA-Z0-9_]+)', str(request.url.path))
++            tbl = m.group(1) if m else 'other'
++            b = len(response.content) if hasattr(response, "content") else 0
++            stats["calls"] += 1
++            stats["bytes"] += b
++            if tbl not in stats["by_table"]:
++                stats["by_table"][tbl] = {"calls": 0, "bytes": 0}
++            stats["by_table"][tbl]["calls"] += 1
++            stats["by_table"][tbl]["bytes"] += b
++    except Exception:
++        pass
++    return response
++
++httpx.Client.send = _telemetry_httpx_send
++
+ SUPABASE_URL = os.getenv("SUPABASE_URL")
+ SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+ try:
+@@ -608,6 +638,20 @@ app.add_middleware(
+     allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept", "Origin"],
+ )
+ 
++@app.middleware("http")
++async def db_telemetry_middleware(request: Request, call_next):
++    stats = {"calls": 0, "bytes": 0, "by_table": {}}
++    token = _db_telemetry_ctx.set(stats)
++    try:
++        response = await call_next(request)
++        if stats["calls"] > 0 or request.url.path.startswith("/api/"):
++            logger.info(
++                f"[DB_STATS] route={request.url.path} supabase_calls={stats['calls']} supabase_bytes={stats['bytes']} by_table={stats['by_table']}"
++            )
++        return response
++    finally:
++        _db_telemetry_ctx.reset(token)
++
+ 
+ 
+ 
+diff --git a/backend/cron_job.py b/backend/cron_job.py
+index eaad3be..e33d2a4 100644
+--- a/backend/cron_job.py
++++ b/backend/cron_job.py
+@@ -233,6 +233,32 @@ def _send_cron_heartbeat():
+         logging.warning(f"Failed to send cron heartbeat email: {heartbeat_err}")
+ 
+ 
++# --- Telemetry: Pipeline Database Egress Tracking ---
++import re
++import httpx
++
++_pipeline_db_stats = {"calls": 0, "bytes": 0, "by_table": {}}
++_orig_httpx_send_cron = getattr(httpx.Client, "_orig_send_unpatched", httpx.Client.send)
++httpx.Client._orig_send_unpatched = _orig_httpx_send_cron
++
++def _telemetry_httpx_send_cron(self, request, *args, **kwargs):
++    response = _orig_httpx_send_cron(self, request, *args, **kwargs)
++    try:
++        m = re.search(r'/rest/v1/([a-zA-Z0-9_]+)', str(request.url.path))
++        tbl = m.group(1) if m else 'other'
++        b = len(response.content) if hasattr(response, "content") else 0
++        _pipeline_db_stats["calls"] += 1
++        _pipeline_db_stats["bytes"] += b
++        if tbl not in _pipeline_db_stats["by_table"]:
++            _pipeline_db_stats["by_table"][tbl] = {"calls": 0, "bytes": 0}
++        _pipeline_db_stats["by_table"][tbl]["calls"] += 1
++        _pipeline_db_stats["by_table"][tbl]["bytes"] += b
++    except Exception:
++        pass
++    return response
++
++httpx.Client.send = _telemetry_httpx_send_cron
++
+ def _get_supabase():
+     load_dotenv()
+     if not os.getenv("SUPABASE_URL"):
+@@ -849,7 +875,7 @@ def run_full_pipeline(stages: list = None):
+     status = "success" if not run_state.get("cutoff_reason") else "partial"
+     try:
+         sb = _get_supabase()
+-        sb.table("cron_runs").insert({
++        payload = {
+             "run_at": start.isoformat(),
+             "completed_at": completed_at.isoformat(),
+             "duration_seconds": round(elapsed, 3),
+@@ -874,7 +900,13 @@ def run_full_pipeline(stages: list = None):
+             "audio_watchlist_updated": audio_watchlist_updated,
+             "creator_watchlist_checked": creator_watchlist_checked,
+             "creator_watchlist_found": creator_watchlist_found,
+-        }).execute()
++            "stage_timings": {"db_stats": _pipeline_db_stats},
++        }
++        try:
++            sb.table("cron_runs").insert(payload).execute()
++        except Exception as e_timing:
++            payload.pop("stage_timings", None)
++            sb.table("cron_runs").insert(payload).execute()
+     except Exception as e:
+         logging.warning(f"Could not log cron run to Supabase: {e}")
+ 

@@ -1,0 +1,15 @@
+================================================================================
+ORDER 77 ITEM 3: FIRST_DETECTED_AT AUDIT & BACKFILL DRY RUN
+Timestamp: 2026-10-15T17:46:26.693185+00:00
+================================================================================
+Querying active & recent trends from database...
+Active trends found: 1000
+Total emerging trends: 60
+
+AUDIT RESULTS FOR ACTIVE TRENDS:
+Active trends checked: 1000
+Trends where earliest reel is earlier than first_detected_at: 0 (0.0%)
+Currently-emerging trends that will leave the 7-day window upon backfill: 0
+
+Honest check: 0 currently-emerging trends will leave the 7-day window.
+================================================================================

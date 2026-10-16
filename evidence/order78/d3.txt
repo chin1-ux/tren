@@ -1,0 +1,30 @@
+UTC Time: 2026-10-15T06:03:42Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/test_d3_cache_headers.py
+
+================================================================================
+ORDER 78: D3 FINAL CACHE HEADER PER ENDPOINT (LOCAL vs PRODUCTION)
+================================================================================
+
+--- LOCAL BACKEND (CURRENT CODE ON hotfix/egress-columns: http://127.0.0.1:8000) ---
+  /api/trends                    -> status=200 | Cache-Control: public, max-age=60, s-maxage=120, stale-while-revalidate=300
+  /api/trends/emerging           -> status=200 | Cache-Control: public, max-age=60, s-maxage=120, stale-while-revalidate=300
+  /api/trends/peaked             -> status=200 | Cache-Control: public, max-age=300, s-maxage=300, stale-while-revalidate=600
+  /api/trends/resurging          -> status=200 | Cache-Control: public, max-age=120, s-maxage=180, stale-while-revalidate=360
+  /api/trends/expired            -> status=200 | Cache-Control: public, max-age=600, s-maxage=600, stale-while-revalidate=1200
+  /api/trends/targeted           -> status=200 | Cache-Control: (None)
+  /api/trends/runs?limit=6       -> status=200 | Cache-Control: (None)
+  /api/trends/last-detected      -> status=200 | Cache-Control: public, max-age=60
+  /api/auth/verify               -> status=200 | Cache-Control: (None)
+
+--- PRODUCTION BASELINE (https://trendrop-black.vercel.app) ---
+  /api/trends                    -> status=200 | Cache-Control: public, max-age=60, s-maxage=120, stale-while-revalidate=300 | X-Vercel-Cache: BYPASS
+  /api/trends/emerging           -> status=200 | Cache-Control: public, max-age=60, s-maxage=120, stale-while-revalidate=300 | X-Vercel-Cache: BYPASS
+  /api/trends/peaked             -> status=200 | Cache-Control: public, max-age=300, s-maxage=300, stale-while-revalidate=600 | X-Vercel-Cache: BYPASS
+  /api/trends/resurging          -> status=200 | Cache-Control: public, max-age=120, s-maxage=180, stale-while-revalidate=360 | X-Vercel-Cache: BYPASS
+  /api/trends/expired            -> status=200 | Cache-Control: public, max-age=600, s-maxage=600, stale-while-revalidate=1200 | X-Vercel-Cache: BYPASS
+  /api/trends/targeted           -> status=200 | Cache-Control: public, max-age=0, must-revalidate | X-Vercel-Cache: BYPASS
+  /api/trends/runs?limit=6       -> status=200 | Cache-Control: public, max-age=0, must-revalidate | X-Vercel-Cache: BYPASS
+  /api/trends/last-detected      -> status=200 | Cache-Control: public, max-age=60 | X-Vercel-Cache: BYPASS
+  /api/auth/verify               -> status=200 | Cache-Control: public, max-age=0, must-revalidate | X-Vercel-Cache: BYPASS

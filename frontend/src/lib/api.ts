@@ -680,6 +680,56 @@ export async function fetchAudioHistory(trendId: string | number): Promise<Array
   return http<Array<{ snapshotted_at: string; audio_use_count: number }>>(`/api/trends/${encodeURIComponent(trendId)}/audio-history`);
 }
 
+export interface FeedResponse {
+  trends: UiTrend[];
+  total: number;
+  page: number;
+  limit: number;
+  has_more: boolean;
+}
+
+export async function fetchFeed(options?: {
+  page?: number;
+  limit?: number;
+  language?: string;
+  languages?: string[] | string;
+  niche?: string;
+  status?: string;
+  sort?: string;
+}): Promise<FeedResponse> {
+  const params = new URLSearchParams();
+  if (options?.page) params.set("page", String(options.page));
+  if (options?.limit) params.set("limit", String(options.limit));
+  if (options?.languages) {
+    const langStr = Array.isArray(options.languages) ? options.languages.join(",") : options.languages;
+    if (langStr) params.set("languages", langStr);
+  } else if (options?.language && options.language !== "all") {
+    params.set("language", options.language);
+  }
+  if (options?.niche && options.niche !== "all") params.set("niche", options.niche);
+  if (options?.status && options.status !== "all") params.set("status", options.status);
+  if (options?.sort) params.set("sort", options.sort);
+
+  const data = await http<{ trends: ApiTrend[]; total: number; page: number; limit: number; has_more: boolean }>(
+    `/api/feed?${params.toString()}`
+  );
+  return {
+    ...data,
+    trends: (data.trends || []).map(adaptTrend),
+  };
+}
+
+export async function fetchAskSearch(q: string): Promise<{ intent: string; direct_answer: string; results: UiTrend[] }> {
+  const data = await http<{ intent: string; direct_answer: string; results: ApiTrend[] }>(
+    `/api/search/ask?q=${encodeURIComponent(q)}`
+  );
+  return {
+    intent: data.intent || "",
+    direct_answer: data.direct_answer || "",
+    results: (data.results || []).map(adaptTrend),
+  };
+}
+
 export async function fetchTrends(language?: string, sort?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (languages) {

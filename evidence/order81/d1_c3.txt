@@ -1,0 +1,35 @@
+UTC Time: 2026-10-15T08:52:48Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/capture_production_cold_load.py
+
+
+================================================================================
+ORDER 80 PART C3 / ORDER 81 D1: PRODUCTION COLD LOAD CAPTURE
+Target Production Deploy: https://trendrop-mlw060syi-chinmays-projects-c20ed5a5.vercel.app
+================================================================================
+
+Endpoint: /api/trends
+  Status: 200 | Response Bytes: 289,540 B | Cards Count: 87
+  x-vercel-id: bom1::iad1::tzknc-1792054370820-182076154f1d
+------------------------------------------------------------
+Endpoint: /api/trends/emerging
+  Status: 200 | Response Bytes: 51,133 B | Cards Count: 18
+  x-vercel-id: bom1::iad1::gl2p7-1792054371945-12b3c41b8ec7
+------------------------------------------------------------
+Endpoint: /api/trends/peaked
+  Status: 200 | Response Bytes: 332,925 B | Cards Count: 100
+  x-vercel-id: bom1::iad1::k4nf4-1792054373661-7cce8610a7f4
+------------------------------------------------------------
+Endpoint: /api/trends/resurging
+  Status: 200 | Response Bytes: 121,102 B | Cards Count: 26
+  x-vercel-id: bom1::iad1::8sk8b-1792054377742-9747743b69fd
+------------------------------------------------------------
+Endpoint: /api/trends/expired
+  Status: 200 | Response Bytes: 368,683 B | Cards Count: 100
+  x-vercel-id: bom1::iad1::lqghc-1792054380226-d6b42800b658
+------------------------------------------------------------
+
+================================================================================
+ALL ENDPOINTS HEALTHY (Status 200, non-zero cards returned).
+STATUS: PRODUCTION DEPLOY VERIFIED & STABLE

@@ -1,0 +1,36 @@
+UTC Time: 2026-10-15T08:17:16Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: powershell -Command Select-String -Path frontend/test_order79_playwright.mjs -Pattern 'http|old_payload|snapshot|localhost|127\.0\.0\.1|vercel|route' -Context 0,2
+
+
+> frontend\test_order79_playwright.mjs:5:const oldPayloads = 
+JSON.parse(fs.readFileSync("evidence/order78/old_payloads.json", "utf-8"));
+  frontend\test_order79_playwright.mjs:6:
+  frontend\test_order79_playwright.mjs:7:// Explicit list of feed card columns + frontend-adapted properties
+> frontend\test_order79_playwright.mjs:62:  const baseUrl = "http://127.0.0.1:5173";
+  frontend\test_order79_playwright.mjs:63:
+  frontend\test_order79_playwright.mjs:64:  // Intercept sparkline history calls so both old and new render 
+identically without network race
+> frontend\test_order79_playwright.mjs:65:  await page.route("**/history*", async (route) => {
+> frontend\test_order79_playwright.mjs:66:    await route.fulfill({
+  frontend\test_order79_playwright.mjs:67:      status: 200,
+  frontend\test_order79_playwright.mjs:68:      contentType: "application/json",
+> frontend\test_order79_playwright.mjs:88:    await p.route("**/history*", async (route) => {
+> frontend\test_order79_playwright.mjs:89:      await route.fulfill({ status: 200, contentType: "application/json", 
+body: JSON.stringify([]) });
+  frontend\test_order79_playwright.mjs:90:    });
+  frontend\test_order79_playwright.mjs:91:
+> frontend\test_order79_playwright.mjs:103:      await p.route(ep.pattern, async (route) => {
+> frontend\test_order79_playwright.mjs:104:        await route.fulfill({
+  frontend\test_order79_playwright.mjs:105:          status: 200,
+  frontend\test_order79_playwright.mjs:106:          contentType: "application/json",
+> frontend\test_order79_playwright.mjs:232:  // Set up default feed routes for the remaining tests
+  frontend\test_order79_playwright.mjs:233:  const endpoints = [
+  frontend\test_order79_playwright.mjs:234:    { pattern: "**/api/trends?*", key: "/api/trends" },
+> frontend\test_order79_playwright.mjs:243:    await page.route(ep.pattern, async (route) => {
+> frontend\test_order79_playwright.mjs:244:      await route.fulfill({
+  frontend\test_order79_playwright.mjs:245:        status: 200,
+  frontend\test_order79_playwright.mjs:246:        contentType: "application/json",
+
+

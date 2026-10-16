@@ -1,0 +1,22 @@
+UTC Time: 2026-10-15T08:16:02Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: git grep -n -A16 FEED_CARD_COLUMNS = 33ea0c4 -- backend/routes/trends.py
+
+33ea0c4:backend/routes/trends.py:44:FEED_CARD_COLUMNS = (
+33ea0c4:backend/routes/trends.py-45-    "id,audio_title,audio_artist,audio_id,audio_use_count,content_type,window_hours_remaining,velocity_avg,"
+33ea0c4:backend/routes/trends.py-46-    "language,language_final,status,saturation_score,creator_fit_score,hook_retention_score,created_at,"
+33ea0c4:backend/routes/trends.py-47-    "first_detected_at,niche_tag,semantic_niches,discovery_source,is_regional_crossover,crossover_from_language,"
+33ea0c4:backend/routes/trends.py-48-    "crossover_message,used_for,used_for_note,trend_classification,velocity_pattern,optimal_post_hour_ist,"
+33ea0c4:backend/routes/trends.py-49-    "why_this_works,vibe_tag,platform,is_dance,is_voiceover,is_seed_data,is_evergreen,trend_age_hours,"
+33ea0c4:backend/routes/trends.py-50-    "template_link,saturation_count,hook_brief,status_changed_at,adaptation_briefs,niche_relevance,reel_count,"
+33ea0c4:backend/routes/trends.py-51-    "audio_cue_second,best_platform_first,trend_origin,virality_type,content_tone,display_title,commercial_song_alias,"
+33ea0c4:backend/routes/trends.py-52-    "has_creator_outlier,global_saturation_pct,india_saturation_pct,ideal_content_description,opportunity_score,"
+33ea0c4:backend/routes/trends.py-53-    "peaking_score,saturation_penalty,llm_classification_status,composite_score"
+33ea0c4:backend/routes/trends.py-54-)
+33ea0c4:backend/routes/trends.py-55-
+33ea0c4:backend/routes/trends.py-56-@router.get("/api/trends")
+33ea0c4:backend/routes/trends.py-57-@router.get("/api/trends/rising")
+33ea0c4:backend/routes/trends.py-58-@limiter.limit("60/minute")
+33ea0c4:backend/routes/trends.py-59-def get_trends(
+33ea0c4:backend/routes/trends.py-60-    request: Request,

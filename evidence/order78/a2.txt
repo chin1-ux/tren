@@ -1,0 +1,154 @@
+UTC Time: 2026-10-15T03:36:22Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: git diff -w --ignore-cr-at-eol origin/main
+
+diff --git a/backend/routes/trends.py b/backend/routes/trends.py
+index b4e9295..b689bb7 100644
+--- a/backend/routes/trends.py
++++ b/backend/routes/trends.py
+@@ -41,6 +41,18 @@ def _apply_languages_filter(q, language: Optional[str] = None, languages: Option
+ 
+ _USER_PREFS_CACHE: dict[str, tuple[dict, float]] = {}
+ 
++FEED_CARD_COLUMNS = (
++    "id,audio_title,audio_artist,audio_id,audio_use_count,content_type,window_hours_remaining,velocity_avg,"
++    "language,language_final,status,saturation_score,creator_fit_score,hook_retention_score,created_at,"
++    "first_detected_at,niche_tag,semantic_niches,discovery_source,is_regional_crossover,crossover_from_language,"
++    "crossover_message,used_for,used_for_note,trend_classification,velocity_pattern,optimal_post_hour_ist,"
++    "why_this_works,vibe_tag,platform,is_dance,is_voiceover,is_seed_data,is_evergreen,trend_age_hours,"
++    "template_link,saturation_count,hook_brief,status_changed_at,adaptation_briefs,niche_relevance,reel_count,"
++    "audio_cue_second,best_platform_first,trend_origin,virality_type,content_tone,display_title,commercial_song_alias,"
++    "has_creator_outlier,global_saturation_pct,india_saturation_pct,ideal_content_description,opportunity_score,"
++    "peaking_score,saturation_penalty,llm_classification_status"
++)
++
+ @router.get("/api/trends")
+ @router.get("/api/trends/rising")
+ @limiter.limit("60/minute")
+@@ -123,7 +135,7 @@ def get_trends(
+         delay_hours = get_cached_tier_delay(user_plan)
+ 
+         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
+-        q = supabase.table("trends").select("*").eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
++        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
+ 
+         # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
+         rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+@@ -159,7 +171,7 @@ def get_trends(
+         # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
+         if not trends:
+             skipped_local_fallback = False
+-            q_fb = supabase.table("trends").select("*").in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
++            q_fb = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
+             q_fb = _apply_languages_filter(q_fb, language, languages)
+             q_fb = q_fb.limit(100)
+             res_fb = execute_supabase_get(q_fb)
+@@ -396,7 +408,7 @@ def get_emerging_trends(
+                 logger.warning(f"Error querying user profile: {e}")
+ 
+         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
+-        q = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
++        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
+         
+         # 48-hour retention gate for Emerging tab (only fresh pre-viral trends)
+         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+@@ -416,7 +428,7 @@ def get_emerging_trends(
+         if len(trends) == 0:
+             try:
+                 emerging_cutoff_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+-                q_7d = supabase.table("trends").select("*").eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
++                q_7d = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
+                 q_7d = q_7d.or_(
+                     f"first_detected_at.gte.{emerging_cutoff_7d},"
+                     f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff_7d})"
+@@ -614,7 +626,7 @@ def get_spotify_viral_trends(
+ 
+     try:
+         # --- Section 1: Already Trending on Instagram (max 8) ---
+-        q_trending = supabase.table("trends").select("*") \
++        q_trending = supabase.table("trends").select(FEED_CARD_COLUMNS) \
+             .in_("status", ["rising", "emerging", "resurging", "peaked"]) \
+             .eq("is_voiceover", False) \
+             .eq("is_seed_data", False) \
+@@ -725,7 +737,7 @@ def get_all_active_trends(
+     if not supabase:
+         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+     try:
+-        res = supabase.table("trends").select("*").in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
++        res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
+         trends = _normalize_trends(res.data or [])
+         trends.sort(key=_trend_priority_key, reverse=True)
+         headers = {"Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300"}
+@@ -764,7 +776,7 @@ def get_peaked_trends(
+             return JSONResponse(content=entry['data'], headers=headers)
+             
+     try:
+-        q = supabase.table("trends").select("*").eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
++        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+         
+         # 14-day retention gate for Peaked tab (max 14 days post-peak)
+         peaked_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
+@@ -824,7 +836,7 @@ def get_resurging_trends(
+         )
+         q = (
+             supabase.table("trends")
+-            .select("*")
++            .select(FEED_CARD_COLUMNS)
+             .eq("status", "resurging")
+             .eq("is_seed_data", False)
+             .gte("reel_count", 3)
+@@ -878,7 +890,7 @@ def get_expired_trends(
+     if not supabase:
+         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+     try:
+-        q = supabase.table("trends").select("*").eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
++        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+         
+         # 30-day retention gate for Expired tab (max 30 days historical archive)
+         expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
+@@ -960,7 +972,7 @@ def get_trends_by_language(
+     try:
+         skipped_local_fallback = True
+         res = supabase.table("trends") \
+-            .select("*") \
++            .select(FEED_CARD_COLUMNS) \
+             .in_("status", ["emerging", "rising"]) \
+             .eq("is_seed_data", False) \
+             .in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]) \
+@@ -972,7 +984,7 @@ def get_trends_by_language(
+         if not trends:
+             skipped_local_fallback = False
+             res_fb = supabase.table("trends") \
+-                .select("*") \
++                .select(FEED_CARD_COLUMNS) \
+                 .eq("language", lang) \
+                 .order("velocity_avg", desc=True) \
+                 .limit(100) \
+@@ -1008,7 +1020,7 @@ def get_peaking_trends(
+         time_threshold = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+         
+         trends_res = supabase.table('trends') \
+-            .select('*') \
++            .select(FEED_CARD_COLUMNS) \
+             .in_('status', ['emerging', 'rising']) \
+             .eq('is_seed_data', False) \
+             .gte('first_detected_at', time_threshold) \
+@@ -1150,7 +1162,7 @@ def get_targeted_trends(authorization: Optional[str] = Header(None)):
+         if not trend_ids:
+             return []
+ 
+-        trends_res = supabase.table("trends").select("*").in_("id", trend_ids).execute()
++        trends_res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("id", trend_ids).execute()
+         return _normalize_trends(trends_res.data or [])
+     except Exception as e:
+         logger.error(f"Error fetching targeted trends: {e}", exc_info=True)
+@@ -1646,7 +1658,7 @@ def get_niche_trends(
+     try:
+         # Fetch audio trends (status emerging or rising)
+         audio_res = supabase.table("trends") \
+-            .select("*") \
++            .select(FEED_CARD_COLUMNS) \
+             .in_("status", ["emerging", "rising"]) \
+             .eq("is_seed_data", False) \
+             .order("velocity_avg", desc=True) \

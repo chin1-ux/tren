@@ -1,0 +1,54 @@
+================================================================================
+ORDER 77 ITEM 4: SCHEDULER GAP FIX & EARLY EXIT GUARD
+================================================================================
+Workflow: .github/workflows/scraper_cron.yml
+
+Diff:
+diff --git a/.github/workflows/scraper_cron.yml b/.github/workflows/scraper_cron.yml
+index 576508b..e19f5d9 100644
+--- a/.github/workflows/scraper_cron.yml
++++ b/.github/workflows/scraper_cron.yml
+@@ -2,12 +2,17 @@ name: Trendrop Scheduled Scraper Pipeline Cron
+ 
+ on:
+   schedule:
+-    - cron: '17 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
++    - cron: '17 * * * *'  # Hourly trigger, guarded by 2h45m completion check
+   workflow_dispatch:        # Manual trigger button in GitHub UI
+ 
++concurrency:
++  group: scraper-cron
++  cancel-in-progress: false
++
+ jobs:
+   scrape_and_detect:
+     runs-on: ubuntu-latest
++    timeout-minutes: 60
+     steps:
+       - name: Checkout repository
+         uses: actions/checkout@v4
+@@ -25,7 +30,17 @@ jobs:
+           playwright install chromium
+           python -m camoufox fetch
+ 
++      - name: Check 2h45m Early Exit Guard
++        id: guard
++        env:
++          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
++          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
++          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
++        run: |
++          python scripts/check_scraper_guard.py
++
+       - name: Run Full Scraper & Detection Pipeline
++        if: steps.guard.outputs.skip != 'true'
+         env:
+           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+
+Local Guard Verification:
+Ran: python scripts/check_scraper_guard.py
+Result:
+Skipping: last run was 73.4 minutes ago (under 2h45m threshold).
+Scraper guard: SKIP
+================================================================================

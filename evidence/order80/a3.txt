@@ -1,0 +1,53 @@
+=====================================================================================
+ORDER 80: A3 TOP_REELS & IDEAL_CONTENT_DESCRIPTION STATIC CODE ANALYSIS
+=====================================================================================
+
+1. ARE TOP_REELS AND IDEAL_CONTENT_DESCRIPTION IN FEED_CARD_COLUMNS?
+-------------------------------------------------------------------------------------
+- top_reels: NO.
+  `top_reels` is NOT a database column in the `trends` table, and is NOT in `FEED_CARD_COLUMNS`
+  (see backend/routes/trends.py lines 27-38).
+- ideal_content_description: YES.
+  `ideal_content_description` IS a column in the `trends` table, and IS explicitly included in
+  `FEED_CARD_COLUMNS` (line 35: '...has_creator_outlier,global_saturation_pct,india_saturation_pct,ideal_content_description,...').
+
+2. WHERE IS TOP_REELS BUILT (FILE:LINE)?
+-------------------------------------------------------------------------------------
+`top_reels` is constructed in-memory in `backend/api_globals.py` inside `_normalize_trends()`:
+- Definition & logic: `backend/api_globals.py:648-791`
+- Audio ID prefetch query: `backend/api_globals.py:687-692`
+- Title fallback query: `backend/api_globals.py:721-726`
+- Attachment to trend dict: `backend/api_globals.py:787` (`t["top_reels"] = top_reels`)
+- reel_id injection: `backend/api_globals.py:789` (`t["reel_id"] = top_reels[0].get("reel_id")`)
+- views_delta injection: `backend/api_globals.py:790` (`t["views_delta_last_run"] = top_reels[0].get("views_delta_last_run") or 0`)
+
+3. SUPABASE QUERIES EXECUTED PER FEED REQUEST TO POPULATE TOP_REELS:
+-------------------------------------------------------------------------------------
+When `_normalize_trends(trends)` is invoked, it queries the `reels` table to fetch top creator reels:
+
+Query A (Primary — by audio_id):
+- File:Line: `backend/api_globals.py:687-692`
+- Table: `reels`
+- Columns Selected: `reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url`
+- Filter: `.in_("audio_id", chunk)` in chunks of 50 distinct audio_ids
+- Order: `.order("view_count", desc=True)`
+- Limit: `500` rows per chunk!
+- Cache: Cached in process memory `_REELS_PREFETCH_CACHE` for 300 seconds (5 min).
+
+Query B (Fallback — for trends missing audio_id):
+- File:Line: `backend/api_globals.py:721-726`
+- Table: `reels`
+- Columns Selected: `reel_id, views_delta_last_run, audio_title, audio_artist, audio_id, velocity_score, view_count, like_count, owner_username, thumbnail_url`
+- Filter: `.in_("audio_title", chunk)` in chunks of 50 titles
+- Order: `.order("view_count", desc=True)`
+- Limit: `500` rows per chunk!
+- Cache: Cached in process memory `_REELS_FALLBACK_CACHE` for 300 seconds (5 min).
+
+4. EGRESS IMPLICATIONS:
+-------------------------------------------------------------------------------------
+- For a feed of 100 trends (e.g. /api/trends), on a cold cache, `_normalize_trends()` issues
+  up to 2 chunks * 500 rows = up to 1,000 reel rows fetched from Supabase `reels` table
+  just to populate `top_reels` on the trends!
+- This adds significant Supabase egress from the `reels` table on every cold feed request.
+- Furthermore, because `top_reels` contains up to 3 objects with URLs, usernames, etc. per trend,
+  it accounts for 1,076.7 Bytes per trend row (33.2% of the total JSON payload delivered to the client).

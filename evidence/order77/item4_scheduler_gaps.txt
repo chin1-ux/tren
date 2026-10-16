@@ -1,0 +1,52 @@
+===============================================================================================
+ORDER 77 ITEM 4: SCHEDULER GAPS AUDIT (LAST 40 RUNS OF SCRAPER CRON ON chin1-ux/tren)
+===============================================================================================
+Run ID         | Started At (UTC)     | Status      | Conclusion  | Gap From Prev
+-----------------------------------------------------------------------------------------------
+38774767573    | 2026-10-15 17:08:00  | in_progress |             | N/A (Latest)
+38682801632    | 2026-10-15 04:41:40  | completed   | success     | 12.44 hrs (746 min)
+38642280660    | 2026-10-14 21:42:15  | completed   | failure     | 6.99 hrs (419 min)
+38617187746    | 2026-10-14 18:40:46  | completed   | failure     | 3.02 hrs (181 min)
+38604576490    | 2026-10-14 17:11:46  | completed   | failure     | 1.48 hrs (89 min)
+38601799236    | 2026-10-14 16:52:38  | completed   | failure     | 0.32 hrs (19 min)
+38559936808    | 2026-10-14 11:54:47  | completed   | failure     | 4.96 hrs (298 min)
+38513912524    | 2026-10-14 04:55:28  | completed   | success     | 6.99 hrs (419 min)
+38479969459    | 2026-10-13 22:46:08  | completed   | success     | 6.16 hrs (369 min)
+38434728094    | 2026-10-13 16:57:27  | completed   | success     | 5.81 hrs (349 min)
+38358790689    | 2026-10-13 06:48:13  | completed   | success     | 10.15 hrs (609 min)
+38309648470    | 2026-10-12 21:17:02  | completed   | success     | 9.52 hrs (571 min)
+38239014183    | 2026-10-12 10:52:15  | completed   | success     | 10.41 hrs (625 min)
+38188465249    | 2026-10-12 00:33:32  | completed   | success     | 10.31 hrs (619 min)
+38168575792    | 2026-10-11 19:34:10  | completed   | success     | 4.99 hrs (299 min)
+38140912254    | 2026-10-11 12:52:09  | completed   | success     | 6.70 hrs (402 min)
+38116012912    | 2026-10-11 05:49:01  | completed   | failure     | 7.05 hrs (423 min)
+38088878727    | 2026-10-10 21:46:02  | completed   | success     | 8.05 hrs (483 min)
+38071364621    | 2026-10-10 17:20:56  | completed   | success     | 4.42 hrs (265 min)
+38042914200    | 2026-10-10 09:52:17  | completed   | success     | 7.48 hrs (449 min)
+38038696836    | 2026-10-10 08:40:27  | completed   | success     | 1.20 hrs (72 min)
+38010921664    | 2026-10-10 00:52:52  | completed   | success     | 7.79 hrs (468 min)
+37972747185    | 2026-10-09 18:21:50  | completed   | success     | 6.52 hrs (391 min)
+37931171540    | 2026-10-09 12:36:40  | completed   | success     | 5.75 hrs (345 min)
+37918550584    | 2026-10-09 10:35:36  | completed   | success     | 2.02 hrs (121 min)
+37896274308    | 2026-10-09 06:57:15  | completed   | cancelled   | 3.64 hrs (218 min)
+37895866229    | 2026-10-09 06:52:48  | completed   | cancelled   | 0.07 hrs (4 min)
+37868772565    | 2026-10-09 01:14:04  | completed   | cancelled   | 5.65 hrs (339 min)
+37827559995    | 2026-10-08 18:51:54  | completed   | success     | 6.37 hrs (382 min)
+37782853309    | 2026-10-08 13:14:55  | completed   | success     | 5.62 hrs (337 min)
+37764614850    | 2026-10-08 10:36:46  | completed   | success     | 2.64 hrs (158 min)
+37710790049    | 2026-10-08 01:01:20  | completed   | success     | 9.59 hrs (575 min)
+37683535294    | 2026-10-07 20:38:20  | completed   | success     | 4.38 hrs (263 min)
+37628473051    | 2026-10-07 13:26:17  | completed   | success     | 7.20 hrs (432 min)
+37579330959    | 2026-10-07 06:02:07  | completed   | success     | 7.40 hrs (444 min)
+37541999902    | 2026-10-06 22:39:51  | completed   | success     | 7.37 hrs (442 min)
+37465424789    | 2026-10-06 12:44:11  | completed   | success     | 9.93 hrs (596 min)
+37415566838    | 2026-10-06 04:50:01  | completed   | success     | 7.90 hrs (474 min)
+37378360519    | 2026-10-05 21:48:46  | completed   | success     | 7.02 hrs (421 min)
+37317918777    | 2026-10-05 13:34:57  | completed   | success     | 8.23 hrs (494 min)
+-----------------------------------------------------------------------------------------------
+Total Runs Analyzed: 40
+Average Gap Between Runs: 6.24 hours
+Max Gap Between Runs    : 12.44 hours
+Min Gap Between Runs    : 0.07 hours
+Runs with gap > 3.5 hours: 32/39 (82.1%)
+===============================================================================================

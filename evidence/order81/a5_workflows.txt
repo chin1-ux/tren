@@ -1,0 +1,23 @@
+UTC Time: 2026-10-15T08:17:47Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: gh workflow list --repo chin1-ux/tren --all
+
+CI Smoke Test	active	351125132
+Classification Sweep	active	370069311
+Weekly Coverage Report	active	380754419
+Cron Heartbeat Watchdog	active	351125133
+Emergency LLM Classification	active	342411735
+System Health Check	active	380754421
+Run News Virality Predictor	active	342411737
+LLM Classification Batch	active	342411739
+Pending Trends Timeout Fallback	active	351125135
+Pending Trends Monitor	active	351125136
+Scheduled Data Retention Cleanup	active	378928809
+Scraper (Main Account - 6h Fallback)	active	342411740
+Trendrop Scheduled Scraper Pipeline Cron	active	356465934
+Sync to Dedicated Scraper Repo (chin1-ux/tren)	active	356465935
+Trend Refresh (Main Account - 8h)	active	342411741
+Copilot cloud agent	active	375788770
+Dependabot Updates	active	357361247
+Dependency Graph	active	357213455

@@ -1,0 +1,106 @@
+================================================================================
+ORDER 77 ITEM 1: REAL DATABASE BYTES & PER-TABLE SIZES AUDIT
+Timestamp: 2026-10-15T17:43:30.466619+00:00
+================================================================================
+
+TOTAL DATABASE SIZE (pg_database_size): 286,133,395 bytes (272.88 MB)
+
+PER-TABLE SIZE BREAKDOWN (Ordered by total_bytes DESC):
+--------------------------------------------------------------------------------
+Table Name                   | Total MB   | Table MB   | Index MB   | Est. Rows 
+--------------------------------------------------------------------------------
+reels                        | 152.73     | 78.70      | 13.83      | 53,192    
+trend_snapshots              | 40.50      | 15.77      | 24.70      | 240,174   
+audio_trend_scores           | 24.13      | 22.24      | 1.85       | 39,570    
+trends                       | 18.52      | 10.73      | 1.14       | 1,860     
+trend_lifecycle              | 5.70       | 4.54       | 0.98       | 17,253    
+reel_snapshots               | 4.10       | 1.48       | 2.59       | 13,675    
+audio_sightings              | 2.59       | 1.41       | 1.14       | 12,429    
+content_trends               | 1.69       | 1.26       | 0.39       | 2,437     
+tracked_audio                | 0.85       | 0.55       | 0.27       | 4,883     
+news_api_cache               | 0.82       | 0.17       | 0.04       | 159       
+audio_official_counts        | 0.80       | 0.57       | 0.19       | 6,852     
+probe_reels                  | 0.56       | 0.27       | 0.25       | 1,656     
+news_virality_predictions    | 0.35       | 0.11       | 0.12       | 20        
+probe_log                    | 0.31       | 0.20       | 0.08       | 731       
+cron_runs                    | 0.28       | 0.21       | 0.04       | 942       
+creator_baselines            | 0.26       | 0.09       | 0.12       | 677       
+admin_audit_log_enhanced     | 0.25       | 0.20       | 0.02       | 174       
+proof_log                    | 0.23       | 0.16       | 0.03       | 116       
+users                        | 0.22       | 0.01       | 0.17       | 9         
+watchlist                    | 0.22       | 0.12       | 0.06       | 149       
+spotify_feed_cache           | 0.22       | 0.04       | 0.14       | 25        
+seed_audios                  | 0.21       | 0.11       | 0.07       | 837       
+audio_count_history          | 0.19       | 0.06       | 0.09       | 360       
+format_trends                | 0.16       | 0.05       | 0.08       | 119       
+comments                     | 0.12       | 0.05       | 0.04       | 276       
+usage_logs                   | 0.11       | 0.01       | 0.06       | 14        
+tag_registry                 | 0.09       | 0.02       | 0.03       | 115       
+hashtag_performance          | 0.09       | 0.01       | 0.08       | -1        
+calendar_plans               | 0.08       | 0.02       | 0.03       | -1        
+plan_overrides               | 0.08       | 0.01       | 0.06       | -1        
+admin_audit_log_enhanced_deprecated_20240813 | 0.08       | 0.01       | 0.06       | -1        
+cultural_events              | 0.08       | 0.02       | 0.03       | -1        
+credit_transactions          | 0.08       | 0.01       | 0.03       | 20        
+user_sessions                | 0.08       | 0.01       | 0.06       | -1        
+device_fingerprints          | 0.06       | 0.01       | 0.05       | -1        
+pre_post_analyses            | 0.06       | 0.02       | 0.02       | -1        
+active_sessions              | 0.06       | 0.01       | 0.02       | 9         
+instagram_tokens             | 0.06       | 0.01       | 0.05       | -1        
+admin_audit_log_deprecated_20240813 | 0.06       | 0.01       | 0.05       | -1        
+creator_profiles             | 0.05       | 0.01       | 0.03       | -1        
+trend_actions                | 0.05       | 0.01       | 0.03       | -1        
+keyword_monitors             | 0.05       | 0.01       | 0.03       | -1        
+phone_verifications          | 0.05       | 0.01       | 0.03       | -1        
+subscription_tiers           | 0.05       | 0.01       | 0.03       | -1        
+alert_queue                  | 0.05       | 0.01       | 0.02       | 0         
+admin_users_deprecated_20240813 | 0.05       | 0.01       | 0.03       | -1        
+admin_actions                | 0.05       | 0.00       | 0.04       | -1        
+admin_users                  | 0.05       | 0.01       | 0.03       | 1         
+early_signals                | 0.05       | 0.00       | 0.04       | -1        
+jobs                         | 0.05       | 0.01       | 0.03       | -1        
+credit_balances              | 0.04       | 0.01       | 0.02       | 0         
+creator_posts                | 0.03       | 0.00       | 0.02       | -1        
+brand_deals                  | 0.03       | 0.01       | 0.02       | -1        
+audio_adoption_timeline      | 0.03       | 0.00       | 0.02       | -1        
+suspicious_activity          | 0.03       | 0.00       | 0.02       | -1        
+coverage_report              | 0.03       | 0.01       | 0.02       | -1        
+trend_feedback               | 0.03       | 0.01       | 0.02       | -1        
+collab_requests              | 0.03       | 0.01       | 0.02       | -1        
+brand_deal_applications      | 0.03       | 0.01       | 0.02       | -1        
+discovery_terms              | 0.03       | 0.00       | 0.02       | -1        
+user_preferences             | 0.03       | 0.01       | 0.02       | -1        
+admin_audit_log              | 0.03       | 0.01       | 0.02       | -1        
+tag_run_stats                | 0.03       | 0.00       | 0.02       | -1        
+ground_truth                 | 0.03       | 0.01       | 0.02       | -1        
+_temp_migration_phase1_users | 0.02       | 0.01       | 0.02       | -1        
+youtube_shorts               | 0.02       | 0.00       | 0.02       | -1        
+comment_trends               | 0.02       | 0.00       | 0.02       | -1        
+news_signals                 | 0.02       | 0.00       | 0.02       | -1        
+audio_page_cache             | 0.02       | 0.00       | 0.02       | -1        
+creator_niche_profiles       | 0.02       | 0.00       | 0.02       | -1        
+comment_aliases              | 0.02       | 0.00       | 0.01       | -1        
+audio_language_overrides     | 0.02       | 0.00       | 0.01       | -1        
+consent_records              | 0.02       | 0.00       | 0.01       | -1        
+daily_ideas                  | 0.02       | 0.00       | 0.01       | -1        
+creator_feedback             | 0.02       | 0.00       | 0.01       | -1        
+creator_trend_memory         | 0.02       | 0.00       | 0.01       | -1        
+trial_reel_plans             | 0.02       | 0.00       | 0.01       | -1        
+analytics_events             | 0.02       | 0.00       | 0.01       | -1        
+deal_payment_milestones      | 0.02       | 0.00       | 0.01       | -1        
+--------------------------------------------------------------------------------
+
+REELS TABLE LIFESPAN & DAILY INGESTION RATE:
+Total rows in reels: 55,034
+Earliest reel created_at: 2026-09-13T10:12:12.320832
+Latest reel created_at  : 2026-10-15T17:24:09.589663
+Active lifespan: 32.30 days
+Ingestion rate: 1703.8 reels/day
+Average footprint: 2,910 bytes/row (table + indexes)
+Growth rate: 4.73 MB/day
+Remaining headroom to 450 MB: 177.12 MB
+Days to 450 MB ceiling: 37.5 days
+
+================================================================================
+AUDIT COMPLETE
+================================================================================

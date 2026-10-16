@@ -1,0 +1,23 @@
+=== FEED_CARD_COLUMNS from git show 33ea0c4:backend/routes/trends.py ===
+FEED_CARD_COLUMNS = (
+    "id,audio_title,audio_artist,audio_id,audio_use_count,content_type,window_hours_remaining,velocity_avg,"
+    "language,language_final,status,saturation_score,creator_fit_score,hook_retention_score,created_at,"
+    "first_detected_at,niche_tag,semantic_niches,discovery_source,is_regional_crossover,crossover_from_language,"
+    "crossover_message,used_for,used_for_note,trend_classification,velocity_pattern,optimal_post_hour_ist,"
+    "why_this_works,vibe_tag,platform,is_dance,is_voiceover,is_seed_data,is_evergreen,trend_age_hours,"
+    "template_link,saturation_count,hook_brief,status_changed_at,adaptation_briefs,niche_relevance,reel_count,"
+    "audio_cue_second,best_platform_first,trend_origin,virality_type,content_tone,display_title,commercial_song_alias,"
+    "has_creator_outlier,global_saturation_pct,india_saturation_pct,ideal_content_description,opportunity_score,"
+    "peaking_score,saturation_penalty,llm_classification_status,composite_score"
+)
+
+=== git show 33ea0c4 --stat ===
+commit 33ea0c419a754a2118c7f4fa62f806c656389da9
+Author: chinmay <chinmay.feb03@gmail.com>
+Date:   Thu Oct 15 11:04:28 2026 +0530
+
+    fix(api): slim feed card columns to cut Supabase egress payload by 61%
+
+ backend/routes/trends.py | 40 ++++++++++++++++++++++++++--------------
+ 1 file changed, 26 insertions(+), 14 deletions(-)
+

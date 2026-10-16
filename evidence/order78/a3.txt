@@ -1,0 +1,586 @@
+UTC Time: 2026-10-15T03:41:04Z
+git rev-parse HEAD: fb7deee292075bbb35d4d8c398911de20a5494ec
+branch: hotfix/egress-columns
+Command: python scripts/contract_test_response.py
+
+C:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\video_visual_analyzer.py:13: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-10-15 09:11:36,650 - redis_rate_limiter - INFO - redis_connected
+================================================================================
+ORDER 78: A3 CONTRACT TEST RESPONSE (9 ENDPOINTS)
+Comparing real final JSON responses: origin/main (select *) vs hotfix (select FEED_CARD_COLUMNS)
+================================================================================
+
+========================================================
+Endpoint: /api/trends
+========================================================
+Row count: Old=96, New=96 (Match: True)
+Response Bytes: Old=850,689 B (830.75 KB), New=333,967 B (326.14 KB) -> Reduction: 60.74%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 96
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/rising
+========================================================
+Row count: Old=96, New=96 (Match: True)
+Response Bytes: Old=850,689 B (830.75 KB), New=333,967 B (326.14 KB) -> Reduction: 60.74%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 96
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/emerging
+========================================================
+Row count: Old=14, New=14 (Match: True)
+Response Bytes: Old=96,091 B (93.84 KB), New=43,969 B (42.94 KB) -> Reduction: 54.24%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 14
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=True, in_new=True, sample_val=usr_contract_test
+
+========================================================
+Endpoint: /api/trends/peaked
+========================================================
+Row count: Old=100, New=100 (Match: True)
+Response Bytes: Old=900,078 B (878.98 KB), New=347,655 B (339.51 KB) -> Reduction: 61.38%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 100
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/resurging
+========================================================
+Row count: Old=23, New=23 (Match: True)
+Response Bytes: Old=250,644 B (244.77 KB), New=111,285 B (108.68 KB) -> Reduction: 55.60%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 23
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/expired
+========================================================
+Row count: Old=100, New=100 (Match: True)
+Response Bytes: Old=971,618 B (948.85 KB), New=383,427 B (374.44 KB) -> Reduction: 60.54%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 100
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/all-active
+========================================================
+Row count: Old=100, New=100 (Match: True)
+Response Bytes: Old=925,655 B (903.96 KB), New=355,527 B (347.19 KB) -> Reduction: 61.59%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 100
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/peaking
+========================================================
+Row count: Old=20, New=20 (Match: True)
+Response Bytes: Old=130,048 B (127.00 KB), New=40,941 B (39.98 KB) -> Reduction: 68.52%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 20
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+========================================================
+Endpoint: /api/trends/targeted
+========================================================
+Row count: Old=1, New=1 (Match: True)
+Response Bytes: Old=10,172 B (9.93 KB), New=4,102 B (4.01 KB) -> Reduction: 59.67%
+Keys in old but not new (46): avg_reel_length_seconds, camera_style, confidence, creator_diversity, cultural_context, dominant_format, edit_style, exogenous_correlation, first_detected_at_orig, format_concepts, format_patterns, format_replication_rate, format_transferable, format_trend_score, high_confidence, is_cross_cultural, is_format_trend, is_original_audio_resolved, is_transition_trend, language_classified_at, language_confidence, language_source, last_seen_at, llm_classified_at, llm_retry_count, narrative_structure, needs_filming, niche_fit_score, peak_velocity, promotion_reason, raw_llm_response, release_date, release_year, sample_captions, shazam_canonical_album, shazam_canonical_artist, shazam_canonical_genre, shazam_canonical_title, shazam_id, status_reason, text_overlay_template, transfer_instructions, transition_type, trend_type, used_for_classified_at, visual_storyboard
+Matched rows by ID: 1
+Count of rows whose shared values differ: 0
+
+Special Keys Check in FINAL JSON response:
+  - creator_tier: in_old=False, in_new=False, sample_val=None
+  - spread_status: in_old=False, in_new=False, sample_val=None
+  - creator_count: in_old=False, in_new=False, sample_val=None
+  - user_watermark_id: in_old=False, in_new=False, sample_val=None
+
+================================================================================
+TOTAL DISTINCT MISSING KEYS ACROSS ALL 9 ENDPOINTS (46):
+['avg_reel_length_seconds', 'camera_style', 'confidence', 'creator_diversity', 'cultural_context', 'dominant_format', 'edit_style', 'exogenous_correlation', 'first_detected_at_orig', 'format_concepts', 'format_patterns', 'format_replication_rate', 'format_transferable', 'format_trend_score', 'high_confidence', 'is_cross_cultural', 'is_format_trend', 'is_original_audio_resolved', 'is_transition_trend', 'language_classified_at', 'language_confidence', 'language_source', 'last_seen_at', 'llm_classified_at', 'llm_retry_count', 'narrative_structure', 'needs_filming', 'niche_fit_score', 'peak_velocity', 'promotion_reason', 'raw_llm_response', 'release_date', 'release_year', 'sample_captions', 'shazam_canonical_album', 'shazam_canonical_artist', 'shazam_canonical_genre', 'shazam_canonical_title', 'shazam_id', 'status_reason', 'text_overlay_template', 'transfer_instructions', 'transition_type', 'trend_type', 'used_for_classified_at', 'visual_storyboard']
+================================================================================
+
+================================================================================
+GIT GREP AUDIT FOR EVERY MISSING KEY (frontend/src backend):
+================================================================================
+
+>>> Checking missing key: 'avg_reel_length_seconds'
+  Found 3 occurrences:
+    backend/instagram_scraper_browser.py:1304:                "avg_reel_length_seconds": hook_data.get("optimal_length_seconds", 0),
+    backend/migrate_db.py:51:    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS avg_reel_length_seconds INTEGER DEFAULT 0;",
+    backend/migrate_db.py:81:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS avg_reel_length_seconds INTEGER DEFAULT 0;",
+
+>>> Checking missing key: 'camera_style'
+  Found 10 occurrences:
+    backend/alert_system.py:251:        camera_style = trend.get("camera_style") or "handheld"
+    backend/alert_system.py:315:                <p style="margin:4px 0;font-size:14px;"><strong>Camera style:</strong> {camera_style}</p>
+    backend/alert_system.py:438:        camera_style = trend.get("camera_style", "handheld")
+    backend/alert_system.py:459:                <p style="margin: 4px 0; font-size: 14px;"><strong>Camera style:</strong> {camera_style}</p>
+    backend/database_setup.py:65:            camera_style text,
+    backend/trend_engine.py:96:        "camera_style": "static" if is_dance else "handheld",
+    backend/trend_engine.py:487:    trend["camera_style"] = "handheld" if trend["is_dance"] else "static"
+    backend/trend_engine.py:1364:                    "camera_style": trend.get("camera_style"),
+    ... and 2 more lines
+
+>>> Checking missing key: 'confidence'
+  Found 159 occurrences:
+    backend/ad_detector.py:34:# High-confidence brand disclosure patterns
+    backend/ad_detector.py:51:            "confidence": float (0.0-1.0),
+    backend/ad_detector.py:56:    confidence = 0.0
+    backend/ad_detector.py:63:            confidence = max(confidence, 0.95)
+    backend/ad_detector.py:69:            confidence = max(confidence, 0.9)
+    backend/ad_detector.py:72:        return {"is_sponsored": confidence > 0.5, "confidence": confidence, "signals": signals}
+    backend/ad_detector.py:81:        confidence = max(confidence, 0.85)
+    backend/ad_detector.py:87:            confidence = max(confidence, 0.7)
+    ... and 151 more lines
+  [ATTENTION - FEED REF]: ['backend/routes/trends.py:1462:        confidence = float(t.get("confidence") or 0)', 'backend/routes/trends.py:1464:        score = (fit * 0.35) + (hook * 0.25) + (crowd * 0.2) + (min(1.0, confidence) * 0.2)', 'backend/routes/trends.py:1482:            f"confidence {int(confidence * 100)}%."']
+
+>>> Checking missing key: 'creator_diversity'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'cultural_context'
+  Found 14 occurrences:
+    backend/caption_engine.py:179:        cultural_context = trend.get("cultural_context", "everyday")
+    backend/caption_engine.py:234:- Cultural context: {cultural_context}
+    backend/database_setup.py:63:            cultural_context text,
+    backend/early_trend_detection.py:127:        cultural_context = trend_data.get('cultural_context', '')
+    backend/early_trend_detection.py:128:        if cultural_context in ['celebration', 'festival', 'trending']:
+    backend/early_trend_detection.py:283:        'cultural_context': 'celebration',
+    backend/test_phase2.py:36:        'cultural_context': 'celebration',
+    backend/test_phase2.py:78:        'cultural_context': 'celebration'
+    ... and 6 more lines
+
+>>> Checking missing key: 'dominant_format'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'edit_style'
+  Found 18 occurrences:
+    backend/alert_system.py:252:        edit_style = trend.get("edit_style") or "fast_cuts"
+    backend/alert_system.py:324:                <p style="margin:4px 0;font-size:14px;"><strong>Edit style:</strong> {edit_style.replace('_', ' ').title()}</p>
+    backend/alert_system.py:439:        edit_style = trend.get("edit_style", "fast_cuts")
+    backend/alert_system.py:470:                <p style="margin: 4px 0; font-size: 14px;"><strong>Edit style:</strong> {edit_style}</p>
+    backend/caption_engine.py:175:        edit_style = trend.get("edit_style", "fast_cuts")
+    backend/caption_engine.py:233:- Edit style: {edit_style}
+    backend/database_setup.py:59:            edit_style text,
+    backend/routes/ai.py:617:                'scene_detection': {'edit_style': 'fast_cuts', 'scene_changes_count': 6},
+    ... and 10 more lines
+
+>>> Checking missing key: 'exogenous_correlation'
+  Found 4 occurrences:
+    backend/migrate_v3.py:20:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS exogenous_correlation JSONB;",
+    backend/trend_engine.py:1395:                    "exogenous_correlation": news_matches,
+    frontend/src/lib/api.ts:75:  exogenous_correlation?: any;
+    frontend/src/lib/api.ts:459:    exogenousCorrelation: t.exogenous_correlation ?? null,
+
+>>> Checking missing key: 'first_detected_at_orig'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'format_concepts'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'format_patterns'
+  Found 11 occurrences:
+    backend/instagram_scraper_browser.py:1294:        format_patterns = [{
+    backend/instagram_scraper_browser.py:1302:                "format_patterns": json.dumps(format_patterns),
+    backend/migrate_db.py:57:    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS format_patterns JSONB DEFAULT '[]';",
+    backend/migrate_db.py:80:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_patterns JSONB DEFAULT '[]';",
+    backend/trend_engine.py:1297:                # hook_brief / format_patterns from reels (aggregated from any Groq analysis)
+    backend/trend_engine.py:1302:                format_patterns = next(
+    backend/trend_engine.py:1303:                    (r.get("format_patterns") for r in group_reels if r.get("format_patterns")),
+    backend/trend_engine.py:1373:                    "format_patterns": format_patterns,
+    ... and 3 more lines
+
+>>> Checking missing key: 'format_replication_rate'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'format_transferable'
+  Found 17 occurrences:
+    backend/backfill_local_fallback.py:29:        "format_transferable": True,
+    backend/backfill_local_fallback.py:42:                .select("id,audio_title,why_this_works,audio_cue_second,format_transferable,transfer_instructions")
+    backend/backfill_local_fallback.py:62:                if t.get("format_transferable") is None:
+    backend/backfill_local_fallback.py:63:                    update["format_transferable"] = True
+    backend/database_setup.py:76:            format_transferable boolean DEFAULT false,
+    backend/database_setup.py:328:            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS format_transferable boolean DEFAULT false;")
+    backend/nightly_llm_batch.py:56:  "format_transferable": true,
+    backend/nightly_llm_batch.py:87:        .select("id,audio_title,audio_artist,niche_tag,content_tone,vibe_tag,language,sample_captions,llm_classification_status,optimal_post_hour_ist,format_transferable,transfer_instructions")
+    ... and 9 more lines
+
+>>> Checking missing key: 'format_trend_score'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'high_confidence'
+  Found 13 occurrences:
+    backend/backfill_merge_trends.py:43:                    "audio_use_count, confidence, high_confidence") \
+    backend/backfill_merge_trends.py:126:        any_high_confidence = any(t.get("high_confidence", False) for t in group)
+    backend/backfill_merge_trends.py:134:            "high_confidence": any_high_confidence,
+    backend/database_setup.py:335:            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS high_confidence boolean DEFAULT false;")
+    backend/migrate_db.py:85:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS high_confidence BOOLEAN DEFAULT false;",
+    backend/trend_refresher.py:186:                        "high_confidence": False,
+    backend/trend_refresher.py:230:                        "high_confidence": bool(trend.get("high_confidence", False)),
+    backend/trend_refresher.py:241:                        "high_confidence": bool(trend.get("high_confidence", False)),
+    ... and 5 more lines
+
+>>> Checking missing key: 'is_cross_cultural'
+  Found 17 occurrences:
+    backend/api_globals.py:844:    is_cross = bool(trend.get("is_cross_cultural"))
+    backend/instagram_scraper_browser.py:1223:            "is_cross_cultural": False,
+    backend/instagram_scraper_browser.py:1660:                "is_cross_cultural": meta.get("is_cross_cultural", False),
+    backend/migrate_db.py:59:    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS is_cross_cultural BOOLEAN DEFAULT false;",
+    backend/migrate_db.py:82:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS is_cross_cultural BOOLEAN DEFAULT false;",
+    backend/migrate_db.py:96:    "CREATE INDEX IF NOT EXISTS idx_reels_is_cross_cultural ON reels (is_cross_cultural);",
+    backend/routes/system.py:358:    """Fetch global trends entering India — is_cross_cultural=True, origin != IN, india_saturation < 40%. Pro/Agency feature only."""
+    backend/routes/system.py:367:            .eq("is_cross_cultural", True) \
+    ... and 9 more lines
+
+>>> Checking missing key: 'is_format_trend'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'is_original_audio_resolved'
+  Found 4 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:10:ALTER TABLE trends ADD COLUMN IF NOT EXISTS is_original_audio_resolved BOOLEAN DEFAULT FALSE;
+    backend/migrations/003_shazam_audio_telemetry.sql:16:ALTER TABLE reels ADD COLUMN IF NOT EXISTS is_original_audio_resolved BOOLEAN DEFAULT FALSE;
+    backend/shazam_recognizer.py:120:                "is_original_audio_resolved": False,
+    backend/shazam_recognizer.py:155:            "is_original_audio_resolved": True,
+
+>>> Checking missing key: 'is_transition_trend'
+  Found 4 occurrences:
+    backend/api_globals.py:768:            t["is_transition_trend"] = True
+    backend/migrations/002_transition_trends_telemetry.sql:6:ALTER TABLE trends ADD COLUMN IF NOT EXISTS is_transition_trend BOOLEAN DEFAULT FALSE;
+    backend/vision_transition_verifier.py:15:    Returns dict with is_transition_trend, transition_type, and confidence.
+    backend/vision_transition_verifier.py:46:        "is_transition_trend": has_transition_signal and confidence >= 0.6,
+
+>>> Checking missing key: 'language_classified_at'
+  Found 2 occurrences:
+    backend/add_language_columns_migration.sql:5:ALTER TABLE trends ADD COLUMN IF NOT EXISTS language_classified_at timestamptz;
+    backend/backfill_language.py:116:                    "language_classified_at": now_iso
+
+>>> Checking missing key: 'language_confidence'
+  Found 4 occurrences:
+    backend/add_language_columns_migration.sql:3:ALTER TABLE trends ADD COLUMN IF NOT EXISTS language_confidence real;
+    backend/backfill_language.py:114:                    "language_confidence": lang_conf,
+    backend/instagram_scraper_browser.py:1661:                "language_confidence": meta.get("confidence", 0.0),
+    backend/migrate_db.py:64:    "ALTER TABLE reels ADD COLUMN IF NOT EXISTS language_confidence FLOAT DEFAULT 0.0;",
+
+>>> Checking missing key: 'language_source'
+  Found 2 occurrences:
+    backend/add_language_columns_migration.sql:4:ALTER TABLE trends ADD COLUMN IF NOT EXISTS language_source text;
+    backend/backfill_language.py:115:                    "language_source": lang_source,
+
+>>> Checking missing key: 'last_seen_at'
+  [UNUSED] No occurrences in frontend/src or backend routes.
+
+>>> Checking missing key: 'llm_classified_at'
+  Found 9 occurrences:
+    backend/database_setup.py:79:            llm_classified_at timestamptz,
+    backend/migrate_db.py:88:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS llm_classified_at TIMESTAMPTZ;",
+    backend/nightly_llm_batch.py:126:                "llm_classified_at": None,
+    backend/nightly_llm_batch.py:143:            "llm_classified_at": datetime.now(timezone.utc).isoformat(),
+    backend/pending_trends_monitor.py:42:    completed_res = sb.table("trends").select("id", count="exact").eq("is_seed_data", False).eq("llm_classification_status", "completed").gte("llm_classified_at", twenty_four_hours_ago.isoformat()).execute()
+    backend/query_pati_manila.py:32:        llm_classified_at
+    backend/trend_engine.py:1391:                    "llm_classified_at": trend.get("llm_classified_at"),
+    frontend/src/lib/api.ts:50:  llm_classified_at?: string | null;
+    ... and 1 more lines
+
+>>> Checking missing key: 'llm_retry_count'
+  Found 5 occurrences:
+    backend/cron_job.py:255:        # Check 'trends' table for 'discovery_source', 'semantic_niches', 'llm_classification_status', 'llm_retry_count'
+    backend/cron_job.py:256:        sb.table("trends").select("discovery_source, semantic_niches, llm_classification_status, llm_retry_count, has_creator_outlier").limit(0).execute()
+    backend/nightly_llm_batch.py:125:                "llm_retry_count": (trend.get("llm_retry_count") or 0) + MAX_RETRIES_PER_TREND,
+    backend/pending_timeout_fallback.py:76:                "llm_retry_count": (trend.get('llm_retry_count') or 0) + 1
+    backend/trend_engine.py:1392:                    "llm_retry_count": trend.get("llm_retry_count", 0),
+
+>>> Checking missing key: 'narrative_structure'
+  Found 6 occurrences:
+    backend/alert_system.py:440:        narrative_structure = trend.get("narrative_structure", "none")
+    backend/alert_system.py:471:                <p style="margin: 4px 0; font-size: 14px;"><strong>Transitions:</strong> {narrative_structure}</p>
+    backend/database_setup.py:60:            narrative_structure text,
+    backend/trend_engine.py:91:        "narrative_structure": "transformation" if is_dance else "none",
+    backend/trend_engine.py:458:    trend["narrative_structure"] = "transformation" if trend["is_dance"] else "none"
+    backend/trend_engine.py:1359:                    "narrative_structure": trend.get("narrative_structure"),
+
+>>> Checking missing key: 'needs_filming'
+  Found 5 occurrences:
+    backend/database_setup.py:58:            needs_filming boolean,
+    backend/trend_detector.py:564:        "needs_filming": trend["trend_type"] in ("format", "meme"),
+    backend/trend_engine.py:89:        "needs_filming": is_dance,
+    backend/trend_engine.py:456:    trend["needs_filming"] = trend["is_dance"] or trend["content_tone"] in {"wholesome", "neutral"}
+    backend/trend_engine.py:1357:                    "needs_filming": trend.get("needs_filming", False),
+
+>>> Checking missing key: 'niche_fit_score'
+  Found 7 occurrences:
+    backend/cultural_event_calendar.py:995:            ev["niche_fit_score"] = niche_score
+    backend/trend_engine.py:1408:                    "niche_fit_score": float(trend.get("creator_fit_score") or 0.6) * 100.0,
+    frontend/src/components/FestiveViralRadar.tsx:243:                  ★ {radarData.golden_opportunity.niche_fit_score ?? 95}% Match for {selectedNiche}
+    frontend/src/components/FestiveViralRadar.tsx:518:              const nicheScore = festival.niche_fit_score ?? Math.round((festival.niche_opportunities?.[selectedNiche] ?? 0.8) * 100);
+    frontend/src/lib/api.ts:104:  niche_fit_score?: number;
+    frontend/src/lib/api.ts:463:    nicheFitScore: t.niche_fit_score !== undefined ? t.niche_fit_score : undefined,
+    frontend/src/lib/api.ts:1123:  niche_fit_score?: number;
+
+>>> Checking missing key: 'peak_velocity'
+  Found 44 occurrences:
+    backend/backfill_merge_trends.py:42:                    "peak_velocity, reel_count, status, first_detected_at, "
+    backend/backfill_merge_trends.py:123:        max_peak = max(t.get("peak_velocity", 0) for t in group)
+    backend/backfill_merge_trends.py:131:            "peak_velocity": max_peak,
+    backend/backfill_trend_state.py:53:            max_velocity=trend.get("peak_velocity", 0),
+    backend/caption_topic_clusterer.py:230:    def determine_lifecycle_status(self, creator_count: int, velocity: float, peak_velocity: float) -> str:
+    backend/caption_topic_clusterer.py:234:        if peak_velocity > 0 and velocity < (0.60 * peak_velocity):
+    backend/caption_topic_clusterer.py:307:                    'peak_velocity': velocity,
+    backend/creator_tools.py:514:                    "id, audio_title, audio_artist, status, velocity_avg, peak_velocity, "
+    ... and 36 more lines
+  [ATTENTION - FEED REF]: ["backend/routes/trends.py:1136:            'peak_velocity': trend.get('peak_velocity'),"]
+
+>>> Checking missing key: 'promotion_reason'
+  Found 8 occurrences:
+    backend/database_setup.py:336:            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS promotion_reason text;")
+    backend/migrate_db.py:86:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS promotion_reason TEXT;",
+    backend/trend_engine.py:1388:                    "promotion_reason": trend.get("promotion_trigger"),
+    backend/trend_refresher.py:187:                        "promotion_reason": "unqualified_single_reel_zero_count",
+    backend/trend_refresher.py:231:                        "promotion_reason": "peaked_14d_age_out",
+    backend/trend_refresher.py:242:                        "promotion_reason": trend.get("promotion_reason"),
+    backend/trend_refresher.py:287:                            "promotion_reason": "resurgence_gate",
+    backend/trend_refresher.py:336:                            "promotion_reason": trend.get("promotion_reason"),
+
+>>> Checking missing key: 'raw_llm_response'
+  Found 7 occurrences:
+    backend/database_setup.py:78:            raw_llm_response jsonb,
+    backend/migrate_db.py:87:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS raw_llm_response JSONB;",
+    backend/nightly_llm_batch.py:127:                "raw_llm_response": None,
+    backend/nightly_llm_batch.py:144:            "raw_llm_response": json.dumps(result, ensure_ascii=False),
+    backend/trend_engine.py:1390:                    "raw_llm_response": trend.get("raw_llm_response"),
+    frontend/src/lib/api.ts:49:  raw_llm_response?: unknown;
+    frontend/src/lib/api.ts:437:    rawLlmResponse: t.raw_llm_response,
+
+>>> Checking missing key: 'release_date'
+  Found 31 occurrences:
+    backend/cron_job.py:146:            release_date = None
+    backend/cron_job.py:161:                        release_date = best.get("release_date")
+    backend/cron_job.py:185:                "release_date": release_date,
+    backend/migrations/005_add_release_date.sql:1:-- Migration 005: Add release_date and release_year to content_trends and trends tables
+    backend/migrations/005_add_release_date.sql:4:ALTER TABLE content_trends ADD COLUMN IF NOT EXISTS release_date TEXT;
+    backend/migrations/005_add_release_date.sql:7:ALTER TABLE trends ADD COLUMN IF NOT EXISTS release_date TEXT;
+    backend/migrations/009_create_spotify_feed_cache.sql:8:    release_date TEXT,
+    backend/migrations/009_create_spotify_feed_cache.sql:20:CREATE INDEX IF NOT EXISTS idx_spotify_feed_cache_release_date ON spotify_feed_cache (release_date DESC);
+    ... and 23 more lines
+  [ATTENTION - FEED REF]: ['backend/routes/trends.py:574:                "release_date": None,', 'backend/routes/trends.py:671:        q_sp = supabase.table("spotify_feed_cache").select("*").eq("data_source", "spotify_search").order("release_date", desc=True).limit(60)', 'backend/routes/trends.py:675:            q_sp_fallback = supabase.table("spotify_feed_cache").select("*").order("release_date", desc=True).limit(60)']
+
+>>> Checking missing key: 'release_year'
+  Found 16 occurrences:
+    backend/migrations/005_add_release_date.sql:1:-- Migration 005: Add release_date and release_year to content_trends and trends tables
+    backend/migrations/005_add_release_date.sql:5:ALTER TABLE content_trends ADD COLUMN IF NOT EXISTS release_year INTEGER;
+    backend/migrations/005_add_release_date.sql:8:ALTER TABLE trends ADD COLUMN IF NOT EXISTS release_year INTEGER;
+    backend/migrations/009_create_spotify_feed_cache.sql:9:    release_year INTEGER,
+    backend/migrations/009b_alter_spotify_feed_cache_add_columns.sql:5:ALTER TABLE spotify_feed_cache ADD COLUMN IF NOT EXISTS release_year INTEGER;
+    backend/spotify_fetcher.py:110:                    "release_year": rel_year
+    backend/spotify_fetcher.py:160:                    "release_year": rel_year
+    backend/spotify_fetcher.py:203:                    rel_year = track.get("release_year")
+    ... and 8 more lines
+
+>>> Checking missing key: 'sample_captions'
+  Found 25 occurrences:
+    backend/add_sample_captions_column.py:2:Migration: add sample_captions column to trends table.
+    backend/add_sample_captions_column.py:23:cur.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS sample_captions TEXT;")
+    backend/add_sample_captions_column.py:28:print("Migration complete: trends.sample_captions column added (if not already present).")
+    backend/backfill_language.py:68:        captions = row.get("sample_captions") or ""
+    backend/backfill_language_classification.py:45:    res = sb.table('trends').select('id, audio_title, audio_artist, sample_captions, language') \
+    backend/backfill_pool_name_niches.py:31:    res = sb.table("trends").select("id, audio_title, niche_tag, content_type, sample_captions").execute()
+    backend/backfill_pool_name_niches.py:47:        sample = h.get("sample_captions", "")
+    backend/backfill_pool_name_niches.py:49:        # Reclassify using sample_captions as caption input
+    ... and 17 more lines
+
+>>> Checking missing key: 'shazam_canonical_album'
+  Found 1 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:7:ALTER TABLE trends ADD COLUMN IF NOT EXISTS shazam_canonical_album TEXT;
+
+>>> Checking missing key: 'shazam_canonical_artist'
+  Found 2 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:6:ALTER TABLE trends ADD COLUMN IF NOT EXISTS shazam_canonical_artist TEXT;
+    backend/migrations/003_shazam_audio_telemetry.sql:14:ALTER TABLE reels ADD COLUMN IF NOT EXISTS shazam_canonical_artist TEXT;
+
+>>> Checking missing key: 'shazam_canonical_genre'
+  Found 1 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:8:ALTER TABLE trends ADD COLUMN IF NOT EXISTS shazam_canonical_genre TEXT;
+
+>>> Checking missing key: 'shazam_canonical_title'
+  Found 2 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:5:ALTER TABLE trends ADD COLUMN IF NOT EXISTS shazam_canonical_title TEXT;
+    backend/migrations/003_shazam_audio_telemetry.sql:13:ALTER TABLE reels ADD COLUMN IF NOT EXISTS shazam_canonical_title TEXT;
+
+>>> Checking missing key: 'shazam_id'
+  Found 8 occurrences:
+    backend/migrations/003_shazam_audio_telemetry.sql:9:ALTER TABLE trends ADD COLUMN IF NOT EXISTS shazam_id TEXT;
+    backend/migrations/003_shazam_audio_telemetry.sql:15:ALTER TABLE reels ADD COLUMN IF NOT EXISTS shazam_id TEXT;
+    backend/migrations/003_shazam_audio_telemetry.sql:19:CREATE INDEX IF NOT EXISTS idx_trends_shazam_id ON trends(shazam_id) WHERE shazam_id IS NOT NULL;
+    backend/migrations/003_shazam_audio_telemetry.sql:20:CREATE INDEX IF NOT EXISTS idx_reels_shazam_id ON reels(shazam_id) WHERE shazam_id IS NOT NULL;
+    backend/shazam_recognizer.py:119:                "shazam_id": None,
+    backend/shazam_recognizer.py:126:        shazam_id = track.get("key")
+    backend/shazam_recognizer.py:146:        logger.info(f"Shazam MATCH SUCCESS: '{title}' by '{subtitle}' (Genre: {genre}, Shazam ID: {shazam_id})")
+    backend/shazam_recognizer.py:154:            "shazam_id": shazam_id,
+
+>>> Checking missing key: 'status_reason'
+  Found 20 occurrences:
+    backend/migrations/007_status_reason_audit.sql:2:-- Migration: Add status_reason audit column to trends table
+    backend/migrations/007_status_reason_audit.sql:7:ALTER TABLE trends ADD COLUMN IF NOT EXISTS status_reason jsonb;
+    backend/tests/test_resurgence_gate.py:53:        self.assertEqual(update_call_args["status_reason"]["trigger_source"], "resurgence_gate_denied")
+    backend/tests/test_resurgence_gate.py:106:        self.assertEqual(update_call_args["status_reason"]["trigger_source"], "resurgence_gate_denied")
+    backend/tests/test_resurgence_gate.py:159:        self.assertEqual(update_call_args["status_reason"]["trigger_source"], "resurgence_gate")
+    backend/tests/test_resurgence_gate.py:211:        self.assertEqual(update_call_args["status_reason"]["trigger_source"], "resurgence_gate_denied")
+    backend/tests/test_resurgence_gate.py:212:        self.assertEqual(update_call_args["status_reason"]["decision_metrics"]["velocity_avg"], 1500.0)
+    backend/tests/test_resurgence_gate.py:265:        self.assertEqual(update_call_args["status_reason"]["trigger_source"], "resurgence_gate_denied")
+    ... and 12 more lines
+
+>>> Checking missing key: 'text_overlay_template'
+  Found 15 occurrences:
+    backend/alert_system.py:253:        text_overlay_template = trend.get("text_overlay_template")
+    backend/alert_system.py:325:                {f'<p style="margin:4px 0;font-size:14px;"><strong>Text overlay:</strong> "{text_overlay_template}"</p>' if text_overlay_template else ''}
+    backend/alert_system.py:441:        text_overlay_template = trend.get("text_overlay_template")
+    backend/alert_system.py:475:        if text_overlay_template:
+    backend/alert_system.py:478:                <p style="margin: 0; font-size: 14px;"><strong>📝 Text to use in your reel:</strong> "{text_overlay_template}"</p>
+    backend/database_setup.py:61:            text_overlay_template text,
+    backend/nightly_llm_batch.py:61:  "text_overlay_template": "Suggested first-screen text overlay (3-7 words, scroll-stopper)",
+    backend/nightly_llm_batch.py:140:            "text_overlay_template": result.get("text_overlay_template") or "",
+    ... and 7 more lines
+  [ATTENTION - FEED REF]: ['backend/routes/trends.py:1477:        test_hook = t.get("text_overlay_template") or f"POV: you just found {t.get(\'audio_title\')}"']
+
+>>> Checking missing key: 'transfer_instructions'
+  Found 21 occurrences:
+    backend/backfill_local_fallback.py:30:        "transfer_instructions": f"Adapt the visual style of {title} to your niche.",
+    backend/backfill_local_fallback.py:42:                .select("id,audio_title,why_this_works,audio_cue_second,format_transferable,transfer_instructions")
+    backend/backfill_local_fallback.py:64:                if not t.get("transfer_instructions"):
+    backend/backfill_local_fallback.py:65:                    update["transfer_instructions"] = defaults["transfer_instructions"]
+    backend/creator_tools.py:401:                        "transfer_instructions": t.get("transfer_instructions")
+    backend/database_setup.py:77:            transfer_instructions text,
+    backend/database_setup.py:329:            cursor.execute("ALTER TABLE trends ADD COLUMN IF NOT EXISTS transfer_instructions text;")
+    backend/nightly_llm_batch.py:57:  "transfer_instructions": "One sentence: how a creator in a DIFFERENT niche can adapt this exact format to their content",
+    ... and 13 more lines
+
+>>> Checking missing key: 'transition_type'
+  Found 7 occurrences:
+    backend/migrations/002_transition_trends_telemetry.sql:7:ALTER TABLE trends ADD COLUMN IF NOT EXISTS transition_type TEXT;
+    backend/vision_transition_verifier.py:15:    Returns dict with is_transition_trend, transition_type, and confidence.
+    backend/vision_transition_verifier.py:35:    transition_type = None
+    backend/vision_transition_verifier.py:37:        transition_type = "Outfit Swap / Reveal"
+    backend/vision_transition_verifier.py:39:        transition_type = "Before & After Transformation"
+    backend/vision_transition_verifier.py:41:        transition_type = "Visual Sync Transition"
+    backend/vision_transition_verifier.py:47:        "transition_type": transition_type,
+
+>>> Checking missing key: 'trend_type'
+  Found 86 occurrences:
+    backend/alert_system.py:111:                trend_type = trend.get("trend_type", "audio")
+    backend/alert_system.py:123:                viral_potential = trend.get("confidence", 0) if trend_type != "audio" else 0
+    backend/alert_system.py:153:                        if trend_type == "audio":
+    backend/alert_system.py:163:                        if trend_type == "news_event" and viral_potential > 70:
+    backend/alert_system.py:170:                        if trend_type == "predictable_event":
+    backend/alert_system.py:180:                        if trend_type == "format" and niche_relevance.get(niche, 0) > 0.6:
+    backend/alert_system.py:186:                        if not is_match and trend_type not in ("news_event", "predictable_event", "format"):
+    backend/check_content_trends_table.sql:20:--   Columns: id, trend_type, trend_name, template_pattern, topic_keywords,
+    ... and 78 more lines
+  [ATTENTION - FEED REF]: ['frontend/src/components/NewsTrendCard.tsx:10:  trend_type: "news_event";']
+
+>>> Checking missing key: 'used_for_classified_at'
+  Found 3 occurrences:
+    backend/cron_auto_classifier.py:294:                    "used_for_classified_at": None if is_fb else now_iso
+    backend/cron_auto_classifier.py:317:        .or_("language_final.is.null,used_for.is.null,used_for_note.eq.Automated fallback classification.,used_for_classified_at.is.null") \
+    backend/migrations/007_add_used_for_columns.sql:4:ALTER TABLE trends ADD COLUMN IF NOT EXISTS used_for_classified_at timestamptz;
+
+>>> Checking missing key: 'visual_storyboard'
+  Found 9 occurrences:
+    backend/migrate_v4.py:21:    "ALTER TABLE trends ADD COLUMN IF NOT EXISTS visual_storyboard JSONB;",
+    backend/trend_engine.py:547:            trend["visual_storyboard"] = [
+    backend/trend_engine.py:554:            trend["visual_storyboard"] = [
+    backend/trend_engine.py:561:            trend["visual_storyboard"] = [
+    backend/trend_engine.py:567:            trend["visual_storyboard"] = [
+    backend/trend_engine.py:577:        trend["visual_storyboard"] = []
+    backend/trend_engine.py:1411:                    "visual_storyboard": trend.get("visual_storyboard"),
+    frontend/src/lib/api.ts:86:  visual_storyboard?: Array<{ time: string; instruction: string }>;
+    ... and 1 more lines
+
+================================================================================
+SPECIAL KEYS EXPLICIT GREP & ARCHITECTURAL STATUS:
+================================================================================
+
+>>> Special Key: 'creator_tier'
+  Found 15 occurrences:
+    backend/creator_baseline_tracker.py:68:                    'creator_tier': baseline['creator_tier'],
+    backend/creator_baseline_tracker.py:112:        baseline['creator_tier'] = self.calculate_creator_tier(reel_data.get('follower_count', baseline['follower_count']))
+    backend/creator_baseline_tracker.py:134:            'creator_tier': self.calculate_creator_tier(reel_data.get('follower_count', 0)),
+    backend/creator_baseline_tracker.py:161:    def calculate_creator_tier_velocity_weight(self, creator_tier: str) -> float:
+    backend/creator_baseline_tracker.py:173:        return tier_weights.get(creator_tier, 1.0)
+    backend/hybrid_signal_processor.py:110:                        "creator_tier": creator_baseline.get('creator_tier') if creator_baseline else None,
+    backend/hybrid_signal_processor.py:194:                        "creator_tier": creator_baseline.get('creator_tier') if creator_baseline else None,
+    backend/migrate_early_detection.py:35:        creator_tier VARCHAR(20),
+
+>>> Special Key: 'spread_status'
+  [NOT FOUND] No code references in repository.
+
+>>> Special Key: 'creator_count'
+  Found 59 occurrences:
+    backend/caption_topic_clusterer.py:230:    def determine_lifecycle_status(self, creator_count: int, velocity: float, peak_velocity: float) -> str:
+    backend/caption_topic_clusterer.py:236:        if creator_count >= 5 or velocity >= 1.5:
+    backend/caption_topic_clusterer.py:238:        if creator_count >= 2 or velocity >= 0.4:
+    backend/caption_topic_clusterer.py:304:                    'creator_count': len(creators),
+    backend/database_setup.py:339:            cursor.execute("CREATE TABLE IF NOT EXISTS trend_snapshots (id bigint PRIMARY KEY GENERATED ALWAYS AS IDENTITY, trend_id bigint REFERENCES trends(id) ON DELETE CASCADE, velocity_avg float, creator_count int, captured_at timestamp DEFAULT now());")
+    backend/format_trend_detector.py:193:                    "creator_count": len(creators),
+    backend/format_trend_detector.py:231:                    "creator_count": len(creators),
+    backend/format_trend_detector.py:276:                    "creator_count": len(creators),
+
+>>> Special Key: 'user_watermark_id'
+  Found 1 occurrences:
+    backend/routes/trends.py:468:                trend["user_watermark_id"] = user_id

@@ -1,0 +1,46 @@
+UTC Time: 2026-10-15T07:46:21Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_b_preview_audit.py
+
+=====================================================================================
+ORDER 79: B3 / B4 VERCEL PREVIEW DEPLOYMENT COLD LOAD AUDIT
+Preview URL:    https://trendrop-106vdspvx-chinmays-projects-c20ed5a5.vercel.app (SHA: 33ea0c4, Branch: hotfix/egress-columns)
+Production URL: https://trendrop-jockaoq3w-chinmays-projects-c20ed5a5.vercel.app (SHA: fb7deee, Branch: main)
+=====================================================================================
+
+Endpoint                 | Env      | Status | Bytes      | Vercel Cache | x-vercel-id
+-------------------------------------------------------------------------------------
+/api/trends              | PROD     | 200    | 743576     | MISS         | bom1::iad1::25mss-1792050383358-54275a4012b0
+/api/trends              | PREVIEW  | 200    | 294123     | MISS         | bom1::iad1::4pq44-1792050390097-cf225dbb5432
+/api/trends/emerging     | PROD     | 200    | 127960     | MISS         | bom1::iad1::tzgz6-1792050393487-df03921ac942
+/api/trends/emerging     | PREVIEW  | 200    | 51133      | MISS         | bom1::iad1::9qbpq-1792050395455-d8b7ff7b9107
+/api/trends/peaked       | PROD     | 200    | 884061     | MISS         | bom1::iad1::m2scx-1792050396536-09fd68d636fe
+/api/trends/peaked       | PREVIEW  | 200    | 332925     | MISS         | bom1::iad1::mdjpd-1792050401252-188be1424208
+/api/trends/resurging    | PROD     | 200    | 270224     | MISS         | bom1::iad1::m2scx-1792050404811-08bf52e82325
+/api/trends/resurging    | PREVIEW  | 200    | 121102     | MISS         | bom1::iad1::8v9c4-1792050407282-2afb889d386a
+/api/trends/expired      | PROD     | 200    | 958575     | MISS         | bom1::iad1::blbd5-1792050409356-6e6060ce85f8
+/api/trends/expired      | PREVIEW  | 200    | 368683     | MISS         | bom1::iad1::zhcsj-1792050413791-5dddbf02ca13
+/api/trends/rising       | PROD     | 200    | 743576     | MISS         | bom1::iad1::wsccd-1792050418195-a3e88c2e3467
+/api/trends/rising       | PREVIEW  | 200    | 294123     | MISS         | bom1::iad1::rkltv-1792050419515-4f2cfee8bde2
+/api/trends/peaking      | PROD     | 200    | 2          | MISS         | bom1::iad1::lqghc-1792050420704-4bd096833a26
+/api/trends/peaking      | PREVIEW  | 200    | 2          | MISS         | bom1::iad1::n5mtp-1792050422695-f281218ac9f2
+/api/trends/all-active   | PROD     | 401    | 36         | MISS         | bom1::iad1::qqxtf-1792050424055-ddff6991f13c
+/api/trends/all-active   | PREVIEW  | 401    | 36         | MISS         | bom1::iad1::cfhf8-1792050424394-ab0be93a4fbb
+
+=====================================================================================
+PAYLOAD BYTE COMPARISON: PROD vs PREVIEW
+=====================================================================================
+Endpoint                 | Prod Bytes   | Preview Bytes  | Saved Bytes  | Reduction %
+-------------------------------------------------------------------------------------
+/api/trends              | 743576       | 294123         | 449453       | 60.44%
+/api/trends/emerging     | 127960       | 51133          | 76827        | 60.04%
+/api/trends/peaked       | 884061       | 332925         | 551136       | 62.34%
+/api/trends/resurging    | 270224       | 121102         | 149122       | 55.18%
+/api/trends/expired      | 958575       | 368683         | 589892       | 61.54%
+/api/trends/rising       | 743576       | 294123         | 449453       | 60.44%
+/api/trends/peaking      | 2            | 2              | 0            | 0.00%
+
+=====================================================================================
+B3 / B4 AUDIT COMPLETE
+=====================================================================================

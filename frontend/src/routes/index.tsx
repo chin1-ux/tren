@@ -1,14 +1,14 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, Loader2 } from "lucide-react";
+import { fetchFeed, fetchAskSearch, fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
 import { PlanGate } from "@/components/PlanGate";
-// import { OnboardingFlow } from "@/components/OnboardingFlow";
+import { OnboardingFlow } from "@/components/OnboardingFlow";
 // import { FeatureTutorial } from "@/components/FeatureTutorial";
 import { ParticleBackground } from "@/components/ParticleBackground";
 import { TrenddropLogo } from "@/components/TrenddropLogo";
@@ -116,6 +116,35 @@ function TrendsFeed() {
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
   const prevCountRef = useRef<number>(0);
+
+  // Order 77: 3-tap Onboarding & Today's 5 Landing State
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return !localStorage.getItem("trendrop_onboarded");
+    }
+    return false;
+  });
+  const [todaysFiveOnly, setTodaysFiveOnly] = useState<boolean>(true);
+  const [askResult, setAskResult] = useState<{ intent: string; direct_answer: string; results: UiTrend[] } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
+
+  const handleAskSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) {
+      setAskResult(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await fetchAskSearch(searchQuery.trim());
+      setAskResult(res);
+      setTodaysFiveOnly(false);
+    } catch (err) {
+      console.warn("Ask-it search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
 
   // Unified multi-dimensional filter state initialized synchronously from localStorage
   const [filters, setFilters] = useState<FilterState>(() => {
@@ -298,124 +327,41 @@ function TrendsFeed() {
     enabled: secondaryReady,
   });
 
+  // Order 77 Item 5: Unified Single Cached Feed Query
   const {
-    data: risingData,
-    isLoading: risingLoading,
-    isError: risingError,
-    refetch: refetchRising,
+    data: feedData,
+    isLoading: isFeedLoading,
+    isError: isFeedError,
+    refetch: refetchFeed,
   } = useQuery({
-    queryKey: ["trends", filters.language, sortMode, activeLanguages],
-    queryFn: () => fetchTrends(filters.language, sortMode, undefined, activeLanguages),
-    staleTime: 10 * 60_000,          // scraper runs every 6h — 10min is fresh enough
-    refetchInterval: 20 * 60_000,    // gentle 20min polling
-    refetchOnWindowFocus: false,      // CRITICAL: stops re-fetch on every tab switch
-    placeholderData: (prev) => prev,
-  });
-
-  const {
-    data: emergingData,
-    isLoading: emergingLoading,
-    isError: emergingError,
-    refetch: refetchEmerging,
-  } = useQuery({
-    queryKey: ["trends-emerging", filters.language, activeLanguages],
-    queryFn: () => fetchEmergingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 10 * 60_000,
-    refetchInterval: 20 * 60_000,
+    queryKey: ["unified-feed", filters.language, activeLanguages, filters.niches, filters.lifecycle],
+    queryFn: () => fetchFeed({
+      language: filters.language,
+      languages: activeLanguages,
+      niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
+      status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
+      limit: 30,
+    }),
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
-  const {
-    data: peakedData,
-    isLoading: peakedLoading,
-    isError: peakedError,
-    refetch: refetchPeaked,
-  } = useQuery({
-    queryKey: ["trends-peaked", filters.language, activeLanguages],
-    queryFn: () => fetchPeakedTrends(filters.language, undefined, activeLanguages),
-    staleTime: 30 * 60_000,
-    refetchInterval: 60 * 60_000,
-    refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev,
-    enabled: secondaryReady,
-  });
+  const feedTrends = feedData?.trends ?? [];
 
-  const {
-    data: expiredData,
-    isLoading: expiredLoading,
-    isError: expiredError,
-    refetch: refetchExpired,
-  } = useQuery({
-    queryKey: ["trends-expired", filters.language, activeLanguages],
-    queryFn: () => fetchExpiredTrends(filters.language, undefined, activeLanguages),
-    staleTime: 60 * 60_000,
-    refetchInterval: 120 * 60_000,
-    refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev,
-    enabled: secondaryReady,
-  });
-
-  const {
-    data: resurgingData,
-    isLoading: resurgingLoading,
-    isError: resurgingError,
-    refetch: refetchResurging,
-  } = useQuery({
-    queryKey: ["trends-resurging", filters.language, activeLanguages],
-    queryFn: () => fetchResurgingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 10 * 60_000,
-    refetchInterval: 30 * 60_000,
-    refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev,
-    enabled: secondaryReady,
-  });
-
-  // Deduplication logic: ensure same audio_id appears only in highest-priority tab
-  // Priority: rising > emerging > resurging > peaked > expired
   const deduplicatedTrends = useMemo(() => {
-    const audioToTrend = new Map<string, { trend: UiTrend; priority: number }>();
-    const statusPriority: Record<string, number> = { rising: 5, emerging: 4, resurging: 3, peaked: 2, expired: 1 };
-
-    // Collect all trends and assign priority
-    [...(risingData || []), ...(emergingData || []), ...(resurgingData || []), ...(peakedData || []), ...(expiredData || [])].forEach(t => {
-      const audioId = (t.audioId && t.audioId !== "null") ? t.audioId : (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song" ? `${t.song}-${t.artist}` : `trend-${t.id}`);
-      const priority = statusPriority[t.status || "rising"] || 0;
-      const existing = audioToTrend.get(audioId);
-
-      // Keep the trend with higher priority (or newer if same priority)
-      if (!existing || priority > existing.priority || (priority === existing.priority && t.id > existing.trend.id)) {
-        audioToTrend.set(audioId, { trend: t, priority });
-      }
-    });
-
-    // Separate back into tabs
-    const deduplicatedRising: UiTrend[] = [];
-    const deduplicatedEmerging: UiTrend[] = [];
-    const deduplicatedResurging: UiTrend[] = [];
-    const deduplicatedPeaked: UiTrend[] = [];
-    const deduplicatedExpired: UiTrend[] = [];
-
-    audioToTrend.forEach(({ trend }) => {
-      if (trend.status === "emerging" || trend.isEmerging) deduplicatedEmerging.push(trend);
-      else if (trend.status === "rising") deduplicatedRising.push(trend);
-      else if (trend.status === "resurging") deduplicatedResurging.push(trend);
-      else if (trend.status === "peaked") deduplicatedPeaked.push(trend);
-      else if (trend.status === "expired") deduplicatedExpired.push(trend);
-    });
-
     return {
-      rising: deduplicatedRising,
-      emerging: deduplicatedEmerging,
-      resurging: deduplicatedResurging,
-      peaked: deduplicatedPeaked,
-      expired: deduplicatedExpired,
+      rising: feedTrends.filter((t) => t.status === "rising"),
+      emerging: feedTrends.filter((t) => t.status === "emerging" || t.isEmerging),
+      resurging: feedTrends.filter((t) => t.status === "resurging"),
+      peaked: feedTrends.filter((t) => t.status === "peaked"),
+      expired: feedTrends.filter((t) => t.status === "expired"),
     };
-  }, [risingData, emergingData, resurgingData, peakedData, expiredData]);
+  }, [feedTrends]);
 
   const emergingCount = deduplicatedTrends.emerging.length;
 
-  // Notify on new emerging trends
   useEffect(() => {
     if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
       const diff = emergingCount - prevCountRef.current;
@@ -426,39 +372,15 @@ function TrendsFeed() {
     prevCountRef.current = emergingCount;
   }, [emergingCount]);
 
-  // Unified feed lifecycle ordering: emerging -> rising -> comeback -> peaked -> expired
-  const STATUS_ORDER: Record<string, number> = {
-    emerging: 0,
-    rising: 1,
-    resurging: 2,
-    peaked: 3,
-    expired: 4,
-  };
-
   const allTrends = useMemo(() => {
-    const merged = [
-      ...deduplicatedTrends.emerging,
-      ...deduplicatedTrends.rising,
-      ...deduplicatedTrends.resurging,
-      ...deduplicatedTrends.peaked,
-      ...deduplicatedTrends.expired,
-    ];
-    return merged.sort((a, b) => {
-      const aPriority = STATUS_ORDER[a.status ?? "rising"] ?? 1;
-      const bPriority = STATUS_ORDER[b.status ?? "rising"] ?? 1;
-      return aPriority - bPriority;
-    });
-  }, [deduplicatedTrends]);
+    return feedTrends;
+  }, [feedTrends]);
 
-  const isLoading = !risingData && !emergingData && (risingLoading || emergingLoading);
-  const isError = risingError && emergingError;
+  const isLoading = isFeedLoading && feedTrends.length === 0;
+  const isError = isFeedError && feedTrends.length === 0;
 
   const refetch = () => {
-    refetchRising();
-    refetchEmerging();
-    refetchResurging();
-    refetchPeaked();
-    refetchExpired();
+    refetchFeed();
   };
 
   // Pre-calculate targeted Set for instant O(1) card lookups without running 30+ separate hooks
@@ -467,7 +389,13 @@ function TrendsFeed() {
   }, [targetedData]);
 
   const trends = useMemo(() => {
+    if (askResult && askResult.results.length > 0) {
+      return askResult.results;
+    }
     let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
+    if (todaysFiveOnly && !searchQuery && activeFilterCount === 0 && !showTargetedOnly) {
+      return list.slice(0, 5);
+    }
 
     // 0. Scraper Run & Freshness Batch filter (isolate or combine scrape cohorts)
     const hasCustomRuns = filters.selectedRunIds && filters.selectedRunIds.length > 0;
@@ -720,14 +648,19 @@ function TrendsFeed() {
               name="searchQuery"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search song, artist, or vibe..."
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAskSearch();
+              }}
+              placeholder="Search or ask AI: 'what should i use for a gym reel?'"
               className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
             />
-            {searchQuery && (
-              <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
+            {isSearching ? (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+            ) : searchQuery ? (
+              <button onClick={() => { setSearchQuery(""); setAskResult(null); }} className="absolute right-3 top-1/2 -translate-y-1/2">
                 <X className="h-4 w-4 text-muted-foreground" />
               </button>
-            )}
+            ) : null}
           </div>
 
           {/* Unified Filter Button */}
@@ -751,75 +684,73 @@ function TrendsFeed() {
           </button>
         </div>
 
-        {/* Primary Lifecycle & Quick-Action Rail */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
-          {/* Targeted Quick Chip */}
-          <button
-            type="button"
-            id="targeted-quick-filter"
-            onClick={() => {
-              setShowTargetedOnly((prev) => !prev);
-              setDisplayLimit(15);
-            }}
-            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-              showTargetedOnly
-                ? "bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400 font-bold"
-                : "bg-emerald-500/10 text-emerald-500 dark:text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
-            }`}
-          >
-            <Target className="h-3.5 w-3.5" />
-            Targeted {targetedData && targetedData.length > 0 ? `(${targetedData.length})` : ""}
-          </button>
+        {/* Ask-It Direct Answer Card */}
+        {askResult && (
+          <div className="mb-2.5 rounded-xl border border-primary/30 bg-primary/10 p-3.5 space-y-1.5 animate-in fade-in-50">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> AI Recommendation
+              </span>
+              <button
+                onClick={() => { setAskResult(null); setSearchQuery(""); }}
+                className="text-muted-foreground hover:text-foreground text-xs"
+              >
+                Clear
+              </button>
+            </div>
+            <p className="text-xs font-medium text-foreground/90 leading-snug">
+              {askResult.direct_answer}
+            </p>
+          </div>
+        )}
 
-          {/* Golden Hour Quick Chip */}
+        {/* Simplified Action Rail: Today's 5 Landing + Clean Stage Pills */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
+          {/* Today's 5 Toggle Chip */}
           <button
             type="button"
-            id="golden-hour-quick-filter"
+            id="todays-five-chip"
             onClick={() => {
-              updateFilter({ goldenHourOnly: !filters.goldenHourOnly });
-              setDisplayLimit(15);
+              setTodaysFiveOnly((prev) => !prev);
+              setShowTargetedOnly(false);
             }}
             className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
-              filters.goldenHourOnly
-                ? "bg-gradient-to-r from-amber-500 to-rose-500 text-white shadow-sm ring-1 ring-amber-400"
-                : "bg-amber-500/15 text-amber-500 dark:text-amber-400 border border-amber-500/35 hover:bg-amber-500/25"
+              todaysFiveOnly && !showTargetedOnly
+                ? "bg-primary text-white shadow-sm ring-1 ring-primary/40"
+                : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
             }`}
           >
-            <Flame className="h-3.5 w-3.5 text-amber-500 dark:text-amber-400" />
-            Golden Hour
+            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+            Today's 5
           </button>
 
           <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
 
-          {/* Lifecycle Filter Pills — Peaked/Expired moved to Filters modal to reduce cognitive load */}
+          {/* Clean Stage Pills */}
           {[
-            { id: "all",       label: "All Trends",    count: undefined },
-            { id: "emerging",  label: "⚡ New",         count: deduplicatedTrends.emerging.length || undefined },
-            { id: "rising",    label: "🚀 Rising",      count: undefined },
-            { id: "resurging", label: "♻️ Comeback",   count: undefined },
+            { id: "all",       label: "All Active" },
+            { id: "emerging",  label: "⚡ New" },
+            { id: "rising",    label: "🚀 Rising" },
+            { id: "resurging", label: "♻️ Comeback" },
           ].map((st) => {
-            const isSelected = !showTargetedOnly && filters.lifecycle === st.id;
+            const isSelected = !todaysFiveOnly && !showTargetedOnly && filters.lifecycle === st.id;
             return (
               <button
                 key={st.id}
                 id={`lifecycle-pill-${st.id}`}
                 onClick={() => {
+                  setTodaysFiveOnly(false);
                   if (showTargetedOnly) setShowTargetedOnly(false);
                   updateFilter({ lifecycle: st.id });
                   setDisplayLimit(15);
                 }}
                 className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   isSelected
-                    ? "bg-primary text-white shadow-sm shadow-primary/30 ring-1 ring-primary/40 font-bold"
+                    ? "bg-foreground/15 text-foreground border border-border/60 font-bold"
                     : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
                 }`}
               >
                 {st.label}
-                {st.count !== undefined && st.count > 0 && (
-                  <span className="h-4 min-w-[16px] px-1 rounded-full bg-pink-500 text-white text-[9px] font-extrabold flex items-center justify-center">
-                    {st.count}
-                  </span>
-                )}
               </button>
             );
           })}
@@ -930,7 +861,7 @@ function TrendsFeed() {
 
         {isError && (
           <div className="space-y-2">
-            <ApiErrorBanner message={(risingError as any)?.message || (emergingError as any)?.message || "Service temporarily unavailable"} />
+            <ApiErrorBanner message={(feedError as any)?.message || "Service temporarily unavailable"} />
             <button onClick={() => refetch()} className="text-xs font-semibold text-primary underline">
               Try again
             </button>
@@ -1041,6 +972,11 @@ function TrendsFeed() {
           totalResultsCount={trends.length}
           scraperRuns={scraperRuns}
         />
+      )}
+
+      {/* 3-Tap Onboarding Flow for first-time creators */}
+      {showOnboarding && (
+        <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
       )}
 
     </div>

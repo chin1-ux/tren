@@ -1,0 +1,23 @@
+=== ORDER 80 PART B1: DRAFT ONLY (BRANCH: draft/cadence-6h FROM tren1/main) ===
+Target File: .github/workflows/scraper_cron.yml
+Current Branch: draft/cadence-6h (tracking tren1/main at 08cf1d5)
+Action: Change cron schedule from '17 */3 * * *' to '17 */6 * * *'
+Status: NOT PUSHED (draft only)
+
+--- GIT DIFF ---
+diff --git a/.github/workflows/scraper_cron.yml b/.github/workflows/scraper_cron.yml
+index 095b8cd..7a195c6 100644
+--- a/.github/workflows/scraper_cron.yml
++++ b/.github/workflows/scraper_cron.yml
+@@ -2,7 +2,7 @@ name: Trendrop Scheduled Scraper Pipeline Cron
+ 
+ on:
+   schedule:
+-    - cron: '17 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
++    - cron: '17 */6 * * *'  # Run every 6 hours automatically on dedicated scraper repo
+   workflow_dispatch:        # Manual trigger button in GitHub UI
+ 
+ concurrency:
+
+--- ONE-LINE REVERT ---
+git checkout tren1/main -- .github/workflows/scraper_cron.yml

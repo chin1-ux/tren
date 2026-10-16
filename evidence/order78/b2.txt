@@ -1,0 +1,106 @@
+UTC Time: 2026-10-15T05:41:17Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: git show tren1/main:.github/workflows/scraper_cron.yml
+
+name: Trendrop Scheduled Scraper Pipeline Cron
+
+on:
+  schedule:
+    - cron: '17 */3 * * *'  # Run every 3 hours automatically on dedicated scraper repo
+  workflow_dispatch:        # Manual trigger button in GitHub UI
+
+concurrency:
+  group: scraper-main
+  cancel-in-progress: false
+
+jobs:
+  scrape_and_detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 75
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright "camoufox[geoip]"
+          playwright install chromium
+          python -m camoufox fetch
+
+      - name: Run Full Scraper & Detection Pipeline
+        timeout-minutes: 50
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+        run: |
+          python backend/cron_job.py
+
+      - name: Run Audio-First Capture
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_capture.py
+
+      - name: Run Audio Probe
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_probe.py
+
+      - name: Run Sighting Expansion
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/audio_expand.py
+
+      - name: Run Watchlist Evaluation
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          python backend/watchlist.py
+
+      - name: Record Tag Run Stats
+        if: always()
+        continue-on-error: true
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python -c "from backend.tag_registry import record_run_tag_stats; import os; record_run_tag_stats(str(os.getenv('GITHUB_RUN_ID', 'manual')), os.getenv('SCRAPER_MODE', 'india'))"
+

@@ -1,0 +1,65 @@
+UTC Time: 2026-10-15T06:23:34Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_a5_key_bytes_audit.py
+
+C:\Users\Chinmay\OneDrive\Desktop\trendrop\backend\video_visual_analyzer.py:13: FutureWarning: 
+
+All support for the `google.generativeai` package has ended. It will no longer be receiving 
+updates or bug fixes. Please switch to the `google.genai` package as soon as possible.
+See README for more details:
+
+https://github.com/google-gemini/deprecated-generative-ai-python/blob/main/README.md
+
+  import google.generativeai as genai
+2026-10-15 11:54:43,096 - redis_rate_limiter - INFO - redis_connected
+=====================================================================================
+ORDER 79: A5 KEY BYTES AUDIT FOR /api/trends (100 ROWS)
+=====================================================================================
+Total rows fetched and normalized: 100
+
+--- TOP 10 HEAVIEST TOP-LEVEL KEYS IN FINAL JSON RESPONSE ---
+Rank  | Key                              | Avg Bytes / Row    | Total Bytes (100 rows) | % of Total Payload
+---------------------------------------------------------------------------------------------------------
+#1    | top_reels                        |          1076.7 B |             107,666 B |            33.21%
+#2    | why_this_works                   |           139.7 B |              13,966 B |             4.31%
+#3    | ideal_content_description        |           128.0 B |              12,802 B |             3.95%
+#4    | hook_brief                       |            93.2 B |               9,321 B |             2.87%
+#5    | used_for_note                    |            83.6 B |               8,359 B |             2.58%
+#6    | template_link                    |            61.5 B |               6,154 B |             1.90%
+#7    | status_changed_at                |            54.9 B |               5,491 B |             1.69%
+#8    | first_detected_at                |            49.0 B |               4,899 B |             1.51%
+#9    | created_at                       |            47.9 B |               4,791 B |             1.48%
+#10   | llm_classification_status        |            46.8 B |               4,684 B |             1.44%
+---------------------------------------------------------------------------------------------------------
+Total payload size across 100 rows: 324,212 bytes (316.61 KB)
+Average total bytes per row: 3242.1 bytes / row
+
+=====================================================================================
+WHAT PYTHON CODE ADDS BEYOND FEED_CARD_COLUMNS (FILE & LINE REFERENCES):
+=====================================================================================
+Keys present in final JSON but NOT in FEED_CARD_COLUMNS (7):
+  - artist
+  - detected_language
+  - india_adoption_pct
+  - reel_id
+  - song
+  - top_reels
+  - views_delta_last_run
+
+Code provenance for each added key:
+1. backend/api_globals.py:341-385 in `_normalize_trends(trends)`:
+   - `song`: line 348 (falls back to `audio_title`)
+   - `artist`: line 349 (falls back to `audio_artist`)
+   - `category`: line 352 (computed from `niche_tag`)
+   - `contentType`: line 355 (mapped from `content_type` or defaulted to 'audio')
+   - `contentTypeEmoji`: line 356 (emoji mapped from `content_type`)
+   - `hoursLeft`: line 363 (int conversion of `window_hours_remaining`)
+   - `expiresAt`: line 364 (ISO timestamp computed from `created_at` + `hoursLeft`)
+   - `viralMultiplier`: line 375 (computed from `velocity_avg`)
+   - `rawLanguage`: line 377 (mirrors `language` column)
+   - `fallbackLanguage`: line 380 (fallback display string)
+   - `views_delta_last_run`: line 382 (integer delta default)
+   - `detected_language`: line 385 (mirrors `language_final` or `language`)
+2. backend/routes/trends.py:437 in `get_emerging_trends()`:
+   - `user_watermark_id`: stamped for authenticated users: `t['user_watermark_id'] = f'usr_{...}'`

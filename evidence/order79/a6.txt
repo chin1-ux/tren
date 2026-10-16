@@ -1,0 +1,32 @@
+UTC Time: 2026-10-15T06:26:48Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: python scripts/order79_a6_auth_endpoints_report.py
+
+=====================================================================================
+ORDER 79: A6 REPORT OF ENDPOINTS READING current_user & THEIR Cache-Control (origin/main)
+=====================================================================================
+Endpoint Route               | Function                 | User Usage in Logic                           | Cache-Control on origin/main
+---------------------------------------------------------------------------------------------------------------------------------------
+GET /api/trends              | get_trends               | Reads user niche & language preferences to filter feed (lines 92-124) | public, max-age=60, s-maxage=120, stale-while-revalidate=300 (lines 201, 237)
+GET /api/trends/emerging     | get_emerging_trends      | Stamps user_watermark_id and reads user profile preferences (lines 387-404, 437) | public, max-age=60, s-maxage=120, stale-while-revalidate=300 (line 467)
+GET /api/trends/peaked       | get_peaked_trends        | Optional user context passed (line 757)       | public, max-age=300, s-maxage=300, stale-while-revalidate=600 (line 763)
+GET /api/trends/resurging    | get_resurging_trends     | Optional user context passed (line 813)       | public, max-age=120, s-maxage=180, stale-while-revalidate=360 (line 868)
+GET /api/trends/expired      | get_expired_trends       | Optional user context passed (line 875)       | public, max-age=600, s-maxage=600, stale-while-revalidate=1200 (line 920)
+GET /api/trends/all-active   | get_all_active_trends    | Optional user context passed (line 731)       | public, max-age=60, s-maxage=120, stale-while-revalidate=300 (line 743)
+GET /api/trends/targeted     | get_targeted_trends      | Reads Authorization header to fetch user-specific saved/targeted trends (line 1150) | (None - FastAPI default / dynamic JSONResponse without cache headers)
+GET /api/trends/peaking      | get_peaking_trends       | Optional user context passed (line 1006)      | public, max-age=120, s-maxage=180, stale-while-revalidate=360 (line 1039)
+GET /api/trends/spotify-viral | get_spotify_viral_trends | Optional user context passed (line 604)       | public, max-age=300, s-maxage=600, stale-while-revalidate=1200 (line 700)
+GET /api/niche/{category}    | get_niche_trends         | Optional user context passed (line 1649)      | public, max-age=120, s-maxage=300, stale-while-revalidate=600 (line 1684)
+
+=====================================================================================
+CRITICAL OBSERVATION ON CACHE-CONTROL VS USER CONTEXT:
+=====================================================================================
+Endpoints like `/api/trends` and `/api/trends/emerging` personalize responses based on the caller:
+1. `/api/trends` filters by `user_niche` and `languages` preferences when a token is provided.
+2. `/api/trends/emerging` stamps `user_watermark_id` = 'usr_<short_id>' for authenticated users.
+However, both endpoints send `Cache-Control: public, s-maxage=...` on origin/main.
+In production, Vercel currently returns `X-Vercel-Cache: BYPASS` (likely due to Authorization header or query params),
+so responses are NOT being shared across users today. But if edge caching were enabled without `Vary: Authorization`,
+one user's personal watermark or niche-filtered feed could be served to other users.
+CONCLUSION: As requested, CHANGE NOTHING now. This report documents the exact state on origin/main.

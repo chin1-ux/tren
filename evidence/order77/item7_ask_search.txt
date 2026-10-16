@@ -1,0 +1,124 @@
+================================================================================
+ORDER 77 ITEM 7: ASK-IT SEARCH 10-QUERY VERIFICATION TEST
+================================================================================
+
+QUERY: sad slow songs blowing up right now
+LATENCY: 6.416 seconds
+INTENT: search for popular sad slow songs on Instagram Reels
+DIRECT ANSWER: To find sad slow songs currently trending on Instagram Reels, you can follow these steps:
+RESULTS (5):
+  - [6604] "Yaare Neenu Roja Hoove (From "Naanu Nanna Hendathi")" by S P Balasubrahmanyam (Status: unqualified, Velocity: 9875263.75204219, Niche: general)
+  - [6904] "Kaun Tujhe" by Anoj Darrapara Pathalgaon (Status: unqualified, Velocity: 9276850.16510288, Niche: general)
+  - [7542] "Chhora Yadav Ko Le Jaego" by Gaurav Yadav Pachotiya (Status: unqualified, Velocity: 4494557.95615565, Niche: general)
+  - [6526] "Desi Kalakaar" by Yo Yo Honey Singh (Status: unqualified, Velocity: 4440257.78849716, Niche: general)
+  - [7632] "Vijayi Bhava" by Shankar Mahadevan (Status: unqualified, Velocity: 3682417.47329842, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: what should i use for a gym reel today
+LATENCY: 1.743 seconds
+INTENT: search for gym-related content for an Instagram Reels video
+DIRECT ANSWER: To create your gym reel, explore popular and engaging content in the fitness niche. Look for diverse workout routines, motivational quotes, and fitness influencers. Utilize keywords like 'gym', 'workout', and 'motivation' to narrow your search.
+RESULTS (5):
+  - [6737] "Thalapathy Vetri Kondan" by Anirudh Ravichander, Vivek (Status: resurging, Velocity: 112355.039614444, Niche: fitness)
+  - [7113] "Filam" by Duryodhan Rana, Jaiveer Thakur, Prodbysoundscape (Status: resurging, Velocity: 19015.5838280573, Niche: fitness)
+  - [4393] "BbY WOW" by KAROL G, Judeline, rusowsky (Status: resurging, Velocity: 6527.43652396019, Niche: fitness)
+  - [6280] "MONTAGEM PEGADORA" by Rubikdice, Chilx, WAA (Status: resurging, Velocity: 39102.1110102503, Niche: travel)
+  - [7343] "Sammi Meri Waar" by Sourav Verma (Status: resurging, Velocity: 11839.916023176, Niche: art)
+--------------------------------------------------------------------------------
+
+QUERY: punjabi tracks that haven't peaked yet
+LATENCY: 1.867 seconds
+INTENT: search for Punjabi tracks with low popularity
+DIRECT ANSWER: To find Punjabi tracks that haven't peaked yet, explore Instagram Reels using the following filters: search for niche 'music' and language 'pa'. Additionally, set the 'sort_by' to 'velocity' to find tracks with increasing popularity.
+RESULTS (5):
+  - [6692] "Neher Wale" by Jyotica Tangri, Amjad Nadeem Aamir (Status: resurging, Velocity: 420781.942168139, Niche: general)
+  - [6350] "Ambar Da Lalach" by Balraj, Singh jeet, G Guri (Status: resurging, Velocity: 64569.2480753295, Niche: music)
+  - [6706] "Headliner" by Navaan Sandhu, Haakam (Status: resurging, Velocity: 43114.4487609493, Niche: general)
+  - [6290] "Coka" by Sukh-E Muzical Doctorz (Status: resurging, Velocity: 29308.6675423232, Niche: general)
+  - [6188] "Ek Mera Dil" by Kanth Kaler (Status: resurging, Velocity: 25655.9291620945, Niche: music)
+--------------------------------------------------------------------------------
+
+QUERY: high energy bgm for food videos
+LATENCY: 2.564 seconds
+INTENT: search for high energy background music suitable for food videos on Instagram Reels
+DIRECT ANSWER: To find the perfect high energy background music for your food videos on Instagram Reels, consider searching for tracks in the 'music' category on the Instagram Reels app. Filter your results by selecting 'high energy' as the mood and 'food' as the niche. You can also explore music platforms like SoundCloud or YouTube Music, using keywords like 'food', 'bite', or 'cooking' in their search bar.
+RESULTS (5):
+  - [7288] "Saathiyaa" by Shreya Ghoshal, Ajay (Status: resurging, Velocity: 335495.746901283, Niche: general)
+  - [4107] "Shubhaarambh (From "Kai Po Che") (From "Kai Po Che")" by Amit Trivedi, Shruti Pathak, Divya Kumar (Status: expired, Velocity: 326832.226734934, Niche: general)
+  - [6635] "Hanthe Sankha Churi" by Manoj Sahri, Monika Mundu (Status: unqualified, Velocity: 144717.608794172, Niche: general)
+  - [4481] "Yeshanagula (From "The Paradise") (Telugu)" by Anirudh Ravichander, Singer Prabha, Jangi Reddy, Kasarla Shyam (Status: resurging, Velocity: 110269.145801383, Niche: food)
+  - [7608] "Chala Jata Hoon" by Kishore Kumar (Status: peaked, Velocity: 103021.086707538, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: aesthetic hindi audio for travel vlog
+LATENCY: 1.667 seconds
+INTENT: search for Hindi audio suitable for travel vlogs
+DIRECT ANSWER: To find the best Hindi audio for your travel vlog, consider exploring Instagram Reels channels like @hindi_audio_effects, @hindi_audio_library, and @hindi_sound_effects. They offer a wide range of high-quality Hindi audio suitable for travel content.
+RESULTS (5):
+  - [7326] "Hum Pyaar Karne Wale (From "Dhurandhar The Revenge")" by Shashwat Sachdev, Qveen Herby, Anuradha Paudwal, Udit Narayan, Anand Milind, Sameer Anjaan (Status: resurging, Velocity: 10754.6047336189, Niche: comedy)
+  - [6839] "Hey Kharari" by Sadhu Tiwari (Status: unqualified, Velocity: 1374615.75799292, Niche: general)
+  - [6983] "Kya Mujhe Pyar Hai (Style Mix)" by K.K. (Status: unqualified, Velocity: 729669.166678644, Niche: general)
+  - [7214] "Allah Maaf Kare" by Sonu Nigam, Shilpa Rao (Status: resurging, Velocity: 7788.54925539193, Niche: general)
+  - [4654] "Aankhon Mein Teri" by Yogesh Rawat (Status: resurging, Velocity: 52941.2232670894, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: sounds similar to naina
+LATENCY: 1.73 seconds
+INTENT: search for Instagram Reels audio related to Naina
+DIRECT ANSWER: To find Instagram Reels with sounds similar to Naina, you can follow these steps:
+RESULTS (5):
+  - [7872] "Yammo Yammo Nodade" by V. Ravichandran, Anuradha Sriram, Srinivas (Status: rising, Velocity: 58960.3138545761, Niche: general)
+  - [7879] "Pathikichu" by Arunmozhi, Swarnalatha (Status: rising, Velocity: 25618.3850380234, Niche: general)
+  - [7889] "Be Irada Nazar Mil Gayi Toh" by Vipin Sachdeva (Status: emerging, Velocity: 8223.47713040004, Niche: general)
+  - [7871] "Going Under" by Evanescence (Status: rising, Velocity: 59016.6619785007, Niche: general)
+  - [7882] "The Tiger" by B. Ajaneesh Loknath (Status: emerging, Velocity: 19174.4715407766, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: fastest growing audio this week
+LATENCY: 2.003 seconds
+INTENT: search for the fastest growing audio for Instagram Reels this week
+DIRECT ANSWER: To find the fastest growing audio for Instagram Reels this week, follow these steps: 1. Open the Instagram app and navigate to the Reels feature. 2. Tap on the 'Audio' button below the video recording area. 3. Use the search bar and type 'fastest growing audio this week'. 4. Browse through the results and select the audio with the highest velocity. Keep in mind that the availability of audio may vary based on your location and language settings.
+RESULTS (5):
+  - [6604] "Yaare Neenu Roja Hoove (From "Naanu Nanna Hendathi")" by S P Balasubrahmanyam (Status: unqualified, Velocity: 9875263.75204219, Niche: general)
+  - [6904] "Kaun Tujhe" by Anoj Darrapara Pathalgaon (Status: unqualified, Velocity: 9276850.16510288, Niche: general)
+  - [7542] "Chhora Yadav Ko Le Jaego" by Gaurav Yadav Pachotiya (Status: unqualified, Velocity: 4494557.95615565, Niche: general)
+  - [6526] "Desi Kalakaar" by Yo Yo Honey Singh (Status: unqualified, Velocity: 4440257.78849716, Niche: general)
+  - [7632] "Vijayi Bhava" by Shankar Mahadevan (Status: unqualified, Velocity: 3682417.47329842, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: dance trend i can do alone
+LATENCY: 1.778 seconds
+INTENT: search for dance trends suitable for solo performance
+DIRECT ANSWER: Explore popular dance trends like 'Dabke Solo', 'Monkey Dance', or 'Nae Nae' that you can perform alone. Upload engaging content showcasing your moves and use relevant hashtags like #DanceAlone or #SoloDanceTrends to reach a wider audience.
+RESULTS (5):
+  - [7881] "Peg Patiala Ka" by Sonu Nigam, Jaspinder Narula (Status: rising, Velocity: 20810.3964318316, Niche: general)
+  - [7780] "NEON" by A2O, A2O LITE (Status: peaked, Velocity: 31233.1450621866, Niche: dance)
+  - [7883] "Wyw my sweetie #JerseyClub" by nissi, 25Hzz (Status: rising, Velocity: 13414.1485125596, Niche: dance)
+  - [7665] "TRALALA" by manifest (Status: resurging, Velocity: 47336.5490552326, Niche: fashion)
+  - [7851] "Dame Hombro" by Bulin 47, Kevin Wai, Breyco En Producidera (Status: rising, Velocity: 371876.592706933, Niche: tech)
+--------------------------------------------------------------------------------
+
+QUERY: undiscovered beat for tech review
+LATENCY: 1.552 seconds
+INTENT: search for undiscovered beats suitable for tech review videos on Instagram Reels
+DIRECT ANSWER: To find undiscovered beats for your tech review videos on Instagram Reels, consider exploring BeatStars, SoundCloud, or ProductionTrack. These platforms offer a wide range of royalty-free music suitable for tech reviews. Additionally, you can use the search filters on these platforms to refine your search by genre, tempo, and mood.
+RESULTS (5):
+  - [6260] "E Preetige (from "O Nanna Nalle")" by S. P. Balasubrahmanyam, Suma Shastry (Status: unqualified, Velocity: 97570.0647739374, Niche: general)
+  - [4099] "I’m gonna TOESA" by SOYEON (Status: resurging, Velocity: 16351.6684029897, Niche: general)
+  - [7671] "Smalltown Boy (1991 Remix)" by Jimmy Somerville (Status: resurging, Velocity: 4552.94700357136, Niche: fashion)
+  - [6021] "Rasputin" by Boney M. (Status: resurging, Velocity: 27350.0713646409, Niche: tech)
+  - [7005] "Arz Kiya Hai | Coke Studio Bharat" by Anuv Jain (Status: resurging, Velocity: 82864.5293288225, Niche: general)
+--------------------------------------------------------------------------------
+
+QUERY: what is trending in tamil reels
+LATENCY: 2.78 seconds
+INTENT: identifying trending content in Tamil Reels
+DIRECT ANSWER: To discover trending content in Tamil Reels, follow these steps:
+RESULTS (5):
+  - [6634] "Palayathamma Nee Pasavilakku" by K. S. Chithra (Status: expired, Velocity: 500, Niche: general)
+  - [7653] "Chillax" by Vijay Antony, Karthik, Charulatha Mani, Annamalai (Status: peaked, Velocity: 16675.3738561818, Niche: travel)
+  - [6644] "Musicaltunnel" by musicaltunnel (Status: resurging, Velocity: 16588.2763256735, Niche: romance/relationship)
+  - [4081] "Kuruvi Kuruvi" by Vidyasagar, Praveen Mani, Benny Dayal, Suvi, Na. Muthukumar (Status: expired, Velocity: 0.000342913795769192, Niche: news/political)
+  - [7148] "Magale" by Sai Abhyankkar, Harini, Karthik Netha (Status: resurging, Velocity: 10357.8503488066, Niche: comedy)
+--------------------------------------------------------------------------------
+

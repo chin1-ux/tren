@@ -1,0 +1,39 @@
+UTC Time: 2026-10-15T08:17:36Z
+git rev-parse HEAD: 33ea0c419a754a2118c7f4fa62f806c656389da9
+branch: hotfix/egress-columns
+Command: git grep -n -E refetchInterval|refetchIntervalInBackground|refetchOnWindowFocus|staleTime|setInterval -- frontend/src
+
+frontend/src/components/DanceTrendModal.tsx:23:    staleTime: 10_000,
+frontend/src/components/EarlyDetectionPanel.tsx:61:    staleTime: 5 * 60_000, // 5 min cache for instant back-and-forth tab transitions
+frontend/src/components/FestiveViralRadar.tsx:64:    staleTime: 10 * 60_000, // 10 min cache for instant niche switching
+frontend/src/components/TrendCard.tsx:403:    staleTime: 5 * 60_000,
+frontend/src/router.tsx:18:        staleTime: 60_000, // 1 min stale time for instant page back/forward
+frontend/src/router.tsx:20:        refetchOnWindowFocus: false, // Prevent jarring background refetches
+frontend/src/routes/generate.tsx:77:    staleTime: 60_000,
+frontend/src/routes/generate.tsx:197:    pollTimerRef.current = setInterval(checkStatus, 2000);
+frontend/src/routes/ideas.tsx:131:    staleTime: 15 * 60_000, // 15 min cache for 0ms transitions
+frontend/src/routes/index.tsx:258:    const id = setInterval(() => setNow(Date.now()), 60_000);
+frontend/src/routes/index.tsx:275:    staleTime: 60_000,
+frontend/src/routes/index.tsx:276:    refetchInterval: 5 * 60_000,
+frontend/src/routes/index.tsx:287:    staleTime: 60_000,
+frontend/src/routes/index.tsx:297:    staleTime: 60_000,
+frontend/src/routes/index.tsx:309:    staleTime: 2 * 60_000,
+frontend/src/routes/index.tsx:310:    refetchInterval: 15 * 60_000, // 15 min gentle polling (scraper runs every 3h)
+frontend/src/routes/index.tsx:322:    staleTime: 2 * 60_000,
+frontend/src/routes/index.tsx:323:    refetchInterval: 15 * 60_000, // 15 min gentle polling
+frontend/src/routes/index.tsx:335:    staleTime: 15 * 60_000,
+frontend/src/routes/index.tsx:336:    refetchInterval: 45 * 60_000,
+frontend/src/routes/index.tsx:349:    staleTime: 30 * 60_000,
+frontend/src/routes/index.tsx:350:    refetchInterval: 60 * 60_000,
+frontend/src/routes/index.tsx:363:    staleTime: 5 * 60_000,
+frontend/src/routes/index.tsx:364:    refetchInterval: 20 * 60_000,
+frontend/src/routes/marketplace.tsx:103:    staleTime: 60_000,
+frontend/src/routes/marketplace.tsx:111:    staleTime: 60_000,
+frontend/src/routes/proof.tsx:38:    staleTime: 5 * 60 * 1000,
+frontend/src/routes/stats.tsx:37:    staleTime: 5 * 60_000,
+frontend/src/routes/stats.tsx:44:    staleTime: 5 * 60_000,
+frontend/src/routes/trend.$id.tsx:46:    staleTime: 5 * 60_000,
+frontend/src/routes/trend.$id.tsx:62:    staleTime: 5 * 60_000,
+frontend/src/routes/trend.$id.tsx:68:    staleTime: 5 * 60_000,
+frontend/src/routes/trend.$id.tsx:74:    staleTime: 5 * 60_000,
+frontend/src/routes/trend.$id.tsx:82:    staleTime: 5 * 60_000,
