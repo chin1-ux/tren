@@ -170,7 +170,7 @@ SLIM_FEED_COLUMNS = (
     "id,audio_title,audio_artist,audio_id,audio_use_count,status,velocity_avg,"
     "opportunity_score,saturation_score,india_saturation_pct,global_saturation_pct,"
     "saturation_penalty,creator_fit_score,hook_retention_score,window_hours_remaining,"
-    "first_detected_at,created_at,status_changed_at,why_this_works,used_for_note,"
+    "first_detected_at,created_at,status_changed_at,last_seen_at,why_this_works,used_for_note,"
     "niche_tag,semantic_niches,language,language_final,trend_classification,velocity_pattern,"
     "optimal_post_hour_ist,is_dance,is_voiceover,is_seed_data,is_regional_crossover,"
     "crossover_from_language,crossover_message,hook_brief,adaptation_briefs,display_title,"
@@ -368,6 +368,21 @@ def search_ask(
         intent = parsed.get("intent", "Search")
         direct_answer = parsed.get("direct_answer", "")
         filters = parsed.get("filters", {})
+        is_gibberish = parsed.get("is_gibberish", False) or any(
+            g in clean_q.lower() for g in ["asdf", "qwer", "zxcv", "jkl;", "lksd", "qwerty"]
+        )
+        
+        if is_gibberish:
+            result_payload = {
+                "intent": "Unrecognized or gibberish search",
+                "direct_answer": f"No trends found matching '{clean_q}'. Try searching for a specific niche (e.g. 'gym motivation'), language, or song title.",
+                "results": []
+            }
+            _ASK_SEARCH_CACHE[cache_key] = {"time": now_ts, "data": result_payload}
+            return JSONResponse(
+                content=result_payload,
+                headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "MISS"}
+            )
         
         query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
         
@@ -378,6 +393,11 @@ def search_ask(
         niche = filters.get("niche")
         if niche:
             query = query.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            
+        keywords = [k for k in (filters.get("keywords") or []) if len(k) > 2 and k.lower() not in ("audio", "trend", "song", "sound", "reels")]
+        if not lang and not niche and keywords:
+            kw = keywords[0]
+            query = query.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%,audio_artist.ilike.%{kw}%")
             
         sort_by = filters.get("sort_by")
         if sort_by == "velocity":
@@ -391,14 +411,26 @@ def search_ask(
         res = execute_supabase_get(query)
         data = res.data or []
         
-        keywords = filters.get("keywords") or []
-        if len(data) == 0 and keywords:
-            kw = keywords[0]
-            fb_query = supabase.table("trends").select(SLIM_FEED_COLUMNS).or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%").limit(5)
-            fb_res = execute_supabase_get(fb_query)
+        # If strict intersection of filters was empty, relax filters gracefully so creator gets relevant trends
+        if len(data) == 0 and not is_gibberish:
+            fallback_q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
+            if lang and niche:
+                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang},niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            elif lang:
+                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang}")
+            elif niche:
+                fallback_q = fallback_q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            elif keywords:
+                kw = keywords[0]
+                fallback_q = fallback_q.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%")
+            fallback_q = fallback_q.order("velocity_avg", desc=True).limit(5)
+            fb_res = execute_supabase_get(fallback_q)
             data = fb_res.data or []
             
         trends = _normalize_trends_slim(data)
+        if len(trends) == 0 and not direct_answer:
+            direct_answer = f"No active trends found matching '{clean_q}'. Try broadening your search or choosing a niche tag."
+            
         result_payload = {
             "intent": intent,
             "direct_answer": direct_answer,

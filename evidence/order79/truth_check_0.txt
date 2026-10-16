@@ -1,0 +1,139 @@
+================================================================================
+ORDER 79 ITEM 0: TRUTH CHECK (RAW AUDIT)
+Timestamp: 2026-10-16T21:20:57.236126+00:00
+================================================================================
+
+--- 0.a) DEPLOYED PROD SHA vs GIT HEAD vs UNCOMMITTED CHANGES ---
+Git HEAD SHA: 30b46cd4f828423e118307852634d31853fed731
+Uncommitted Changes Count: 260
+Uncommitted files:
+  M backend/routes/trends.py
+   M backend/trend_detector.py
+   M frontend/src/components/TrendCard.tsx
+   M frontend/src/components/TrendPreviewModal.tsx
+   M frontend/src/lib/api.ts
+   M frontend/src/routes/index.tsx
+  ?? backend/backfill_trend_languages.py
+  ?? backend/compare_audio_scoped_7d.py
+  ?? backend/compare_cluster_thresholds.py
+  ?? backend/compare_thresholds_offline.py
+  ?? backend/dump_raw_evidence.py
+  ?? backend/get_order10_data.py
+  ?? backend/migrations/006_add_language_to_trend_tables.sql
+  ?? backend/run_format_trend_clustering.py
+  ?? backend/run_order9_tests.py
+  ?? backend/scratch_order10.py
+  ?? backend/start_server.py
+  ?? backend/venv_shazam/
+  ?? evidence/order77/item8_30_original_thumbnails.txt
+  ?? evidence/order77/item8_bucket_audit.txt
+  ?? evidence/order77/item8_roundtrip.txt
+  ?? evidence/order77/item8_step_a_gha.txt
+  ?? evidence/order78/a4_thumbnail_fallbacks.txt
+  ?? evidence/order78/a7_reel_pager_evidence.txt
+  ?? evidence/order78/b1_trigger_source_and_test.txt
+
+Latest Vercel Production Deployments:
+https://trendrop-9oym5sh3w-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-ntx3i1o3h-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-o52f3v47o-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-nsctogkoh-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-5vd5xe3bd-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-auj3injuc-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-mlw060syi-chinmays-projects-c20ed5a5.vercel.app
+https://trendrop-jockaoq3w-chinmays-projects-
+
+--- 0.b) MODAL REEL SOURCE & audio_page_cache EXISTENCE ---
+Checking frontend/src/components/TrendPreviewModal.tsx for reel source:
+  [FACT] TrendPreviewModal calls fetchTrendReels (endpoint: /api/trends/{id}/reels).
+  [FACT] TrendPreviewModal does NOT query audio_page_cache.
+Checking if 'audio_page_cache' table exists in Supabase:
+  [FACT] audio_page_cache query result: data=[]
+What the Reel Pager actually pages through:
+  [FACT] It pages through rows from the Supabase 'reels' table linked to the trend (via /api/trends/{id}/reels).
+  [FACT] These reels were scraped during regular background scraper runs, NOT extracted live from the Instagram audio page.
+
+--- 0.c) ORDER 78 A2 & A4 RUNNER vs LOCAL EXECUTION ---
+Reviewing execution origin of Order 78 probe and fallback files:
+  [FACT] 'item8_probe_local.txt' was executed LOCALLY on Windows PC (hence file name 'item8_probe_local').
+  [FACT] 'a4_thumbnail_fallbacks.txt' was generated locally.
+Verdict: Order 78 Step A probe ran locally, NOT on a GitHub Actions runner. Hand-marked files -> FAIL.
+
+--- 0.d) DISABLED WORKFLOWS & TREND-REFRESH STATUS ---
+Workflows in ch1n-may/trendrop:
+
+Workflows in dedicated scraper repo chin1-ux/tren:
+  Emergency LLM Classification	active	342411735
+  Run News Virality Predictor	active	342411737
+  LLM Classification Batch	active	342411739
+  Scraper (Main Account - 6h Fallback)	active	342411740
+  Trend Refresh (Main Account - 8h)	active	342411741
+  CI Smoke Test	active	351125132
+  Cron Heartbeat Watchdog	active	351125133
+  Pending Trends Timeout Fallback	active	351125135
+  Pending Trends Monitor	active	351125136
+  Trendrop Scheduled Scraper Pipeline Cron	active	356465934
+  Sync to Dedicated Scraper Repo (chin1-ux/tren)	active	356465935
+  Dependency Graph	active	357213455
+  Dependabot Updates	active	357361247
+  Copilot cloud agent	active	375788770
+  Order 77 Audio Page Extraction Probe	active	387013306
+
+Checking latest trend_refresher / lifecycle update in Supabase cron_runs:
+  Error checking cron_runs: {'message': 'column cron_runs.job_type does not exist', 'code': '42703', 'hint': None, 'details': None}
+
+--- 0.e) SCHEDULER: 38-MIN GAP VS 165-MIN GUARD CAUSE ---
+Analyzing check_scraper_guard.py and workflow cron triggers:
+Excerpt from scripts/check_scraper_guard.py:
+  import os
+  import sys
+  from datetime import datetime, timezone
+  from dotenv import load_dotenv
+  
+  load_dotenv('backend/.env')
+  
+  url = os.getenv('SUPABASE_URL')
+  key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
+  
+  def check_guard():
+      if not url or not key:
+          print("No Supabase credentials found, proceeding.")
+          return False
+  
+      try:
+          from supabase import create_client
+          sb = create_client(url, key)
+          res = sb.table('cron_runs').select('id, run_at, reels_scraped, status').gt('reels_scraped', 0).order('run_at', desc=True).limit(1).execute()
+          if res.data:
+              last_run = res.data[0]
+              run_at_str = last_run['run_at']
+              last_dt = datetime.fromisoformat(run_at_str.replace('Z', '+00:00'))
+              now_dt = datetime.now(timezone.utc)
+              diff_minutes = (now_dt - last_dt).total_seconds() / 60.0
+
+--- 0.f) TRENDS.STATUS BREAKDOWN & RESURGING CAUSE ---
+Querying status counts from trends table:
+  Status: emerging     = 79
+  Status: rising       = 153
+  Status: resurging    = 889
+  Status: peaked       = 272
+  Status: expired      = 271
+  Status: unqualified  = 333
+  Total Active Feed Eligible: 1393
+
+Searching codebase for 'resurging' assignment logic:
+backend/backfill_language.py:50:        .in_("status", ["rising", "emerging", "resurging", "peaked"])
+backend/cron_job.py:660:                .in_("status", ["emerging", "resurging", "rising"]) \
+backend/routes/trends.py:266:            q = q.in_("status", ["emerging", "rising", "resurging", "peaked"])
+backend/routes/trends.py:940:        statuses = ["emerging", "rising", "resurging", "peaked", "expired"]
+backend/routes/trends.py:1074:            .in_("status", ["rising", "emerging", "resurging", "peaked"]) \
+backend/routes/trends.py:1284:            .eq("status", "resurging")
+backend/tests/test_resurgence_gate.py:158:        self.assertEqual(update_call_args["status"], "resurging")
+backend/trend_detector.py:490:                    "new_status": "resurging",
+backend/trend_detector.py:500:                    "status": "resurging",
+backend/trend_refresher.py:364:                        self._update_status(trend_id, "resurging", {
+backend/trend_refresher.py:371:                        log
+
+================================================================================
+END OF TRUTH CHECK 0
+================================================================================

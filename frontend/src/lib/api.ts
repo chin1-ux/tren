@@ -488,6 +488,7 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     firstDetectedAt: t.first_detected_at ?? null,
     createdAt: t.created_at ?? null,
     statusChangedAt: t.status_changed_at ?? null,
+    lastSeenAt: t.last_seen_at ?? null,
     // niche personalization fields — populated by server when user has a niche preference
     adaptation_briefs: t.adaptation_briefs ?? undefined,
     niche_relevance: t.niche_relevance ?? undefined,

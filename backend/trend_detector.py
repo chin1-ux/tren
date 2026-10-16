@@ -404,6 +404,11 @@ def _evaluate_group(
 
     migration_signal = _detect_cross_platform_migration(audio_title, audio_artist, None)
 
+    earliest_sighting = min(
+        (r.get("scraped_at") or r.get("created_at") for r in group_reels if r.get("scraped_at") or r.get("created_at")),
+        default=now.isoformat()
+    )
+
     return {
         "audio_title": audio_title,
         "audio_artist": audio_artist,
@@ -427,7 +432,7 @@ def _evaluate_group(
         "window_hours_remaining": window_hours,
         "confidence": round(confidence, 3),
         "trend_age_hours": trend_age_hours,
-        "first_detected_at": now.isoformat(),
+        "first_detected_at": earliest_sighting,
         "is_cross_cultural": migration_signal is not None,
         "migration_signal": migration_signal,
         "content_type": trend_type,

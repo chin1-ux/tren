@@ -332,6 +332,7 @@ function TrendsFeed() {
     data: feedData,
     isLoading: isFeedLoading,
     isError: isFeedError,
+    error: feedError,
     refetch: refetchFeed,
   } = useQuery({
     queryKey: ["unified-feed", filters.language, activeLanguages, filters.niches, filters.lifecycle],
@@ -340,7 +341,7 @@ function TrendsFeed() {
       languages: activeLanguages,
       niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
       status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
-      limit: 30,
+      limit: 20,
     }),
     staleTime: 5 * 60_000,
     refetchInterval: 10 * 60_000,

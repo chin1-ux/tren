@@ -16,6 +16,7 @@ import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 import { TrendProofSection } from "./TrendProofSection";
+import { TrendPreviewModal } from "./TrendPreviewModal";
 import { formatApiDateIst, formatRelativeTime, formatShortDate } from "@/lib/time";
 
 interface Props {
@@ -463,20 +464,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
   const openLiveInstagramPreview = (e: React.MouseEvent) => {
     e.stopPropagation();
-    const targetAudioUrl = audioUrl || (trend.audioId ? `https://www.instagram.com/reels/audio/${trend.audioId}/` : null);
-    if (!targetAudioUrl) {
-      toast.error("Audio link unavailable");
-      return;
-    }
-    const width = 430;
-    const height = 820;
-    const left = window.screen.width ? Math.max(0, (window.screen.width - width) / 2) : 120;
-    const top = window.screen.height ? Math.max(0, (window.screen.height - height) / 2) : 80;
-    window.open(
-      targetAudioUrl,
-      "InstagramAudioWindow",
-      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
-    );
+    setShowPreviewModal(true);
   };
   const saturationCount = trend.saturationCount ?? 0;
   const vibeTag = trend.vibeTag ?? "general";
@@ -508,7 +496,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
     queryFn: () => fetchTrendReels(trend.id),
-    enabled: showReels,
+    enabled: showReels || showPreviewModal,
     staleTime: 5 * 60_000,
   });
 
@@ -692,7 +680,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         {/* Dual-Date Timeline Telemetry: First caught vs Latest rescraped */}
         {(() => {
           const firstDate = trend.firstDetectedAt || trend.createdAt;
-          const lastActiveDate = trend.statusChangedAt || trend.createdAt;
+          const lastActiveDate = (trend as any).lastSeenAt || trend.statusChangedAt || trend.createdAt;
           if (!firstDate && !lastActiveDate) return null;
 
           const firstShort = firstDate ? formatShortDate(firstDate) : null;
@@ -800,20 +788,22 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             <Video className="h-3 w-3 text-primary" /> Creator Reels:
           </span>
           {trend.top_reels.slice(0, 3).map((reel, idx) => (
-            <a
+            <button
               key={idx}
-              href={reel.reel_url || (reel.reel_id ? `https://www.instagram.com/reel/${reel.reel_id}/` : "#")}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="inline-flex items-center gap-1 rounded-md bg-secondary/70 hover:bg-primary/20 hover:text-primary transition-colors border border-border/60 px-2 py-0.5 text-[10px] font-medium text-foreground"
+              type="button"
+              onClick={(e) => {
+                e.stopPropagation();
+                setShowPreviewModal(true);
+              }}
+              className="inline-flex items-center gap-1 rounded-md bg-secondary/70 hover:bg-primary/20 hover:text-primary transition-colors border border-border/60 px-2 py-0.5 text-[10px] font-medium text-foreground cursor-pointer"
               title={`View Instagram Reel by @${reel.owner_username || "creator"}`}
             >
               <span>@{reel.owner_username || "creator"}</span>
               {(reel.view_count ?? 0) > 0 && (
                 <span className="text-muted-foreground font-bold">({formatViews(reel.view_count ?? 0)})</span>
               )}
-              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
-            </a>
+              <Play className="h-2.5 w-2.5 opacity-60 fill-current" />
+            </button>
           ))}
         </div>
       )}
@@ -1132,6 +1122,12 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       <TrendProofSection 
         trendId={trend.id} 
         isPeaking={!!(trend.peakingScore && trend.peakingScore >= 70)}
+      />
+      <TrendPreviewModal
+        trend={trend}
+        reels={reels}
+        isOpen={showPreviewModal}
+        onClose={() => setShowPreviewModal(false)}
       />
     </article>
   );
