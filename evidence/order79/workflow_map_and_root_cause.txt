@@ -1,0 +1,61 @@
+================================================================================
+ORDER 79B & 79C: WORKFLOW MAP, DB DUPLICATION & LIFECYCLE AUDIT
+Timestamp: 2026-10-16T21:30:48.395190+00:00
+================================================================================
+
+--- 1. WORKFLOW MAP FOR chin1-ux/tren (ALL WORKFLOWS) ---
+Emergency LLM Classification	active	342411735
+Run News Virality Predictor	active	342411737
+LLM Classification Batch	active	342411739
+Trend Refresh (Main Account - 8h)	active	342411741
+CI Smoke Test	active	351125132
+Cron Heartbeat Watchdog	active	351125133
+Pending Trends Timeout Fallback	active	351125135
+Pending Trends Monitor	active	351125136
+Trendrop Scheduled Scraper Pipeline Cron	active	356465934
+Sync to Dedicated Scraper Repo (chin1-ux/tren)	active	356465935
+Dependency Graph	active	357213455
+Dependabot Updates	active	357361247
+Copilot cloud agent	active	375788770
+Order 77 Audio Page Extraction Probe	active	387013306
+Scraper (Main Account - 6h Fallback)	disabled_manually	342411740
+
+--- 2. RECENT RUNS OF SCRAPER & REFRESH WORKFLOWS IN chin1-ux/tren ---
+completed	success	Cron Heartbeat Watchdog	Cron Heartbeat Watchdog	main	schedule	38955608507	23s	2026-10-16T19:31:58Z
+completed	success	Pending Trends Monitor	Pending Trends Monitor	main	schedule	38955578208	25s	2026-10-16T19:31:43Z
+completed	success	build(deps): bump @tanstack/react-start from 1.168.25 to 1.169.2 in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/tanstack/react-start-1.169.2	pull_request	38949627786	22s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump mcp from 1.28.1 to 1.30.0	CI Smoke Test	dependabot/uv/mcp-1.30.0	pull_request	38949626146	23s	2026-10-16T18:44:19Z
+completed	success	build(deps): bump @tanstack/start-server-core and @tanstack/react-start in /frontend	CI Smoke Test	dependabot/npm_and_yarn/frontend/multi-e405bc50cb	pull_request	38949606929	19s	2026-10-16T18:44:10Z
+completed	success	Order 77 Audio Page Extraction Probe	Order 77 Audio Page Extraction Probe	main	workflow_dispatch	38949475597	1m3s	2026-10-16T18:43:08Z
+completed	success	npm_and_yarn in /frontend for @tanstack/react-start - Update #1631996196	Dependabot Updates	main	dynamic	38949438322	1m22s	2026-10-16T18:42:50Z
+completed	success	npm_and_yarn in /frontend for @tanstack/start-server-core - Update #1631996261	Dependabot Updates	main	dynamic	38949438182	1m15s	2026-10-16T18:42:50Z
+completed	success	uv in /. for mcp - Update #1631996224	Dependabot Updates	main	dynamic	38949438142	1m25s	2026-10-16T18:42:50Z
+completed	success	ci(order77): add Step A live audio probe workflow and script	CI Smoke Test	main	push	38949410458	24s	2026-10-16T18:42:37Z
+completed	cancelled	Scraper (Main Account - 6h Fallback)	Scraper (Main Account - 6h Fallback)	main	schedule	38940228787	2h0m24s	2026-10-16T17:30:35Z
+completed	success	LLM Classification Batch	LLM Classification Batch	main	schedule	38936314100	2m30s	2026-10-16T17:00:16Z
+completed	success	Emergency LLM Classification	Emergency LLM Classification	main	schedule	38935585990	25s	2026-10-16T16:54:35Z
+completed	success	Trend Refresh (Main Account - 8h)	Trend Refresh (Main Account - 8h)	main	schedule	38935384814	11m21s	2026-10-16T16:53:00Z
+completed	success	Pending Trends Timeout Fallback	Pending Trends Timeout Fallback	main	schedule	38935264808	23s	2026-10-16T16:52:03Z
+completed	success	Trendrop Scheduled Scraper Pipeline Cron	Trendrop Scheduled Scraper Pipeline Cron	main	schedule	38934423898	57m14s	2026-10-16T16:45:21Z
+completed	success	Cron Heartbeat Watchdog	Cron Heartbeat Watchdog	main	schedule	38906090393	22s	2026-10-16T13:12:34Z
+completed	success	Pending Trends Monitor	Pending Trends Monitor	main	schedule	38906081558	23s	2026-10-16T13:12:29Z
+completed	cancelled	Scraper (Main Account - 6h Fallback)	Scraper (Main Account - 6h Fallback)	main	schedule	38901005980	2h0m26s	2026-10-16T12:30:34Z
+completed	success	Emergency LLM Classification	Emergency LLM Classification	main	schedule	38896575434	23s	2026-10-16T11:51:40Z
+
+--- 3. DUPLICATE REELS IN DATABASE ---
+Analyzed sample of 1000 latest reels:
+  Unique reel_ids in sample: 1000
+  Duplicate reel_ids in sample: 0
+  Sample duplication rate: 0.00%
+
+--- 4. LATEST 10 CRON_RUNS IN SUPABASE ---
+  Run ID=979    | CreatedAt=2026-10-16T18:36:01.558159 | RunAt=2026-10-16T17:32:34.766143+00:00 | Status=success  | Scraped=336 | New=336
+  Run ID=978    | CreatedAt=2026-10-16T17:42:29.386167 | RunAt=2026-10-16T16:46:24.953971+00:00 | Status=success  | Scraped=301 | New=301
+  Run ID=977    | CreatedAt=2026-10-16T17:04:16.517092 | RunAt=2026-10-16T16:53:29.485358+00:00 | Status=success  | Scraped=0 | New=0
+  Run ID=973    | CreatedAt=2026-10-16T13:37:42.510684 | RunAt=2026-10-16T12:32:51.61349+00:00 | Status=success  | Scraped=319 | New=319
+  Run ID=972    | CreatedAt=2026-10-16T12:35:59.487771 | RunAt=2026-10-16T11:34:33.144497+00:00 | Status=success  | Scraped=270 | New=270
+  Run ID=971    | CreatedAt=2026-10-16T09:22:02.960819 | RunAt=2026-10-16T09:14:02.02608+00:00 | Status=success  | Scraped=0 | New=0
+  Run ID=970    | CreatedAt=2026-10-16T07:45:06.845332 | RunAt=2026-10-16T06:51:07.382057+00:00 | Status=success  | Scraped=285 | New=285
+  Run ID=969    | CreatedAt=2026-10-16T06:48:59.694349 | RunAt=2026-10-16T05:58:15.360361+00:00 | Status=success  | Scraped=309 | New=309
+  Run ID=968    | CreatedAt=2026-10-16T05:34:48.541772 | RunAt=2026-10-16T04:41:15.820247+00:00 | Status=success  | Scraped=370 | New=370
+  Run ID=967    | CreatedAt=2026-10-15T23:28:06.485477 | RunAt=2026-10-15T22:28:01.386171+00:00 | Status=success  | Scraped=231 | New=231

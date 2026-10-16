@@ -1,0 +1,117 @@
+================================================================================
+ORDER 79B & 79C ITEM 3 & 4: RESURGING AUDIT & STAGE-TAG DRY RUN
+Timestamp: 2026-10-16T21:34:04.102628+00:00
+================================================================================
+
+Total trends currently with status='resurging': 889
+
+--- TWO-PATH ATTRIBUTION ANALYSIS ---
+  refresher_resurgence_gate     : 889 (100.0%)
+  resurgence_gate (detector)    : 0 (0.0%)
+  refresher_legacy              : 0 (0.0%)
+  unknown_or_null_reason        : 0 (0.0%)
+
+--- 3 CANDIDATE THRESHOLD SETS DISTRIBUTION ---
+  Candidate A (Strict: age>=7d, seen<=7d, vel>=500, reels>=3): 26 trends (2.9%)
+  Candidate B (Moderate: age>=7d, seen<=14d, vel>=250, reels>=2): 118 trends (13.3%)
+  Candidate C (Relaxed: age>=5d, seen<=14d, vel>=100, reels>=1): 199 trends (22.4%)
+
+--- HONEST STAGE TAG DRY-RUN BREAKDOWN (REPLAY OF 889 'RESURGING' TRENDS) ---
+  Comeback       :  118 ( 13.3%)
+  Just starting  :   10 (  1.1%)
+  Blowing up     :   28 (  3.1%)
+  Still going    :   19 (  2.1%)
+  Fading         :   62 (  7.0%)
+  Expired        :  652 ( 73.3%)
+
+--- 10 REPRESENTATIVE EXAMPLES PER STAGE GROUP ---
+
+[COMEBACK - 118 trends total (Sample of 10):]
+   1. [ID 7251] "Ek Kachori Do Samosa" by Vipin Soni | Reels: 6 | Vel: 59921.8 | Last Seen: 2026-10-04T14:15:58.950187+00:00
+   2. [ID 6691] "Guzarish" by Satinder Sartaaj | Reels: 3 | Vel: 138381.8 | Last Seen: 2026-10-15T19:14:16.473236+00:00
+   3. [ID 4393] "BbY WOW" by KAROL G, Judeline, r | Reels: 4 | Vel: 11404.8 | Last Seen: 2026-10-15T19:16:00.52015+00:00
+   4. [ID 6364] "Devik - Mujhe tumse x Tu tu ha" by devikonthedecks | Reels: 3 | Vel: 21051.6 | Last Seen: 2026-10-15T17:47:59.997767+00:00
+   5. [ID 7148] "Magale" by Sai Abhyankkar, Hari | Reels: 5 | Vel: 10357.9 | Last Seen: 2026-10-03T07:46:40.58959+00:00
+   6. [ID 7758] "Deewana Main Tera Deewana" by Kumar Sanu, Alka Yag | Reels: 3 | Vel: 45794.5 | Last Seen: 2026-10-13T17:26:14.419241+00:00
+   7. [ID 4098] "KALYANI" by ARJN, KDS, FIFTY4, S | Reels: 3 | Vel: 15344.6 | Last Seen: 2026-10-15T17:46:59.638036+00:00
+   8. [ID 6522] "Casa Tupka Anthemo (feat. Priy" by Yo Yo Honey Singh | Reels: 3 | Vel: 5842.7 | Last Seen: 2026-10-15T17:48:41.582883+00:00
+   9. [ID 7287] "Chalery chalery waal new punja" by Veer Raj | Reels: 24 | Vel: 24097.9 | Last Seen: 2026-10-05T04:40:39.703924+00:00
+  10. [ID 7113] "Filam" by Duryodhan Rana, Jaiv | Reels: 3 | Vel: 102040.8 | Last Seen: 2026-10-16T12:18:36.932287+00:00
+
+[STILL GOING - 19 trends total (Sample of 10):]
+   1. [ID 6530] "Laughing Baby Bubbling" by Marcel Plomp | Reels: 1 | Vel: 67354.6 | Last Seen: 2026-10-15T17:46:53.906383+00:00
+   2. [ID 6589] "Zaroorat" by Mithoon, Mustafa Zah | Reels: 1 | Vel: 74545.6 | Last Seen: 2026-10-16T12:18:54.714642+00:00
+   3. [ID 4476] "Brahmakalasha (From "Kantara A" by B. Ajaneesh Loknath, | Reels: 1 | Vel: 50404.9 | Last Seen: 2026-10-16T12:19:07.939269+00:00
+   4. [ID 7583] "امشي بثقه" by Asaad Basha | Reels: 1 | Vel: 7600.4 | Last Seen: 2026-10-15T17:48:21.862351+00:00
+   5. [ID 7208] "Baby Doll" by Kanika Kapoor, Meet  | Reels: 1 | Vel: 65399.3 | Last Seen: 2026-10-16T18:20:08.253053+00:00
+   6. [ID 4226] "Fathers and The Sons" by A Team | Reels: 1 | Vel: 33487.4 | Last Seen: 2026-10-16T13:20:38.618986+00:00
+   7. [ID 7650] "23 Theme (From "Aa23")" by Hector Salamanca, An | Reels: 1 | Vel: 10762.0 | Last Seen: 2026-10-16T18:21:08.379536+00:00
+   8. [ID 7008] "fragment" by slxughter | Reels: 1 | Vel: 33603.9 | Last Seen: 2026-10-16T12:19:29.188799+00:00
+   9. [ID 6886] "Tujh Mein Rab Dikhta Hai - Flu" by Salim-Sulaiman | Reels: 1 | Vel: 7639.5 | Last Seen: 2026-10-15T19:16:03.266228+00:00
+  10. [ID 6916] "Ashtalakshmi Stotram" by Mahagatha, Sharmisht | Reels: 1 | Vel: 28338.8 | Last Seen: 2026-10-15T17:47:48.21117+00:00
+
+[FADING - 62 trends total (Sample of 10):]
+   1. [ID 7380] "Rise Sloww" by Kimo Sounds | Reels: 1 | Vel: 139433.0 | Last Seen: 2026-10-06T20:58:58.550686+00:00
+   2. [ID 7671] "Smalltown Boy (1991 Remix)" by Jimmy Somerville | Reels: 3 | Vel: 4552.9 | Last Seen: 2026-10-10T22:20:56.026164+00:00
+   3. [ID 7756] "Day 'N' Nite (Nightmare)" by Kid Cudi | Reels: 1 | Vel: 10212.8 | Last Seen: 2026-10-13T09:00:06.794585+00:00
+   4. [ID 7194] "we fell in love in october" by girl in red | Reels: 1 | Vel: 16899.3 | Last Seen: 2026-10-03T23:06:48.541145+00:00
+   5. [ID 7773] "Jeddi Abbas Arabi" by Murtada Al Abudi | Reels: 1 | Vel: 8107.1 | Last Seen: 2026-10-13T21:06:20.320051+00:00
+   6. [ID 7651] "Aayee Pardes Se" by Falguni Pathak | Reels: 1 | Vel: 63785.3 | Last Seen: 2026-10-10T08:29:03.200156+00:00
+   7. [ID 7667] "Chalray Chalray Waal" by Ravzz Musica | Reels: 12 | Vel: 30092.0 | Last Seen: 2026-10-10T17:53:02.456904+00:00
+   8. [ID 7772] "Chand Taron Mein" by Udit Naryan | Reels: 1 | Vel: 10991.8 | Last Seen: 2026-10-13T21:06:16.980825+00:00
+   9. [ID 7674] "Chalray Chalray Waal" by Ravzz Musica | Reels: 61 | Vel: 26063.0 | Last Seen: 2026-10-10T22:21:24.092126+00:00
+  10. [ID 7767] "SABOR A MI (Versión Piano)" by Alexis Gonzalez | Reels: 1 | Vel: 29440.0 | Last Seen: 2026-10-13T20:24:05.506985+00:00
+
+[EXPIRED - 652 trends total (Sample of 10):]
+   1. [ID 6011] "O Sanam" by Akhil Sachdeva | Reels: 2 | Vel: 147944.3 | Last Seen: 2026-09-19T12:37:04.820102+00:00
+   2. [ID 5091] "Vetta Karuppu Game Begins" by Sai Abhyankkar | Reels: 2 | Vel: 70940.5 | Last Seen: 2026-09-16T13:17:45.611544+00:00
+   3. [ID 4838] "Ain't In LA" by ADÉLA | Reels: 2 | Vel: 17523.3 | Last Seen: 2026-09-19T12:39:10.434846+00:00
+   4. [ID 5356] "The Rose" by Anirudh Ravichander | Reels: 3 | Vel: 52636.0 | Last Seen: 2026-09-16T19:41:22.778726+00:00
+   5. [ID 6644] "Musicaltunnel" by musicaltunnel | Reels: 2 | Vel: 16588.3 | Last Seen: 2026-09-25T13:45:36.067187+00:00
+   6. [ID 6421] "Emotional Theme" by Dharan Kumar | Reels: 1 | Vel: 17618.1 | Last Seen: 2026-09-22T13:36:40.079229+00:00
+   7. [ID 6579] "Aaya Sher (From "The Paradise"" by Anirudh Ravichander, | Reels: 2 | Vel: 29905.1 | Last Seen: 2026-09-24T17:02:30.525907+00:00
+   8. [ID 6510] "Raanjhan Aaya" by Masaba, Akshay & IP | Reels: 2 | Vel: 9724.4 | Last Seen: 2026-09-23T16:43:12.771337+00:00
+   9. [ID 6808] "Say "Shava Shava" (From "Kabhi" by Aadesh Shrivastava,  | Reels: 1 | Vel: 25028.8 | Last Seen: 2026-09-27T18:40:36.464052+00:00
+  10. [ID 6299] "It's the Most Wonderful Time o" by Andy Williams | Reels: 3 | Vel: 6365.5 | Last Seen: 2026-09-20T21:05:40.374544+00:00
+
+[BLOWING UP - 28 trends total (Sample of 10):]
+   1. [ID 7856] "Kete Dina Nabu" by Abinash Dash, Satya  | Reels: 1 | Vel: 12652.1 | Last Seen: 2026-10-15T17:47:12.530056+00:00
+   2. [ID 7786] "Machlat Aave Mai Kalika" by Subhash Soni | Reels: 1 | Vel: 11536.3 | Last Seen: 2026-10-15T17:56:18.723135+00:00
+   3. [ID 7841] "Oyila Paadum Paattula (From "S" by Aadithyan, K.S. Chit | Reels: 1 | Vel: 7782.6 | Last Seen: 2026-10-15T17:57:10.645706+00:00
+   4. [ID 7829] "FUNK TAKA" by ICEDMANE, DYSMANE | Reels: 3 | Vel: 4120.6 | Last Seen: 2026-10-14T17:36:16.70792+00:00
+   5. [ID 7783] "Shinpai Muyou" by Yuki Chiba, VALORANT | Reels: 1 | Vel: 23426.5 | Last Seen: 2026-10-15T17:57:15.840442+00:00
+   6. [ID 7778] "O Aay Tere Bhawan Mein" by Anuradha Paudwal, So | Reels: 2 | Vel: 7082.3 | Last Seen: 2026-10-15T17:53:01.567012+00:00
+   7. [ID 7787] "CHALLA" by Hadiqa Kiani | Reels: 1 | Vel: 10452.5 | Last Seen: 2026-10-15T17:56:48.668522+00:00
+   8. [ID 7825] "Stop The Wedding!" by Ashe | Reels: 3 | Vel: 8593.8 | Last Seen: 2026-10-15T17:48:40.251574+00:00
+   9. [ID 7802] "Poove Oru Mazhamutham (from "K" by Fahadh Faasil, Sujat | Reels: 1 | Vel: 16212.3 | Last Seen: 2026-10-15T17:56:55.521454+00:00
+  10. [ID 7785] "Şımarık" by Tarkan | Reels: 1 | Vel: 24611.1 | Last Seen: 2026-10-15T17:57:11.952896+00:00
+
+[JUST STARTING - 10 trends total (Sample of 10):]
+   1. [ID 7774] "Don't tell your dreams" by LOVIXX | Reels: 3 | Vel: 9452.0 | Last Seen: 2026-10-13T23:20:05.765765+00:00
+   2. [ID 7905] "Prem Kahani" by Shiva Choudhary, Kal | Reels: 2 | Vel: 42285.1 | Last Seen: 2026-10-15T19:16:38.160595+00:00
+   3. [ID 7790] "Dil Se" by Karthik, Shwetha Moh | Reels: 2 | Vel: 34956.1 | Last Seen: 2026-10-14T12:34:44.930486+00:00
+   4. [ID 7846] "Halariya" by Rajan Kapra | Reels: 3 | Vel: 8018.0 | Last Seen: 2026-10-15T17:48:32.177759+00:00
+   5. [ID 7816] "Sadeness" by Enigma | Reels: 6 | Vel: 5020.1 | Last Seen: 2026-10-15T17:55:41.53227+00:00
+   6. [ID 7940] "Mainpuri Ke Sher (feat. Ammu R" by Shalu Shankhwaar, Am | Reels: 2 | Vel: 34340.8 | Last Seen: 2026-10-16T06:38:48.81779+00:00
+   7. [ID 7858] "Ambabai Gondhalala Ye" by Ajay - Atul, Ajay Go | Reels: 5 | Vel: 10657.7 | Last Seen: 2026-10-15T17:48:09.343529+00:00
+   8. [ID 7799] "Maa Brahmacharini Amritwani" by Sikha Rana | Reels: 3 | Vel: 42017.7 | Last Seen: 2026-10-15T17:47:13.82002+00:00
+   9. [ID 7780] "NEON" by A2O, A2O LITE | Reels: 3 | Vel: 41442.3 | Last Seen: 2026-10-15T17:47:15.589237+00:00
+  10. [ID 7926] "Pós (Ao Vivo)" by Felipe e Rodrigo | Reels: 7 | Vel: 7300.7 | Last Seen: 2026-10-16T00:18:51.899704+00:00
+
+--- READERS OF trends.status COLUMN IN CODEBASE ---
+  - backend/routes/trends.py       -> SLIM_FEED_COLUMNS, get_unified_feed: filters on status in ('emerging','rising','resurging','peaked')
+  - backend/routes/trends.py       -> get_rising: status='rising'
+  - backend/routes/trends.py       -> get_emerging: status='emerging'
+  - backend/routes/trends.py       -> get_peaked: status='peaked'
+  - backend/routes/trends.py       -> get_resurging: status='resurging'
+  - backend/routes/trends.py       -> get_expired: status='expired'
+  - backend/routes/trends.py       -> _normalize_trends_slim: checks status not in ('unqualified','disqualified')
+  - backend/trend_detector.py      -> evaluates status for promotion / demotion / resurgence
+  - backend/trend_refresher.py     -> refreshes velocity, shifts peaking/expired/resurging
+  - frontend/src/lib/api.ts        -> UiTrend.status mapping
+  - frontend/src/components/TrendCard.tsx -> getLifecycleStatusBadge(trend.status)
+  - frontend/src/routes/index.tsx  -> filters feed by status param ('rising', 'emerging', 'all')
+
+================================================================================
+END OF RESURGING AUDIT & DRY RUN (ZERO WRITES EXECUTED)
+================================================================================
