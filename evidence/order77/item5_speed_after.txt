@@ -1,0 +1,14 @@
+ORDER 77 ITEM 5: SPEED AUDIT AFTER FIX (LIVE VERCEL PREVIEW)
+Preview URL: https://trendrop-pxg0tk5gn-chinmays-projects-c20ed5a5.vercel.app
+Deploy ID: 7120560858, Commit: 2438b9c
+
+Endpoint                         | Status | Bytes     | TTFB (s)  | Total (s)  | Vercel Cache  | Cache-Control
+----------------------------------------------------------------------------------------------------
+Feed Cold (page 1)               | 200    | 26606     | 3.148     | 3.155      | MISS          | public, max-age=60
+Feed Warm/Cached (page 1)        | 200    | 26606     | 0.434     | 0.440      | HIT           | public, max-age=60
+Feed all_active                  | 200    | 60        | 1.159     | 1.160      | MISS          | public, max-age=60
+Feed rising                      | 200    | 26620     | 1.328     | 1.333      | MISS          | public, max-age=60
+Ask Search ('gym workout')       | 200    | 7551      | 1.435     | 1.436      | MISS          | public, max-age=3600
+Ask Search ('bollywood dance')   | 200    | 7235      | 1.000     | 1.005      | MISS          | public, max-age=3600
+Legacy /api/trends               | 200    | 298172    | 2.278     | 2.772      | MISS          | public, max-age=60
+Health Check                     | 200    | 48        | 0.462     | 0.463      | MISS          | public, max-age=0, must-rev...
