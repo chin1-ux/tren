@@ -120,6 +120,8 @@ export interface ApiTrend {
     relevance_score: number;
   }>;
   niche_relevance?: Record<string, number>;
+  last_updated?: string | null;
+  is_stale?: boolean;
 }
 
 export interface ApiCaptionKit {
@@ -364,6 +366,8 @@ export interface UiTrend {
     relevance_score: number;
   }>;
   niche_relevance?: Record<string, number>;
+  last_updated?: string | null;
+  is_stale?: boolean;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -487,6 +491,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     // niche personalization fields — populated by server when user has a niche preference
     adaptation_briefs: t.adaptation_briefs ?? undefined,
     niche_relevance: t.niche_relevance ?? undefined,
+    last_updated: t.last_updated ?? null,
+    is_stale: Boolean(t.is_stale),
   };
 }
 
@@ -826,6 +832,33 @@ export async function fetchLastDetectedTimes(): Promise<Record<string, string | 
     return await http<Record<string, string | null>>("/api/trends/last-detected");
   } catch {
     return {};
+  }
+}
+
+export interface DataFreshness {
+  last_updated: string | null;
+  is_stale: boolean;
+  age_hours?: number;
+  staleness_threshold_hours: number;
+  sources: {
+    instagram: { last_success_at: string | null; age_hours: number | null; is_stale: boolean };
+    spotify: { last_success_at: string | null; age_hours: number | null; is_stale: boolean };
+  };
+}
+
+export async function fetchDataFreshness(): Promise<DataFreshness> {
+  try {
+    return await http<DataFreshness>("/api/trends/freshness");
+  } catch {
+    return {
+      last_updated: null,
+      is_stale: false,
+      staleness_threshold_hours: 12,
+      sources: {
+        instagram: { last_success_at: null, age_hours: null, is_stale: false },
+        spotify: { last_success_at: null, age_hours: null, is_stale: false },
+      },
+    };
   }
 }
 

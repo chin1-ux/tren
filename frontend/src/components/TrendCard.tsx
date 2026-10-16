@@ -636,6 +636,15 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           </span>
         )}
 
+        {trend.is_stale && (
+          <span
+            title="Scraper data delayed (>12h)"
+            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold"
+          >
+            ⚠️ Data delayed
+          </span>
+        )}
+
       </div>
 
       {/* Video/Audio Identity Card replacing Image Thumbnail */}
@@ -703,6 +712,11 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
               {lastActiveDate && !isFresh && (
                 <span className="inline-flex items-center gap-1 bg-emerald-500/10 border border-emerald-500/20 text-emerald-500 dark:text-emerald-400 px-2 py-0.5 rounded-md">
                   🔄 <span>Last verified:</span> <strong>{lastRel}</strong>
+                </span>
+              )}
+              {trend.is_stale && (
+                <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-400 px-2 py-0.5 rounded-md">
+                  ⚠️ <span>Updated {trend.last_updated ? formatRelativeTime(trend.last_updated) : "12h+ ago"} / data delayed</span>
                 </span>
               )}
             </div>

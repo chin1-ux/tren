@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os, json, time, logging, traceback
+from datetime import datetime, timezone, timedelta
 from api_globals import *
 from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key, _resolve_user
 from schemas import *
@@ -13,6 +14,118 @@ _TRENDS_FEED_CACHE: dict = {}
 _EMERGING_TRENDS_CACHE: dict = {}
 _RESURGING_TRENDS_CACHE: dict = {}
 _EXPIRED_TRENDS_CACHE: dict = {}
+_DATA_FRESHNESS_CACHE: dict = {"time": 0, "data": None}
+
+def _get_data_freshness() -> dict:
+    """
+    Computes per-source last_success_at (instagram, spotify) derived from cron_runs/reels.
+    Returns overall last_updated, is_stale (>12h), and breakdown by source.
+    Cached for 60s to avoid unnecessary DB load.
+    """
+    now_ts = time.time()
+    if _DATA_FRESHNESS_CACHE.get("data") and (now_ts - _DATA_FRESHNESS_CACHE.get("time", 0) < 60):
+        return _DATA_FRESHNESS_CACHE["data"]
+
+    now_dt = datetime.now(timezone.utc)
+    res_data = {
+        "last_updated": None,
+        "is_stale": False,
+        "staleness_threshold_hours": 12.0,
+        "sources": {
+            "instagram": {"last_success_at": None, "age_hours": None, "is_stale": False},
+            "spotify": {"last_success_at": None, "age_hours": None, "is_stale": False},
+        }
+    }
+
+    if not supabase:
+        return res_data
+
+    try:
+        # 1. Instagram: Check latest reels scraped_at, or latest cron_runs with reels_scraped > 0
+        ig_dt = None
+        try:
+            r_reels = supabase.table("reels").select("scraped_at").order("scraped_at", desc=True).limit(1).execute()
+            if r_reels.data and r_reels.data[0].get("scraped_at"):
+                val = r_reels.data[0]["scraped_at"].replace("Z", "+00:00")
+                ig_dt = datetime.fromisoformat(val)
+                if ig_dt.tzinfo is None:
+                    ig_dt = ig_dt.replace(tzinfo=timezone.utc)
+        except Exception as e_ig1:
+            logger.warning(f"Error querying reels for IG freshness: {e_ig1}")
+
+        try:
+            r_cron = supabase.table("cron_runs") \
+                .select("completed_at, run_at, created_at, reels_scraped, new_reels_count") \
+                .or_("reels_scraped.gt.0,new_reels_count.gt.0") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if r_cron.data and r_cron.data[0]:
+                c_item = r_cron.data[0]
+                c_val = c_item.get("completed_at") or c_item.get("run_at") or c_item.get("created_at")
+                if c_val:
+                    c_dt = datetime.fromisoformat(c_val.replace("Z", "+00:00"))
+                    if c_dt.tzinfo is None:
+                        c_dt = c_dt.replace(tzinfo=timezone.utc)
+                    if ig_dt is None or c_dt > ig_dt:
+                        ig_dt = c_dt
+        except Exception as e_ig2:
+            logger.warning(f"Error querying cron_runs for IG freshness: {e_ig2}")
+
+        if ig_dt:
+            ig_age = max(0.0, (now_dt - ig_dt).total_seconds() / 3600.0)
+            res_data["sources"]["instagram"]["last_success_at"] = ig_dt.isoformat()
+            res_data["sources"]["instagram"]["age_hours"] = round(ig_age, 2)
+            res_data["sources"]["instagram"]["is_stale"] = (ig_age > 12.0)
+
+        # 2. Spotify: Check spotify_feed_cache or content_trends
+        sp_dt = None
+        try:
+            r_sp = supabase.table("spotify_feed_cache").select("created_at, trend_created_at").order("created_at", desc=True).limit(1).execute()
+            if r_sp.data and r_sp.data[0]:
+                sp_val = r_sp.data[0].get("created_at") or r_sp.data[0].get("trend_created_at")
+                if sp_val:
+                    sp_dt = datetime.fromisoformat(sp_val.replace("Z", "+00:00"))
+                    if sp_dt.tzinfo is None:
+                        sp_dt = sp_dt.replace(tzinfo=timezone.utc)
+        except Exception as e_sp:
+            logger.warning(f"Error querying spotify_feed_cache for Spotify freshness: {e_sp}")
+
+        if not sp_dt:
+            try:
+                r_ct = supabase.table("content_trends").select("created_at").eq("trend_type", "audio").order("created_at", desc=True).limit(1).execute()
+                if r_ct.data and r_ct.data[0].get("created_at"):
+                    sp_dt = datetime.fromisoformat(r_ct.data[0]["created_at"].replace("Z", "+00:00"))
+                    if sp_dt.tzinfo is None:
+                        sp_dt = sp_dt.replace(tzinfo=timezone.utc)
+            except Exception as e_ct:
+                logger.warning(f"Error querying content_trends for Spotify freshness: {e_ct}")
+
+        if sp_dt:
+            sp_age = max(0.0, (now_dt - sp_dt).total_seconds() / 3600.0)
+            res_data["sources"]["spotify"]["last_success_at"] = sp_dt.isoformat()
+            res_data["sources"]["spotify"]["age_hours"] = round(sp_age, 2)
+            res_data["sources"]["spotify"]["is_stale"] = (sp_age > 12.0)
+
+        # Overall freshness: derived from newest successful ingest timestamp
+        newest_dt = max([d for d in (ig_dt, sp_dt) if d is not None], default=None)
+        if newest_dt:
+            overall_age = max(0.0, (now_dt - newest_dt).total_seconds() / 3600.0)
+            res_data["last_updated"] = newest_dt.isoformat()
+            res_data["age_hours"] = round(overall_age, 2)
+            res_data["is_stale"] = (overall_age > 12.0)
+            # If IG specifically is older than 12h, mark as stale
+            if ig_dt and ((now_dt - ig_dt).total_seconds() / 3600.0 > 12.0):
+                res_data["is_stale"] = True
+        else:
+            res_data["is_stale"] = True
+
+        _DATA_FRESHNESS_CACHE["time"] = now_ts
+        _DATA_FRESHNESS_CACHE["data"] = res_data
+    except Exception as e:
+        logger.error(f"Error computing data freshness: {e}", exc_info=True)
+
+    return res_data
 
 def _apply_languages_filter(q, language: Optional[str] = None, languages: Optional[str] = None):
     lang_list = []
@@ -96,6 +209,12 @@ def _normalize_trends_slim(trends: list) -> list:
                 t["detected_language"] = lang_final
 
             clean_trends.append(t)
+
+        freshness = _get_data_freshness()
+        for t in clean_trends:
+            t["last_updated"] = freshness.get("last_updated")
+            t["is_stale"] = freshness.get("is_stale", False)
+
         return clean_trends
     except Exception as e:
         logger.warning(f"Error in slim normalization: {e}")
@@ -469,6 +588,11 @@ def get_trends(
             # Default or sort=="newest": strictly newest audio detected on top
             trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
 
+        freshness = _get_data_freshness()
+        for t in trends:
+            t["last_updated"] = freshness.get("last_updated")
+            t["is_stale"] = freshness.get("is_stale", False)
+
         # Save to in-memory cache
         _TRENDS_FEED_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_TRENDS_FEED_CACHE) > 200:
@@ -486,12 +610,29 @@ def get_trends(
             "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
             "X-Cache": "MISS",
             "X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false",
+            "X-Data-Last-Updated": freshness.get("last_updated") or "",
+            "X-Data-Is-Stale": "true" if freshness.get("is_stale") else "false",
         }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching trends: {e}", exc_info=True)
 
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/api/trends/freshness")
+def get_trends_freshness():
+    """
+    Returns data freshness metrics across Instagram and Spotify sources.
+    Includes last_updated, is_stale (>12h), and per-source last_success_at.
+    """
+    freshness = _get_data_freshness()
+    headers = {
+        "Cache-Control": "public, max-age=60",
+        "X-Data-Last-Updated": freshness.get("last_updated") or "",
+        "X-Data-Is-Stale": "true" if freshness.get("is_stale") else "false",
+    }
+    return JSONResponse(content=freshness, headers=headers)
 
 
 # ── Scraper Run Freshness Batch Endpoint ───────────────────────────────────────

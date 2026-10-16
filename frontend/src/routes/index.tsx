@@ -851,6 +851,30 @@ function TrendsFeed() {
           }}
         />
 
+        {/* Outage / Staleness Notice (Order 80 B3) */}
+        {trends.length > 0 && Boolean(trends[0]?.is_stale) && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-center justify-between text-xs text-amber-300">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              <span>
+                <strong>Data delayed:</strong> Updated {(() => {
+                  const lu = trends[0].last_updated;
+                  if (!lu) return "over 12h ago";
+                  try {
+                    const diffHours = Math.max(0, Math.round((Date.now() - new Date(lu).getTime()) / (1000 * 60 * 60)));
+                    return diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                  } catch {
+                    return "over 12h ago";
+                  }
+                })()} (ingest delayed &gt;12h). Outage guard is actively preserving decay windows and momentum.
+              </span>
+            </div>
+            <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              Protected Mode
+            </span>
+          </div>
+        )}
+
         {deduplicatedTrends.emerging.length > 0 && (
           <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3 flex items-center justify-between">
             <p className="text-xs text-[#ff006e] font-semibold">
