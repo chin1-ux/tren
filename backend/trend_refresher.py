@@ -73,13 +73,84 @@ class TrendRefresher:
                 else:
                     raise
 
-    def refresh_all(self) -> dict:
+    def _check_outage_guard(self, now: datetime, force_outage_guard: bool | None = None) -> bool:
+        """
+        Computes last successful Instagram ingest time (newest reels.scraped_at,
+        or the latest cron_runs row with reels_scraped > 0). If older than 12h,
+        returns True to prevent degrading trends during upstream outages.
+        """
+        if force_outage_guard is True:
+            logger.warning("outage_guard_active: Forced via parameter override.")
+            return True
+        if force_outage_guard is False:
+            return False
+
+        force_env = os.getenv("FORCE_OUTAGE_GUARD")
+        if force_env in ("1", "true", "True"):
+            logger.warning("outage_guard_active: Forced via FORCE_OUTAGE_GUARD environment variable.")
+            return True
+        if force_env in ("0", "false", "False"):
+            return False
+
+        try:
+            latest_reel_ts = None
+            res_reels = self._retry_supabase_call(
+                lambda: self.supabase.table("reels")
+                .select("scraped_at")
+                .order("scraped_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if res_reels.data and res_reels.data[0].get("scraped_at"):
+                ts_str = str(res_reels.data[0]["scraped_at"]).replace("Z", "+00:00")
+                dt = datetime.fromisoformat(ts_str)
+                latest_reel_ts = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+            latest_cron_ts = None
+            res_cron = self._retry_supabase_call(
+                lambda: self.supabase.table("cron_runs")
+                .select("created_at")
+                .gt("reels_scraped", 0)
+                .order("created_at", desc=True)
+                .limit(1)
+                .execute()
+            )
+            if res_cron.data and res_cron.data[0].get("created_at"):
+                ts_str = str(res_cron.data[0]["created_at"]).replace("Z", "+00:00")
+                dt = datetime.fromisoformat(ts_str)
+                latest_cron_ts = dt if dt.tzinfo else dt.replace(tzinfo=timezone.utc)
+
+            candidates = [ts for ts in (latest_reel_ts, latest_cron_ts) if ts is not None]
+            if not candidates:
+                logger.warning("outage_guard_active: No previous successful ingest timestamps found in reels or cron_runs.")
+                return True
+
+            last_success = max(candidates)
+            age_hours = (now - last_success).total_seconds() / 3600.0
+
+            if age_hours > 12.0:
+                logger.warning(
+                    f"outage_guard_active: Last successful Instagram ingest was {age_hours:.1f}h ago (>12h threshold). "
+                    f"Preserving active trend window_hours, preventing demotions to peaked/expired, and holding velocities."
+                )
+                return True
+            return False
+        except Exception as e:
+            logger.error(f"Error checking outage guard: {e}")
+            return False
+
+    def refresh_all(self, dry_run: bool = False, force_outage_guard: bool | None = None) -> dict:
         """
         Main entry point. Fetches all non-expired trends and refreshes their status.
         Returns summary counts.
         """
-        logger.info("=== TrendRefresher starting refresh_all ===")
+        self.dry_run = dry_run
+        logger.info(f"=== TrendRefresher starting refresh_all (dry_run={dry_run}) ===")
         now = datetime.now(timezone.utc)
+        outage_guard = self._check_outage_guard(now, force_outage_guard=force_outage_guard)
+        if outage_guard:
+            logger.warning("outage_guard_active: Outage guard enabled for this refresher run.")
+
         summary = {
             "total_processed": 0,
             "emerged": 0,
@@ -91,6 +162,7 @@ class TrendRefresher:
             "audio_use_count_refreshed": 0,
             "audio_page_count_refreshed": 0,
             "throttled": 0,
+            "outage_guard_active": outage_guard,
         }
         rising_baseline = self._get_rising_baseline()
 
@@ -121,13 +193,14 @@ class TrendRefresher:
                 peak_velocity = trend.get("peak_velocity") or current_velocity
                 window_hours = trend.get("window_hours_remaining", 24)
 
-                # Always refresh audio use count first, regardless of status
-                if self._refresh_audio_use_count(trend):
-                    local_summary["audio_use_count_refreshed"] += 1
+                # Always refresh audio use count first, regardless of status (skip DB write on dry_run)
+                if not dry_run:
+                    if self._refresh_audio_use_count(trend):
+                        local_summary["audio_use_count_refreshed"] += 1
 
                 # Refresh official Instagram audio page count every other run (rate limit safe)
                 audio_id = trend.get("audio_id")
-                if audio_id and current_status in ["emerging", "rising"]:
+                if not dry_run and audio_id and current_status in ["emerging", "rising"]:
                     refresh_result = self._refresh_audio_page_count(trend_id, audio_id)
                     if refresh_result == "THROTTLED":
                         local_summary["throttled"] += 1
@@ -135,7 +208,7 @@ class TrendRefresher:
                         local_summary["audio_page_count_refreshed"] += 1
 
                 # Refresh peaking score for active trends
-                if current_status in ["emerging", "rising"]:
+                if not dry_run and current_status in ["emerging", "rising"]:
                     self._refresh_peaking_score(trend)
 
                 # Only run state transitions and velocity calculations for active status.
@@ -180,15 +253,18 @@ class TrendRefresher:
                 # Unqualify orphan/single-reel tracks with 0 usage count only after 24h age gate
                 clean_use_cnt = int(trend.get("audio_use_count") or 0)
                 if clean_use_cnt == 0 and total_reels_count <= 1 and age_hours > 24.0:
-                    self._update_status(trend_id, "unqualified", {
-                        "window_hours_remaining": 0,
-                        "reel_count": total_reels_count,
-                        "high_confidence": False,
-                        "promotion_reason": "unqualified_single_reel_zero_count",
-                    })
-                    logger.info(f"[UNQUALIFY_SINGLE_REEL] '{audio_title}' (id={trend_id}) has 0 use_count and {total_reels_count} reels (age={age_hours:.1f}h).")
-                    local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
-                    return local_summary
+                    if outage_guard:
+                        logger.info(f"outage_guard_active: Skipping unqualify demotion for '{audio_title}' (id={trend_id}).")
+                    else:
+                        self._update_status(trend_id, "unqualified", {
+                            "window_hours_remaining": 0,
+                            "reel_count": total_reels_count,
+                            "high_confidence": False,
+                            "promotion_reason": "unqualified_single_reel_zero_count",
+                        })
+                        logger.info(f"[UNQUALIFY_SINGLE_REEL] '{audio_title}' (id={trend_id}) has 0 use_count and {total_reels_count} reels (age={age_hours:.1f}h).")
+                        local_summary["unqualified"] = local_summary.get("unqualified", 0) + 1
+                        return local_summary
 
                 # Real short-form trends last 1 to 3 weeks (14 days = 336h).
                 min_visible_hours = float(os.getenv("TREND_VISIBILITY_MIN_HOURS", str(14 * 24)))
@@ -213,7 +289,10 @@ class TrendRefresher:
                     new_reels_count = 0
 
                 clean_use_cnt = int(trend.get("audio_use_count") or 0)
-                if new_reels_count > 0:
+                if outage_guard:
+                    new_window = window_hours
+                    logger.info(f"outage_guard_active: Preserving window_hours_remaining={new_window}h for '{audio_title}' (no decrement).")
+                elif new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
                 elif clean_use_cnt >= 50000 or total_reels_count >= 2:
@@ -223,7 +302,7 @@ class TrendRefresher:
                     new_window = max(0, window_hours - 2)
 
                 # 14-day ceiling for peaked trends (force to expired)
-                if current_status == "peaked" and age_hours >= (14 * 24.0):
+                if not outage_guard and current_status == "peaked" and age_hours >= (14 * 24.0):
                     self._update_status(trend_id, "expired", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,
@@ -234,7 +313,7 @@ class TrendRefresher:
                     local_summary["expired"] += 1
                     return local_summary
 
-                if age_hours >= min_visible_hours or new_window <= 0:
+                if not outage_guard and (age_hours >= min_visible_hours or new_window <= 0):
                     self._update_status(trend_id, "expired", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,
@@ -245,8 +324,11 @@ class TrendRefresher:
                     local_summary["expired"] += 1
                     return local_summary
 
-                # Fallback velocity floor: Protect active tracks from zeroing out on scraper sampling misses
-                velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 500.0 if clean_use_cnt >= 10000 else 0.0)
+                # Fallback velocity floor: Protect active tracks from zeroing out on scraper sampling misses or outages
+                if outage_guard:
+                    velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
+                else:
+                    velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 500.0 if clean_use_cnt >= 10000 else 0.0)
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
 
                 # Peaked/Expired recovery MUST pass the Resurgence Gate
@@ -291,23 +373,24 @@ class TrendRefresher:
                         return local_summary
                     else:
                         # Resurgence gate denied: remain peaked/expired, log decision
-                        self.supabase.table("trends").update({
-                            "velocity_avg": velocity_for_check,
-                            "reel_count": total_reels_count,
-                            "status_reason": {
-                                "new_status": current_status,
-                                "previous_status": current_status,
-                                "trigger_source": "refresher_resurgence_gate_denied",
-                                "snapshots_evaluated": len(snapshots),
-                                "decision_metrics": {
-                                    "velocity_avg": velocity_for_check,
-                                    "unique_creators": unique_creators
+                        if not dry_run:
+                            self.supabase.table("trends").update({
+                                "velocity_avg": velocity_for_check,
+                                "reel_count": total_reels_count,
+                                "status_reason": {
+                                    "new_status": current_status,
+                                    "previous_status": current_status,
+                                    "trigger_source": "refresher_resurgence_gate_denied",
+                                    "snapshots_evaluated": len(snapshots),
+                                    "decision_metrics": {
+                                        "velocity_avg": velocity_for_check,
+                                        "unique_creators": unique_creators
+                                    }
                                 }
-                            }
-                        }).eq("id", trend_id).execute()
+                            }).eq("id", trend_id).execute()
                         return local_summary
 
-                if velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
+                if not outage_guard and velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
                     # Anti-flicker: require 2 consecutive low-velocity snapshots before demoting.
                     # Fail-safe: Require explicit snapshot history before demoting to peaked.
                     try:
@@ -373,6 +456,11 @@ class TrendRefresher:
                 )
                 new_status = trend_state.lifecycle.value
 
+                # Outage guard protection: Prevent demoting active trends to peaked/expired/unqualified
+                if outage_guard and current_status in ["emerging", "rising", "resurging"] and new_status in ["peaked", "expired", "unqualified"]:
+                    logger.info(f"outage_guard_active: Holding '{audio_title}' in '{current_status}' (prevented demotion to '{new_status}').")
+                    new_status = current_status
+
                 self._update_status(trend_id, new_status, {
                     "window_hours_remaining": new_window,
                     "velocity_avg": velocity_for_check,
@@ -405,6 +493,9 @@ class TrendRefresher:
         return summary
 
     def _update_status(self, trend_id: int, status: str, extra: dict = None, previous_status: str = None, decision_metrics: dict = None):
+        if getattr(self, "dry_run", False):
+            logger.info(f"[DRY_RUN] Would update trend_id={trend_id} to status='{status}' extra={extra}")
+            return
         payload = {"status": status}
         if extra:
             payload.update(extra)
@@ -425,7 +516,8 @@ class TrendRefresher:
             confidence=confidence if confidence is not None else trend.get("confidence") or 0.0,
         )
         try:
-            self._retry_supabase_call(lambda: self.supabase.table("trends").update({"opportunity_score": score}).eq("id", trend["id"]).execute())
+            if not getattr(self, "dry_run", False):
+                self._retry_supabase_call(lambda: self.supabase.table("trends").update({"opportunity_score": score}).eq("id", trend["id"]).execute())
         except Exception as e:
             logger.warning(f"Could not refresh opportunity_score for trend_id={trend.get('id')}: {e}")
         return score
@@ -451,7 +543,8 @@ class TrendRefresher:
             peaking_score = calculate_realistic_peaking_score(trend, snapshots)
             
             # Update the peaking score in database
-            self._retry_supabase_call(lambda: self.supabase.table("trends").update({"peaking_score": peaking_score}).eq("id", trend_id).execute())
+            if not getattr(self, "dry_run", False):
+                self._retry_supabase_call(lambda: self.supabase.table("trends").update({"peaking_score": peaking_score}).eq("id", trend_id).execute())
             
             return peaking_score
         except Exception as e:
