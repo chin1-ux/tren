@@ -1,0 +1,54 @@
+name: Order 77 Audio Page Extraction Probe
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: order77-probe
+  cancel-in-progress: true
+
+jobs:
+  audio-probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install playwright
+          playwright install --with-deps firefox
+
+      - name: Setup Instagram cookies
+        env:
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+        run: |
+          mkdir -p backend
+          if [ -n "$INSTAGRAM_COOKIES_B64" ] && [ "$INSTAGRAM_COOKIES_B64" != "***" ]; then
+            echo "$INSTAGRAM_COOKIES_B64" | base64 -d > backend/cookies.json
+            echo "Instagram cookies file decoded successfully"
+          else
+            echo "Warning: INSTAGRAM_COOKIES_B64 not set or empty"
+          fi
+
+      - name: Run Audio Page Probe
+        env:
+          RUNNER_OS: Linux-GHA
+        run: |
+          python scripts/order77_gha_audio_probe.py
+
+      - name: Upload Probe Evidence
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: order77_step_a_evidence
+          path: evidence/order77/item8_step_a_gha.txt
+          if-no-files-found: warn
