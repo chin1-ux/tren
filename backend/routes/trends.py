@@ -172,8 +172,9 @@ SLIM_FEED_COLUMNS = (
     "saturation_penalty,creator_fit_score,hook_retention_score,window_hours_remaining,"
     "first_detected_at,created_at,status_changed_at,why_this_works,used_for,used_for_note,"
     "niche_tag,semantic_niches,language,language_final,trend_classification,velocity_pattern,"
-    "optimal_post_hour_ist,is_dance,is_voiceover,is_seed_data,is_regional_crossover,"
-    "display_title,commercial_song_alias,has_creator_outlier,reel_count,content_type,composite_score"
+    "optimal_post_hour_ist,is_dance,is_voiceover,is_seed_data,is_regional_crossover,crossover_message,"
+    "display_title,commercial_song_alias,has_creator_outlier,reel_count,content_type,composite_score,"
+    "ideal_content_description,llm_classification_status,hook_brief,adaptation_briefs"
 )
 
 _FEED_UNIFIED_CACHE: dict = {}
