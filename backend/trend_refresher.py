@@ -328,7 +328,7 @@ class TrendRefresher:
                 if outage_guard:
                     velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 else:
-                    velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 500.0 if clean_use_cnt >= 10000 else 0.0)
+                    velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 0.0)
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
 
                 # Peaked/Expired recovery MUST pass the Resurgence Gate
@@ -348,10 +348,9 @@ class TrendRefresher:
                     
                     from trend_constants import RESURGENCE_VELOCITY_THRESHOLD
                     clean_use_cnt = int(trend.get("audio_use_count") or 0)
-                    is_valid_breakout_resurgence = (
-                        unique_creators >= 1 and (velocity_for_check >= RESURGENCE_VELOCITY_THRESHOLD * 2 or clean_use_cnt >= 10000)
-                    )
-                    creator_gate_passed = (unique_creators >= 3 or is_valid_breakout_resurgence)
+                    # clean_use_cnt >= 10000 CANNOT promote alone or reduce creator requirements
+                    # Strict Resurgence Gate requires >= 3 unique creators in the recent window
+                    creator_gate_passed = (unique_creators >= 3)
 
                     has_sustained_signal = (
                         len(snapshots) >= 2 and

@@ -156,7 +156,7 @@ _USER_PREFS_CACHE: dict[str, tuple[dict, float]] = {}
 
 FEED_CARD_COLUMNS = (
     "id,audio_title,audio_artist,audio_id,audio_use_count,content_type,window_hours_remaining,velocity_avg,"
-    "language,language_final,status,saturation_score,creator_fit_score,hook_retention_score,created_at,"
+    "language,language_final,status,stage,stage_computed_at,saturation_score,creator_fit_score,hook_retention_score,created_at,"
     "first_detected_at,niche_tag,semantic_niches,discovery_source,is_regional_crossover,crossover_from_language,"
     "crossover_message,used_for,used_for_note,trend_classification,velocity_pattern,optimal_post_hour_ist,"
     "why_this_works,vibe_tag,platform,is_dance,is_voiceover,is_seed_data,is_evergreen,trend_age_hours,"
@@ -167,7 +167,7 @@ FEED_CARD_COLUMNS = (
 )
 
 SLIM_FEED_COLUMNS = (
-    "id,audio_title,audio_artist,audio_id,audio_use_count,status,velocity_avg,"
+    "id,audio_title,audio_artist,audio_id,audio_use_count,status,stage,stage_computed_at,velocity_avg,"
     "opportunity_score,saturation_score,india_saturation_pct,global_saturation_pct,"
     "saturation_penalty,creator_fit_score,hook_retention_score,window_hours_remaining,"
     "first_detected_at,created_at,status_changed_at,last_seen_at,why_this_works,used_for_note,"
@@ -230,12 +230,15 @@ def get_unified_feed(
     languages: Optional[str] = None,
     niche: Optional[str] = None,
     status: Optional[str] = None,
+    stage: Optional[str] = None,
+    mode: Optional[str] = None,
     sort: Optional[str] = "priority",
     current_user: str = Depends(get_current_user)
 ):
     """
-    Order 77 Item 5: Unified, fast, cached feed endpoint.
-    Returns 20 slim trends per page, no reel arrays, edge-cache headers.
+    Order 77 Item 5 & Order 79: Unified, fast, cached feed endpoint.
+    Supports stage filters (Just starting, Blowing up, Still going, Comeback, Fading, Expired)
+    and modes (today vs explore).
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -247,7 +250,9 @@ def get_unified_feed(
         lang_key = languages or language or "all"
         niche_key = niche or "all"
         status_key = status or "all"
-        cache_key = f"feed:{lang_key}:{niche_key}:{status_key}:{sort}:p{page}:l{limit}"
+        stage_key = stage or "all"
+        mode_key = mode or "all"
+        cache_key = f"feed:{lang_key}:{niche_key}:{status_key}:{stage_key}:{mode_key}:{sort}:p{page}:l{limit}"
         
         if cache_key in _FEED_UNIFIED_CACHE:
             entry = _FEED_UNIFIED_CACHE[cache_key]
@@ -258,12 +263,18 @@ def get_unified_feed(
                 }
                 return JSONResponse(content=entry["data"], headers=headers)
                 
-        q = supabase.table("trends").select(SLIM_FEED_COLUMNS, count="exact").eq("is_voiceover", False).eq("is_seed_data", False).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS, count="exact").eq("is_voiceover", False).eq("is_seed_data", False)
         
-        if status and status != "all":
+        if mode == "today":
+            # Today: stage in (Just starting, Blowing up), newest real observation <=3 days, >=2 distinct creators
+            q = q.in_("stage", ["Just starting", "Blowing up"]).gt("window_hours_remaining", 0)
+        elif stage and stage != "all":
+            q = q.eq("stage", stage)
+        elif status and status != "all":
             q = q.eq("status", status)
         else:
-            q = q.in_("status", ["emerging", "rising", "resurging", "peaked"])
+            # Default active Explore rail (excluding expired unless requested)
+            q = q.neq("status", "expired").gt("window_hours_remaining", 0)
             
         q = _apply_languages_filter(q, language, languages)
         
@@ -271,13 +282,13 @@ def get_unified_feed(
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
             
         if sort == "velocity":
-            q = q.order("velocity_avg", desc=True)
+            q = q.order("velocity_avg", desc=True).order("id", desc=True)
         elif sort == "opportunity":
-            q = q.order("opportunity_score", desc=True)
+            q = q.order("opportunity_score", desc=True).order("id", desc=True)
         elif sort == "newest":
-            q = q.order("first_detected_at", desc=True)
+            q = q.order("first_detected_at", desc=True).order("id", desc=True)
         else:
-            q = q.order("first_detected_at", desc=True)
+            q = q.order("first_detected_at", desc=True).order("id", desc=True)
             
         offset = (page - 1) * limit
         q = q.range(offset, offset + limit - 1)

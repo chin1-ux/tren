@@ -69,8 +69,24 @@ function getTrendClassificationBadge(classification?: string): { label: string; 
   }
 }
 
-/** Lifecycle status badge — shown in unified feed mode */
-function getLifecycleStatusBadge(status?: string): { label: string; color: string; bg: string; icon: string } {
+/** Lifecycle status badge — reads computed stage tag with fallback to legacy status */
+function getLifecycleStatusBadge(status?: string, stage?: string): { label: string; color: string; bg: string; icon: string } {
+  if (stage) {
+    switch (stage) {
+      case "Just starting":
+        return { label: "Just starting", color: "text-pink-400 dark:text-pink-300", bg: "bg-pink-500/15 border-pink-500/30", icon: "🌱" };
+      case "Blowing up":
+        return { label: "Blowing up", color: "text-amber-400 dark:text-amber-300", bg: "bg-amber-500/15 border-amber-500/30", icon: "🚀" };
+      case "Comeback":
+        return { label: "Comeback", color: "text-violet-400 dark:text-violet-300", bg: "bg-violet-500/15 border-violet-500/30", icon: "🔁" };
+      case "Still going":
+        return { label: "Still going", color: "text-emerald-400 dark:text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", icon: "✨" };
+      case "Fading":
+        return { label: "Fading", color: "text-orange-400 dark:text-orange-300", bg: "bg-orange-500/15 border-orange-500/30", icon: "📉" };
+      case "Expired":
+        return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "⏱️" };
+    }
+  }
   switch (status) {
     case "emerging":
       return { label: "Emerging", color: "text-pink-400 dark:text-pink-300", bg: "bg-pink-500/15 border-pink-500/30", icon: "⚡" };
@@ -580,7 +596,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       {/* ── 1. Top row: status and key badges ── */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1">
         {(() => {
-          const badge = getLifecycleStatusBadge(trend.status);
+          const badge = getLifecycleStatusBadge(trend.status, (trend as any).stage);
           return (
             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${badge.bg} ${badge.color}`}>
               {badge.icon} {badge.label}

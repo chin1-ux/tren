@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, Loader2 } from "lucide-react";
 import { fetchFeed, fetchAskSearch, fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
@@ -125,6 +125,9 @@ function TrendsFeed() {
     return false;
   });
   const [todaysFiveOnly, setTodaysFiveOnly] = useState<boolean>(true);
+  const [appMode, setAppMode] = useState<"today" | "explore" | "saved">("today");
+  const [lane, setLane] = useState<"india" | "global">("india");
+  const [selectedStage, setSelectedStage] = useState<string>("all");
   const [askResult, setAskResult] = useState<{ intent: string; direct_answer: string; results: UiTrend[] } | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
@@ -327,29 +330,66 @@ function TrendsFeed() {
     enabled: secondaryReady,
   });
 
-  // Order 77 Item 5: Unified Single Cached Feed Query
+  // Order 77 Item 5 & Order 79 Steps 1-2: Infinite Paged Unified Feed Query
   const {
-    data: feedData,
+    data: infiniteFeedData,
+    fetchNextPage,
+    hasNextPage,
+    isFetchingNextPage,
     isLoading: isFeedLoading,
     isError: isFeedError,
     error: feedError,
     refetch: refetchFeed,
-  } = useQuery({
-    queryKey: ["unified-feed", filters.language, activeLanguages, filters.niches, filters.lifecycle],
-    queryFn: () => fetchFeed({
-      language: filters.language,
-      languages: activeLanguages,
-      niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
-      status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
-      limit: 20,
-    }),
+  } = useInfiniteQuery({
+    queryKey: [
+      "unified-feed",
+      appMode,
+      lane,
+      filters.language,
+      activeLanguages,
+      filters.niches,
+      filters.lifecycle,
+      selectedStage,
+      sortMode,
+    ],
+    queryFn: ({ pageParam = 1 }) => {
+      let langParam = filters.language;
+      let langsParam = activeLanguages;
+      if (lane === "global") {
+        langParam = "global";
+        langsParam = undefined;
+      } else if (lane === "india" && (!filters.language || filters.language === "all")) {
+        langsParam = INDIAN_LANG_CODES;
+      }
+
+      return fetchFeed({
+        page: pageParam as number,
+        limit: 20,
+        mode: appMode === "today" ? "today" : undefined,
+        language: langParam,
+        languages: langsParam,
+        niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
+        status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
+        stage: selectedStage !== "all" ? selectedStage : undefined,
+        sort: sortMode,
+      });
+    },
+    initialPageParam: 1,
+    getNextPageParam: (lastPage, allPages) => {
+      if (lastPage.has_more) {
+        return allPages.length + 1;
+      }
+      return undefined;
+    },
     staleTime: 5 * 60_000,
     refetchInterval: 10 * 60_000,
     refetchOnWindowFocus: false,
-    placeholderData: (prev) => prev,
   });
 
-  const feedTrends = feedData?.trends ?? [];
+  const feedTrends = useMemo(() => {
+    return infiniteFeedData?.pages.flatMap((p) => p.trends) ?? [];
+  }, [infiniteFeedData]);
+  const totalCount = infiniteFeedData?.pages[0]?.total ?? feedTrends.length;
 
   const deduplicatedTrends = useMemo(() => {
     return {
@@ -393,8 +433,11 @@ function TrendsFeed() {
     if (askResult && askResult.results.length > 0) {
       return askResult.results;
     }
-    let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
-    if (todaysFiveOnly && !searchQuery && activeFilterCount === 0 && !showTargetedOnly) {
+    if (appMode === "saved") {
+      return targetedData ?? [];
+    }
+    let list = feedTrends;
+    if (appMode === "today" && todaysFiveOnly && !searchQuery && activeFilterCount === 0) {
       return list.slice(0, 5);
     }
 
@@ -705,57 +748,138 @@ function TrendsFeed() {
           </div>
         )}
 
-        {/* Simplified Action Rail: Today's 5 Landing + Clean Stage Pills */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
-          {/* Today's 5 Toggle Chip */}
+        {/* App Mode Segmented Switcher: Today | Explore | Saved */}
+        <div className="grid grid-cols-3 gap-1 bg-muted/60 p-1 rounded-xl mb-2 text-xs font-bold">
           <button
             type="button"
-            id="todays-five-chip"
-            onClick={() => {
-              setTodaysFiveOnly((prev) => !prev);
-              setShowTargetedOnly(false);
-            }}
-            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
-              todaysFiveOnly && !showTargetedOnly
-                ? "bg-primary text-white shadow-sm ring-1 ring-primary/40"
-                : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
+            id="mode-today-tab"
+            onClick={() => { setAppMode("today"); setAskResult(null); }}
+            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              appMode === "today"
+                ? "bg-primary text-white shadow-sm shadow-primary/30"
+                : "text-muted-foreground hover:text-foreground"
             }`}
           >
-            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-            Today's 5
+            <Sparkles className="h-3.5 w-3.5" />
+            <span>Today</span>
           </button>
-
-          <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
-
-          {/* Clean Stage Pills */}
-          {[
-            { id: "all",       label: "All Active" },
-            { id: "emerging",  label: "⚡ New" },
-            { id: "rising",    label: "🚀 Rising" },
-            { id: "resurging", label: "♻️ Comeback" },
-          ].map((st) => {
-            const isSelected = !todaysFiveOnly && !showTargetedOnly && filters.lifecycle === st.id;
-            return (
-              <button
-                key={st.id}
-                id={`lifecycle-pill-${st.id}`}
-                onClick={() => {
-                  setTodaysFiveOnly(false);
-                  if (showTargetedOnly) setShowTargetedOnly(false);
-                  updateFilter({ lifecycle: st.id });
-                  setDisplayLimit(15);
-                }}
-                className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
-                  isSelected
-                    ? "bg-foreground/15 text-foreground border border-border/60 font-bold"
-                    : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-                }`}
-              >
-                {st.label}
-              </button>
-            );
-          })}
+          <button
+            type="button"
+            id="mode-explore-tab"
+            onClick={() => { setAppMode("explore"); setAskResult(null); }}
+            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              appMode === "explore"
+                ? "bg-primary text-white shadow-sm shadow-primary/30"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Flame className="h-3.5 w-3.5" />
+            <span>Explore</span>
+          </button>
+          <button
+            type="button"
+            id="mode-saved-tab"
+            onClick={() => { setAppMode("saved"); setAskResult(null); }}
+            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              appMode === "saved"
+                ? "bg-primary text-white shadow-sm shadow-primary/30"
+                : "text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            <Target className="h-3.5 w-3.5" />
+            <span>Saved ({targetedData?.length ?? 0})</span>
+          </button>
         </div>
+
+        {/* 4 Tappable Search Prompts (Order 79E Item D) */}
+        {!searchQuery && !askResult && appMode === "explore" && (
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 mb-2">
+            <span className="text-[10px] uppercase font-bold text-muted-foreground/80 self-center flex-shrink-0 mr-0.5">Try:</span>
+            {[
+              "Rising fashion audios",
+              "Dance trends in India",
+              "Global comedy blowing up",
+              "Still alive but old",
+            ].map((prompt) => (
+              <button
+                key={prompt}
+                onClick={() => {
+                  setSearchQuery(prompt);
+                  setIsSearching(true);
+                  fetchAskSearch(prompt)
+                    .then((res) => setAskResult(res))
+                    .catch((err) => console.warn(err))
+                    .finally(() => setIsSearching(false));
+                }}
+                className="flex-shrink-0 rounded-full bg-muted/50 hover:bg-muted/90 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground border border-border/50 transition-all cursor-pointer"
+              >
+                {prompt}
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Explore Sub-Rail: India/Global Lane Toggle + Verified Stage Tag Pills */}
+        {appMode === "explore" && (
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
+            {/* 🇮🇳 India ⇄ 🌍 Global Lane Toggle */}
+            <button
+              type="button"
+              id="lane-toggle-btn"
+              onClick={() => setLane((l) => (l === "india" ? "global" : "india"))}
+              className="flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold bg-muted/80 text-foreground border border-border/70 hover:bg-muted transition-all cursor-pointer"
+            >
+              {lane === "india" ? "🇮🇳 India" : "🌍 Global"}
+            </button>
+
+            <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
+
+            {/* Stage Tag Pills */}
+            {[
+              { id: "all",         label: "All Active" },
+              { id: "Blowing up",  label: "🚀 Blowing up" },
+              { id: "Still going", label: "✨ Still going" },
+              { id: "Comeback",    label: "🔁 Comeback" },
+              { id: "Fading",      label: "📉 Fading" },
+              { id: "Expired",     label: "⏱️ Expired" },
+            ].map((st) => {
+              const isSelected = selectedStage === st.id;
+              return (
+                <button
+                  key={st.id}
+                  id={`stage-pill-${st.id.replace(/\s+/g, "-").toLowerCase()}`}
+                  onClick={() => setSelectedStage(st.id)}
+                  className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
+                    isSelected
+                      ? "bg-foreground/15 text-foreground border border-border/70 font-bold"
+                      : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
+                  }`}
+                >
+                  {st.label}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {/* Today Sub-Rail: Top 5 Toggle */}
+        {appMode === "today" && (
+          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
+            <button
+              type="button"
+              id="todays-five-chip"
+              onClick={() => setTodaysFiveOnly((prev) => !prev)}
+              className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
+                todaysFiveOnly
+                  ? "bg-primary text-white shadow-sm ring-1 ring-primary/40"
+                  : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
+              }`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+              {todaysFiveOnly ? "Today's Top 5" : "All Today Trends"}
+            </button>
+          </div>
+        )}
 
         {/* Active Applied Filters Strip (when filters are engaged) */}
         {activeFilterCount > 0 && (
@@ -937,7 +1061,7 @@ function TrendsFeed() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {trends.slice(0, displayLimit).map((t) => {
+            {trends.map((t) => {
               const card = (
                 <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
                   <TrendCard
@@ -970,14 +1094,50 @@ function TrendsFeed() {
           </div>
         )}
 
-        {displayLimit < trends.length && (
-          <div className="text-center py-4">
+        {hasNextPage && (
+          <div className="text-center py-6">
             <button
-              onClick={() => setDisplayLimit((prev) => Math.min(prev + 15, trends.length))}
-              className="rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-4 py-2.5 transition-all shadow-sm"
+              id="load-more-trends-btn"
+              onClick={() => fetchNextPage()}
+              disabled={isFetchingNextPage}
+              className="inline-flex items-center gap-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-5 py-3 transition-all shadow-sm cursor-pointer"
             >
-              Load more trends ({trends.length - displayLimit} remaining)
+              {isFetchingNextPage ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Loading next trends...
+                </>
+              ) : (
+                <>
+                  Load more trends (Showing {trends.length} of {totalCount})
+                </>
+              )}
             </button>
+          </div>
+        )}
+
+        {!hasNextPage && trends.length > 0 && (
+          <div className="text-center py-6 border-t border-border/40 mt-4 space-y-1.5">
+            <p className="text-xs text-muted-foreground font-medium">
+              ✨ You've seen all {trends.length} trends
+            </p>
+            {scraperRuns.length > 0 && (() => {
+              const latestRun = scraperRuns[0];
+              const ageHours = (Date.now() - new Date(latestRun.run_at).getTime()) / (1000 * 3600);
+              if (ageHours > 6) {
+                return (
+                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[11px] font-semibold border border-amber-500/20">
+                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                    Data is delayed (last sync {Math.round(ageHours)}h ago)
+                  </div>
+                );
+              }
+              return (
+                <p className="text-[11px] text-muted-foreground/70">
+                  Updated {Math.round(ageHours * 60)} min ago
+                </p>
+              );
+            })()}
           </div>
         )}
       </div>
