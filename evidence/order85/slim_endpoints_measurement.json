@@ -1,0 +1,74 @@
+[
+  {
+    "endpoint": "/api/trends?limit=20",
+    "label": "Rising (/api/trends)",
+    "status": 200,
+    "bytes": 25962,
+    "kb": 25.35,
+    "items": 20,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/emerging?limit=20",
+    "label": "Emerging (/api/trends/emerging)",
+    "status": 200,
+    "bytes": 24708,
+    "kb": 24.13,
+    "items": 20,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/peaked?limit=20",
+    "label": "Peaked (/api/trends/peaked)",
+    "status": 200,
+    "bytes": 24546,
+    "kb": 23.97,
+    "items": 20,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/resurging?limit=20",
+    "label": "Resurging (/api/trends/resurging)",
+    "status": 200,
+    "bytes": 25430,
+    "kb": 24.83,
+    "items": 20,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/expired?limit=20",
+    "label": "Expired (/api/trends/expired)",
+    "status": 200,
+    "bytes": 24860,
+    "kb": 24.28,
+    "items": 20,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/freshness",
+    "label": "Freshness (/api/trends/freshness)",
+    "status": 200,
+    "bytes": 330,
+    "kb": 0.32,
+    "items": 5,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/runs",
+    "label": "Runs (/api/trends/runs)",
+    "status": 200,
+    "bytes": 1502,
+    "kb": 1.47,
+    "items": 6,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  },
+  {
+    "endpoint": "/api/trends/last-detected",
+    "label": "Last Detected (/api/trends/last-detected)",
+    "status": 200,
+    "bytes": 197,
+    "kb": 0.19,
+    "items": 5,
+    "cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+  }
+]

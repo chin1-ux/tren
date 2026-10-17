@@ -1,0 +1,37 @@
+=== QUERY 1: pg_stat_statements (Top 20 by rows) ===
+q                                                                      | calls      | rows       | rows_per_call
+--------------------------------------------------------------------------------------------------------------
+select set_config('search_path', $1, true), set_config('role', $2, t   | 4399155    | 4399155    | 1         
+SELECT name FROM pg_timezone_names                                     | 855        | 1022580    | 1196      
+WITH pgrst_source AS ( SELECT "public"."audio_official_counts"."offi   | 634297     | 634297     | 1         
+WITH pgrst_source AS ( SELECT "public"."reels"."audio_use_count" FRO   | 473983     | 473983     | 1         
+WITH pgrst_source AS ( SELECT "public"."reels"."owner_username", "pu   | 369982     | 369982     | 1         
+WITH pgrst_source AS ( SELECT "public"."audio_trend_scores"."id" FRO   | 271596     | 271596     | 1         
+WITH pgrst_source AS ( SELECT "public"."audio_official_counts"."offi   | 271000     | 271000     | 1         
+WITH pgrst_source AS ( SELECT "public"."reels".* FROM "public"."reel   | 264959     | 264959     | 1         
+SELECT word FROM pg_get_keywords()                                     | 252        | 123732     | 491       
+WITH pgrst_source AS ( SELECT "public"."reels"."owner_username" FROM   | 117457     | 117457     | 1         
+WITH pgrst_source AS ( SELECT "public"."reels".* FROM "public"."reel   | 113567     | 113567     | 1         
+delete from audio_trend_scores where scrape_cycle_at < (select max(s   | 1          | 109622     | 109622    
+WITH pgrst_source AS ( SELECT "public"."reels"."owner_username", "pu   | 104351     | 104351     | 1         
+WITH pgrst_source AS ( SELECT "public"."reels"."velocity_score", "pu   | 99081      | 99081      | 1         
+WITH pgrst_source AS ( SELECT "public"."reels"."reel_id", "public"."   | 95861      | 95861      | 1         
+WITH pgrst_source AS ( SELECT "public"."reels"."reel_id", "public"."   | 95404      | 95404      | 1         
+-- Backfill from reels table if not already populated INSERT INTO au   | 2          | 82688      | 41344     
+WITH pgrst_source AS ( SELECT "public"."reels"."reel_id" FROM "publi   | 82242      | 82242      | 1         
+delete from reel_snapshots where snapshotted_at < now() - interval $   | 1          | 66644      | 66644     
+WITH -- Recursively get the base types of domains base_types AS ( WI   | 855        | 65121      | 76        
+
+=== QUERY 2: pg_stat_user_tables (Top 10 by seq_tup_read) ===
+relname                   | seq_scan     | seq_tup_read    | idx_scan     | idx_tup_fetch
+-------------------------------------------------------------------------------------
+reels                     | 689138       | 19572444286     | 1962724      | 41371438    
+audio_official_counts     | 960975       | 3246044798      | 2            | 614         
+audio_trend_scores        | 272973       | 1150474202      | 10463        | 189420      
+trend_snapshots           | 2411         | 8055661         | 108725       | 919441      
+trends                    | 18553        | 6498584         | 843096       | 3808011     
+cron_runs                 | 5336         | 1696662         | 499          | 2760        
+audio_first_seen          | 44           | 902347          | 82688        | 41344       
+users                     | 104509       | 821629          | 239          | 45          
+mfa_amr_claims            | 9162         | 457674          | 46035        | 45454       
+tracked_audio             | 829          | 384172          | 57123        | 31373       

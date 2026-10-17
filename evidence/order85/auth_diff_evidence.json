@@ -1,0 +1,6 @@
+{
+  "anonymous_cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+  "auth_cache_control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+  "item_count_anon": 20,
+  "item_count_auth": 20
+}

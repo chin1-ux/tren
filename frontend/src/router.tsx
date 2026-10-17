@@ -15,8 +15,8 @@ export const getRouter = () => {
           if (status === "401" || status === "403" || status === 401 || status === 403) return false;
           return failureCount < 2;
         },
-        staleTime: 60_000, // 1 min stale time for instant page back/forward
-        gcTime: 10 * 60_000, // 10 min garbage collection cache
+        staleTime: 5 * 60_000, // 5 min default stale time to protect backend egress
+        gcTime: 15 * 60_000, // 15 min garbage collection cache
         refetchOnWindowFocus: false, // Prevent jarring background refetches
       },
     },

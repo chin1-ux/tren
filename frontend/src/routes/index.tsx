@@ -272,8 +272,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["scraper-runs"],
     queryFn: () => fetchRecentScraperRuns(6),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
+    staleTime: 10 * 60_000,
+    refetchInterval: false,
     enabled: secondaryReady,
   });
   const scraperRuns = scraperRunsData ?? [];
@@ -284,7 +284,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
-    staleTime: 60_000,
+    staleTime: 10 * 60_000,
+    refetchInterval: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady || showTargetedOnly,
   });
@@ -294,7 +295,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-last-detected"],
     queryFn: () => fetchLastDetectedTimes(),
-    staleTime: 60_000,
+    staleTime: 10 * 60_000,
+    refetchInterval: false,
     enabled: secondaryReady,
   });
 
@@ -306,9 +308,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends", filters.language, sortMode, activeLanguages],
     queryFn: () => fetchTrends(filters.language, sortMode, undefined, activeLanguages),
-    staleTime: 10 * 60_000,          // scraper runs every 6h — 10min is fresh enough
-    refetchInterval: 20 * 60_000,    // gentle 20min polling
-    refetchOnWindowFocus: false,      // CRITICAL: stops re-fetch on every tab switch
+    staleTime: 15 * 60_000,
+    refetchInterval: false,
+    refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
 
@@ -320,8 +322,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", filters.language, activeLanguages],
     queryFn: () => fetchEmergingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 10 * 60_000,
-    refetchInterval: 20 * 60_000,
+    staleTime: 15 * 60_000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
   });
@@ -335,7 +337,7 @@ function TrendsFeed() {
     queryKey: ["trends-peaked", filters.language, activeLanguages],
     queryFn: () => fetchPeakedTrends(filters.language, undefined, activeLanguages),
     staleTime: 30 * 60_000,
-    refetchInterval: 60 * 60_000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
@@ -350,7 +352,7 @@ function TrendsFeed() {
     queryKey: ["trends-expired", filters.language, activeLanguages],
     queryFn: () => fetchExpiredTrends(filters.language, undefined, activeLanguages),
     staleTime: 60 * 60_000,
-    refetchInterval: 120 * 60_000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
@@ -364,8 +366,8 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-resurging", filters.language, activeLanguages],
     queryFn: () => fetchResurgingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 10 * 60_000,
-    refetchInterval: 30 * 60_000,
+    staleTime: 15 * 60_000,
+    refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
     enabled: secondaryReady,
