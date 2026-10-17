@@ -16,6 +16,7 @@ import appCss from "../styles.css?url";
 import { reportLovableError } from "../lib/lovable-error-reporting";
 import { BottomTabBar } from "../components/BottomTabBar";
 import { InstallBanner } from "../components/InstallBanner";
+import { GlobalAudioPlayer } from "../components/GlobalAudioPlayer";
 import { registerPWA } from "../lib/pwa-register";
 import { useUserStore } from "../store/useAppStore";
 import { AuthProvider } from "../contexts/AuthContext";
@@ -194,6 +195,7 @@ function RootComponent() {
               </motion.div>
             </AnimatePresence>
           </div>
+          <GlobalAudioPlayer />
           <BottomTabBar />
           <InstallBanner />
           <Toaster

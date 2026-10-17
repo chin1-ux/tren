@@ -28,11 +28,10 @@ def bundle_python_function():
         'backend',
         dest_backend,
         ignore=shutil.ignore_patterns(
-            'venv*', '.venv*', '__pycache__', '*.pyc', '*.pyo', '.env*', '*.log',
-            'uploads', 'outputs', 'scratch', 'test_screenshots', 'tests',
-            'test_*.py', 'check_*.py', 'verify_*.py', 'investigate_*.py', 'analyze_*.py',
-            'backfill_*.py', 'migrate_*.py', 'run_*.py', 'preview_*.py', 'create_*.py',
-            '*.sql', '*.csv', '*.txt', '*.tsv', '*.md'
+            'venv', '.venv', '__pycache__', '*.pyc', '*.pyo', '.env', '*.log',
+            'uploads', 'outputs', 'scratch', 'test_*.py', 'check_*.py', 'verify_*.py',
+            'investigate_*.py', 'analyze_*.py', 'backfill_*.py', 'migrate_*.py',
+            'run_*.py', 'preview_*.py', '*.sql', '*.csv', '*.txt'
         )
     )
 
@@ -44,12 +43,11 @@ def bundle_python_function():
     vc_config = {
         "runtime": "python3.12",
         "handler": "index.py",
-        "maxDuration": 15,
-        "memory": 512
+        "maxDuration": 30
     }
     with open(os.path.join(func_dir, '.vc-config.json'), 'w') as f:
         json.dump(vc_config, f, indent=2)
-    print("Successfully packaged Python serverless function (512MB, 15s maxDuration)!")
+    print("Successfully packaged Python serverless function!")
 
 api_route = {
     "src": "/api/(.*)",

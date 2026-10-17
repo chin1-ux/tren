@@ -1435,7 +1435,7 @@ async def get_peak_trends_endpoint(
     limit: int = 20,
     current_user: str = Depends(get_current_user),
 ):
-    """Get peaked trends (at peak, post soon or skip)."""
+    """Get peaked trends (at peak, act now or skip)."""
     try:
         from trend_detector import get_trends_by_status
         trends = get_trends_by_status(status="peaked", niche=niche, limit=min(limit, 50))

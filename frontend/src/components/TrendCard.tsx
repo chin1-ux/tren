@@ -69,24 +69,8 @@ function getTrendClassificationBadge(classification?: string): { label: string; 
   }
 }
 
-/** Lifecycle status badge — reads computed stage tag with fallback to legacy status */
-function getLifecycleStatusBadge(status?: string, stage?: string): { label: string; color: string; bg: string; icon: string } {
-  if (stage) {
-    switch (stage) {
-      case "Just starting":
-        return { label: "Just starting", color: "text-pink-400 dark:text-pink-300", bg: "bg-pink-500/15 border-pink-500/30", icon: "🌱" };
-      case "Blowing up":
-        return { label: "Blowing up", color: "text-amber-400 dark:text-amber-300", bg: "bg-amber-500/15 border-amber-500/30", icon: "🚀" };
-      case "Comeback":
-        return { label: "Comeback", color: "text-violet-400 dark:text-violet-300", bg: "bg-violet-500/15 border-violet-500/30", icon: "🔁" };
-      case "Still going":
-        return { label: "Still going", color: "text-emerald-400 dark:text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", icon: "✨" };
-      case "Fading":
-        return { label: "Fading", color: "text-orange-400 dark:text-orange-300", bg: "bg-orange-500/15 border-orange-500/30", icon: "📉" };
-      case "Expired":
-        return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "⏱️" };
-    }
-  }
+/** Lifecycle status badge — shown in unified feed mode */
+function getLifecycleStatusBadge(status?: string): { label: string; color: string; bg: string; icon: string } {
   switch (status) {
     case "emerging":
       return { label: "Emerging", color: "text-pink-400 dark:text-pink-300", bg: "bg-pink-500/15 border-pink-500/30", icon: "⚡" };
@@ -368,6 +352,16 @@ function TrialReelBadge({
       </span>
     );
   }
+  if (globalPct < 35 && hoursLeft > 8) {
+    return (
+      <span
+        title="Trend is early — test with non-followers before posting broadly"
+        className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 cursor-help"
+      >
+        🧪 Try as Trial Reel first
+      </span>
+    );
+  }
   return null;
 }
 
@@ -566,7 +560,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       if (globalSat !== undefined && globalSat < 30) return "🚀 Early discovery window open";
       return null;
     }
-    if (score >= 80) return "🚀 High opportunity discovery window";
+    if (score >= 80) return "🚀 Act now — prime opportunity window";
     if (score >= 60) return "⚡ High momentum — post soon";
     if (score >= 40) return "📈 Growing popularity";
     if (globalSat && globalSat >= 80) return "⚠️ High saturation — test with care";
@@ -586,7 +580,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       {/* ── 1. Top row: status and key badges ── */}
       <div className="flex flex-wrap items-center gap-1.5 pt-1">
         {(() => {
-          const badge = getLifecycleStatusBadge(trend.status, (trend as any).stage);
+          const badge = getLifecycleStatusBadge(trend.status);
           return (
             <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wide border ${badge.bg} ${badge.color}`}>
               {badge.icon} {badge.label}
@@ -594,7 +588,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           );
         })()}
 
-        {/* Audio Expiry Radar Badge */}
+        {/* Golden Hour / Audio Expiry Radar Badge */}
         {(() => {
           const radar = getGoldenHourExpiryMeta(trend);
           if (!radar) return null;
@@ -993,11 +987,11 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             {/* Creator scores */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span>🕒 Best Posting Time:</span>
+                <span>🕒 Optimal Post Window:</span>
                 <strong className="text-foreground font-semibold">{formatPostTimeIst(trend.optimalPostHourIst)}</strong>
               </div>
               <div className="flex items-center gap-2">
-                <ScorePill label="Hook Retention" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Hook Power" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
               </div>
             </div>
 

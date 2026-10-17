@@ -3,9 +3,8 @@ import { Loader2 } from "lucide-react";
 import { useNavigate, useRouterState } from "@tanstack/react-router";
 import { useEffect, useRef } from "react";
 
-// Public routes that don't require standard user authentication
+// Public routes that don't require standard user authentication (admin routes have their own beforeLoad check)
 const PUBLIC_ROUTES = [
-  "/",
   "/login", 
   "/signup", 
   "/verify-phone",
@@ -43,8 +42,6 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
     return () => window.removeEventListener("trendrop:unauthorized", handleUnauthorized);
   }, [user, navigate]);
 
-  const isPublicRoute = PUBLIC_ROUTES.includes(currentPath) || currentPath.startsWith("/trend");
-
   // Handle authentication redirects
   // NOTE: useEffect must be called before any conditional return (Rules of Hooks)
   useEffect(() => {
@@ -58,12 +55,12 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
         navigate({ to: "/" });
       }
       // If user is not authenticated and trying to access protected route, redirect to login
-      else if (!user && !isPublicRoute) {
+      else if (!user && !PUBLIC_ROUTES.includes(currentPath)) {
         isRedirecting.current = true;
         navigate({ to: "/login" });
       }
     }
-  }, [user, loading, navigate, currentPath, isPublicRoute]);
+  }, [user, loading, navigate, currentPath]);
 
   // Show loading state (must be after all hooks)
   if (loading) {
@@ -78,7 +75,7 @@ export function AuthWrapper({ children }: { children: React.ReactNode }) {
   }
 
   // For public routes, show content directly
-  if (isPublicRoute) {
+  if (PUBLIC_ROUTES.includes(currentPath)) {
     return <>{children}</>;
   }
 

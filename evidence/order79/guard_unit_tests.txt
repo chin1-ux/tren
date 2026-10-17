@@ -1,26 +1,26 @@
 ================================================================================
 ORDER 79B ITEM 2: SCHEDULER GUARD UNIT TESTS
-Timestamp: 2026-10-17T07:07:11.020875+00:00
+Timestamp: 2026-10-16T21:33:00.703783+00:00
 ================================================================================
 
 [TEST CASE 1: reels_scraped = 0, 100 min ago]
   Input: reels_scraped=0, status=success, elapsed=100m
-  Result skip=True | Message: Skipping: last run started 100.0m ago (under 150m threshold; status=success, scraped=0).
-  PASS: Correctly recognized 0-reel run and enforced 150m lockout.
+  Result skip=True | Message: Skipping: last completed run was 100.0m ago (under 165m threshold; status=success, scraped=0).
+  PASS: Correctly recognized 0-reel run and enforced 165m lockout.
 
 [TEST CASE 2: status = 'partial', 100 min ago]
   Input: reels_scraped=50, status=partial, elapsed=100m
-  Result skip=True | Message: Skipping: last run started 100.0m ago (under 150m threshold; status=partial, scraped=50).
+  Result skip=True | Message: Skipping: last completed run was 100.0m ago (under 165m threshold; status=partial, scraped=50).
   PASS: Correctly recognized partial run and enforced lockout.
 
-[TEST CASE 3: elapsed = 100 min ago (under 150m threshold)]
+[TEST CASE 3: elapsed = 100 min ago (under 165m threshold)]
   Input: status=success, elapsed=100m
-  Result skip=True | Message: Skipping: last run started 100.0m ago (under 150m threshold; status=success, scraped=300).
+  Result skip=True | Message: Skipping: last completed run was 100.0m ago (under 165m threshold; status=success, scraped=300).
   PASS: Correctly returned skip=True.
 
-[TEST CASE 4: elapsed = 200 min ago (>= 150m threshold)]
+[TEST CASE 4: elapsed = 200 min ago (>= 165m threshold)]
   Input: status=success, elapsed=200m
-  Result skip=False | Message: Proceeding: last run started 200.0m ago (>=150m; status=success, scraped=300).
+  Result skip=False | Message: Proceeding: last completed run was 200.0m ago (>=165m; status=success, scraped=300).
   PASS: Correctly returned skip=False (PROCEED).
 
 [TEST CASE 5: Active run in_progress started 15 min ago]

@@ -168,7 +168,7 @@ export const AudioIdentityCard = ({
             ) : (
               <>
                 <Play className="h-3.5 w-3.5 fill-current ml-0.5" />
-                <span>Play Audio</span>
+                <span>Play Drop</span>
               </>
             )}
           </button>
@@ -221,7 +221,7 @@ export const AudioIdentityCard = ({
         <span className="text-xs font-medium text-white/60 flex items-center gap-1">
           <Volume2 className="h-3 w-3 text-muted-foreground" />
           {audioUseCount && audioUseCount > 0
-            ? `${audioUseCount >= 1_000_000 ? `${(audioUseCount / 1_000_000).toFixed(1)}M` : audioUseCount >= 1000 ? `${(audioUseCount / 1000).toFixed(0)}K` : audioUseCount.toString()} IG uses · ${reelCount || 1} tracked`
+            ? `${audioUseCount >= 1000 ? `${(audioUseCount / 1000).toFixed(0)}K` : audioUseCount.toString()} IG uses · ${reelCount || 1} tracked`
             : `${reelCount || 1} reel tracked`}
         </span>
 

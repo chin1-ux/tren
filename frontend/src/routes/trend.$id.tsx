@@ -294,7 +294,7 @@ function TrendDetailPage() {
           <StatPill label="Category" value={`${trend.contentTypeEmoji} ${trend.contentType}`} />
         </div>
 
-        {/* Breakout / Audio Expiry Radar Callout */}
+        {/* Golden Hour / Audio Expiry Radar Callout */}
         {(() => {
           const radar = getGoldenHourExpiryMeta(trend);
           if (!radar) return null;

@@ -1,38 +1,35 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, Target } from "lucide-react";
-import {
-  fetchTrends,
-  fetchEmergingTrends,
-  fetchPeakedTrends,
-  fetchExpiredTrends,
-  fetchResurgingTrends,
-  fetchTargetedTrends,
-  type UiTrend,
-} from "@/lib/api";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, Loader2 } from "lucide-react";
+import { fetchFeed, fetchAskSearch, fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
 import { ApiErrorBanner } from "@/components/ApiErrorBanner";
+import { PlanGate } from "@/components/PlanGate";
+import { OnboardingFlow } from "@/components/OnboardingFlow";
+// import { FeatureTutorial } from "@/components/FeatureTutorial";
 import { ParticleBackground } from "@/components/ParticleBackground";
 import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { toast } from "sonner";
+import { motion, AnimatePresence } from "framer-motion";
+
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { AudioIdentityCard } from "@/components/AudioIdentityCard";
 import { ActiveLanguageBadge } from "@/components/ActiveLanguageBadge";
+import { TrendFiltersModal, type FilterState } from "@/components/TrendFiltersModal";
 import { useUserStore } from "@/store/useAppStore";
+import { useEffectivePlan } from "@/lib/plan";
 import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
+import { isIndianAudio, INDIAN_LANG_CODES } from "@/lib/indianAudioDetector";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Trendrop — India & Global Audio Intelligence" },
-      {
-        name: "description",
-        content:
-          "Know what's trending before your competitor even opens Instagram. Real-time viral audio intelligence.",
-      },
+      { title: "Trendrop — India's Trend Intelligence" },
+      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-focused AI trend detection." },
     ],
   }),
   component: TrendsFeed,
@@ -41,36 +38,36 @@ export const Route = createFileRoute("/")({
 
 const LANGUAGES = [
   { code: "all", label: "🌐 All" },
-  { code: "en", label: "🇺🇸 English" },
-  { code: "hi", label: "🇮🇳 Hindi" },
-  { code: "pa", label: "🌾 Punjabi" },
-  { code: "ta", label: "🌴 Tamil" },
-  { code: "te", label: "🌟 Telugu" },
-  { code: "ml", label: "🥥 Malayalam" },
-  { code: "kn", label: "🎯 Kannada" },
-  { code: "bn", label: "🐯 Bengali" },
-  { code: "mr", label: "🦁 Marathi" },
-  { code: "gu", label: "🪔 Gujarati" },
-  { code: "ne", label: "🏔️ Nepali" },
-  { code: "pt", label: "🇧🇷 Brazilian" },
-  { code: "ko", label: "🇰🇷 Korean" },
-  { code: "ru", label: "🇷🇺 Russian" },
-  { code: "es", label: "🇪🇸 Spanish" },
+  { code: "global", label: "🌐 Global" },
+  { code: "hi",  label: "🇮🇳 Hindi" },
+  { code: "pa",  label: "🌾 Punjabi" },
+  { code: "ta",  label: "🌴 Tamil" },
+  { code: "te",  label: "🌟 Telugu" },
+  { code: "ml",  label: "🥥 Malayalam" },
+  { code: "kn",  label: "🎯 Kannada" },
+  { code: "bn",  label: "🐯 Bengali" },
+  { code: "mr",  label: "🦁 Marathi" },
+  { code: "gu",  label: "🪔 Gujarati" },
+  { code: "ne",  label: "🏔️ Nepali" },
+  { code: "es",  label: "🇪🇸 Spanish" },
+  { code: "pt",  label: "🇧🇷 Portuguese" },
+  { code: "ko",  label: "🇰🇷 Korean" },
   { code: "instrumental", label: "🎼 Instrumental" },
+  { code: "other",        label: "🌐 Other" },
 ];
 
 const NICHES = [
-  { id: "all", label: "All" },
-  { id: "fitness", label: "💪 Fitness" },
-  { id: "food", label: "🍜 Food" },
-  { id: "comedy", label: "😂 Comedy" },
-  { id: "fashion", label: "👗 Fashion" },
+  { id: "all",      label: "All" },
+  { id: "fitness",  label: "💪 Fitness" },
+  { id: "food",     label: "🍜 Food" },
+  { id: "comedy",   label: "😂 Comedy" },
+  { id: "fashion",  label: "👗 Fashion" },
   { id: "business", label: "💼 Business" },
-  { id: "travel", label: "✈️ Travel" },
-  { id: "beauty", label: "💄 Beauty" },
+  { id: "travel",   label: "✈️ Travel" },
+  { id: "beauty",   label: "💄 Beauty" },
   { id: "devotional", label: "🙏 Devotional" },
-  { id: "tech", label: "💻 Tech" },
-  { id: "dance", label: "💃 Dance" },
+  { id: "tech",     label: "💻 Tech" },
+  { id: "dance",    label: "💃 Dance" },
   { id: "narrative_edit", label: "🎞️ Creative Edit" },
   { id: "romance_relationship", label: "💕 Romance" },
 ];
@@ -94,136 +91,543 @@ function matchesNiche(t: UiTrend, niche: string): boolean {
   if (!niche || niche === "all") return true;
   const tag = (t.nicheTag || "").toLowerCase();
   if (tag === niche) return true;
-  if (t.semanticNiches && t.semanticNiches.some((s) => s.toLowerCase() === niche)) return true;
+  if (t.semanticNiches && t.semanticNiches.some(s => s.toLowerCase() === niche)) return true;
   if (t.contentType && t.contentType.toLowerCase() === niche) return true;
-
-  // High-accuracy semantic match from whyThisWorks and used_for_note
+  
+  // High-accuracy semantic match from whyThisWorks and used_for_note (85%+ accuracy)
   const context = `${t.whyThisWorks || ""} ${t.used_for_note || ""} ${t.used_for || ""} ${t.idealContentDescription || ""}`.toLowerCase();
   const kws = NICHE_KEYWORDS_MAP[niche] || [];
-  return kws.some((kw) => context.includes(kw));
+  return kws.some(kw => context.includes(kw));
 }
+
+function matchesNiches(t: UiTrend, niches: string[]): boolean {
+  if (!niches || niches.length === 0 || niches.includes("all")) return true;
+  return niches.some((n) => matchesNiche(t, n));
+}
+
+type SortMode = "velocity" | "time_left" | "newest";
 
 function TrendsFeed() {
   const navigate = useNavigate();
-  const { user } = useAuth();
-  const userEmail = user?.email ?? null;
-
-  // Filters State
-  const [language, setLanguage] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("trendrop_pref_language") || "all";
-    }
-    return "all";
-  });
-  const [selectedNiche, setSelectedNiche] = useState<string>(() => {
-    if (typeof window !== "undefined") {
-      return localStorage.getItem("trendrop_pref_niche") || "all";
-    }
-    return "all";
-  });
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showTargetedOnly, setShowTargetedOnly] = useState(false);
+  const [language, setLanguage] = useState<string>("all");
+  const [sortMode] = useState<any>("newest");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
-  const [displayLimit, setDisplayLimit] = useState(30);
+  const [searchQuery, setSearchQuery] = useState("");
+  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
+  const [now, setNow] = useState<number>(() => Date.now());
+  const prevCountRef = useRef<number>(0);
 
-  const rawPreferredLanguages = useUserStore((s) => s.preferredLanguages);
-  const preferredLanguages = useMemo(() => rawPreferredLanguages || [], [rawPreferredLanguages]);
-  const setPreferredLanguages = useUserStore((s) => s.setPreferredLanguages);
+  // Order 77: 3-tap Onboarding & Today's 5 Landing State
+  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+    if (typeof window !== "undefined") {
+      return !localStorage.getItem("trendrop_onboarded");
+    }
+    return false;
+  });
+  const [todaysFiveOnly, setTodaysFiveOnly] = useState<boolean>(true);
+  const [askResult, setAskResult] = useState<{ intent: string; direct_answer: string; results: UiTrend[] } | null>(null);
+  const [isSearching, setIsSearching] = useState(false);
 
+  const handleAskSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    if (!searchQuery.trim()) {
+      setAskResult(null);
+      return;
+    }
+    setIsSearching(true);
+    try {
+      const res = await fetchAskSearch(searchQuery.trim());
+      setAskResult(res);
+      setTodaysFiveOnly(false);
+    } catch (err) {
+      console.warn("Ask-it search error:", err);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Unified multi-dimensional filter state initialized synchronously from localStorage
+  const [filters, setFilters] = useState<FilterState>(() => {
+    let savedLang = "all";
+    let savedNichesList = ["all"];
+    if (typeof window !== "undefined") {
+      savedLang = localStorage.getItem("trendrop_pref_language") ?? "all";
+      try {
+        const savedNiches = localStorage.getItem("trendrop_pref_niches");
+        if (savedNiches) {
+          const parsed = JSON.parse(savedNiches);
+          if (Array.isArray(parsed) && parsed.length > 0) {
+            savedNichesList = parsed;
+          }
+        } else {
+          const single = localStorage.getItem("trendrop_pref_niche");
+          if (single && single !== "all") {
+            savedNichesList = [single];
+          }
+        }
+      } catch {
+        savedNichesList = ["all"];
+      }
+    }
+    return {
+      lifecycle: "all",
+      urgency: "all",
+      minOpportunityScore: 0,
+      minVelocity: 0,
+      outlierOnly: false,
+      goldenHourOnly: false,
+      niches: savedNichesList,
+      language: savedLang,
+      format: "all",
+      freshnessPreset: "all",
+      selectedRunIds: [],
+    };
+  });
+
+  const [preferredLanguages, setPreferredLanguages] = useState<string[]>(() => {
+    if (typeof window !== "undefined") {
+      const savedLangs = localStorage.getItem("trendrop_preferred_languages");
+      if (savedLangs) {
+        try {
+          const parsed = JSON.parse(savedLangs);
+          if (Array.isArray(parsed)) return parsed;
+        } catch (e) {}
+      }
+    }
+    return [];
+  });
+
+  // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
+  const userEmail = useUserStore((s) => s.email);
+  const userPlan = useEffectivePlan();
+  const { loading: isAuthLoading } = useAuth();
+
+  const [isPendingFilter, startFilterTransition] = useTransition();
+
+  const updateFilter = useCallback((updated: Partial<FilterState>) => {
+    setDisplayLimit(15);
+    startFilterTransition(() => {
+      setFilters((prev) => {
+        const next = { ...prev, ...updated };
+        if (typeof window !== "undefined") {
+          if (updated.language !== undefined) {
+            localStorage.setItem("trendrop_pref_language", updated.language);
+          }
+          if (updated.niches !== undefined) {
+            localStorage.setItem("trendrop_pref_niches", JSON.stringify(updated.niches));
+            localStorage.setItem("trendrop_pref_niche", updated.niches.length === 1 ? updated.niches[0] : updated.niches.join(","));
+          }
+        }
+        return next;
+      });
+    });
+  }, []);
+
+  const resetAllFilters = useCallback(() => {
+    setDisplayLimit(15);
+    setShowTargetedOnly(false);
+    startFilterTransition(() => {
+      setFilters({
+        lifecycle: "all",
+        urgency: "all",
+        minOpportunityScore: 0,
+        minVelocity: 0,
+        outlierOnly: false,
+        goldenHourOnly: false,
+        niches: ["all"],
+        language: "all",
+        format: "all",
+        freshnessPreset: "all",
+        selectedRunIds: [],
+      });
+    });
+    if (typeof window !== "undefined") {
+      localStorage.setItem("trendrop_pref_language", "all");
+      localStorage.setItem("trendrop_pref_niches", JSON.stringify(["all"]));
+      localStorage.setItem("trendrop_pref_niche", "all");
+    }
+  }, []);
+
+
+  // Calculate active filter count for badge
+  const activeFilterCount = useMemo(() => {
+    let count = 0;
+    if (filters.lifecycle !== "all") count++;
+    if (filters.urgency !== "all") count++;
+    if (filters.minOpportunityScore > 0) count++;
+    if (filters.minVelocity > 0) count++;
+    if (filters.outlierOnly) count++;
+    if (filters.goldenHourOnly) count++;
+    if (filters.niches.length > 0 && !filters.niches.includes("all")) count++;
+    if (filters.language !== "all") count++;
+    if (filters.format !== "all") count++;
+    if (filters.freshnessPreset !== "all" || (filters.selectedRunIds && filters.selectedRunIds.length > 0)) count++;
+    return count;
+  }, [filters]);
+
+  // Compute active language filter array: explicit filter > saved user preferences > undefined (all)
   const activeLanguages = useMemo(() => {
-    if (language !== "all") return [language];
-    return preferredLanguages.length > 0 ? preferredLanguages : undefined;
-  }, [language, preferredLanguages]);
+    if (filters.language && filters.language !== "all") {
+      return filters.language.includes(",") ? filters.language.split(",").map(s => s.trim()).filter(Boolean) : [filters.language];
+    }
+    if (preferredLanguages && preferredLanguages.length > 0) return preferredLanguages;
+    return undefined;
+  }, [filters.language, preferredLanguages]);
+
+  // Progressive rendering limit for fast DOM paint on mobile
+  const [displayLimit, setDisplayLimit] = useState<number>(15);
+  const [showTargetedOnly, setShowTargetedOnly] = useState<boolean>(false);
 
   useEffect(() => {
-    setDisplayLimit(30);
-  }, [language, selectedNiche, showTargetedOnly, searchQuery]);
+    setDisplayLimit(15);
+  }, [filters, sortMode, showTargetedOnly]);
 
-  // Data Queries
-  const { data: targetedData } = useQuery({
+  // Tick every minute for countdown timers
+  useEffect(() => {
+    const id = setInterval(() => setNow(Date.now()), 60_000);
+    return () => clearInterval(id);
+  }, []);
+
+  // Stagger secondary queries by 1500ms so rising & emerging get full initial bandwidth.
+  // Peaked, expired, resurging, targeted, scraper-runs are non-critical for first paint.
+  const [secondaryReady, setSecondaryReady] = useState(false);
+  useEffect(() => {
+    const timer = setTimeout(() => setSecondaryReady(true), 1500);
+    return () => clearTimeout(timer);
+  }, []);
+
+  const {
+    data: scraperRunsData,
+  } = useQuery({
+    queryKey: ["scraper-runs"],
+    queryFn: () => fetchRecentScraperRuns(6),
+    staleTime: 60_000,
+    refetchInterval: 5 * 60_000,
+    enabled: secondaryReady,
+  });
+  const scraperRuns = scraperRunsData ?? [];
+
+  const {
+    data: targetedData,
+    isLoading: targetedLoading,
+  } = useQuery({
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
-    staleTime: 10_000,
+    staleTime: 60_000,
+    placeholderData: (prev) => prev,
+    enabled: secondaryReady || showTargetedOnly,
   });
 
   const {
-    data: feedData,
-    isLoading,
-    isError,
-    refetch,
+    data: lastDetectedTimes,
   } = useQuery({
-    queryKey: ["unified-feed-home", language, activeLanguages],
-    queryFn: async () => {
-      try {
-        const res = await fetchFeed({
-          limit: 100,
-          language: language !== "all" ? language : undefined,
-          languages: activeLanguages,
-          sort: "newest",
-        });
-        if (res && res.trends && res.trends.length > 0) {
-          return res.trends;
-        }
-      } catch (err) {
-        console.warn("fetchFeed fallback to fetchTrends:", err);
-      }
-      return fetchTrends(language !== "all" ? language : undefined, undefined, undefined, activeLanguages);
-    },
-    staleTime: 30_000,
-    refetchInterval: 5 * 60_000,
-    refetchOnWindowFocus: false,
+    queryKey: ["trends-last-detected"],
+    queryFn: () => fetchLastDetectedTimes(),
+    staleTime: 60_000,
+    enabled: secondaryReady,
   });
 
-  // Filter trends by Targeted, Niche, and Search query
-  const trends = useMemo(() => {
-    let list = (showTargetedOnly && targetedData ? targetedData : feedData) || [];
-
-    // Niche filter
-    if (selectedNiche !== "all") {
-      list = list.filter((t) => matchesNiche(t, selectedNiche));
-    }
-
-    // Search query filter (matches song, artist, niche, why_this_works, used_for_note)
-    const q = searchQuery.toLowerCase().trim();
-    if (q) {
-      list = list.filter(
-        (t) =>
-          (t.song ?? "").toLowerCase().includes(q) ||
-          (t.artist ?? "").toLowerCase().includes(q) ||
-          (t.nicheTag ?? "").toLowerCase().includes(q) ||
-          (t.whyThisWorks ?? "").toLowerCase().includes(q) ||
-          (t.used_for_note ?? "").toLowerCase().includes(q) ||
-          (t.contentType ?? "").toLowerCase().includes(q)
-      );
-    }
-
-    return list;
-  }, [feedData, targetedData, showTargetedOnly, selectedNiche, searchQuery]);
-
-  const withCountdown = useCallback(
-    (t: UiTrend): UiTrend => ({
-      ...t,
-      hoursLeft: Math.max(0, Math.ceil(((t.expiresAt || Date.now() + 24 * 3600_000) - Date.now()) / 3600_000)),
+  // Order 77 Item 5: Unified Single Cached Feed Query
+  const {
+    data: feedData,
+    isLoading: isFeedLoading,
+    isError: isFeedError,
+    error: feedError,
+    refetch: refetchFeed,
+  } = useQuery({
+    queryKey: ["unified-feed", filters.language, activeLanguages, filters.niches, filters.lifecycle],
+    queryFn: () => fetchFeed({
+      language: filters.language,
+      languages: activeLanguages,
+      niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
+      status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
+      limit: 20,
     }),
-    []
-  );
+    staleTime: 5 * 60_000,
+    refetchInterval: 10 * 60_000,
+    refetchOnWindowFocus: false,
+    placeholderData: (prev) => prev,
+  });
+
+  const feedTrends = feedData?.trends ?? [];
+
+  const deduplicatedTrends = useMemo(() => {
+    return {
+      rising: feedTrends.filter((t) => t.status === "rising"),
+      emerging: feedTrends.filter((t) => t.status === "emerging" || t.isEmerging),
+      resurging: feedTrends.filter((t) => t.status === "resurging"),
+      peaked: feedTrends.filter((t) => t.status === "peaked"),
+      expired: feedTrends.filter((t) => t.status === "expired"),
+    };
+  }, [feedTrends]);
+
+  const emergingCount = deduplicatedTrends.emerging.length;
+
+  useEffect(() => {
+    if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
+      const diff = emergingCount - prevCountRef.current;
+      toast(`🚨 ${diff} new early trend${diff > 1 ? "s" : ""} detected!`, {
+        description: "Prioritized right at the top of your feed — act fast!",
+      });
+    }
+    prevCountRef.current = emergingCount;
+  }, [emergingCount]);
+
+  const allTrends = useMemo(() => {
+    return feedTrends;
+  }, [feedTrends]);
+
+  const isLoading = isFeedLoading && feedTrends.length === 0;
+  const isError = isFeedError && feedTrends.length === 0;
+
+  const refetch = () => {
+    refetchFeed();
+  };
+
+  // Pre-calculate targeted Set for instant O(1) card lookups without running 30+ separate hooks
+  const targetedSet = useMemo(() => {
+    return new Set((targetedData ?? []).map((t: any) => String(t.id)));
+  }, [targetedData]);
+
+  const trends = useMemo(() => {
+    if (askResult && askResult.results.length > 0) {
+      return askResult.results;
+    }
+    let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
+    if (todaysFiveOnly && !searchQuery && activeFilterCount === 0 && !showTargetedOnly) {
+      return list.slice(0, 5);
+    }
+
+    // 0. Scraper Run & Freshness Batch filter (isolate or combine scrape cohorts)
+    const hasCustomRuns = filters.selectedRunIds && filters.selectedRunIds.length > 0;
+    const hasFreshnessPreset = filters.freshnessPreset && filters.freshnessPreset !== "all";
+
+    if (hasCustomRuns || hasFreshnessPreset) {
+      const targetTrendIds = new Set<number>();
+      let activeRuns: ScraperRunInfo[] = [];
+
+      if (hasCustomRuns) {
+        activeRuns = scraperRuns.filter((r) => filters.selectedRunIds.includes(r.run_id));
+      } else if (filters.freshnessPreset === "latest" && scraperRuns.length > 0) {
+        activeRuns = [scraperRuns[0]];
+      } else if (filters.freshnessPreset === "previous" && scraperRuns.length > 1) {
+        activeRuns = [scraperRuns[1]];
+      } else if (filters.freshnessPreset === "last_2" && scraperRuns.length > 0) {
+        activeRuns = scraperRuns.slice(0, 2);
+      }
+
+      for (const r of activeRuns) {
+        for (const id of r.trend_ids || []) {
+          targetTrendIds.add(Number(id));
+        }
+      }
+
+      list = list.filter((t) => {
+        const tid = Number(t.id);
+        // 1. Direct match in target trend IDs from cron_runs
+        if (targetTrendIds.size > 0 && targetTrendIds.has(tid)) {
+          return true;
+        }
+
+        // 2. Fallback to time-window relative to runs or preset
+        if (!t.firstDetectedAt && !t.createdAt) return false;
+        const detectedTime = new Date(t.firstDetectedAt || t.createdAt!).getTime();
+        if (isNaN(detectedTime)) return false;
+
+        const currentNow = now || Date.now();
+        const ageHours = (currentNow - detectedTime) / (1000 * 60 * 60);
+
+        // If specific runs were matched, check if detectedTime falls inside run windows (+/- buffer)
+        if (activeRuns.length > 0) {
+          return activeRuns.some((r) => {
+            const startMs = new Date(r.run_at).getTime() - 15 * 60 * 1000;
+            const endMs = (r.completed_at ? new Date(r.completed_at).getTime() : startMs + 45 * 60 * 1000) + 15 * 60 * 1000;
+            return detectedTime >= startMs && detectedTime <= endMs;
+          });
+        }
+
+        // Preset-based relative age fallback
+        if (filters.freshnessPreset === "latest") {
+          return ageHours <= 3.5;
+        }
+        if (filters.freshnessPreset === "previous") {
+          return ageHours > 3.5 && ageHours <= 7.0;
+        }
+        if (filters.freshnessPreset === "last_2") {
+          return ageHours <= 7.0;
+        }
+        if (filters.freshnessPreset === "today") {
+          return ageHours <= 24.0;
+        }
+        return true;
+      });
+    }
+
+    // 1. Lifecycle Stage filter
+    if (filters.lifecycle && filters.lifecycle !== "all") {
+      list = list.filter((t) => (t.status ?? "rising").toLowerCase() === filters.lifecycle.toLowerCase());
+    }
+
+    // 2. Urgency / Creation Window filter (window_hours_remaining)
+    if (filters.urgency && filters.urgency !== "all") {
+      list = list.filter((t) => {
+        const hrs = t.hoursLeft ?? 0;
+        if (filters.urgency === "under6") return hrs > 0 && hrs <= 6;
+        if (filters.urgency === "under12") return hrs > 0 && hrs <= 12;
+        if (filters.urgency === "under24") return hrs > 0 && hrs <= 24;
+        if (filters.urgency === "under48") return hrs > 0 && hrs <= 48;
+        return true;
+      });
+    }
+
+    // 3. Minimum Opportunity Score filter
+    if (filters.minOpportunityScore > 0) {
+      list = list.filter((t) => (t.opportunityScore ?? 0) >= filters.minOpportunityScore);
+    }
+
+    // 4. Minimum Velocity Multiplier filter
+    if (filters.minVelocity > 0) {
+      list = list.filter((t) => (t.viralMultiplier ?? 0) >= filters.minVelocity);
+    }
+
+    // 5. Creator Outlier filter (blew up from small creator accounts)
+    if (filters.outlierOnly) {
+      list = list.filter((t) => !!t.hasCreatorOutlier);
+    }
+
+    // 6. Golden Hour filter (high velocity + <28% saturation)
+    if (filters.goldenHourOnly) {
+      list = list.filter((t) => {
+        const sat = t.indiaSaturationPct ?? t.globalSaturationPct ?? (t.saturationScore ? t.saturationScore * 100 : 0);
+        const vel = t.viralMultiplier ?? 0;
+        const status = (t.status ?? "rising").toLowerCase();
+        return (sat > 0 && sat <= 28 && (vel >= 15 || (t.opportunityScore ?? 0) >= 75)) ||
+               (status === "emerging" && (vel >= 12 || (t.opportunityScore ?? 0) >= 70));
+      });
+    }
+
+    // 7. Video Format filter
+    if (filters.format && filters.format !== "all") {
+      list = list.filter((t) => {
+        if (filters.format === "dance") return !!t.isDance;
+        if (filters.format === "narrative") return !!t.isNarrativeEdit || t.contentType === "Narrative";
+        if (filters.format === "faceless") return t.contentType === "Faceless" || (t.whyThisWorks || "").toLowerCase().includes("faceless");
+        return true;
+      });
+    }
+
+    // 8. High-accuracy multi-niche filter
+    if (filters.niches && !filters.niches.includes("all") && filters.niches.length > 0) {
+      list = list.filter((t) => matchesNiches(t, filters.niches));
+    }
+
+    // 9. Language filter guard
+    if (filters.language && filters.language !== "all") {
+      const allowed = filters.language.split(",").map(l => l.trim().toLowerCase());
+      const wantsGlobal = allowed.includes("global");
+
+      list = list.filter((t) => {
+        const raw = (t.rawLanguage || "").toLowerCase().trim();
+        const lbl = (t.language || "").toLowerCase().trim();
+        const src = (t.discoverySource || "").toLowerCase().trim();
+        const fb = (t.fallbackLanguage || "").toLowerCase().trim();
+        const lf = (t.languageFinal || "").toLowerCase().trim();
+
+        // High-accuracy semantic Indian audio classifier (inspects scripts, title, artist, tokens)
+        const isIndian = isIndianAudio(t);
+
+        if (wantsGlobal) {
+          // Absolute Rule 1: If semantic engine identifies ANY Indian trait, REJECT 100%!
+          if (isIndian) {
+            return false;
+          }
+
+          // Absolute Rule 2: Explicitly reject any Indian language codes
+          if (INDIAN_LANG_CODES.has(raw) || INDIAN_LANG_CODES.has(lbl) || INDIAN_LANG_CODES.has(fb) || INDIAN_LANG_CODES.has(lf)) {
+            return false;
+          }
+
+          // Absolute Rule 3: Reject "instrumental" or "other" unless verified foreign global crawler
+          if (raw === "instrumental" || lf === "instrumental" || raw === "other") {
+            return src === "global" && (t.trendOrigin || "").toUpperCase() !== "IN";
+          }
+
+          // Verified international language codes (STRICT: Notice "instrumental" is REMOVED!)
+          const GLOBAL_CODES = new Set(["en", "english", "es", "spanish", "pt", "portuguese", "ko", "korean", "ja", "japanese", "ru", "russian", "fr", "french", "de", "german", "it", "italian"]);
+
+          // Verified global crawler source or verified international language code
+          if (src === "global" || GLOBAL_CODES.has(raw) || GLOBAL_CODES.has(lf)) {
+            return (t.trendOrigin || "").toUpperCase() !== "IN";
+          }
+
+          // Default: Only allow if verified foreign language and not Indian origin
+          return Boolean(raw && !INDIAN_LANG_CODES.has(raw) && raw !== "other" && (t.trendOrigin || "").toUpperCase() !== "IN");
+        }
+
+        // For specific language selections:
+        const matchesIndianLang = (
+          (allowed.includes("hi") && (["hindi", "hi"].includes(raw) || ["hindi", "hi"].includes(lf) || (isIndian && !allowed.some(c => c !== "hi" && (raw === c || lf === c))))) ||
+          (allowed.includes("pa") && (["punjabi", "pa"].includes(raw) || ["punjabi", "pa"].includes(lf))) ||
+          (allowed.includes("ta") && (["tamil", "ta"].includes(raw) || ["tamil", "ta"].includes(lf))) ||
+          (allowed.includes("te") && (["telugu", "te"].includes(raw) || ["telugu", "te"].includes(lf))) ||
+          (allowed.includes("ml") && (["malayalam", "ml"].includes(raw) || ["malayalam", "ml"].includes(lf))) ||
+          (allowed.includes("kn") && (["kannada", "kn"].includes(raw) || ["kannada", "kn"].includes(lf))) ||
+          (allowed.includes("bn") && (["bengali", "bn"].includes(raw) || ["bengali", "bn"].includes(lf))) ||
+          (allowed.includes("mr") && (["marathi", "mr"].includes(raw) || ["marathi", "mr"].includes(lf))) ||
+          (allowed.includes("gu") && (["gujarati", "gu"].includes(raw) || ["gujarati", "gu"].includes(lf))) ||
+          (allowed.includes("ne") && (["nepali", "ne"].includes(raw) || ["nepali", "ne"].includes(lf))) ||
+          (allowed.includes("instrumental") && (raw === "instrumental" || lf === "instrumental" || (t.song && t.song.toLowerCase().includes("instrumental"))))
+        );
+
+        return (
+          allowed.includes(raw) ||
+          allowed.includes(lbl) ||
+          allowed.includes(lf) ||
+          matchesIndianLang ||
+          (allowed.includes("ko") && ["korean", "ko"].includes(raw)) ||
+          (allowed.includes("es") && ["spanish", "es"].includes(raw)) ||
+          (allowed.includes("pt") && ["portuguese", "pt"].includes(raw)) ||
+          (allowed.includes("en") && !isIndian && ["english", "en"].includes(raw))
+        );
+      });
+    }
+
+    // 10. Search query filter
+    if (!searchQuery.trim()) return list;
+    const q = searchQuery.toLowerCase();
+    return list.filter(
+      (t) =>
+        (t.song ?? "").toLowerCase().includes(q) ||
+        (t.artist ?? "").toLowerCase().includes(q) ||
+        (t.contentType ?? "").toLowerCase().includes(q) ||
+        (t.whyThisWorks ?? "").toLowerCase().includes(q)
+    );
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns]);
+
+  const withCountdown = useCallback((t: UiTrend): UiTrend => ({
+    ...t,
+    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
+  }), []);
 
   return (
     <div className="flex flex-col gap-0 pb-24">
-      {/* ── Hero Section with Coral Glow & Header ───────────────────────────────── */}
-      <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(255,77,61,0.14)] via-[rgba(255,77,61,0.05)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
-        <ParticleBackground />
+        {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
+        <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
+          <ParticleBackground />
 
-        {/* Header Row */}
-        <div className="relative flex items-center justify-between mb-4">
-          <TrenddropLogo size={34} />
+          {/* Header Row */}
+          <div className="relative flex items-center justify-between mb-4">
+            {/* Logo */}
+            <TrenddropLogo size={34} />
 
-          <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2">
+            {/* Theme Toggle */}
             <ThemeToggle />
 
+            {/* User avatar */}
             <button
               onClick={() => navigate({ to: "/settings" })}
-              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0 cursor-pointer"
+              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
               aria-label="Profile"
             >
               <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white uppercase">
@@ -234,151 +638,343 @@ function TrendsFeed() {
         </div>
       </div>
 
-      {/* ── Sticky Filter Bar & Search ─────────────────────────────────────────── */}
-      <div className="sticky top-0 z-20 bg-background/95 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border">
-        {/* Niche Filter Chips */}
-        <div className="flex gap-2 overflow-x-auto no-scrollbar pb-1 mb-2">
-          {NICHES.map((n) => (
-            <button
-              key={n.id}
-              id={`niche-chip-${n.id}`}
-              onClick={() => {
-                setSelectedNiche(n.id);
-                if (typeof window !== "undefined") localStorage.setItem("trendrop_pref_niche", n.id);
+      {/* ── Feed Search & Unified Filter Controls ─────────────────────────────────── */}
+      <div className="sticky top-0 z-20 sticky-header bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border/80">
+        {/* Top Control Bar: Search Input + Modern Filter Action Button */}
+        <div className="flex items-center gap-2 mb-2.5">
+          <div className="relative flex-1">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <input
+              id="search-query"
+              name="searchQuery"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") handleAskSearch();
               }}
-              className={`flex-shrink-0 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                selectedNiche === n.id
-                  ? "bg-primary text-white shadow-sm shadow-primary/30"
-                  : "bg-muted/80 text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              {n.label}
-            </button>
-          ))}
-        </div>
+              placeholder="Search or ask AI: 'what should i use for a gym reel?'"
+              className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
+            />
+            {isSearching ? (
+              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
+            ) : searchQuery ? (
+              <button onClick={() => { setSearchQuery(""); setAskResult(null); }} className="absolute right-3 top-1/2 -translate-y-1/2">
+                <X className="h-4 w-4 text-muted-foreground" />
+              </button>
+            ) : null}
+          </div>
 
-        {/* Language & Targeted Filter Chips */}
-        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 mb-2 items-center">
+          {/* Unified Filter Button */}
           <button
             type="button"
-            id="targeted-quick-filter"
-            onClick={() => setShowTargetedOnly((prev) => !prev)}
-            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1 text-[11px] font-semibold transition-all cursor-pointer ${
-              showTargetedOnly
-                ? "bg-emerald-500 text-white shadow-sm ring-1 ring-emerald-400"
-                : "bg-emerald-500/10 text-emerald-400 border border-emerald-500/20 hover:bg-emerald-500/20"
+            id="open-filters-modal-btn"
+            onClick={() => setShowFilterDrawer(true)}
+            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
+              activeFilterCount > 0
+                ? "bg-primary text-white border-primary shadow-sm shadow-primary/30 ring-1 ring-primary/40"
+                : "bg-muted/70 text-foreground border-border hover:bg-muted"
             }`}
           >
-            <Target className="h-3 w-3" />
-            Targeted {targetedData && targetedData.length > 0 ? `(${targetedData.length})` : ""}
+            <SlidersHorizontal className="h-4 w-4" />
+            <span>Filters</span>
+            {activeFilterCount > 0 && (
+              <span className="h-5 min-w-[20px] px-1 rounded-full bg-white text-primary text-[10px] font-extrabold flex items-center justify-center">
+                {activeFilterCount}
+              </span>
+            )}
           </button>
-          {LANGUAGES.map((l) => (
-            <button
-              key={l.code}
-              id={`lang-chip-${l.code}`}
-              onClick={() => {
-                const newLang = l.code === language ? "all" : l.code;
-                setLanguage(newLang);
-                if (typeof window !== "undefined") localStorage.setItem("trendrop_pref_language", newLang);
-              }}
-              className={`flex-shrink-0 rounded-full px-3 py-1 text-[11px] font-medium transition-all cursor-pointer ${
-                language === l.code
-                  ? "bg-primary text-white shadow-sm ring-1 ring-primary/50"
-                  : "bg-muted/50 text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              {l.label}
-            </button>
-          ))}
         </div>
 
-        {/* Search */}
-        <div className="relative">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <input
-            id="search-query"
-            name="searchQuery"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Search 2,000+ audios, artist, 'Gym beat drop', 'Fashion transition'..."
-            className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50"
-          />
-          {searchQuery && (
-            <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2 cursor-pointer">
-              <X className="h-4 w-4 text-muted-foreground" />
-            </button>
-          )}
+        {/* Ask-It Direct Answer Card */}
+        {askResult && (
+          <div className="mb-2.5 rounded-xl border border-primary/30 bg-primary/10 p-3.5 space-y-1.5 animate-in fade-in-50">
+            <div className="flex items-center justify-between">
+              <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> AI Recommendation
+              </span>
+              <button
+                onClick={() => { setAskResult(null); setSearchQuery(""); }}
+                className="text-muted-foreground hover:text-foreground text-xs"
+              >
+                Clear
+              </button>
+            </div>
+            <p className="text-xs font-medium text-foreground/90 leading-snug">
+              {askResult.direct_answer}
+            </p>
+          </div>
+        )}
+
+        {/* Simplified Action Rail: Today's 5 Landing + Clean Stage Pills */}
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
+          {/* Today's 5 Toggle Chip */}
+          <button
+            type="button"
+            id="todays-five-chip"
+            onClick={() => {
+              setTodaysFiveOnly((prev) => !prev);
+              setShowTargetedOnly(false);
+            }}
+            className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
+              todaysFiveOnly && !showTargetedOnly
+                ? "bg-primary text-white shadow-sm ring-1 ring-primary/40"
+                : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
+            }`}
+          >
+            <Sparkles className="h-3.5 w-3.5 text-amber-300" />
+            Today's 5
+          </button>
+
+          <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
+
+          {/* Clean Stage Pills */}
+          {[
+            { id: "all",       label: "All Active" },
+            { id: "emerging",  label: "⚡ New" },
+            { id: "rising",    label: "🚀 Rising" },
+            { id: "resurging", label: "♻️ Comeback" },
+          ].map((st) => {
+            const isSelected = !todaysFiveOnly && !showTargetedOnly && filters.lifecycle === st.id;
+            return (
+              <button
+                key={st.id}
+                id={`lifecycle-pill-${st.id}`}
+                onClick={() => {
+                  setTodaysFiveOnly(false);
+                  if (showTargetedOnly) setShowTargetedOnly(false);
+                  updateFilter({ lifecycle: st.id });
+                  setDisplayLimit(15);
+                }}
+                className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
+                  isSelected
+                    ? "bg-foreground/15 text-foreground border border-border/60 font-bold"
+                    : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
+                }`}
+              >
+                {st.label}
+              </button>
+            );
+          })}
         </div>
+
+        {/* Active Applied Filters Strip (when filters are engaged) */}
+        {activeFilterCount > 0 && (
+          <div className="flex items-center gap-1.5 pt-2 overflow-x-auto no-scrollbar">
+            <span className="text-[11px] font-bold text-muted-foreground flex-shrink-0">Active:</span>
+            {filters.lifecycle !== "all" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold">
+                Stage: {filters.lifecycle}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ lifecycle: "all" })} />
+              </span>
+            )}
+            {filters.urgency !== "all" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
+                Window: {filters.urgency === "under6" ? "<6h" : filters.urgency === "under12" ? "<12h" : "<24h"}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ urgency: "all" })} />
+              </span>
+            )}
+            {filters.minOpportunityScore > 0 && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
+                Score: {filters.minOpportunityScore}+
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ minOpportunityScore: 0 })} />
+              </span>
+            )}
+            {filters.minVelocity > 0 && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
+                Vel: {filters.minVelocity}x+
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ minVelocity: 0 })} />
+              </span>
+            )}
+            {filters.outlierOnly && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-bold">
+                Creator Outliers
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ outlierOnly: false })} />
+              </span>
+            )}
+            {filters.niches.length > 0 && !filters.niches.includes("all") && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 text-[10px] font-bold">
+                Niches ({filters.niches.length})
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ niches: ["all"] })} />
+              </span>
+            )}
+            {filters.language !== "all" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary/30 text-secondary-foreground text-[10px] font-bold">
+                Lang: {filters.language.toUpperCase()}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ language: "all" })} />
+              </span>
+            )}
+            {filters.format !== "all" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-foreground text-[10px] font-bold">
+                Format: {filters.format}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ format: "all" })} />
+              </span>
+            )}
+            {filters.freshnessPreset !== "all" && filters.freshnessPreset !== "custom" && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
+                Batch: {filters.freshnessPreset === "latest" ? "Run A (Latest)" : filters.freshnessPreset === "previous" ? "Run B (Previous)" : filters.freshnessPreset === "last_2" ? "Last 2 Runs" : "Today"}
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ freshnessPreset: "all" })} />
+              </span>
+            )}
+            {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
+                Runs ({filters.selectedRunIds.length} combined)
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ selectedRunIds: [], freshnessPreset: "all" })} />
+              </span>
+            )}
+            <button
+              type="button"
+              onClick={resetAllFilters}
+              className="flex-shrink-0 text-[10px] text-muted-foreground hover:text-foreground underline ml-1 cursor-pointer"
+            >
+              Reset All
+            </button>
+          </div>
+        )}
       </div>
 
-      {/* ── Feed Container ────────────────────────────────────────────────────── */}
-      <div className="space-y-4 px-4 pt-4 max-w-3xl mx-auto w-full">
-        {/* Active Filter Clear Badge */}
+      {/* ── Feed ──────────────────────────────────────────────────────────────── */}
+      <div className="space-y-4 px-4 pt-4">
+        {/* Active Language Filter Indicator Badge */}
         <ActiveLanguageBadge
           activeLanguages={activeLanguages}
           languagesMap={LANGUAGES}
           onClear={() => {
             setLanguage("all");
-            setSelectedNiche("all");
+            updateFilter({ niches: ["all"], language: "all" });
             setPreferredLanguages([]);
             if (typeof window !== "undefined") {
               localStorage.removeItem("trendrop_pref_language");
               localStorage.removeItem("trendrop_preferred_languages");
               localStorage.removeItem("trendrop_pref_niche");
+              localStorage.removeItem("trendrop_pref_niches");
             }
             toast.success("Filters reset to All");
           }}
         />
 
+        {/* Outage / Staleness Notice (Order 80 B3) */}
+        {trends.length > 0 && Boolean(trends[0]?.is_stale) && (
+          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-center justify-between text-xs text-amber-300">
+            <div className="flex items-center gap-2">
+              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
+              <span>
+                <strong>Data delayed:</strong> Updated {(() => {
+                  const lu = trends[0].last_updated;
+                  if (!lu) return "over 12h ago";
+                  try {
+                    const diffHours = Math.max(0, Math.round((Date.now() - new Date(lu).getTime()) / (1000 * 60 * 60)));
+                    return diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                  } catch {
+                    return "over 12h ago";
+                  }
+                })()} (ingest delayed &gt;12h). Outage guard is actively preserving decay windows and momentum.
+              </span>
+            </div>
+            <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
+              Protected Mode
+            </span>
+          </div>
+        )}
+
+        {deduplicatedTrends.emerging.length > 0 && (
+          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3 flex items-center justify-between">
+            <p className="text-xs text-[#ff006e] font-semibold">
+              ⚡ <strong>{deduplicatedTrends.emerging.length} Early Trend{deduplicatedTrends.emerging.length > 1 ? "s" : ""}</strong> detected — prioritized first. First-mover advantage active!
+            </p>
+          </div>
+        )}
+
         {isError && (
           <div className="space-y-2">
-            <ApiErrorBanner message="Unable to load trends. Please try again." />
-            <button onClick={refetch} className="text-xs font-semibold text-primary underline cursor-pointer">
+            <ApiErrorBanner message={(feedError as any)?.message || "Service temporarily unavailable"} />
+            <button onClick={() => refetch()} className="text-xs font-semibold text-primary underline">
               Try again
             </button>
           </div>
         )}
 
         {isLoading ? (
-          <div className="space-y-4">
+          <>
             <SkeletonCard />
             <SkeletonCard />
             <SkeletonCard />
-          </div>
+          </>
         ) : !isError && trends.length === 0 ? (
-          <div className="glass-card p-12 text-center rounded-2xl border border-border">
-            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : "🎵"}</p>
+          <div className="glass-card p-12 text-center">
+            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : filters.lifecycle === "emerging" ? "🚨" : "🎵"}</p>
             <p className="text-base font-semibold">
-              {showTargetedOnly ? "Your targeted workspace is empty" : "No trends found for this filter"}
+              {showTargetedOnly
+                ? "Your targeted workspace is empty"
+                : filters.lifecycle !== "all"
+                ? `No ${filters.lifecycle} trends found`
+                : "No trends found for this filter"}
             </p>
             <p className="mt-1 text-sm text-muted-foreground">
               {showTargetedOnly
                 ? "Click 'Target Trend' on any trend card to save and track your targeted audios here."
-                : 'Try selecting "All" or a different niche / language to discover more viral audios.'}
+                : "Our active trend rail is monitoring the ecosystem continuously."}
             </p>
+            {(() => {
+              const tabKey = showTargetedOnly ? null : filters.lifecycle;
+              const lastTime = tabKey && tabKey !== "all" ? lastDetectedTimes?.[tabKey] : null;
+              if (!lastTime) return null;
+              try {
+                const d = new Date(lastTime);
+                const diffHours = Math.max(0, Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60)));
+                const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+                const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
+                const relPart = diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
+                return (
+                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/40 bg-muted/50 px-3.5 py-1 text-xs text-muted-foreground">
+                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse" />
+                    <span>Last <strong>{tabKey}</strong> detected: {datePart} at {timePart} ({relPart})</span>
+                  </div>
+                );
+              } catch {
+                return null;
+              }
+            })()}
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {trends.slice(0, displayLimit).map((t) => (
-              <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
-                <TrendCard
-                  trend={withCountdown(t)}
-                  onDanceTap={setDanceTrend}
-                  selectedNiche={selectedNiche}
-                  showStatusBadge={true}
-                />
-              </div>
-            ))}
+            {trends.slice(0, displayLimit).map((t) => {
+              const card = (
+                <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
+                  <TrendCard
+                    trend={withCountdown(t)}
+                    onDanceTap={setDanceTrend}
+                    selectedNiches={filters.niches}
+                    selectedNiche={filters.niches[0]}
+                    isTargeted={targetedSet.has(String(t.id))}
+                    showStatusBadge={true}
+                  />
+                </div>
+              );
+
+              if (t.status === "emerging") {
+                return (
+                  <PlanGate
+                    key={t.id}
+                    feature="Early Detection Feed"
+                    requiredPlan="pro"
+                    currentPlan={userPlan}
+                    onUpgrade={() => window.location.href = '/pricing'}
+                  >
+                    {card}
+                  </PlanGate>
+                );
+              }
+
+              return card;
+            })}
           </div>
         )}
 
-        {/* Load More Button (100% Free Catalog Access) */}
         {displayLimit < trends.length && (
-          <div className="text-center py-6">
+          <div className="text-center py-4">
             <button
-              id="load-more-btn"
-              onClick={() => setDisplayLimit((prev) => Math.min(prev + 30, trends.length))}
-              className="rounded-xl bg-primary text-white text-xs font-bold px-6 py-3 transition-all shadow-md shadow-primary/20 hover:bg-primary/90 cursor-pointer"
+              onClick={() => setDisplayLimit((prev) => Math.min(prev + 15, trends.length))}
+              className="rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-4 py-2.5 transition-all shadow-sm"
             >
               Load more trends ({trends.length - displayLimit} remaining)
             </button>
@@ -387,6 +983,27 @@ function TrendsFeed() {
       </div>
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
+
+      {/* Multi-Dimensional Intelligence Filters Modal — lazy-mounted on first open */}
+      {showFilterDrawer && (
+        <TrendFiltersModal
+          isOpen={showFilterDrawer}
+          onClose={() => setShowFilterDrawer(false)}
+          filters={filters}
+          onChange={updateFilter}
+          onReset={resetAllFilters}
+          nichesList={NICHES}
+          languagesList={LANGUAGES}
+          totalResultsCount={trends.length}
+          scraperRuns={scraperRuns}
+        />
+      )}
+
+      {/* 3-Tap Onboarding Flow for first-time creators */}
+      {showOnboarding && (
+        <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
+      )}
+
     </div>
   );
 }

@@ -148,7 +148,7 @@ export function CreatorAnalyticsDashboard({ creatorEmail }: CreatorAnalyticsDash
             <p className="text-xs text-muted-foreground mt-0.5">
               {connectedHandle
                 ? `Connected to @${connectedHandle} — Syncing public reel performance & channel analytics`
-                : "Enter your Instagram handle to manually sync reel reach, engagement rates, and posting schedules (OAuth API direct connection coming soon)."}
+                : "Enter your Instagram handle to manually sync reel reach, engagement rates, and optimal post windows (OAuth API direct connection coming soon)."}
             </p>
           </div>
           {connectedHandle ? (
