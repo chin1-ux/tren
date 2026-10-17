@@ -3,8 +3,7 @@ import {
   Flame, Video, ChevronDown, ChevronUp,
   Copy, CheckCheck, Zap, TrendingUp,
   Bookmark, BookmarkCheck, HelpCircle,
-  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2,
-  Play, AppWindow
+  ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
 } from "lucide-react";
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -15,8 +14,8 @@ import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
-import { TrendProofSection } from "./TrendProofSection";
 import { TrendPreviewModal } from "./TrendPreviewModal";
+import { TrendProofSection } from "./TrendProofSection";
 import { formatApiDateIst, formatRelativeTime, formatShortDate } from "@/lib/time";
 
 interface Props {
@@ -86,12 +85,11 @@ function getLifecycleStatusBadge(status?: string): { label: string; color: strin
   }
 }
 
-/** Breakout & Audio Expiry Radar helper */
+/** Golden Hour & Audio Expiry Radar helper */
 export function getGoldenHourExpiryMeta(trend: UiTrend): {
   isGoldenHour: boolean;
   isExpiring: boolean;
   isTightening: boolean;
-  isSingleCreator: boolean;
   badgeLabel: string;
   badgeClass: string;
   subText: string;
@@ -99,34 +97,19 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
   const sat = trend.indiaSaturationPct ?? trend.globalSaturationPct ?? (trend.saturationScore ? trend.saturationScore * 100 : 0);
   const velocity = trend.viralMultiplier ?? 0;
   const status = (trend.status ?? "rising").toLowerCase();
-  const reelCount = trend.reelCount ?? (trend.audioUseCount ?? 0);
 
-  // If audio has only 1 reel or single creator: honest label
-  if (reelCount <= 1 && (status === "emerging" || status === "rising")) {
-    return {
-      isGoldenHour: false,
-      isExpiring: false,
-      isTightening: false,
-      isSingleCreator: true,
-      badgeLabel: "🌱 EARLY SIGNAL",
-      badgeClass: "bg-emerald-500/15 text-emerald-400 border border-emerald-500/30 font-semibold",
-      subText: "Early signal: 1 creator"
-    };
-  }
+  // 1. Golden Hour: High velocity (> 15x or opportunityScore >= 75) + Low Saturation (< 28%)
+  const isGolden = (sat > 0 && sat <= 28 && (velocity >= 15 || (trend.opportunityScore ?? 0) >= 75)) ||
+                   (status === "emerging" && (velocity >= 12 || (trend.opportunityScore ?? 0) >= 70));
 
-  // 1. High velocity breakout
-  const isBreakout = (sat > 0 && sat <= 28 && (velocity >= 15 || (trend.opportunityScore ?? 0) >= 75)) ||
-                     (status === "emerging" && (velocity >= 12 || (trend.opportunityScore ?? 0) >= 70));
-
-  if (isBreakout) {
+  if (isGolden) {
     return {
       isGoldenHour: true,
       isExpiring: false,
       isTightening: false,
-      isSingleCreator: false,
-      badgeLabel: "📈 RAPID BREAKOUT",
-      badgeClass: "bg-amber-500 text-black font-extrabold border border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.35)]",
-      subText: `Accelerating velocity across early creators with ${Math.round(sat)}% saturation.`
+      badgeLabel: "🔥 GOLDEN HOUR",
+      badgeClass: "bg-amber-500 text-black font-extrabold border border-amber-400 shadow-[0_0_14px_rgba(245,158,11,0.35)] animate-pulse",
+      subText: `Spiking velocity with <28% saturation — peak 4-hour viral window.`
     };
   }
 
@@ -137,7 +120,6 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
       isGoldenHour: false,
       isExpiring: true,
       isTightening: false,
-      isSingleCreator: false,
       badgeLabel: "⚠️ EXPIRING / CROWDED",
       badgeClass: "bg-rose-500/15 text-rose-400 border border-rose-500/35 font-bold",
       subText: `Audio saturated (${Math.round(sat)}%). Reach is crowded — post within 24h or pick an emerging audio.`
@@ -150,7 +132,6 @@ export function getGoldenHourExpiryMeta(trend: UiTrend): {
       isGoldenHour: false,
       isExpiring: false,
       isTightening: true,
-      isSingleCreator: false,
       badgeLabel: "🟡 WINDOW TIGHTENING",
       badgeClass: "bg-amber-500/20 text-amber-500 dark:text-amber-400 border border-amber-500/40 font-bold",
       subText: `Saturation at ${Math.round(sat)}% — competition rising fast. Plan your post soon.`
@@ -224,50 +205,6 @@ function formatAudioUseCount(count: number, fallbackReelCount?: number): string 
   if (countToUse >= 1_000_000) return `${(countToUse / 1_000_000).toFixed(1)}M`;
   if (countToUse >= 1_000) return `${countToUse.toLocaleString()}`;
   return countToUse.toString();
-}
-
-/** Resolves real creator strategy from whyThisWorks, used_for_note, idealContentDescription and dynamic fallbacks */
-function getTailoredCreatorStrategy(trend: UiTrend) {
-  // 1. Hook (First 3 seconds)
-  let hook = trend.whyThisWorks;
-  if (!hook || hook.trim().length === 0 || hook.includes("Not enough data")) {
-    if (trend.used_for_note) {
-      hook = `High retention format: ${trend.used_for_note}. Hook the audience within 0-2s before the drop.`;
-    } else if (trend.isDance || trend.category === "Dance") {
-      hook = "Match the initial beat drop at 0:02 with a crisp camera zoom or reveal transition to maximize 3-second hold rate.";
-    } else if (trend.isNarrativeEdit || trend.category === "Narrative") {
-      hook = "Open with high-contrast text overlay posing a polarizing scenario or question in the first 2 seconds.";
-    } else {
-      hook = `Lead with an instant visual payoff or dynamic transition in the first 3 seconds to sync with '${trend.song}'.`;
-    }
-  }
-
-  // 2. Content Concept & Editing
-  let concept = trend.idealContentDescription;
-  if (!concept || concept.trim().length === 0 || concept.includes("Not enough data")) {
-    if (trend.used_for_note) {
-      concept = trend.used_for_note;
-    } else if (trend.used_for) {
-      concept = `Tailored for ${trend.used_for} reels. Film fast-paced 7-15s clips featuring high-motion B-roll or relatable point-of-view storytelling.`;
-    } else {
-      concept = `Sync your key visual cuts to the rhythmic pacing of '${trend.song}'. Best formatted as punchy 9-18s short-form reels with crisp pacing.`;
-    }
-  }
-
-  return { hook, concept };
-}
-
-/** Formats IST hour into human-friendly window */
-function formatPostTimeIst(hour?: number): string {
-  if (hour === undefined || hour === null) return "7:00 PM – 9:00 PM IST (Evening Peak Window)";
-  const h = hour % 24;
-  const period = h >= 12 ? "PM" : "AM";
-  const displayHour = h % 12 === 0 ? 12 : h % 12;
-  const windowLabel =
-    h >= 6 && h < 11 ? "Morning Peak" :
-    h >= 11 && h < 16 ? "Midday Engagement" :
-    h >= 16 && h < 21 ? "Prime Evening Window" : "Late Night Scroll Window";
-  return `${displayHour}:00 ${period} IST (${windowLabel})`;
 }
 
 // formatScrapedAt replaced by shared formatApiDateIst from @/lib/time (IST -5h30m bug fix)
@@ -461,11 +398,6 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const nicheTag = trend.nicheTag ?? "general";
   const audioId = trend.audioId;
   const audioUrl = buildAudioUrl(audioId, trend.song);
-
-  const openLiveInstagramPreview = (e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowPreviewModal(true);
-  };
   const saturationCount = trend.saturationCount ?? 0;
   const vibeTag = trend.vibeTag ?? "general";
 
@@ -496,7 +428,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
   const { data: reels } = useQuery({
     queryKey: ["trend-reels", trend.id],
     queryFn: () => fetchTrendReels(trend.id),
-    enabled: showReels || showPreviewModal,
+    enabled: showReels,
     staleTime: 5 * 60_000,
   });
 
@@ -624,15 +556,6 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           </span>
         )}
 
-        {trend.is_stale && (
-          <span
-            title="Scraper data delayed (>12h)"
-            className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 text-amber-300 border border-amber-500/30 px-2 py-0.5 text-[9px] font-bold"
-          >
-            ⚠️ Data delayed
-          </span>
-        )}
-
       </div>
 
       {/* Video/Audio Identity Card replacing Image Thumbnail */}
@@ -680,7 +603,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         {/* Dual-Date Timeline Telemetry: First caught vs Latest rescraped */}
         {(() => {
           const firstDate = trend.firstDetectedAt || trend.createdAt;
-          const lastActiveDate = (trend as any).lastSeenAt || trend.statusChangedAt || trend.createdAt;
+          const lastActiveDate = trend.statusChangedAt || trend.createdAt;
           if (!firstDate && !lastActiveDate) return null;
 
           const firstShort = firstDate ? formatShortDate(firstDate) : null;
@@ -702,42 +625,40 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
                   🔄 <span>Last verified:</span> <strong>{lastRel}</strong>
                 </span>
               )}
-              {trend.is_stale && (
-                <span className="inline-flex items-center gap-1 bg-amber-500/10 border border-amber-500/25 text-amber-400 px-2 py-0.5 rounded-md">
-                  ⚠️ <span>Updated {trend.last_updated ? formatRelativeTime(trend.last_updated) : "12h+ ago"} / data delayed</span>
-                </span>
-              )}
             </div>
           );
         })()}
 
-        {/* Radar Callout Box */}
+        {/* Golden Hour / Expiry Radar Callout Box */}
         {(() => {
           const radar = getGoldenHourExpiryMeta(trend);
           if (!radar) return null;
           return (
             <div className={`mt-2 rounded-xl p-2.5 text-xs flex items-center justify-between gap-2 border ${
-              radar.isSingleCreator
-                ? "bg-emerald-500/10 border-emerald-500/25 text-emerald-300"
-                : radar.isGoldenHour
+              radar.isGoldenHour
                 ? "bg-gradient-to-r from-amber-500/15 via-rose-500/10 to-card border-amber-500/40 text-foreground"
                 : radar.isExpiring
                 ? "bg-rose-500/10 border-rose-500/25 text-rose-300"
                 : "bg-amber-500/10 border-amber-500/30 text-foreground"
             }`}>
               <div className="flex items-center gap-2">
-                <span className="text-base shrink-0">{radar.isSingleCreator ? "🌱" : radar.isGoldenHour ? "📈" : radar.isExpiring ? "⚠️" : "🟡"}</span>
+                <span className="text-base shrink-0">{radar.isGoldenHour ? "🔥" : radar.isExpiring ? "⚠️" : "🟡"}</span>
                 <div>
                   <span className={`font-extrabold block text-[11px] uppercase tracking-wider ${
-                    radar.isSingleCreator ? "text-emerald-400" : radar.isGoldenHour ? "text-amber-500 dark:text-amber-400" : radar.isExpiring ? "text-rose-400" : "text-amber-500 dark:text-amber-400"
+                    radar.isGoldenHour ? "text-amber-500 dark:text-amber-400" : radar.isExpiring ? "text-rose-400" : "text-amber-500 dark:text-amber-400"
                   }`}>
-                    {radar.isSingleCreator ? "Early Signal" : radar.isGoldenHour ? "Rapid Breakout" : radar.isExpiring ? "Audio Expiring / Saturated" : "Window Tightening"}
+                    {radar.isGoldenHour ? "Golden Viral Window Active" : radar.isExpiring ? "Audio Expiring / Saturated" : "Window Tightening"}
                   </span>
                   <span className="text-[10px] text-muted-foreground leading-tight block">
                     {radar.subText}
                   </span>
                 </div>
               </div>
+              {radar.isGoldenHour && (
+                <span className="shrink-0 px-2 py-0.5 rounded bg-amber-400 text-black text-[9px] font-black uppercase tracking-wider shadow-sm">
+                  Film Now
+                </span>
+              )}
             </div>
           );
         })()}
@@ -753,33 +674,21 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         })()}
       </div>
 
-      {/* ── 2. Audio use count with Single Integrated Preview Button ── */}
-      <div className="flex items-center justify-between gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
-        <div className="flex items-center gap-2 min-w-0">
-          <Music2 className="h-3.5 w-3.5 text-rose-400 shrink-0" />
-          <span className="text-muted-foreground truncate">Reels:</span>
-          <span className="font-bold text-foreground shrink-0">
-            {audioUseCount > 0 ? formatAudioUseCount(audioUseCount, trend.reelCount) : "Early signal"}
-          </span>
-          {trend.viewsDelta !== undefined && trend.viewsDelta > 0 && (
-            <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded hidden sm:inline">
-              +{formatViews(trend.viewsDelta)}
-            </span>
-          )}
+      {/* ── 2. Audio use count ────────────────────────────────────────────── */}
+      {audioUseCount > 0 && (
+        <div className="flex items-center gap-2 rounded-xl bg-white/[0.03] border border-border/40 px-3 py-2 text-xs">
+          <Music2 className="h-3.5 w-3.5 text-primary shrink-0" />
+          <span className="text-muted-foreground">Reels using this audio:</span>
+          <div className="flex items-center gap-1.5 ml-auto">
+            {trend.viewsDelta !== undefined && trend.viewsDelta > 0 && (
+              <span className="text-[10px] font-bold text-emerald-400 mr-1 bg-emerald-500/10 px-1.5 py-0.5 rounded">
+                📈 +{formatViews(trend.viewsDelta)}
+              </span>
+            )}
+            <span className="font-bold text-foreground">{formatAudioUseCount(audioUseCount, trend.reelCount)}</span>
+          </div>
         </div>
-
-        {/* The single, official Preview Audio button on the card */}
-        <button
-          type="button"
-          onClick={openLiveInstagramPreview}
-          className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 hover:border-rose-500/50 px-2.5 py-1 text-[11px] font-bold text-rose-300 transition-all shrink-0 cursor-pointer shadow-xs active:scale-95"
-          title="Open live phone-sized Instagram audio companion window"
-        >
-          <Play className="w-2.5 h-2.5 fill-rose-300" />
-          <span>Preview Audio</span>
-          <ExternalLink className="w-2.5 h-2.5 opacity-70" />
-        </button>
-      </div>
+      )}
 
       {/* ── 2.5 Real Reel Examples Chips ─────────────────────────────────────── */}
       {trend.top_reels && trend.top_reels.length > 0 && (
@@ -788,22 +697,20 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             <Video className="h-3 w-3 text-primary" /> Creator Reels:
           </span>
           {trend.top_reels.slice(0, 3).map((reel, idx) => (
-            <button
+            <a
               key={idx}
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                setShowPreviewModal(true);
-              }}
-              className="inline-flex items-center gap-1 rounded-md bg-secondary/70 hover:bg-primary/20 hover:text-primary transition-colors border border-border/60 px-2 py-0.5 text-[10px] font-medium text-foreground cursor-pointer"
+              href={reel.reel_url || (reel.reel_id ? `https://www.instagram.com/reel/${reel.reel_id}/` : "#")}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="inline-flex items-center gap-1 rounded-md bg-secondary/70 hover:bg-primary/20 hover:text-primary transition-colors border border-border/60 px-2 py-0.5 text-[10px] font-medium text-foreground"
               title={`View Instagram Reel by @${reel.owner_username || "creator"}`}
             >
               <span>@{reel.owner_username || "creator"}</span>
               {(reel.view_count ?? 0) > 0 && (
                 <span className="text-muted-foreground font-bold">({formatViews(reel.view_count ?? 0)})</span>
               )}
-              <Play className="h-2.5 w-2.5 opacity-60 fill-current" />
-            </button>
+              <ExternalLink className="h-2.5 w-2.5 opacity-60" />
+            </a>
           ))}
         </div>
       )}
@@ -858,10 +765,18 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         )}
       </div>
 
-      {/* Expand hint */}
+      {/* Expand hint + Preview button */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
-        <div className="flex items-center gap-1">
+        <div className="flex items-center gap-2">
+          {/* Quick preview — opens modal without expanding card (Fix #4) */}
+          <button
+            onClick={(e) => { e.stopPropagation(); setShowPreviewModal(true); }}
+            className="flex items-center gap-1 text-[10px] font-bold text-primary/70 hover:text-primary transition-colors"
+            title="Quick preview — see reels using this audio"
+          >
+            <Eye className="h-3 w-3" /> Preview
+          </button>
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
       </div>
@@ -928,6 +843,16 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
                 );
               })()}
 
+              {/* Hook */}
+              <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
+                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
+                <p className="text-xs text-foreground/90 leading-relaxed">
+                  {trend.llmClassificationStatus === "completed" 
+                    ? (trend.whyThisWorks || "No hook advice available.") 
+                    : "Not enough data yet for a tailored strategy."}
+                </p>
+              </div>
+
               {/* Trial reel badge row */}
               <div className="flex items-center gap-2 flex-wrap">
                 <TrialReelBadge
@@ -972,26 +897,28 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             )}
 
             {/* Content Concept */}
-            {(() => {
-              const { concept } = getTailoredCreatorStrategy(trend);
-              return (
-                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
-                  <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
-                  <p className="text-xs text-foreground/85 mt-1 leading-relaxed">
-                    {concept}
-                  </p>
-                </div>
-              );
-            })()}
+            <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
+              <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
+              <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
+                {trend.llmClassificationStatus === "completed" 
+                  ? (trend.idealContentDescription || "No content concept available.") 
+                  : "Not enough data yet for a tailored strategy."}
+              </p>
+            </div>
+
+
 
             {/* Creator scores */}
             <div className="space-y-2">
-              <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span>🕒 Optimal Post Window:</span>
-                <strong className="text-foreground font-semibold">{formatPostTimeIst(trend.optimalPostHourIst)}</strong>
-              </div>
-              <div className="flex items-center gap-2">
-                <ScorePill label="Hook Power" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+              {trend.optimalPostHourIst !== undefined && (
+                <div className="flex items-center text-[11px] text-muted-foreground">
+                  <span>Best post time: {trend.optimalPostHourIst}:00 IST</span>
+                </div>
+              )}
+              <div className="grid grid-cols-3 gap-2">
+                <ScorePill label="Fit" value={creatorFit} tone={creatorFit >= 0.7 ? "good" : creatorFit >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Hook" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Space" value={1 - saturationPenalty} tone={(1 - saturationPenalty) >= 0.7 ? "good" : (1 - saturationPenalty) >= 0.5 ? "mid" : "bad"} />
               </div>
             </div>
 
@@ -1125,7 +1052,6 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       />
       <TrendPreviewModal
         trend={trend}
-        reels={reels}
         isOpen={showPreviewModal}
         onClose={() => setShowPreviewModal(false)}
       />
@@ -1145,19 +1071,18 @@ function Chip({ children, className = "" }: { children: React.ReactNode; classNa
 
 function ScorePill({ label, value, tone }: { label: string; value: number; tone: "good" | "mid" | "bad" }) {
   const clz =
-    tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/25" :
-    tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/25" :
-                     "bg-rose-500/10 text-rose-400 border-rose-500/25";
+    tone === "good" ? "bg-emerald-500/10 text-emerald-400 border-emerald-500/20" :
+    tone === "mid"  ? "bg-amber-500/10 text-amber-400 border-amber-500/20" :
+                     "bg-primary/10 text-primary border-primary/20";
+  // Human label instead of raw number (Fix #5)
   const humanLabel =
-    tone === "good" ? "High Potential" :
-    tone === "mid"  ? "Moderate" :
-                     "Needs Strategy";
-  const pct = Math.round(value * 100);
+    tone === "good" ? "Great" :
+    tone === "mid"  ? "Good" :
+                     "Needs Work";
   return (
-    <div className={`rounded-xl border px-2 py-2 text-center transition-all ${clz}`}>
-      <p className="text-[9px] font-bold uppercase tracking-wider opacity-75 truncate">{label}</p>
-      <p className="text-xs font-black mt-0.5">{humanLabel}</p>
-      <p className="text-[10px] opacity-75 mt-0.5 font-semibold">{pct}% score</p>
+    <div className={`rounded-lg border px-2 py-2 text-center ${clz}`}>
+      <p className="text-[9px] font-bold uppercase tracking-wide opacity-80">{label}</p>
+      <p className="text-xs font-extrabold mt-0.5">{humanLabel}</p>
     </div>
   );
 }

@@ -1,74 +1,50 @@
-import { useState, useEffect } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 import {
   Dialog,
   DialogContent,
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import {
-  Music2,
-  Clock,
-  ExternalLink,
-  Flame,
-  Play,
-  Pause,
-  Bookmark,
-  Share2,
-  ChevronLeft,
-  ChevronRight,
-  Sparkles,
-  AppWindow,
-  Film,
-  Layers,
-  ArrowUpRight,
-} from "lucide-react";
+import { Music2, Clock, ExternalLink, Play, Image } from "lucide-react";
+import { supabase } from "@/lib/supabase";
 import type { UiTrend } from "@/lib/api";
-import { fetchTrendReels } from "@/lib/api";
 
 interface TrendPreviewModalProps {
   trend: UiTrend | null;
   isOpen: boolean;
   onClose: () => void;
-  reels?: Array<{
-    reel_id?: string;
-    reel_url?: string;
-    owner_username?: string;
-    view_count?: number;
-    like_count?: number;
-    thumbnail_url?: string;
-  }>;
 }
 
-export function TrendPreviewModal({ trend, isOpen, onClose, reels: propReels }: TrendPreviewModalProps) {
-  const { data: fetchedReels } = useQuery({
-    queryKey: ["trend-reels", trend?.id],
-    queryFn: () => (trend?.id ? fetchTrendReels(String(trend.id)) : Promise.resolve([])),
-    enabled: isOpen && !!trend?.id && (!propReels || propReels.length === 0) && (!trend?.top_reels || trend.top_reels.length === 0),
-    staleTime: 5 * 60_000,
-  });
+interface ReelPreview {
+  reel_id: string;
+  owner_username?: string;
+  view_count?: number;
+  caption?: string;
+  thumbnail_url?: string | null;
+}
 
-  const topReels = (propReels && propReels.length > 0)
-    ? propReels
-    : (trend?.top_reels && trend.top_reels.length > 0)
-    ? trend.top_reels
-    : (fetchedReels && fetchedReels.length > 0)
-    ? fetchedReels
-    : (trend?.reelId ? [{ reel_id: trend.reelId, owner_username: "creator" }] : []);
-
-  const [activeTab, setActiveTab] = useState<"audio_page" | "video_player">("video_player");
-  const [selectedReelId, setSelectedReelId] = useState<string>("");
-  const [isSaved, setIsSaved] = useState(false);
-  const [iframeLoading, setIframeLoading] = useState(true);
+export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalProps) {
+  const [reels, setReels] = useState<ReelPreview[]>([]);
+  const [loading, setLoading] = useState(false);
 
   useEffect(() => {
-    if (trend) {
-      const bestId = topReels[0]?.reel_id || trend.reelId || "";
-      setSelectedReelId(bestId);
-      setActiveTab("video_player");
-      setIframeLoading(true);
+    if (!isOpen || !trend?.audioId) {
+      setReels([]);
+      return;
     }
-  }, [trend, isOpen, topReels.length]);
+    setLoading(true);
+    supabase
+      .from("reels")
+      .select("reel_id, owner_username, view_count, caption, thumbnail_url")
+      .eq("audio_id", trend.audioId)
+      .order("view_count", { ascending: false })
+      .limit(3)
+      .then(({ data, error }) => {
+        if (!error && data) setReels(data as ReelPreview[]);
+        setLoading(false);
+      })
+      .catch(() => setLoading(false));
+  }, [isOpen, trend?.audioId]);
 
   if (!trend) return null;
 
@@ -76,361 +52,133 @@ export function TrendPreviewModal({ trend, isOpen, onClose, reels: propReels }: 
     ? `https://www.instagram.com/reels/audio/${trend.audioId}/`
     : `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(trend.song || "")}`;
 
-  const currentReelUrl = selectedReelId
-    ? `https://www.instagram.com/reel/${selectedReelId}/`
-    : audioUrl;
-
-  const totalUses = trend.audioUseCount ?? 0;
-  const formatUses = (count: number) => {
-    if (!count) return "1.2K reels";
-    if (count >= 1_000_000) return `${(count / 1_000_000).toFixed(1)}M reels`;
-    if (count >= 1_000) return `${(count / 1_000).toFixed(1)}K reels`;
-    return `${count} reels`;
-  };
+  const globalPct = trend.globalSaturationPct ?? 0;
+  const indiaPct  = trend.indiaSaturationPct  ?? 0;
 
   const formatViews = (v?: number) => {
-    if (!v) return "24.5K";
+    if (!v) return "—";
     if (v >= 1_000_000) return `${(v / 1_000_000).toFixed(1)}M`;
-    if (v >= 1_000) return `${(v / 1_000).toFixed(1)}K`;
+    if (v >= 1_000) return `${(v / 1_000).toFixed(0)}K`;
     return v.toString();
   };
 
-  // Opens a phone-sized companion window of the actual Instagram Audio Page
-  const openMiniWindow = (url: string) => {
-    const width = 430;
-    const height = 820;
-    const left = window.screen.width ? (window.screen.width - width) / 2 : 120;
-    const top = window.screen.height ? (window.screen.height - height) / 2 : 80;
-    window.open(
-      url,
-      "InstagramAudioWindow",
-      `width=${width},height=${height},top=${top},left=${left},scrollbars=yes,resizable=yes`
-    );
-  };
-
-  // Find thumbnail from reels or fallback
-  const heroThumb =
-    topReels[0]?.thumbnail_url ||
-    (selectedReelId ? `https://www.instagram.com/p/${selectedReelId}/media/?size=m` : null);
-
   return (
     <Dialog open={isOpen} onOpenChange={(open) => !open && onClose()}>
-      <DialogContent className="max-w-md w-full bg-zinc-950 border-zinc-800 text-zinc-100 p-0 overflow-hidden rounded-[32px] shadow-2xl">
-        {/* Miniature Phone Chrome Header */}
-        <div className="bg-black/90 border-b border-zinc-800/80 px-4 py-3 flex items-center justify-between backdrop-blur-md sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <button
-              onClick={onClose}
-              className="p-1 rounded-full hover:bg-zinc-800 text-zinc-300 transition-colors"
-            >
-              <ChevronLeft className="w-5 h-5" />
-            </button>
-            <span className="text-sm font-bold tracking-tight text-white flex items-center gap-1.5">
-              <Music2 className="w-4 h-4 text-rose-400" /> Audio
-            </span>
-          </div>
+      <DialogContent className="max-w-lg bg-zinc-950 border-zinc-800 text-zinc-100 overflow-y-auto max-h-[90vh] rounded-2xl p-5">
+        <DialogHeader className="border-b border-zinc-800 pb-3 mb-3">
+          <DialogTitle className="text-lg font-extrabold text-white flex items-center justify-between gap-3">
+            <span className="truncate">{trend.song}</span>
+            <span className="text-xs font-semibold text-zinc-400 font-sans shrink-0">by {trend.artist}</span>
+          </DialogTitle>
+        </DialogHeader>
 
-          <div className="flex items-center gap-1">
-            {/* Pop out true miniature window */}
-            <button
-              onClick={() => openMiniWindow(audioUrl)}
-              className="px-2.5 py-1 rounded-full bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 text-rose-300 text-[11px] font-bold flex items-center gap-1 transition-all"
-              title="Pop out this exact Instagram audio page in a miniature phone window"
-            >
-              <AppWindow className="w-3 h-3" />
-              <span>Mini Window</span>
-            </button>
-          </div>
+        {/* Quick stats row */}
+        <div className="flex flex-wrap gap-2 mb-4">
+          <span className="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 border border-emerald-500/20 px-2.5 py-0.5 text-xs font-bold text-emerald-400">
+            <Clock className="w-3 h-3" /> {trend.hoursLeft}h window
+          </span>
+          {globalPct > 0 && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+              globalPct < 30 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+              : globalPct < 65 ? "bg-amber-500/10 border-amber-500/20 text-amber-400"
+              : "bg-red-500/10 border-red-500/20 text-red-400"
+            }`}>
+              🌍 Global {Math.round(globalPct)}%
+            </span>
+          )}
+          {indiaPct > 0 && (
+            <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold border ${
+              indiaPct < 30 ? "bg-emerald-500/10 border-emerald-500/20 text-emerald-400"
+              : "bg-amber-500/10 border-amber-500/20 text-amber-400"
+            }`}>
+              🇮🇳 India {Math.round(indiaPct)}%
+            </span>
+          )}
         </div>
 
-        {/* Scrollable Miniature Instagram Audio Page Container */}
-        <div className="overflow-y-auto max-h-[78vh] p-4 space-y-4">
-          {/* Audio Page Hero Section (Exactly like Instagram Mobile) */}
-          <div className="flex items-start gap-3.5 pt-1">
-            {/* Vinyl / Cover Art */}
-            <div className="relative shrink-0 w-20 h-20 rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-xl group">
-              {heroThumb ? (
-                <img
-                  src={heroThumb}
-                  alt={trend.song}
-                  className="w-full h-full object-cover"
-                />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center bg-gradient-to-tr from-purple-900 via-rose-900 to-amber-900">
-                  <Music2 className="w-8 h-8 text-white/80" />
-                </div>
-              )}
-              {/* Play badge */}
-              <div
-                onClick={() => setActiveTab(activeTab === "video_player" ? "audio_page" : "video_player")}
-                className="absolute inset-0 bg-black/40 flex items-center justify-center cursor-pointer hover:bg-black/20 transition-all"
-              >
-                <div className="w-8 h-8 rounded-full bg-white/90 text-black flex items-center justify-center shadow-lg">
-                  <Play className="w-4 h-4 ml-0.5 fill-black" />
-                </div>
-              </div>
+        {/* ── Reel thumbnail grid ────────────────────────────────────────────
+            Fix #4: Instagram thumbnails fetched from Supabase reels table by
+            audio_id. Served by Instagram CDN — zero Supabase storage cost.
+        ─────────────────────────────────────────────────────────────────── */}
+        <div className="mb-4">
+          <p className="text-[10px] font-bold uppercase tracking-wider text-zinc-500 mb-2 flex items-center gap-1.5">
+            <Image className="h-3 w-3" /> Top Reels Using This Audio
+          </p>
+          {loading ? (
+            <div className="grid grid-cols-3 gap-2">
+              {[0, 1, 2].map((i) => (
+                <div key={i} className="aspect-[9/16] rounded-xl bg-zinc-800 animate-pulse" />
+              ))}
             </div>
-
-            {/* Audio Info & Use Stats */}
-            <div className="flex-1 min-w-0">
-              <h2 className="text-base font-extrabold text-white leading-snug line-clamp-2">
-                {trend.song}
-              </h2>
-              <p className="text-xs text-zinc-400 font-medium truncate mt-0.5">
-                {trend.artist || "Original audio"}
-              </p>
-              <div className="flex items-center gap-2 mt-1.5">
-                <span className="text-[11px] font-bold text-zinc-300 flex items-center gap-1">
-                  <Flame className="w-3 h-3 text-rose-500" />
-                  {formatUses(totalUses)}
-                </span>
-                <span className="text-zinc-600">•</span>
-                <span className="text-[11px] font-medium text-emerald-400">
-                  {trend.hoursLeft}h peak
-                </span>
-              </div>
-            </div>
-          </div>
-
-          {/* Instagram Action Row: "Use Audio" + "Save" */}
-          <div className="flex items-center gap-2">
-            <a
-              href={audioUrl}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-gradient-to-r from-rose-600 via-pink-600 to-purple-600 hover:opacity-95 text-white font-bold text-xs shadow-md transition-all"
-            >
-              <Music2 className="w-3.5 h-3.5" />
-              <span>Use Audio on Instagram</span>
-              <ArrowUpRight className="w-3.5 h-3.5 opacity-80" />
-            </a>
-
-            <button
-              onClick={() => setIsSaved(!isSaved)}
-              className={`p-2.5 rounded-xl border transition-all ${
-                isSaved
-                  ? "bg-rose-500/20 border-rose-500/50 text-rose-300"
-                  : "bg-zinc-900 border-zinc-800 text-zinc-400 hover:text-white"
-              }`}
-              title="Save audio"
-            >
-              <Bookmark className={`w-4 h-4 ${isSaved ? "fill-rose-400" : ""}`} />
-            </button>
-          </div>
-
-          {/* Tab Switcher: Miniature Audio Feed vs Embedded Reel Player */}
-          <div className="flex items-center p-1 rounded-xl bg-zinc-900/90 border border-zinc-800/80">
-            <button
-              onClick={() => setActiveTab("audio_page")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "audio_page"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Layers className="w-3.5 h-3.5" />
-              <span>Reels Audio Feed</span>
-            </button>
-            <button
-              onClick={() => setActiveTab("video_player")}
-              className={`flex-1 flex items-center justify-center gap-1.5 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                activeTab === "video_player"
-                  ? "bg-zinc-800 text-white shadow-sm"
-                  : "text-zinc-400 hover:text-zinc-200"
-              }`}
-            >
-              <Film className="w-3.5 h-3.5 text-rose-400" />
-              <span>Watch Player</span>
-            </button>
-          </div>
-
-          {/* VIEW 1: Instagram Miniature Audio Page Feed (3-column grid) */}
-          {activeTab === "audio_page" && (
-            <div className="space-y-3">
-              <div className="flex items-center justify-between text-xs text-zinc-400">
-                <span className="font-semibold text-zinc-300">Top Trending Reels</span>
-                <span className="text-[10px] text-zinc-500">Tap to play reel</span>
-              </div>
-
-              {/* 3-column Instagram grid */}
-              <div className="grid grid-cols-3 gap-2">
-                {(topReels.length > 0 ? topReels : [{ reel_id: selectedReelId }]).map((reel, idx) => {
-                  const rid = reel.reel_id || selectedReelId;
-                  const thumb =
-                    reel.thumbnail_url ||
-                    (rid ? `https://www.instagram.com/p/${rid}/media/?size=m` : null);
-                  return (
-                    <div
-                      key={rid || idx}
-                      onClick={() => {
-                        if (rid) {
-                          setSelectedReelId(rid);
-                          setActiveTab("video_player");
-                        }
-                      }}
-                      className="group relative aspect-[9/16] rounded-xl overflow-hidden bg-zinc-900 border border-zinc-800 hover:border-rose-500/60 transition-all cursor-pointer shadow-md"
-                    >
-                      {thumb ? (
-                        <img
-                          src={thumb}
-                          alt="Reel thumbnail"
-                          className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                          loading="lazy"
-                          onError={(e) => {
-                            (e.target as HTMLImageElement).style.display = "none";
-                          }}
-                        />
-                      ) : (
-                        <div className="w-full h-full flex flex-col items-center justify-center p-2 text-center bg-zinc-900">
-                          <Film className="w-5 h-5 text-zinc-600 mb-1" />
-                          <span className="text-[9px] text-zinc-500">Reel #{idx + 1}</span>
-                        </div>
-                      )}
-
-                      {/* Play overlay on hover */}
-                      <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-                        <Play className="w-6 h-6 text-white fill-white" />
-                      </div>
-
-                      {/* View count pill (bottom left like Instagram) */}
-                      <div className="absolute bottom-1.5 left-1.5 flex items-center gap-1 rounded bg-black/60 backdrop-blur-xs px-1.5 py-0.5 text-[9px] font-bold text-white">
-                        <Play className="w-2.5 h-2.5 fill-white" />
-                        <span>{formatViews(reel.view_count)}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Strategy Note */}
-              {trend.whyThisWorks && (
-                <div className="rounded-2xl border border-zinc-800 bg-zinc-900/40 p-3 mt-3">
-                  <p className="text-[10px] font-bold uppercase tracking-wider text-amber-400 mb-1 flex items-center gap-1">
-                    <Sparkles className="w-3 h-3" /> Why creators are using this
-                  </p>
-                  <p className="text-xs text-zinc-300 leading-relaxed">
-                    {trend.whyThisWorks}
-                  </p>
-                </div>
-              )}
-            </div>
-          )}
-
-          {/* VIEW 2: Embedded Live Instagram Reel Pager */}
-          {activeTab === "video_player" && (
-            <div className="space-y-3">
-              {/* Pager Bar: Prev / Counter / Next */}
-              {topReels.length > 1 && (
-                <div className="flex items-center justify-between px-2 py-1.5 bg-zinc-900/90 rounded-xl border border-zinc-800 text-xs font-semibold">
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idx = topReels.findIndex((r) => (r.reel_id || "") === selectedReelId);
-                      const prevIdx = (idx - 1 + topReels.length) % topReels.length;
-                      setSelectedReelId(topReels[prevIdx]?.reel_id || "");
-                      setIframeLoading(true);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors"
-                  >
-                    <ChevronLeft className="w-3.5 h-3.5" /> Prev Reel
-                  </button>
-
-                  <span className="text-[11px] font-mono text-zinc-400">
-                    Reel {Math.max(1, topReels.findIndex((r) => (r.reel_id || "") === selectedReelId) + 1)} of {topReels.length}
-                  </span>
-
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const idx = topReels.findIndex((r) => (r.reel_id || "") === selectedReelId);
-                      const nextIdx = (idx + 1) % topReels.length;
-                      setSelectedReelId(topReels[nextIdx]?.reel_id || "");
-                      setIframeLoading(true);
-                    }}
-                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-zinc-800 hover:bg-zinc-700 text-zinc-200 transition-colors"
-                  >
-                    Next Reel <ChevronRight className="w-3.5 h-3.5" />
-                  </button>
-                </div>
-              )}
-
-              {selectedReelId ? (
-                <div className="flex flex-col items-center gap-2">
-                  <div className="relative w-full rounded-2xl overflow-hidden bg-zinc-900 border border-zinc-800 shadow-inner flex flex-col items-center justify-center min-h-[460px]">
-                    {iframeLoading && (
-                      <div className="absolute inset-0 z-10 flex flex-col items-center justify-center bg-zinc-950/80 backdrop-blur-sm gap-2">
-                        <div className="w-7 h-7 rounded-full border-2 border-rose-500/20 border-t-rose-500 animate-spin" />
-                        <p className="text-[11px] font-semibold text-zinc-400">Loading Instagram Player...</p>
-                      </div>
-                    )}
-                    <iframe
-                      key={selectedReelId}
-                      src={`https://www.instagram.com/reel/${selectedReelId}/embed/`}
-                      className="w-full max-w-[340px] h-[460px] border-none"
-                      frameBorder="0"
-                      scrolling="no"
-                      allowTransparency={true}
-                      allow="autoplay; clipboard-write; encrypted-media; picture-in-picture; web-share"
-                      onLoad={() => setIframeLoading(false)}
-                    />
-                  </div>
-
-                  {/* Single Action Row: Open on Instagram always visible + Creator if extracted */}
-                  <div className="w-full flex items-center justify-between px-1 text-xs">
-                    {(() => {
-                      const currentReel = topReels.find((r) => (r.reel_id || "") === selectedReelId);
-                      const creator = currentReel?.owner_username;
-                      return creator && creator !== "unknown" ? (
-                        <span className="text-[11px] text-zinc-400 truncate">
-                          Creator: <strong className="text-zinc-200">@{creator}</strong>
-                        </span>
-                      ) : <span />;
-                    })()}
-
-                    <a
-                      href={`https://www.instagram.com/reel/${selectedReelId}/`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="inline-flex items-center gap-1 px-3 py-1.5 rounded-lg bg-rose-600/20 hover:bg-rose-600/30 border border-rose-500/40 text-rose-300 font-bold text-[11px] transition-all"
-                    >
-                      <span>Open on Instagram</span>
-                      <ExternalLink className="w-3 h-3" />
-                    </a>
-                  </div>
-                </div>
-              ) : (
-                <div className="rounded-2xl bg-zinc-900/60 border border-zinc-800 p-6 text-center">
-                  <p className="text-xs text-zinc-400 mb-3">
-                    Reel preview not available for this sound.
-                  </p>
+          ) : reels.length > 0 ? (
+            <div className="grid grid-cols-3 gap-2">
+              {reels.map((reel) => {
+                const reelUrl = `https://www.instagram.com/reel/${reel.reel_id}/`;
+                // Instagram's public CDN thumbnail — no auth needed, no storage cost
+                const thumbSrc =
+                  reel.thumbnail_url ||
+                  `https://www.instagram.com/p/${reel.reel_id}/media/?size=m`;
+                return (
                   <a
-                    href={audioUrl}
+                    key={reel.reel_id}
+                    href={reelUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-xs font-bold text-white border border-zinc-700"
+                    className="relative group block aspect-[9/16] rounded-xl overflow-hidden bg-zinc-800 border border-zinc-700 hover:border-rose-500/60 transition-all"
+                    title={`@${reel.owner_username || "creator"} — ${formatViews(reel.view_count)} views`}
                   >
-                    <ExternalLink className="w-3.5 h-3.5" />
-                    Open Instagram Audio
+                    <img
+                      src={thumbSrc}
+                      alt={`Reel by @${reel.owner_username}`}
+                      className="w-full h-full object-cover"
+                      loading="lazy"
+                      onError={(e) => {
+                        // hide broken img, show gradient fallback
+                        (e.target as HTMLImageElement).style.display = "none";
+                      }}
+                    />
+                    {/* Play overlay on hover */}
+                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col items-center justify-center gap-1">
+                      <Play className="h-6 w-6 text-white" fill="white" />
+                      <span className="text-[9px] text-white font-bold">Open on IG</span>
+                    </div>
+                    {/* Creator + views bar */}
+                    <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-1.5">
+                      <p className="text-[9px] text-white font-bold truncate">@{reel.owner_username || "creator"}</p>
+                      {reel.view_count ? (
+                        <p className="text-[8px] text-zinc-300">{formatViews(reel.view_count)} views</p>
+                      ) : null}
+                    </div>
                   </a>
-                </div>
-              )}
+                );
+              })}
+            </div>
+          ) : (
+            <div className="rounded-xl bg-zinc-900 border border-zinc-800 p-4 text-center">
+              <p className="text-xs text-zinc-500">No indexed reels yet — open the audio directly on Instagram to browse.</p>
             </div>
           )}
         </div>
 
-        {/* Footer bar */}
-        <div className="bg-zinc-900/60 border-t border-zinc-800 px-4 py-2.5 flex items-center justify-between text-[11px] text-zinc-400">
-          <span>Zero database storage • 1 Live Embed</span>
-          <a
-            href={audioUrl}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-rose-400 hover:text-rose-300 font-bold flex items-center gap-1"
-          >
-            <span>Instagram Audio Page</span>
-            <ExternalLink className="w-3 h-3" />
-          </a>
-        </div>
+        {/* Why this works */}
+        {trend.whyThisWorks && (
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 mb-4">
+            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1">💡 Why this works</p>
+            <p className="text-xs text-zinc-300 leading-relaxed">{trend.whyThisWorks}</p>
+          </div>
+        )}
+
+        {/* CTA */}
+        <a
+          href={audioUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="flex items-center justify-center gap-2 w-full rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold py-3 text-sm shadow-md transition-all duration-200"
+        >
+          <Music2 className="w-4 h-4" />
+          <span>{trend.audioId ? "Save Audio on Instagram →" : "Search Audio on Instagram →"}</span>
+          <ExternalLink className="w-3.5 h-3.5 opacity-80" />
+        </a>
       </DialogContent>
     </Dialog>
   );

@@ -1,0 +1,19 @@
+--- ORDER 81 PHASE 3 PLAYWRIGHT VERIFICATION ---
+Preview URL: https://trendrop-ewy6zm0ut-chinmays-projects-c20ed5a5.vercel.app
+Timestamp: 2026-10-17T10:36:54.605Z
+DOM Content Loaded in 1009ms
+Card selector wait warning: page.waitForSelector: Timeout 15000ms exceeded.
+Call log:
+[2m  - waiting for locator('[data-testid=\'deck-card-face\'], [data-testid=\'deck-empty\'], [data-testid=\'deck-view\']') to be visible[22m
+
+Saved screenshot: C:\Users\Chinmay\OneDrive\Desktop\trendrop\frontend\evidence\order81\phase3_deck_view.png
+Note: No deck card face found directly (check if login wall or caught-up state)
+Switching to Explore Tab...
+Saved Explore View screenshot: C:\Users\Chinmay\OneDrive\Desktop\trendrop\frontend\evidence\order81\phase3_explore_view.png
+Explore AI Search Input Present: true
+Explore Stage Pills Count: 0
+Explore Niche Chips Count: 0
+Radar Early Signals Count: 0
+Switching to Picks Tab...
+Saved Picks View screenshot: C:\Users\Chinmay\OneDrive\Desktop\trendrop\frontend\evidence\order81\phase3_picks_view.png
+Picks Items Count: 0

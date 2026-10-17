@@ -120,8 +120,6 @@ export interface ApiTrend {
     relevance_score: number;
   }>;
   niche_relevance?: Record<string, number>;
-  last_updated?: string | null;
-  is_stale?: boolean;
 }
 
 export interface ApiCaptionKit {
@@ -366,8 +364,6 @@ export interface UiTrend {
     relevance_score: number;
   }>;
   niche_relevance?: Record<string, number>;
-  last_updated?: string | null;
-  is_stale?: boolean;
 }
 
 export function adaptTrend(t: ApiTrend): UiTrend {
@@ -488,12 +484,9 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     firstDetectedAt: t.first_detected_at ?? null,
     createdAt: t.created_at ?? null,
     statusChangedAt: t.status_changed_at ?? null,
-    lastSeenAt: t.last_seen_at ?? null,
     // niche personalization fields — populated by server when user has a niche preference
     adaptation_briefs: t.adaptation_briefs ?? undefined,
     niche_relevance: t.niche_relevance ?? undefined,
-    last_updated: t.last_updated ?? null,
-    is_stale: Boolean(t.is_stale),
   };
 }
 
@@ -687,56 +680,6 @@ export async function fetchAudioHistory(trendId: string | number): Promise<Array
   return http<Array<{ snapshotted_at: string; audio_use_count: number }>>(`/api/trends/${encodeURIComponent(trendId)}/audio-history`);
 }
 
-export interface FeedResponse {
-  trends: UiTrend[];
-  total: number;
-  page: number;
-  limit: number;
-  has_more: boolean;
-}
-
-export async function fetchFeed(options?: {
-  page?: number;
-  limit?: number;
-  language?: string;
-  languages?: string[] | string;
-  niche?: string;
-  status?: string;
-  sort?: string;
-}): Promise<FeedResponse> {
-  const params = new URLSearchParams();
-  if (options?.page) params.set("page", String(options.page));
-  if (options?.limit) params.set("limit", String(options.limit));
-  if (options?.languages) {
-    const langStr = Array.isArray(options.languages) ? options.languages.join(",") : options.languages;
-    if (langStr) params.set("languages", langStr);
-  } else if (options?.language && options.language !== "all") {
-    params.set("language", options.language);
-  }
-  if (options?.niche && options.niche !== "all") params.set("niche", options.niche);
-  if (options?.status && options.status !== "all") params.set("status", options.status);
-  if (options?.sort) params.set("sort", options.sort);
-
-  const data = await http<{ trends: ApiTrend[]; total: number; page: number; limit: number; has_more: boolean }>(
-    `/api/feed?${params.toString()}`
-  );
-  return {
-    ...data,
-    trends: (data.trends || []).map(adaptTrend),
-  };
-}
-
-export async function fetchAskSearch(q: string): Promise<{ intent: string; direct_answer: string; results: UiTrend[] }> {
-  const data = await http<{ intent: string; direct_answer: string; results: ApiTrend[] }>(
-    `/api/search/ask?q=${encodeURIComponent(q)}`
-  );
-  return {
-    intent: data.intent || "",
-    direct_answer: data.direct_answer || "",
-    results: (data.results || []).map(adaptTrend),
-  };
-}
-
 export async function fetchTrends(language?: string, sort?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
   if (languages) {
@@ -833,33 +776,6 @@ export async function fetchLastDetectedTimes(): Promise<Record<string, string | 
     return await http<Record<string, string | null>>("/api/trends/last-detected");
   } catch {
     return {};
-  }
-}
-
-export interface DataFreshness {
-  last_updated: string | null;
-  is_stale: boolean;
-  age_hours?: number;
-  staleness_threshold_hours: number;
-  sources: {
-    instagram: { last_success_at: string | null; age_hours: number | null; is_stale: boolean };
-    spotify: { last_success_at: string | null; age_hours: number | null; is_stale: boolean };
-  };
-}
-
-export async function fetchDataFreshness(): Promise<DataFreshness> {
-  try {
-    return await http<DataFreshness>("/api/trends/freshness");
-  } catch {
-    return {
-      last_updated: null,
-      is_stale: false,
-      staleness_threshold_hours: 12,
-      sources: {
-        instagram: { last_success_at: null, age_hours: null, is_stale: false },
-        spotify: { last_success_at: null, age_hours: null, is_stale: false },
-      },
-    };
   }
 }
 
