@@ -1,5 +1,5 @@
 import { Link, useRouterState, useNavigate } from "@tanstack/react-router";
-import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn, Wrench, LayoutDashboard } from "lucide-react";
+import { Sparkles, Lightbulb, Building2, User, Flame, Settings, Handshake, BarChart3, LogOut, LogIn, Wrench, LayoutDashboard, Layers, Compass, BookmarkCheck } from "lucide-react";
 import { FEATURES } from "@/lib/features";
 import { motion } from "framer-motion";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,40 +26,27 @@ export function BottomTabBar() {
 
   };
 
-  const allTabs = [
-    { to: "/", label: "Trends", Icon: Flame },
-    { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
-    { to: "/studio", label: "Studio", Icon: Wrench },
-    ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
-    ...(FEATURES.IDEAS_ENABLED ? [{ to: "/ideas", label: "Ideas", Icon: Lightbulb }] : []),
-    ...(FEATURES.MARKETPLACE_ENABLED ? [{ to: "/marketplace", label: "Marketplace", Icon: Building2 }] : []),
-    ...(FEATURES.DEALS_ENABLED ? [{ to: "/deals", label: "Deals", Icon: Handshake }] : []),
-    user ? { to: "/settings", label: "Settings", Icon: Settings } : { to: "/login", label: "Login", Icon: LogIn },
+  const tabs = [
+    { to: "/", label: "Deck", Icon: Layers, tabId: "deck" },
+    { to: "/?tab=explore", label: "Explore", Icon: Compass, tabId: "explore" },
+    { to: "/?tab=picks", label: "Picks", Icon: BookmarkCheck, tabId: "picks" },
   ] as const;
-  const tabs = allTabs;
 
-  const gridCols = [
-    FEATURES.GENERATE_ENABLED,
-    FEATURES.IDEAS_ENABLED,
-    FEATURES.MARKETPLACE_ENABLED,
-    FEATURES.DEALS_ENABLED
-  ].filter(Boolean).length + 4; // Base 4 (Trends, Dashboard, Studio, Settings/Login)
-
-  const gridColsClass = {
-    3: "grid-cols-3",
-    4: "grid-cols-4",
-    5: "grid-cols-5",
-    6: "grid-cols-6",
-    7: "grid-cols-7",
-  }[gridCols] || "grid-cols-3";
+  const gridColsClass = "grid-cols-3";
 
   return (
     <nav aria-label="Main navigation" className="fixed bottom-0 left-1/2 z-50 w-full max-w-lg lg:max-w-2xl xl:max-w-4xl -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
       <ul className={`grid relative ${gridColsClass}`}>
-        {tabs.map(({ to, label, Icon }) => {
-          const isActive = to === "/"
-            ? currentPath === "/"
-            : currentPath.startsWith(to);
+        {tabs.map(({ to, label, Icon, tabId }) => {
+          const currentSearch = typeof window !== "undefined" ? window.location.search : "";
+          const isExplore = currentSearch.includes("tab=explore");
+          const isPicks = currentSearch.includes("tab=picks");
+          const isDeck = !isExplore && !isPicks;
+          const isActive = currentPath === "/" && (
+            (tabId === "deck" && isDeck) ||
+            (tabId === "explore" && isExplore) ||
+            (tabId === "picks" && isPicks)
+          );
           
           return (
             <li key={to}>

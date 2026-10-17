@@ -423,6 +423,8 @@ export function adaptTrend(t: ApiTrend): UiTrend {
     hashtags: t.hashtags ?? [],
     // Core v1 fields
     status: t.status ?? "rising",
+    stage: (t as any).stage ?? undefined,
+    stageComputedAt: (t as any).stage_computed_at ?? undefined,
     saturationScore: t.saturation_score ?? 0,
     saturationPenalty: t.saturation_penalty ?? 0,
     creatorFitScore: t.creator_fit_score ?? 0,
@@ -702,6 +704,8 @@ export async function fetchFeed(options?: {
   languages?: string[] | string;
   niche?: string;
   status?: string;
+  stage?: string;
+  mode?: string;
   sort?: string;
 }): Promise<FeedResponse> {
   const params = new URLSearchParams();
@@ -715,6 +719,8 @@ export async function fetchFeed(options?: {
   }
   if (options?.niche && options.niche !== "all") params.set("niche", options.niche);
   if (options?.status && options.status !== "all") params.set("status", options.status);
+  if (options?.stage && options.stage !== "all") params.set("stage", options.stage);
+  if (options?.mode) params.set("mode", options.mode);
   if (options?.sort) params.set("sort", options.sort);
 
   const data = await http<{ trends: ApiTrend[]; total: number; page: number; limit: number; has_more: boolean }>(
@@ -726,13 +732,14 @@ export async function fetchFeed(options?: {
   };
 }
 
-export async function fetchAskSearch(q: string): Promise<{ intent: string; direct_answer: string; results: UiTrend[] }> {
-  const data = await http<{ intent: string; direct_answer: string; results: ApiTrend[] }>(
+export async function fetchAskSearch(q: string): Promise<{ intent: string; count_line: string; chips: Array<{ key: string; label: string }>; results: UiTrend[] }> {
+  const data = await http<{ intent: string; count_line?: string; chips?: Array<{ key: string; label: string }>; results: ApiTrend[] }>(
     `/api/search/ask?q=${encodeURIComponent(q)}`
   );
   return {
     intent: data.intent || "",
-    direct_answer: data.direct_answer || "",
+    count_line: data.count_line || data.intent || "",
+    chips: data.chips || [],
     results: (data.results || []).map(adaptTrend),
   };
 }

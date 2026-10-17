@@ -167,3 +167,11 @@ frontend/audit_script.js
 
 frontend.zip
 test-results/
+
+# Order 79/81 private evidence, scratch, and prompt files
+order79_prompt_full.txt
+order81_master.txt
+scratch_order81.txt
+status_backup.json
+evidence/**/status_backup.json
+evidence/**/rollback_expired.sql

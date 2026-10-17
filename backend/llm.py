@@ -19,10 +19,12 @@ def _ipv4_only(*args, **kwargs):
     return ipv4_res if ipv4_res else res
 socket.getaddrinfo = _ipv4_only
 
-# Available Gemini models (verified 2026-08-24):
-# gemini-3.6-flash — latest stable, primary
-# gemini-3.5-flash-lite — secondary fallback
+# Available Gemini models (verified 2026-10-17):
+# gemini-3.8-flash — latest stable, primary
+# gemini-3.6-flash — secondary fallback
+# gemini-3.5-flash-lite — tertiary fallback
 _GEMINI_FALLBACK_MODELS = [
+    "gemini-3.8-flash",
     "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
 ]

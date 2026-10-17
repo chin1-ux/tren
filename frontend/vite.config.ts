@@ -112,11 +112,10 @@ export default defineConfig({
             },
             {
               urlPattern: /\/api\//,
-              handler: "NetworkFirst",
+              handler: "StaleWhileRevalidate",
               options: {
                 cacheName: "trendrop-api",
-                networkTimeoutSeconds: 5,
-                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 5 },
+                expiration: { maxEntries: 50, maxAgeSeconds: 60 * 10 },
               },
             },
           ],

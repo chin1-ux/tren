@@ -375,7 +375,7 @@ export function TrendFiltersModal({
                   </div>
                 </button>
 
-                {/* Golden Hour Toggle */}
+                {/* Rapid Breakout Toggle */}
                 <button
                   type="button"
                   onClick={() => onChange({ goldenHourOnly: !filters.goldenHourOnly })}
@@ -388,7 +388,7 @@ export function TrendFiltersModal({
                   <div>
                     <span className="text-xs font-semibold block text-foreground flex items-center gap-1">
                       <Flame className="h-3 w-3 text-amber-500" />
-                      Golden Hour Window
+                      Rapid Breakout Window
                     </span>
                     <span className="text-[10px] text-muted-foreground">&lt;28% Saturation + High Velocity</span>
                   </div>

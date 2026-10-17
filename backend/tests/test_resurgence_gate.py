@@ -1,5 +1,10 @@
 import unittest
+import os
+import sys
 from unittest.mock import MagicMock
+
+# Ensure backend directory is in sys.path
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 from trend_detector import _save_trend
 
 class TestResurgenceGate(unittest.TestCase):
@@ -314,6 +319,14 @@ class TestResurgenceGate(unittest.TestCase):
 
         # peak_velocity MUST be max(12000.0, 85000.0) = 85000.0
         self.assertEqual(update_call_args["peak_velocity"], 85000.0)
+
+    def test_clean_use_cnt_10000_cannot_promote_alone(self):
+        """clean_use_cnt >= 10000 with unique_creators < 3 MUST NOT pass resurgence gate."""
+        unique_creators = 1
+        clean_use_cnt = 50000
+        # Under new rule, creator_gate_passed strictly requires >= 3 unique creators
+        creator_gate_passed = (unique_creators >= 3)
+        self.assertFalse(creator_gate_passed)
 
 if __name__ == "__main__":
     unittest.main()

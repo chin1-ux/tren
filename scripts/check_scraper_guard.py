@@ -1,92 +1,134 @@
 import os
 import sys
-from datetime import datetime, timezone
+import subprocess
+import json
+from datetime import datetime, timezone, timedelta
 from dotenv import load_dotenv
 
-load_dotenv('backend/.env')
-load_dotenv('.env')
+load_dotenv("backend/.env")
+load_dotenv(".env")
 
-url = os.getenv('SUPABASE_URL')
-key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-
-def evaluate_guard_logic(cron_rows, now_dt=None, min_gap_minutes=165):
+def check_guard_v3(min_gap_minutes: int = 150):
     """
-    Pure evaluation logic for scraper guard.
-    cron_rows: list of dicts from cron_runs ordered by created_at DESC.
+    Guard v3:
+    - Queries GitHub API for recent scraper_cron runs.
+    - Measures elapsed time from run START (created_at).
+    - Any run started in the last 150 minutes (cancelled, in_progress, queued, or success) blocks execution.
+    - Consumes 0 Supabase egress.
     """
-    if now_dt is None:
-        now_dt = datetime.now(timezone.utc)
+    now_dt = datetime.now(timezone.utc)
+    current_run_id = os.getenv("GITHUB_RUN_ID")
+    repo = os.getenv("GITHUB_REPOSITORY", "chin1-ux/tren")
+    gh_token = os.getenv("GH_TOKEN") or os.getenv("GITHUB_TOKEN")
+    
+    print(f"=== SCRAPER GUARD V3 CHECK @ {now_dt.strftime('%Y-%m-%d %H:%M:%S UTC')} ===")
+    print(f"Target Repo: {repo} | Current Run ID: {current_run_id} | Gap Threshold: {min_gap_minutes}m")
+    
+    runs = []
+    
+    # Attempt 1: GitHub API via gh CLI or curl
+    try:
+        cmd = ["gh", "run", "list", "--workflow", "scraper_cron.yml", "--repo", repo, "--limit", "10", "--json", "databaseId,createdAt,status,conclusion"]
+        env = os.environ.copy()
+        if gh_token:
+            env["GH_TOKEN"] = gh_token
+        res = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=15)
+        if res.returncode == 0 and res.stdout.strip():
+            runs = json.loads(res.stdout.strip())
+            print(f"Retrieved {len(runs)} recent workflow runs from GitHub API.")
+    except Exception as e:
+        print(f"GitHub API query via gh CLI failed: {e}")
 
-    if not cron_rows:
-        return False, "No previous cron runs found. Proceeding."
+    # Fallback if gh CLI unavailable: direct requests/urllib
+    if not runs and gh_token:
+        try:
+            import urllib.request
+            req = urllib.request.Request(
+                f"https://api.github.com/repos/{repo}/actions/workflows/scraper_cron.yml/runs?per_page=10",
+                headers={
+                    "Authorization": f"Bearer {gh_token}",
+                    "Accept": "application/vnd.github.v3+json",
+                    "User-Agent": "GuardV3-Client"
+                }
+            )
+            with urllib.request.urlopen(req, timeout=10) as resp:
+                data = json.loads(resp.read().decode())
+                for r in data.get("workflow_runs", []):
+                    runs.append({
+                        "databaseId": r.get("id"),
+                        "createdAt": r.get("created_at"),
+                        "status": r.get("status"),
+                        "conclusion": r.get("conclusion")
+                    })
+            print(f"Retrieved {len(runs)} recent workflow runs from GitHub REST API.")
+        except Exception as e2:
+            print(f"GitHub REST API query failed: {e2}")
 
-    # Rule 1: If a run is currently in progress or queued, exit immediately (skip)
-    for r in cron_rows[:5]:
-        st = (r.get("status") or "").lower()
-        if st in ("running", "in_progress", "queued", "pending"):
-            created_str = r.get("created_at") or r.get("run_at")
+    # Evaluate runs if retrieved
+    if runs:
+        # Rule 1: Active in_progress or queued run (excluding current run)
+        for r in runs:
+            r_id = str(r.get("databaseId"))
+            if current_run_id and r_id == str(current_run_id):
+                continue
+            st = (r.get("status") or "").lower()
+            if st in ("in_progress", "queued", "waiting", "requested"):
+                msg = f"Skipping: another scraper run {r_id} is currently {st}."
+                print(msg)
+                return True, msg
+
+        # Rule 2: Elapsed time from START (createdAt) of the most recent other run
+        for r in runs:
+            r_id = str(r.get("databaseId"))
+            if current_run_id and r_id == str(current_run_id):
+                continue
+            created_str = r.get("createdAt")
             if created_str:
                 created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                age_minutes = (now_dt - created_dt).total_seconds() / 60.0
-                # If running for under 120 minutes, assume active lock
-                if age_minutes < 120:
-                    return True, f"Skipping: active scraper run in progress (status={st}, started {age_minutes:.1f}m ago)."
+                diff_minutes = (now_dt - created_dt).total_seconds() / 60.0
+                conclusion = r.get("conclusion") or r.get("status")
+                if diff_minutes < min_gap_minutes:
+                    msg = f"Skipping: last run #{r_id} started {diff_minutes:.1f}m ago (under {min_gap_minutes}m threshold; conclusion={conclusion})."
+                    print(msg)
+                    return True, msg
+                else:
+                    msg = f"Proceeding: last run #{r_id} started {diff_minutes:.1f}m ago (>={min_gap_minutes}m threshold; conclusion={conclusion})."
+                    print(msg)
+                    return False, msg
 
-    # Rule 2: Find newest completed run with status 'success' or 'partial' (ordered by created_at)
-    # Stop filtering on reels_scraped > 0!
-    latest_completed = None
-    for r in cron_rows:
-        st = (r.get("status") or "").lower()
-        if st in ("success", "partial"):
-            latest_completed = r
-            break
+    # Fallback to Supabase cron_runs only if GitHub API is completely unavailable
+    print("Warning: GitHub API returned no runs. Falling back to Supabase cron_runs check.")
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+    if url and key:
+        try:
+            from supabase import create_client
+            sb = create_client(url, key)
+            res = sb.table("cron_runs").select("id, created_at, run_at, status").order("created_at", desc=True).limit(5).execute()
+            rows = res.data or []
+            for r in rows:
+                c_str = r.get("run_at") or r.get("created_at")
+                if c_str:
+                    c_dt = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
+                    diff = (now_dt - c_dt).total_seconds() / 60.0
+                    if diff < min_gap_minutes:
+                        msg = f"Skipping (DB fallback): last DB run started {diff:.1f}m ago (under {min_gap_minutes}m)."
+                        print(msg)
+                        return True, msg
+                    else:
+                        msg = f"Proceeding (DB fallback): last DB run started {diff:.1f}m ago (>={min_gap_minutes}m)."
+                        print(msg)
+                        return False, msg
+        except Exception as e:
+            print(f"Supabase DB fallback check failed: {e}")
 
-    if not latest_completed:
-        return False, "No successful/partial completed runs found. Proceeding."
+    return False, "Proceeding: no previous runs found."
 
-    # Use created_at (guaranteed NOT NULL), fallback to run_at
-    ts_str = latest_completed.get("created_at") or latest_completed.get("run_at")
-    if not ts_str:
-        return False, "No valid timestamp on latest run. Proceeding."
-
-    last_dt = datetime.fromisoformat(ts_str.replace("Z", "+00:00"))
-    diff_minutes = (now_dt - last_dt).total_seconds() / 60.0
-
-    if diff_minutes < min_gap_minutes:
-        return True, f"Skipping: last completed run was {diff_minutes:.1f}m ago (under {min_gap_minutes}m threshold; status={latest_completed.get('status')}, scraped={latest_completed.get('reels_scraped')})."
-    else:
-        return False, f"Proceeding: last completed run was {diff_minutes:.1f}m ago (>={min_gap_minutes}m; status={latest_completed.get('status')}, scraped={latest_completed.get('reels_scraped')})."
-
-def check_guard():
-    if not url or not key:
-        print("No Supabase credentials found, proceeding.")
-        return False
-
-    try:
-        from supabase import create_client
-        sb = create_client(url, key)
-        # Fetch latest runs ordered strictly by created_at DESC (never run_at due to NULLs)
-        res = sb.table('cron_runs') \
-            .select('id, created_at, run_at, status, reels_scraped, new_reels_count') \
-            .order('created_at', desc=True) \
-            .limit(10) \
-            .execute()
-        
-        rows = res.data or []
-        skip, msg = evaluate_guard_logic(rows)
-        print(msg)
-        return skip
-    except Exception as e:
-        print(f"Warning in scraper guard check: {e}. Proceeding.")
-        return False
-
-if __name__ == '__main__':
-    skip = check_guard()
-    github_output = os.getenv('GITHUB_OUTPUT')
-    if github_output:
-        with open(github_output, 'a') as f:
+if __name__ == "__main__":
+    skip, message = check_guard_v3()
+    github_output = os.getenv("GITHUB_OUTPUT")
+    if github_output and os.path.exists(github_output):
+        with open(github_output, "a") as f:
             f.write(f"skip={'true' if skip else 'false'}\n")
-    if skip:
-        print("Scraper guard: SKIP")
-    else:
-        print("Scraper guard: PROCEED")
+    print(f"Scraper guard decision: {'SKIP' if skip else 'PROCEED'}")
+    sys.exit(0)

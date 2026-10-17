@@ -1,0 +1,54 @@
+================================================================================
+ORDER 81: PHASE 2 QUALITY GATE (SHADOW MODE) AUDIT REPORT
+Timestamp: 2026-10-17T10:05:36.187312+00:00
+================================================================================
+
+TOTAL TRENDS EVALUATED: 2016
+Tier A (High Confidence Music): 635 (31.5%)
+Tier B (Eligible Adoption/Emerging): 338 (16.8%)
+Tier C (Quarantined/Hidden): 1043 (51.7%)
+
+HARD TEST RESULT: 0 Never-Hide trends in Tier C (PASS = 0). Status: PASS
+
+BREAKDOWN BY REASON:
+------------------------------------------------------------
+single_creator_quarantine                          : 1004
+tier_a_high_quality_multi_creator                  : 635
+never_hide_market_fit_multi_creator                : 531
+tier_b_eligible_adoption                           : 338
+foreign_language_in_india_mode_pt_creators_1_lt_3  : 33
+foreign_language_in_india_mode_es_creators_1_lt_3  : 31
+foreign_language_in_india_mode_ko_creators_1_lt_3  : 24
+sacred_recitation_not_creator_audio                : 17
+foreign_language_in_india_mode_es_creators_2_lt_3  : 12
+foreign_language_in_india_mode_ko_creators_2_lt_3  : 11
+foreign_language_in_india_mode_pt_creators_2_lt_3  : 7
+never_hide_saved_by_user                           : 1
+
+SAMPLE 10 WOULD-BE-HIDDEN (TIER C):
+ID     | Lang  | Creators | Title                     | Primary Reason                
+--------------------------------------------------------------------------------
+7609   | hi    | 1        | Laal Ishq                 | single_creator_quarantine     
+7856   | other | 1        | Kete Dina Nabu            | single_creator_quarantine     
+6271   | en    | 1        | Danger Up Ahead           | single_creator_quarantine     
+7156   | hi    | 1        | RADE RAPATE               | single_creator_quarantine     
+7237   | other | 1        | Dham Dhama Dhama Baje Dho | single_creator_quarantine     
+7315   | hi    | 1        | Background                | single_creator_quarantine     
+7743   | ko    | 1        | GYM                       | single_creator_quarantine     
+7561   | other | 1        | James Dean                | single_creator_quarantine     
+7345   | en    | 1        | Video Games               | single_creator_quarantine     
+8002   | en    | 1        | Shook Ones, Pt. II        | single_creator_quarantine     
+
+SAMPLE 10 WOULD-BE-SHOWN (TIER A/B):
+ID     | Tier | Lang  | Creators | Title                     | Reason                        
+--------------------------------------------------------------------------------
+7659   | A    | hi    | 3        | Just Chill                | never_hide_market_fit_multi_creator
+6636   | A    | en    | 5        | The King And His Sword    | never_hide_market_fit_multi_creator
+6273   | A    | en    | 10       | Harleys In Hawaii         | never_hide_market_fit_multi_creator
+7689   | A    | hi    | 3        | Bhor Bhayi Din Chad Gaya  | never_hide_market_fit_multi_creator
+6331   | A    | hi    | 8        | Humsafar (Movie: Saiyaara | never_hide_market_fit_multi_creator
+7749   | A    | hi    | 3        | Here Merry Making         | never_hide_market_fit_multi_creator
+6278   | A    | en    | 5        | Inaam                     | never_hide_market_fit_multi_creator
+7707   | A    | hi    | 3        | Chiggy Wiggy              | never_hide_market_fit_multi_creator
+7829   | A    | en    | 3        | FUNK TAKA                 | never_hide_market_fit_multi_creator
+7113   | A    | ko    | 13       | Filam                     | tier_a_high_quality_multi_creator

@@ -18,12 +18,14 @@ const NICHES = [
 const LANGUAGES = [
   { code: "all",    emoji: "🌐", label: "All Languages" },
   { code: "hi",     emoji: "🇮🇳", label: "Hindi" },
-  { code: "pa",     emoji: "🌾", label: "Punjabi" },
+  { code: "pa",     emoji: "🎺", label: "Punjabi" },
   { code: "ta",     emoji: "🌴", label: "Tamil" },
   { code: "te",     emoji: "🌟", label: "Telugu" },
-  { code: "global", emoji: "🌍", label: "Global / English" },
-  { code: "mr",     emoji: "🦁", label: "Marathi" },
-  { code: "bn",     emoji: "🐯", label: "Bengali" },
+  { code: "en",     emoji: "🇺🇸", label: "English / Western" },
+  { code: "pt",     emoji: "🇧🇷", label: "Brazilian / Phonk" },
+  { code: "ko",     emoji: "🇰🇷", label: "Korean" },
+  { code: "ru",     emoji: "🇷🇺", label: "Russian" },
+  { code: "es",     emoji: "🇪🇸", label: "Spanish / Latin" },
 ];
 
 interface Props {
@@ -158,9 +160,9 @@ export function OnboardingFlow({ onComplete }: Props) {
             <Button
               id="onboarding-see-5-btn"
               onClick={handleFinish}
-              className="w-full h-12 bg-primary text-white text-sm font-extrabold rounded-xl shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all"
+              className="w-full h-12 bg-primary text-white text-sm font-extrabold rounded-xl shadow-lg shadow-primary/25 hover:bg-primary/90 transition-all cursor-pointer"
             >
-              See Today's 5 Audios 🔥
+              Explore 2,000+ Viral Trends 🔥
             </Button>
           </div>
         )}
