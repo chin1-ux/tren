@@ -1,0 +1,15 @@
+backend/routes\trends.py:166: "peaking_score,saturation_penalty,llm_classification_status,composite_score"
+backend/routes\trends.py:177: "ideal_content_description,llm_classification_status,hook_brief,adaptation_briefs"
+backend/routes\trends.py:539: _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
+backend/routes\trends.py:814: _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
+backend/routes\trends.py:957: - llm_classification_status IN ('completed', 'not_needed', 'skipped_local_fallback')
+backend/routes\trends.py:969: .in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+backend/routes\trends.py:1172: res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
+backend/routes\trends.py:1221: q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+backend/routes\trends.py:1299: f"llm_classification_status.in.({','.join(valid_llm_statuses)}),llm_classification_status.is.null"
+backend/routes\trends.py:1362: q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+backend/routes\trends.py:1450: .in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]) \
+frontend/src\lib\api.ts:48: llm_classification_status?: string;
+frontend/src\lib\api.ts:386: const classificationStatus = (t.llm_classification_status || (t.reel_id ? "completed" : "pending")).toLowerCase();
+frontend/src\lib\api.ts:387: const VERIFIED_STATUSES = new Set(["completed", "not_needed", "verified", "skipped_local_fallback"]);
+frontend/src\lib\api.ts:388: const isVerified = VERIFIED_STATUSES.has(classificationStatus);

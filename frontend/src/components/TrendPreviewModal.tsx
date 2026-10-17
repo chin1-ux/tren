@@ -7,7 +7,7 @@ import {
 } from "@/components/ui/dialog";
 import { Music2, Clock, ExternalLink, Play, Image } from "lucide-react";
 import { supabase } from "@/lib/supabase";
-import type { UiTrend } from "@/lib/api";
+import { getCleanAnalysis, type UiTrend } from "@/lib/api";
 
 interface TrendPreviewModalProps {
   trend: UiTrend | null;
@@ -161,12 +161,16 @@ export function TrendPreviewModal({ trend, isOpen, onClose }: TrendPreviewModalP
         </div>
 
         {/* Why this works */}
-        {trend.whyThisWorks && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 mb-4">
-            <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1">💡 Why this works</p>
-            <p className="text-xs text-zinc-300 leading-relaxed">{trend.whyThisWorks}</p>
-          </div>
-        )}
+        {(() => {
+          const cleanWhy = getCleanAnalysis(trend.whyThisWorks);
+          if (!cleanWhy) return null;
+          return (
+            <div className="rounded-xl border border-zinc-800 bg-zinc-900/40 p-3 mb-4">
+              <p className="text-[9px] font-bold uppercase tracking-wider text-zinc-500 mb-1">💡 Why this works</p>
+              <p className="text-xs text-zinc-300 leading-relaxed">{cleanWhy}</p>
+            </div>
+          );
+        })()}
 
         {/* CTA */}
         <a

@@ -1,0 +1,14 @@
+{
+  "trendrop": {},
+  "trendrop_tren": {},
+  "allam_log": [
+    "3e66f07 2026-08-24 15:30:58 +0530 Chinmay: fix: LLM providers - update models, add OpenRouter, force IPv4",
+    "98fee47 2026-08-24 15:11:21 +0530 chinmay: fix(llm): update model names, add OpenRouter fallback, force IPv4"
+  ],
+  "earliest_429": {
+    "run_id": 38323122144,
+    "created_at": "2026-10-12T23:37:38Z",
+    "workflow": "Classification Sweep",
+    "line": "sweep\tUNKNOWN STEP\t2026-10-12T23:37:50.4324290Z   Downloading hyperframe-6.1.0-py3-none-any.whl.metadata (4.3 kB)"
+  }
+}

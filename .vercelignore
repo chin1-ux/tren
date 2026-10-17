@@ -82,3 +82,13 @@ health_check.json
 trends_output.json
 uploads/
 outputs/
+evidence/
+evidence/**
+scripts/
+scripts/**
+tests/
+tests/**
+docs/
+docs/**
+reference/
+reference/**

@@ -3,6 +3,16 @@
   "buildCommand": "cd frontend && npm run build && cd .. && python inject_routes.py",
   "installCommand": "pip install --break-system-packages -r requirements.txt && cd frontend && npm install",
   "framework": null,
+  "rewrites": [
+    {
+      "source": "/api",
+      "destination": "/api/[...path]"
+    },
+    {
+      "source": "/api/(.*)",
+      "destination": "/api/[...path]"
+    }
+  ],
   "crons": [
     {
       "path": "/api/cron/refresh",

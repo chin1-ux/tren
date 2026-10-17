@@ -9,7 +9,7 @@ import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTrendReels, toggleTrendTarget } from "@/lib/api";
+import { fetchTrendReels, toggleTrendTarget, getCleanAnalysis } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -593,12 +593,18 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         </div>
         <p className="text-xs text-muted-foreground truncate">by {trend.artist}</p>
         
-        {/* Used For 1-line Creator Format Note */}
-        {(trend.used_for_note || trend.whyThisWorks) && (
-          <div className="mt-1.5 rounded-lg bg-primary/10 border border-primary/20 p-2 text-xs text-foreground/90 font-medium leading-snug">
-            💡 <span className="font-bold text-primary">Why this works:</span> {trend.used_for_note || trend.whyThisWorks}
-          </div>
-        )}
+        {/* Used For / Why-This-Works Banner — Only render genuine analysis; hide if missing or fallback */}
+        {(() => {
+          const cleanNote = getCleanAnalysis(trend.used_for_note);
+          const cleanWhy = getCleanAnalysis(trend.whyThisWorks);
+          const bannerText = cleanNote || (!isExpanded ? cleanWhy : null);
+          if (!bannerText) return null;
+          return (
+            <div className="mt-1.5 rounded-lg bg-primary/10 border border-primary/20 p-2 text-xs text-foreground/90 font-medium leading-snug">
+              💡 <span className="font-bold text-primary">Why this works:</span> {bannerText}
+            </div>
+          );
+        })()}
 
         {/* Dual-Date Timeline Telemetry: First caught vs Latest rescraped */}
         {(() => {
@@ -843,15 +849,17 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
                 );
               })()}
 
-              {/* Hook */}
-              <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
-                <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
-                <p className="text-xs text-foreground/90 leading-relaxed">
-                  {trend.llmClassificationStatus === "completed" 
-                    ? (trend.whyThisWorks || "No hook advice available.") 
-                    : "Not enough data yet for a tailored strategy."}
-                </p>
-              </div>
+              {/* Hook (first 3 seconds) — Only render if genuine hook text exists; hide if missing */}
+              {(() => {
+                const cleanHook = getCleanAnalysis(trend.whyThisWorks);
+                if (!cleanHook) return null;
+                return (
+                  <div className="rounded-lg bg-white/[0.02] border border-border/40 px-3 py-2">
+                    <p className="text-[9px] font-bold uppercase tracking-wider text-muted-foreground mb-1">🪝 Hook (first 3 seconds)</p>
+                    <p className="text-xs text-foreground/90 leading-relaxed">{cleanHook}</p>
+                  </div>
+                );
+              })()}
 
               {/* Trial reel badge row */}
               <div className="flex items-center gap-2 flex-wrap">

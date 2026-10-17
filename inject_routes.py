@@ -28,10 +28,10 @@ def bundle_python_function():
         'backend',
         dest_backend,
         ignore=shutil.ignore_patterns(
-            'venv', '.venv', '__pycache__', '*.pyc', '*.pyo', '.env', '*.log',
-            'uploads', 'outputs', 'scratch', 'test_*.py', 'check_*.py', 'verify_*.py',
-            'investigate_*.py', 'analyze_*.py', 'backfill_*.py', 'migrate_*.py',
-            'run_*.py', 'preview_*.py', '*.sql', '*.csv', '*.txt'
+            'venv*', '.venv*', '__pycache__', '*.pyc', '*.pyo', '.env', '*.log',
+            'uploads', 'outputs', 'scratch', 'tests', 'test_*', 'check_*', 'verify_*',
+            'investigate_*', 'analyze_*', 'backfill_*', 'migrate_*', 'migrations',
+            'run_*', 'preview_*', '*.sql', '*.csv', '*.txt', 'backend'
         )
     )
 
@@ -49,10 +49,16 @@ def bundle_python_function():
         json.dump(vc_config, f, indent=2)
     print("Successfully packaged Python serverless function!")
 
-api_route = {
-    "src": "/api/(.*)",
-    "dest": "/api/[...path]"
-}
+api_routes = [
+    {
+        "src": "/api",
+        "dest": "/api/[...path]"
+    },
+    {
+        "src": "/api/(.*)",
+        "dest": "/api/[...path]"
+    }
+]
 
 if os.path.exists(config_path):
     print("Modifying .vercel/output/config.json to inject API route...")
@@ -64,9 +70,9 @@ else:
 
 config['version'] = 3
 existing_routes = config.get('routes', [])
-# Ensure api_route is at the top
+# Ensure api_routes are at the top
 filtered_routes = [r for r in existing_routes if r.get('dest') != '/api/[...path]']
-config['routes'] = [api_route] + filtered_routes
+config['routes'] = api_routes + filtered_routes
 
 os.makedirs(os.path.dirname(config_path), exist_ok=True)
 with open(config_path, 'w') as f:

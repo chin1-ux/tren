@@ -366,6 +366,21 @@ export interface UiTrend {
   niche_relevance?: Record<string, number>;
 }
 
+export function getCleanAnalysis(text?: string | null): string | null {
+  if (!text) return null;
+  const trimmed = text.trim();
+  if (
+    (trimmed.startsWith("The track ") && trimmed.includes("is currently driving high engagement")) ||
+    (trimmed.startsWith("Adapt the visual style of ") && trimmed.includes("to your niche")) ||
+    trimmed === "Automated fallback classification." ||
+    trimmed === "Not enough data yet for a tailored strategy." ||
+    trimmed.toLowerCase().includes("fallback classification")
+  ) {
+    return null;
+  }
+  return trimmed;
+}
+
 export function adaptTrend(t: ApiTrend): UiTrend {
   const key = (t.content_type || "viral").toLowerCase();
   const meta = CATEGORY_EMOJI[key] ?? { emoji: "🔥", category: "Viral" as TrendCategory };

@@ -4,7 +4,7 @@ import {
   Zap, Volume2, Calendar, ChevronRight, Music2, Play, Pause, Loader2, Sparkles,
 } from "lucide-react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision } from "@/lib/api";
+import { fetchTrendById, fetchCaptionKit, fetchSimilarTrends, fetchTrendReels, fetchTrendDecision, getCleanAnalysis } from "@/lib/api";
 import { FEATURES } from "@/lib/features";
 import { Button } from "@/components/ui/button";
 import { PlanGate } from "@/components/PlanGate";
@@ -373,9 +373,9 @@ function TrendDetailPage() {
           </div>
         )}
 
-        {trend.whyThisWorks && (
+        {getCleanAnalysis(trend.whyThisWorks) && (
           <p className="text-xs text-muted-foreground rounded-xl bg-white/[0.03] p-3 border border-border italic">
-            💡 <strong>Why it's viral:</strong> {trend.whyThisWorks}
+            💡 <strong>Why it's viral:</strong> {getCleanAnalysis(trend.whyThisWorks)}
           </p>
         )}
 

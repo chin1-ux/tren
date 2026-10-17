@@ -892,6 +892,23 @@ def run_full_pipeline(stages: list = None):
                 classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
                 logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
 
+                # S2.2 Post-Ingestion Normalizer:
+                # Null template fallback text on new trends so the UI does not display generic filler,
+                # and set analysis_status = 'pending' to enqueue for genuine LLM analysis.
+                if trend_ids:
+                    try:
+                        sb_norm = _get_supabase()
+                        for tid in trend_ids:
+                            sb_norm.table("trends").update({
+                                "why_this_works": None,
+                                "used_for_note": None,
+                                "analysis_status": "pending",
+                                "analysis_attempts": 0
+                            }).eq("id", tid).execute()
+                        logging.info(f"Step 3a-1: Post-Ingestion Normalizer initialized {len(trend_ids)} trends to analysis_status='pending' and nulled template text.")
+                    except Exception as _norm_err:
+                        logging.warning(f"Step 3a-1 Post-Ingestion Normalizer warning (non-fatal): {_norm_err}")
+
                 # Order 35: Auto-classify newly created trends (language_final + used_for)
                 if trend_ids:
                     try:

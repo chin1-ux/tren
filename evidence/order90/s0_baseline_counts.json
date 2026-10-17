@@ -1,0 +1,43 @@
+{
+  "total_trends_db": 2033,
+  "status_counts": {
+    "completed": 1531,
+    "skipped_local_fallback": 238,
+    "verified": 264
+  },
+  "text_breakdown": {
+    "completed": {
+      "total": 1531,
+      "fallback_or_empty": 0,
+      "real_text": 1531,
+      "breakdown": {
+        "template_why_this_works": 0,
+        "automated_fallback_note": 0,
+        "null_why_this_works": 0
+      }
+    },
+    "skipped_local_fallback": {
+      "total": 238,
+      "fallback_or_empty": 238,
+      "real_text": 0,
+      "breakdown": {
+        "template_why_this_works": 238,
+        "automated_fallback_note": 0,
+        "null_why_this_works": 0
+      }
+    },
+    "verified": {
+      "total": 264,
+      "fallback_or_empty": 185,
+      "real_text": 79,
+      "breakdown": {
+        "template_why_this_works": 152,
+        "automated_fallback_note": 42,
+        "null_why_this_works": 0
+      }
+    }
+  },
+  "total_feed_eligible": 546,
+  "feed_eligible_fallback": 153,
+  "feed_eligible_real": 393
+}

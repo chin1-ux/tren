@@ -1,0 +1,217 @@
+{
+  "allam_2_7b": {
+    "success": 10,
+    "errors": 0,
+    "samples": [
+      {
+        "audio": "Surah Al-Mulk Beautiful Recitation",
+        "input_sample": "Listen before sleeping #quran #surahmulk #islamic | Peaceful",
+        "output": {
+          "why_this_works": "Sacred audio for personal reflection/prayer or 'unknown'",
+          "ideal_content_description": "The soothing recitation of Surah Al-Mulk by Mishary Rashid Alafasy is perfect for creating a tranquil surrounding or using it as a morning wake-up call.",
+          "hook_brief": "Open the door to inner peace with Mishary Alafasy's tranquil recitation of Surah Al-Mulk",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Achyutam Keshavam",
+        "input_sample": "Morning prayers at the temple #krishna #peace #darshan | Har",
+        "output": {
+          "why_this_works": "This audio is engaging for personal reflection or prayer, as it creates a peaceful and harmonious atmosphere.",
+          "ideal_content_description": "Ideal creator format seen in sample reels: Sacred audio for personal reflection/prayer, providing harmony and tranquility.",
+          "hook_brief": "None (sacred/ambient audio)",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Rainy Cafe Lo-Fi Beats (Instrumental)",
+        "input_sample": "Study session with coffee #studygram #cozyvibes #lofi | Rain",
+        "output": {
+          "why_this_works": "Due to its ambient and calming nature, 'Rainy Cafe Lo-Fi Beats' provides an engaging background for personal reflection or meditation, drawing users into a tranquil and focused environment.",
+          "ideal_content_description": "Chilled instrumental tracks perfect for creating a zen atmosphere",
+          "hook_brief": "Unwind and dive into a relaxing state with Rainy Cafe Lo-Fi Beats by ChilledCow",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Tauba Tauba",
+        "input_sample": "Vicky Kaushal dance hookstep #taubatauba #dancechallenge #tr",
+        "output": {
+          "why_this_works": "1 sentence: This audio is engaging as it perfectly captures the lively and energetic Indian dance culture with a trendy hookstep.",
+          "ideal_content_description": "1 sentence: 'Experience the mesmerizing Bhangra rhythm with Karan Aujla's 'Tauba Tauba' as a backdrop for your energetic dance routines or party events.'",
+          "hook_brief": "1 sentence: The engaging beat starts with 'Tauba Tauba' followed by the popular Hindi lyrics from Karan Aujla.",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Munbe Vaa",
+        "input_sample": "ARR magic will never fade #kollywood #arr #tamilsong | Sunse",
+        "output": {
+          "why_this_works": "Engaging melody and emotional lyrics bring a sense of nostalgia to the romantic atmosphere.",
+          "ideal_content_description": "Provides an emotional and nostalgic experience, making it suitable for creating a romantic ambiance or personal reflection.",
+          "hook_brief": "Introduce the enchanting melody followed by poignant lyrics that evoke nostalgia.",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Montagem Diamante Rosa",
+        "input_sample": "Gym PR montage beat drop #brazilianfunk #gymmotivation #phon",
+        "output": {
+          "why_this_works": "engaging for gym PR montage, Brazilian funk, and gym motivation themes",
+          "ideal_content_description": "Dance producer DJ Holanda crafts an energetic, Brazilian-inspired dance track perfect for gym motivation, \u0627\u0644\u0628\u0631\u0627\u0632\u064a\u0644\u064a funk, and fast cuts sync transition videos.",
+          "hook_brief": "None (sacred/ambient audio)",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Illuminati",
+        "input_sample": "Aavesham swag walk entry #aavesham #fahadhfaasil #illuminati",
+        "output": {
+          "why_this_works": "Audio 'Illuminati' by Sushin Shyam, Dabzee caters to the lifestyle niche with its upbeat and energetic tone, appealing to a wide audience and engaging through a hook-driven Swag theme.",
+          "ideal_content_description": "This music combines lifestyle, vibe, and language elements, making it a perfect choice for visual content such as fashion walks, casual scenes, and parties.",
+          "hook_brief": "Get ready to Illuminati up your swag with the 'Illuminati' soundtrack by Sushin Shyam and Dabzee.",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Not Like Us",
+        "input_sample": "Wop wop wop drop beat #notlikeus #kendrick #rap | West coast",
+        "output": {
+          "why_this_works": "The engaging and aggressive music with a hype vibe in 'Not Like Us' by Kendrick Lamar attracts fans to dance and resonates with West coast summer energy",
+          "ideal_content_description": "This high-energy rap song caters to a younger audience seeking entertainment, with dance-worthy beats and captivating lyrics.",
+          "hook_brief": "(None, sacred/ambient audio)",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Aap Jaisa Koi",
+        "input_sample": "70s vintage Bollywood glam look #retro #grwm #vintage | 90s ",
+        "output": {
+          "why_this_works": "None (sacred/ambient audio)",
+          "ideal_content_description": "1 sentence: an immersive 1970s Bollywood-inspired beauty routine aid or 'unknown'",
+          "hook_brief": "1 sentence: captivate listeners with a magical throwback to nostalgic Bollywood beauty, or 'None (sacred/ambient audio)'",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Fear Song (Devara)",
+        "input_sample": "Heavy deadlift session #devara #anirudh #gympr | Intense wor",
+        "output": {
+          "why_this_works": "This audio works because its high-energy and motivation-driven tune makes perfect sync for a fitness or gym environment, complementing the intense workout experience.",
+          "ideal_content_description": "The provided samples showcase that the creator format revolves around intense workout motivation and music syncing with fitness activities.",
+          "hook_brief": "Anirudh Ravichander delivers a high-energy motivational tune suitable for heavy deadlift sessions or intense workout jams.",
+          "is_sacred_or_ambient": false
+        }
+      }
+    ],
+    "headers": {
+      "x-ratelimit-limit-requests": "7000",
+      "x-ratelimit-limit-tokens": "6000",
+      "x-ratelimit-remaining-requests": "6999",
+      "x-ratelimit-remaining-tokens": "5336",
+      "x-ratelimit-reset-requests": "12.342s",
+      "x-ratelimit-reset-tokens": "6.64s"
+    }
+  },
+  "gpt_oss_20b": {
+    "success": 5,
+    "errors": 0,
+    "samples": [
+      {
+        "audio": "Surah Al-Mulk Beautiful Recitation",
+        "output": "{\n  \"why_this_works\": \"Sacred audio for personal reflection/prayer\",\n  \"ideal_content_description\": \"Short devotional reel featuring a peaceful recitation of Surah Al-Mulk with soothing visuals and ca"
+      },
+      {
+        "audio": "Achyutam Keshavam",
+        "output": ""
+      },
+      {
+        "audio": "Rainy Cafe Lo-Fi Beats (Instrumental)",
+        "output": ""
+      },
+      {
+        "audio": "Tauba Tauba",
+        "output": "{\n  \"why_this_works\": \"The energetic Punjabi track \\\"Tauba Tauba\\\" by Karan Aujla features a catchy hookstep that sparks dance challenges"
+      },
+      {
+        "audio": "Munbe Vaa",
+        "output": ""
+      }
+    ],
+    "headers": {
+      "x-ratelimit-limit-requests": "1000",
+      "x-ratelimit-limit-tokens": "8000",
+      "x-ratelimit-remaining-requests": "999",
+      "x-ratelimit-remaining-tokens": "7336",
+      "x-ratelimit-reset-requests": "1m26.4s",
+      "x-ratelimit-reset-tokens": "4.98s"
+    }
+  },
+  "gemini_3_6_flash": {
+    "success": 6,
+    "errors": 4,
+    "samples": [
+      {
+        "audio": "Surah Al-Mulk Beautiful Recitation",
+        "input_sample": "Listen before sleeping #quran #surahmulk #islamic | Peaceful",
+        "output": {
+          "why_this_works": "Sacred audio for personal reflection and spiritual peace.",
+          "ideal_content_description": "Peaceful visual scenes, night visuals, or aesthetic Arabic text overlays with verse translations.",
+          "hook_brief": "None (sacred/ambient audio)",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Achyutam Keshavam",
+        "input_sample": "Morning prayers at the temple #krishna #peace #darshan | Har",
+        "output": {
+          "why_this_works": "Sacred audio used for personal reflection, morning prayers, and creating a peaceful devotional atmosphere.",
+          "ideal_content_description": "Visuals of morning temple visits, peaceful darshan of deities, and calm spiritual routines.",
+          "hook_brief": "None (sacred/ambient audio)",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Rainy Cafe Lo-Fi Beats (Instrumental)",
+        "input_sample": "Study session with coffee #studygram #cozyvibes #lofi | Rain",
+        "output": {
+          "why_this_works": "The calming, ambient lo-fi beats create a cozy atmosphere that perfectly complements relaxing and aesthetic visual routines.",
+          "ideal_content_description": "Cozy lifestyle content such as study sessions with coffee, rainy day views, or aesthetic journaling routines.",
+          "hook_brief": "None (sacred/ambient audio)",
+          "is_sacred_or_ambient": true
+        }
+      },
+      {
+        "audio": "Tauba Tauba",
+        "input_sample": "Vicky Kaushal dance hookstep #taubatauba #dancechallenge #tr",
+        "output": {
+          "why_this_works": "This high-energy Punjabi party track drives strong engagement through a viral dance challenge and popular hookstep trend.",
+          "ideal_content_description": "Creators or groups of friends performing or attempting the viral hookstep from the song.",
+          "hook_brief": "Jump directly into the high-energy dance routine or signature hookstep within the first two seconds on the beat drop.",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Munbe Vaa",
+        "input_sample": "ARR magic will never fade #kollywood #arr #tamilsong | Sunse",
+        "output": {
+          "why_this_works": "The deeply emotional and nostalgic melody by A.R. Rahman evokes strong feelings that naturally complement scenic and aesthetic visual content.",
+          "ideal_content_description": "Scenic drives at sunset, travel aesthetics, and nostalgic romantic moments paired with relaxed visuals.",
+          "hook_brief": "Open with a captivating visual of a sunset drive or a beautiful scenic view matching the music's intro.",
+          "is_sacred_or_ambient": false
+        }
+      },
+      {
+        "audio": "Montagem Diamante Rosa",
+        "input_sample": "Gym PR montage beat drop #brazilianfunk #gymmotivation #phon",
+        "output": {
+          "why_this_works": "The energetic Brazilian funk beat drop creates intense hype, making it perfect for driving engagement during high-adrenaline moments and video transitions.",
+          "ideal_content_description": "High-intensity visual edits featuring gym PR montages, car drift showcases, and fast beat-synced transitions.",
+          "hook_brief": "Start with a high-stakes setup or action visual that syncs directly into a fast cut right as the beat drops.",
+          "is_sacred_or_ambient": false
+        }
+      }
+    ],
+    "headers": {}
+  }
+}
