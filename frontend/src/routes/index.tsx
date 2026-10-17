@@ -126,7 +126,8 @@ function TrendsFeed() {
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [displayLimit, setDisplayLimit] = useState(30);
 
-  const preferredLanguages = useUserStore((s) => s.preferredLanguages);
+  const rawPreferredLanguages = useUserStore((s) => s.preferredLanguages);
+  const preferredLanguages = useMemo(() => rawPreferredLanguages || [], [rawPreferredLanguages]);
   const setPreferredLanguages = useUserStore((s) => s.setPreferredLanguages);
 
   const activeLanguages = useMemo(() => {
@@ -146,108 +147,36 @@ function TrendsFeed() {
   });
 
   const {
-    data: risingData,
-    isLoading: risingLoading,
-    isError: risingError,
-    refetch: refetchRising,
+    data: feedData,
+    isLoading,
+    isError,
+    refetch,
   } = useQuery({
-    queryKey: ["trends", language, activeLanguages],
-    queryFn: () => fetchTrends(language, undefined, undefined, activeLanguages),
+    queryKey: ["unified-feed-home", language, activeLanguages],
+    queryFn: async () => {
+      try {
+        const res = await fetchFeed({
+          limit: 100,
+          language: language !== "all" ? language : undefined,
+          languages: activeLanguages,
+          sort: "newest",
+        });
+        if (res && res.trends && res.trends.length > 0) {
+          return res.trends;
+        }
+      } catch (err) {
+        console.warn("fetchFeed fallback to fetchTrends:", err);
+      }
+      return fetchTrends(language !== "all" ? language : undefined, undefined, undefined, activeLanguages);
+    },
     staleTime: 30_000,
     refetchInterval: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
-
-  const {
-    data: emergingData,
-    isLoading: emergingLoading,
-    isError: emergingError,
-    refetch: refetchEmerging,
-  } = useQuery({
-    queryKey: ["trends-emerging", language, activeLanguages],
-    queryFn: () => fetchEmergingTrends(language, undefined, activeLanguages),
-    staleTime: 30_000,
-    refetchInterval: 2 * 60_000,
-  });
-
-  const {
-    data: peakedData,
-    isLoading: peakedLoading,
-    isError: peakedError,
-    refetch: refetchPeaked,
-  } = useQuery({
-    queryKey: ["trends-peaked", language, activeLanguages],
-    queryFn: () => fetchPeakedTrends(language, undefined, activeLanguages),
-    staleTime: 15 * 60_000,
-    refetchInterval: 30 * 60_000,
-  });
-
-  const {
-    data: expiredData,
-    isLoading: expiredLoading,
-    isError: expiredError,
-    refetch: refetchExpired,
-  } = useQuery({
-    queryKey: ["trends-expired", language, activeLanguages],
-    queryFn: () => fetchExpiredTrends(language, undefined, activeLanguages),
-    staleTime: 30 * 60_000,
-    refetchInterval: 60 * 60_000,
-  });
-
-  const {
-    data: resurgingData,
-    isLoading: resurgingLoading,
-    isError: resurgingError,
-    refetch: refetchResurging,
-  } = useQuery({
-    queryKey: ["trends-resurging", language, activeLanguages],
-    queryFn: () => fetchResurgingTrends(language, undefined, activeLanguages),
-    staleTime: 5 * 60_000,
-    refetchInterval: 10 * 60_000,
-  });
-
-  const refetch = useCallback(() => {
-    refetchRising();
-    refetchEmerging();
-    refetchResurging();
-    refetchPeaked();
-    refetchExpired();
-  }, [refetchRising, refetchEmerging, refetchResurging, refetchPeaked, refetchExpired]);
-
-  const isLoading = risingLoading && emergingLoading && (!risingData || risingData.length === 0);
-  const isError = risingError && emergingError && (!risingData || risingData.length === 0);
-
-  // Deduplicate and combine trends across lifecycle states
-  const deduplicatedTrends = useMemo(() => {
-    const audioToTrend = new Map<string, { trend: UiTrend; priority: number }>();
-    const statusPriority: Record<string, number> = { rising: 5, emerging: 4, resurging: 3, peaked: 2, expired: 1 };
-
-    [
-      ...(emergingData || []),
-      ...(risingData || []),
-      ...(resurgingData || []),
-      ...(peakedData || []),
-      ...(expiredData || []),
-    ].forEach((t) => {
-      const audioId =
-        t.audioId && t.audioId !== "null"
-          ? t.audioId
-          : t.song && t.song !== "Original Audio" && t.song !== "Unknown Song"
-          ? `${t.song}-${t.artist}`
-          : `trend-${t.id}`;
-      const priority = statusPriority[t.status || "rising"] || 0;
-      const existing = audioToTrend.get(audioId);
-
-      if (!existing || priority > existing.priority || (priority === existing.priority && t.id > existing.trend.id)) {
-        audioToTrend.set(audioId, { trend: t, priority });
-      }
-    });
-
-    return Array.from(audioToTrend.values()).map((item) => item.trend);
-  }, [emergingData, risingData, resurgingData, peakedData, expiredData]);
 
   // Filter trends by Targeted, Niche, and Search query
   const trends = useMemo(() => {
-    let list = showTargetedOnly && targetedData ? targetedData : deduplicatedTrends;
+    let list = (showTargetedOnly && targetedData ? targetedData : feedData) || [];
 
     // Niche filter
     if (selectedNiche !== "all") {
@@ -269,7 +198,7 @@ function TrendsFeed() {
     }
 
     return list;
-  }, [deduplicatedTrends, targetedData, showTargetedOnly, selectedNiche, searchQuery]);
+  }, [feedData, targetedData, showTargetedOnly, selectedNiche, searchQuery]);
 
   const withCountdown = useCallback(
     (t: UiTrend): UiTrend => ({
