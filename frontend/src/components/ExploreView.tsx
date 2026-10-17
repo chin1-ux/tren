@@ -64,7 +64,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   // Controls
   const [selectedStage, setSelectedStage] = useState<string>("all");
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
-  const [isGlobalMode, setIsGlobalMode] = useState<boolean>(false);
+  const [selectedRegion, setSelectedRegion] = useState<"all" | "india" | "global">("all");
   const [selectedIndiaLang, setSelectedIndiaLang] = useState<string>("all");
   const [selectedGlobalLang, setSelectedGlobalLang] = useState<string>("all");
   const [includeExpired, setIncludeExpired] = useState<boolean>(false);
@@ -97,7 +97,31 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
     executeSearch(searchQuery);
   };
 
-  // Separate single-creator audios into Radar row (only if >=1 creator and not expired)
+  const resolveLanguageCode = (t: UiTrend): string => {
+    const raw = (t.rawLanguage || t.languageFinal || t.fallbackLanguage || t.language || "").toLowerCase().trim();
+    const map: Record<string, string> = {
+      hindi: "hi",
+      punjabi: "pa",
+      tamil: "ta",
+      telugu: "te",
+      marathi: "mr",
+      bengali: "bn",
+      kannada: "kn",
+      malayalam: "ml",
+      gujarati: "gu",
+      nepali: "ne",
+      english: "en",
+      portuguese: "pt",
+      brazilian: "pt",
+      korean: "ko",
+      russian: "ru",
+      spanish: "es",
+      instrumental: "instrumental",
+    };
+    return map[raw] || raw;
+  };
+
+  // Filter trends for Catalog Feed
   const { radarAudios, mainList } = useMemo(() => {
     let base = askResult ? askResult.results : trends;
 
@@ -111,7 +135,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
       const nLow = selectedNiche.toLowerCase();
       base = base.filter((t) => {
         const cat = (t.category || "").toLowerCase();
-        const why = (t.why_this_works || "").toLowerCase();
+        const why = (t.whyThisWorks || (t as any).why_this_works || "").toLowerCase();
         const note = (t.used_for_note || "").toLowerCase();
         return cat.includes(nLow) || why.includes(nLow) || note.includes(nLow);
       });
@@ -121,25 +145,25 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
     const indianLangs = ["hi", "pa", "ta", "te", "ml", "kn", "bn", "mr", "gu", "ne", "bho", "hne", "or"];
     const globalLangs = ["en", "es", "pt", "ko", "ja", "ru", "fr", "de", "it"];
 
-    if (isGlobalMode) {
-      // Must be a global language or global instrumental, NEVER Indian regional
+    if (selectedRegion === "global") {
+      // Must be a global language or instrumental, strictly exclude Indian regional
       base = base.filter((t) => {
-        const lang = (t.language || "").toLowerCase();
-        if (indianLangs.includes(lang)) return false;
+        const langCode = resolveLanguageCode(t);
+        if (indianLangs.includes(langCode)) return false;
         if (selectedGlobalLang !== "all") {
-          return lang === selectedGlobalLang;
+          return langCode === selectedGlobalLang;
         }
-        return globalLangs.includes(lang) || lang === "global" || lang === "instrumental";
+        return globalLangs.includes(langCode) || langCode === "global" || langCode === "instrumental" || !langCode;
       });
-    } else {
-      // India mode: Must be Indian language, NEVER foreign pop/phonk/k-pop
+    } else if (selectedRegion === "india") {
+      // India mode: Must be Indian language or instrumental, strictly exclude foreign pop/phonk/k-pop
       base = base.filter((t) => {
-        const lang = (t.language || "").toLowerCase();
-        if (globalLangs.includes(lang)) return false;
+        const langCode = resolveLanguageCode(t);
+        if (globalLangs.includes(langCode)) return false;
         if (selectedIndiaLang !== "all") {
-          return lang === selectedIndiaLang;
+          return langCode === selectedIndiaLang;
         }
-        return indianLangs.includes(lang) || lang === "india" || lang === "instrumental" || !lang;
+        return indianLangs.includes(langCode) || langCode === "india" || langCode === "instrumental" || !langCode;
       });
     }
 
@@ -148,11 +172,12 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
       base = base.filter((t) => t.status !== "expired" && t.stage !== "Expired");
     }
 
-    const radar = base.filter((t) => (t.reelCount || 1) === 1);
-    const main = base.filter((t) => (t.reelCount || 1) >= 2);
+    // Radar tracks are early signals (1 creator)
+    const radar = base.filter((t) => (t.reelCount ?? 1) === 1);
 
-    return { radarAudios: radar.slice(0, 12), mainList: main };
-  }, [trends, askResult, selectedStage, selectedNiche, isGlobalMode, selectedIndiaLang, selectedGlobalLang, includeExpired]);
+    // Full catalog list includes all matching audios
+    return { radarAudios: radar.slice(0, 10), mainList: base };
+  }, [trends, askResult, selectedStage, selectedNiche, selectedRegion, selectedIndiaLang, selectedGlobalLang, includeExpired]);
 
   return (
     <div className="w-full flex flex-col gap-4 pb-16">
@@ -267,17 +292,33 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         {/* Region & Language Selector (Zero Leakage) */}
         <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-white/5 text-xs flex-wrap">
           <div className="flex items-center gap-2">
-            {/* Region Switcher */}
+            {/* Region Switcher: All | India | Global */}
             <div className="inline-flex rounded-xl bg-zinc-900 p-0.5 border border-white/10">
+              <button
+                type="button"
+                id="lane-toggle-all"
+                onClick={() => {
+                  setSelectedRegion("all");
+                  setSelectedIndiaLang("all");
+                  setSelectedGlobalLang("all");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  selectedRegion === "all"
+                    ? "bg-white text-black shadow-sm font-black"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                🌐 All
+              </button>
               <button
                 type="button"
                 id="lane-toggle-india"
                 onClick={() => {
-                  setIsGlobalMode(false);
+                  setSelectedRegion("india");
                   setSelectedIndiaLang("all");
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  !isGlobalMode
+                  selectedRegion === "india"
                     ? "bg-white text-black shadow-sm font-black"
                     : "text-zinc-400 hover:text-white"
                 }`}
@@ -288,11 +329,11 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                 type="button"
                 id="lane-toggle-global"
                 onClick={() => {
-                  setIsGlobalMode(true);
+                  setSelectedRegion("global");
                   setSelectedGlobalLang("all");
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
-                  isGlobalMode
+                  selectedRegion === "global"
                     ? "bg-white text-black shadow-sm font-black"
                     : "text-zinc-400 hover:text-white"
                 }`}
@@ -302,7 +343,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             </div>
 
             {/* Language Dropdown for India Mode */}
-            {!isGlobalMode && (
+            {selectedRegion === "india" && (
               <select
                 id="language-select-india"
                 value={selectedIndiaLang}
@@ -318,7 +359,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             )}
 
             {/* Language Dropdown for Global Mode (Russian, Brazilian, Korean, Spanish, English) */}
-            {isGlobalMode && (
+            {selectedRegion === "global" && (
               <select
                 id="language-select-global"
                 value={selectedGlobalLang}
@@ -402,6 +443,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <div
                 key={t.id}
                 onClick={() => onSelectTrend(t)}
+                data-testid="trend-card"
                 className="p-3.5 rounded-2xl bg-zinc-950 border border-white/10 hover:border-white/20 transition-all cursor-pointer flex items-center justify-between gap-3 shadow-md"
               >
                 <div className="flex flex-col min-w-0">
