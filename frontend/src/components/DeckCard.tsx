@@ -157,10 +157,10 @@ export const DeckCard: React.FC<DeckCardProps> = ({
       {/* 2. Card Bottom Meta (Title, Proof line, Grounded line) */}
       <div className="p-4 bg-zinc-950/95 border-t border-white/10 flex flex-col gap-2">
         <div className="flex flex-col">
-          <h2 className="text-base font-extrabold text-white truncate leading-tight">
+          <h2 data-testid="card-title" className="text-base font-extrabold text-white truncate leading-tight">
             {trend.song}
           </h2>
-          <p className="text-xs text-zinc-400 truncate">
+          <p data-testid="card-artist" className="text-xs text-zinc-400 truncate">
             {trend.artist}
           </p>
         </div>

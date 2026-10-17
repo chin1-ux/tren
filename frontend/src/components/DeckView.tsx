@@ -147,7 +147,7 @@ export const DeckView: React.FC<DeckViewProps> = ({
           <div className="h-16 w-16 rounded-full bg-emerald-500/15 border border-emerald-500/30 text-emerald-400 flex items-center justify-center mb-4">
             <CheckCircle2 className="h-8 w-8" />
           </div>
-          <h2 className="text-xl font-extrabold text-white mb-2">You're caught up!</h2>
+          <h2 data-testid="deck-caught-up-header" className="text-xl font-extrabold text-white mb-2">You're caught up!</h2>
           <p className="text-xs text-zinc-400 leading-relaxed mb-6">
             You've reviewed all 15 top sounds for today. Next drop scheduled for <span className="text-emerald-400 font-bold">{nextDropTime}</span>.
           </p>
