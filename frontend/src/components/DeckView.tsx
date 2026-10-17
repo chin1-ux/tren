@@ -27,11 +27,11 @@ export const DeckView: React.FC<DeckViewProps> = ({
   isDataDelayed = false,
   onSavePick,
 }) => {
-  // Filter for deck: Tier A/B and >= 2 creators, max 15 cards/day
+  // Unlocked Deck: All active multi-creator trends without artificial daily limits
   const deckCards = React.useMemo(() => {
-    return trends
-      .filter((t) => (t.reelCount || 1) >= 2 && t.status !== "expired" && t.stage !== "Expired")
-      .slice(0, 15);
+    return trends.filter(
+      (t) => (t.reelCount || 1) >= 2 && t.status !== "expired" && t.stage !== "Expired"
+    );
   }, [trends]);
 
   const [currentIndex, setCurrentIndex] = useState(0);

@@ -47,14 +47,14 @@ function TrendsFeed() {
   const { user, logout } = useAuth();
   const userEmail = useUserStore((s) => s.email);
 
-  // Tab State: deck | explore | picks (synced with URL search params)
+  // Tab State: explore (default catalog discovery) | deck | picks
   const [activeTab, setActiveTab] = useState<"deck" | "explore" | "picks">(() => {
     if (typeof window !== "undefined") {
       const p = new URLSearchParams(window.location.search);
       const t = p.get("tab");
-      if (t === "explore" || t === "picks") return t;
+      if (t === "deck" || t === "picks") return t;
     }
-    return "deck";
+    return "explore";
   });
 
   const [showAvatarMenu, setShowAvatarMenu] = useState(false);
@@ -64,7 +64,7 @@ function TrendsFeed() {
     setActiveTab(tab);
     if (typeof window !== "undefined") {
       const url = new URL(window.location.href);
-      if (tab === "deck") {
+      if (tab === "explore") {
         url.searchParams.delete("tab");
       } else {
         url.searchParams.set("tab", tab);
@@ -105,6 +105,9 @@ function TrendsFeed() {
     isLoading: isFeedLoading,
     isError: isFeedError,
     refetch: refetchFeed,
+    hasNextPage,
+    isFetchingNextPage,
+    fetchNextPage,
   } = useInfiniteQuery({
     queryKey: ["unified-feed-deck"],
     queryFn: ({ pageParam = 1 }) =>
@@ -308,6 +311,9 @@ function TrendsFeed() {
           trends={allTrends}
           onSelectTrend={handleSelectTrend}
           onSavePick={handleSavePick}
+          hasMore={hasNextPage}
+          isLoadingMore={isFetchingNextPage}
+          onLoadMore={() => fetchNextPage()}
         />
       )}
 

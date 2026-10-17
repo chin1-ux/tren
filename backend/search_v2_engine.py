@@ -260,7 +260,7 @@ def rank_and_filter_search(trends: List[Dict[str, Any]], parsed: Dict[str, Any])
         if check_niche and niches:
             t_niche = (t.get("niche_tag") or t.get("category") or "").lower()
             t_semantics = [s.lower() for s in (t.get("semantic_niches") or [])]
-            t_haystack = (t_niche + " " + " ".join(t_semantics) + " " + str(t.get("used_for_note") or "")).lower()
+            t_haystack = (t_niche + " " + " ".join(t_semantics) + " " + str(t.get("used_for_note") or "") + " " + str(t.get("why_this_works") or "")).lower()
             matched_niche = any(n.lower() in t_haystack for n in niches)
             if not matched_niche:
                 return False

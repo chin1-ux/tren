@@ -7,6 +7,9 @@ interface ExploreViewProps {
   trends: UiTrend[];
   onSelectTrend: (trend: UiTrend) => void;
   onSavePick: (trend: UiTrend) => void;
+  hasMore?: boolean;
+  isLoadingMore?: boolean;
+  onLoadMore?: () => void;
 }
 
 const STAGE_PILLS = [
@@ -18,53 +21,80 @@ const STAGE_PILLS = [
 ];
 
 const NICHE_CHIPS = [
-  "all", "Fashion", "Dance", "Comedy", "Fitness", "Travel", "Food", "Beauty", "Music"
+  "all", "Fitness", "Fashion", "Dance", "Beauty", "POV", "Travel", "Food", "Comedy", "Music"
 ];
 
-const LANGUAGES = [
-  { id: "all", label: "All Languages" },
+const INDIA_LANGUAGES = [
+  { id: "all", label: "All India" },
   { id: "hi", label: "🇮🇳 Hindi" },
   { id: "pa", label: "🎺 Punjabi" },
   { id: "ta", label: "🌴 Tamil" },
   { id: "te", label: "🌟 Telugu" },
-  { id: "en", label: "🌐 English" },
-  { id: "es", label: "🇪🇸 Spanish" },
-  { id: "pt", label: "🇧🇷 Portuguese" },
+  { id: "mr", label: "🦁 Marathi" },
+  { id: "bn", label: "🐯 Bengali" },
+  { id: "instrumental", label: "🎹 Instrumental" },
+];
+
+const GLOBAL_LANGUAGES = [
+  { id: "all", label: "All Global" },
+  { id: "en", label: "🇺🇸 English" },
+  { id: "pt", label: "🇧🇷 Brazilian" },
   { id: "ko", label: "🇰🇷 Korean" },
+  { id: "ru", label: "🇷🇺 Russian" },
+  { id: "es", label: "🇪🇸 Spanish" },
+  { id: "instrumental", label: "🎹 Instrumental" },
+];
+
+const SEARCH_SUGGESTIONS = [
+  "Gym workout beat drop",
+  "Fashion outfit transition",
+  "GRWM aesthetic",
+  "Viral dance choreography",
+  "POV relatable acting",
 ];
 
 export const ExploreView: React.FC<ExploreViewProps> = ({
   trends,
   onSelectTrend,
   onSavePick,
+  hasMore = false,
+  isLoadingMore = false,
+  onLoadMore,
 }) => {
-  // FOUR Controls Only
+  // Controls
   const [selectedStage, setSelectedStage] = useState<string>("all");
   const [selectedNiche, setSelectedNiche] = useState<string>("all");
   const [isGlobalMode, setIsGlobalMode] = useState<boolean>(false);
-  const [selectedLanguage, setSelectedLanguage] = useState<string>("all");
+  const [selectedIndiaLang, setSelectedIndiaLang] = useState<string>("all");
+  const [selectedGlobalLang, setSelectedGlobalLang] = useState<string>("all");
   const [includeExpired, setIncludeExpired] = useState<boolean>(false);
 
-  // AI Search Box
+  // AI / Catalog Search Box
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
   const [askResult, setAskResult] = useState<{ intent: string; count_line?: string; chips?: Array<{ key: string; label: string }>; results: UiTrend[] } | null>(null);
 
-  const handleSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchQuery.trim()) {
+  const executeSearch = async (queryText: string) => {
+    const q = queryText.trim();
+    if (!q) {
       setAskResult(null);
       return;
     }
+    setSearchQuery(q);
     setIsSearching(true);
     try {
-      const res = await fetchAskSearch(searchQuery.trim());
+      const res = await fetchAskSearch(q);
       setAskResult(res);
     } catch {
       setAskResult(null);
     } finally {
       setIsSearching(false);
     }
+  };
+
+  const handleSearch = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    executeSearch(searchQuery);
   };
 
   // Separate single-creator audios into Radar row (only if >=1 creator and not expired)
@@ -76,19 +106,41 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
       base = base.filter((t) => (t.stage || t.status || "").toLowerCase() === selectedStage.toLowerCase());
     }
 
-    // Filter by Niche
+    // Filter by Niche (checks category, semantic_niches, AND why_this_works!)
     if (selectedNiche !== "all") {
-      base = base.filter((t) => (t.category || "").toLowerCase() === selectedNiche.toLowerCase());
+      const nLow = selectedNiche.toLowerCase();
+      base = base.filter((t) => {
+        const cat = (t.category || "").toLowerCase();
+        const why = (t.why_this_works || "").toLowerCase();
+        const note = (t.used_for_note || "").toLowerCase();
+        return cat.includes(nLow) || why.includes(nLow) || note.includes(nLow);
+      });
     }
 
-    // Filter by Mode & Language
+    // Strict Region & Language Filtering (Zero Leaks)
+    const indianLangs = ["hi", "pa", "ta", "te", "ml", "kn", "bn", "mr", "gu", "ne", "bho", "hne", "or"];
+    const globalLangs = ["en", "es", "pt", "ko", "ja", "ru", "fr", "de", "it"];
+
     if (isGlobalMode) {
+      // Must be a global language or global instrumental, NEVER Indian regional
       base = base.filter((t) => {
         const lang = (t.language || "").toLowerCase();
-        return ["en", "es", "pt", "ko", "global"].includes(lang);
+        if (indianLangs.includes(lang)) return false;
+        if (selectedGlobalLang !== "all") {
+          return lang === selectedGlobalLang;
+        }
+        return globalLangs.includes(lang) || lang === "global" || lang === "instrumental";
       });
-    } else if (selectedLanguage !== "all") {
-      base = base.filter((t) => (t.language || "").toLowerCase().includes(selectedLanguage));
+    } else {
+      // India mode: Must be Indian language, NEVER foreign pop/phonk/k-pop
+      base = base.filter((t) => {
+        const lang = (t.language || "").toLowerCase();
+        if (globalLangs.includes(lang)) return false;
+        if (selectedIndiaLang !== "all") {
+          return lang === selectedIndiaLang;
+        }
+        return indianLangs.includes(lang) || lang === "india" || lang === "instrumental" || !lang;
+      });
     }
 
     // Include Expired filter
@@ -99,23 +151,47 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
     const radar = base.filter((t) => (t.reelCount || 1) === 1);
     const main = base.filter((t) => (t.reelCount || 1) >= 2);
 
-    return { radarAudios: radar.slice(0, 8), mainList: main };
-  }, [trends, askResult, selectedStage, selectedNiche, isGlobalMode, selectedLanguage, includeExpired]);
+    return { radarAudios: radar.slice(0, 12), mainList: main };
+  }, [trends, askResult, selectedStage, selectedNiche, isGlobalMode, selectedIndiaLang, selectedGlobalLang, includeExpired]);
 
   return (
-    <div className="w-full flex flex-col gap-4 pb-12">
-      {/* ── 1. AI Search Box ──────────────────────────────────────────────────── */}
+    <div className="w-full flex flex-col gap-4 pb-16">
+      {/* ── 1. Catalog / AI Search Box ────────────────────────────────────────── */}
       <form onSubmit={handleSearch} className="relative w-full">
         <input
           type="text"
           id="explore-ai-search"
-          placeholder="Ask for audio ideas ('Rising fashion audios in India')..."
+          placeholder="Search 2,000+ viral audios ('Gym beat drop', 'Fashion transition', 'POV')..."
           value={searchQuery}
           onChange={(e) => setSearchQuery(e.target.value)}
-          className="w-full pl-10 pr-4 py-2.5 rounded-2xl bg-zinc-900 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-primary/50"
+          className="w-full pl-10 pr-20 py-3 rounded-2xl bg-zinc-900/90 border border-white/10 text-xs text-white placeholder-zinc-500 focus:outline-none focus:border-primary/60 shadow-inner"
         />
-        <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
+        <Search className="absolute left-3.5 top-3.5 h-4 w-4 text-zinc-400" />
+        <button
+          type="submit"
+          disabled={isSearching}
+          className="absolute right-2 top-2 px-3 py-1.5 rounded-xl bg-primary text-white text-[11px] font-bold hover:bg-primary/90 transition-all cursor-pointer disabled:opacity-50"
+        >
+          {isSearching ? "Searching..." : "Search"}
+        </button>
       </form>
+
+      {/* Quick Search Suggestion Pills */}
+      {!askResult && (
+        <div className="flex gap-1.5 overflow-x-auto no-scrollbar -mt-2 pb-1">
+          {SEARCH_SUGGESTIONS.map((sug) => (
+            <button
+              key={sug}
+              type="button"
+              onClick={() => executeSearch(sug)}
+              className="flex-shrink-0 px-2.5 py-1 rounded-full bg-zinc-900 border border-white/10 text-[11px] text-zinc-300 hover:text-white hover:border-primary/40 transition-all cursor-pointer"
+            >
+              {sug}
+            </button>
+          ))}
+        </div>
+      )}
+
       {askResult && (
         <div className="flex flex-col gap-1.5 -mt-2">
           <div className="flex items-center justify-between text-[11px] text-zinc-300 bg-zinc-900/90 border border-white/10 px-3 py-2 rounded-xl">
@@ -129,7 +205,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               }}
               className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
             >
-              Clear
+              Clear Search
             </button>
           </div>
           {askResult.chips && askResult.chips.length > 0 && (
@@ -148,9 +224,9 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       )}
 
-      {/* ── 2. FOUR CONTROLS ONLY ──────────────────────────────────────────────── */}
+      {/* ── 2. CONTROLS: Stage, Niche, Region Tabs, Language ───────────────────── */}
       <div className="flex flex-col gap-2.5">
-        {/* Control 1: Stage (4 Pills) */}
+        {/* Stage Pills */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {STAGE_PILLS.map((st) => (
             <button
@@ -169,7 +245,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           ))}
         </div>
 
-        {/* Control 2: Niche (Chips) */}
+        {/* Niche Chips */}
         <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-0.5">
           {NICHE_CHIPS.map((niche) => (
             <button
@@ -188,28 +264,68 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
           ))}
         </div>
 
-        {/* Control 3 & 4: India/Global Toggle + Language + Include Expired */}
-        <div className="flex items-center justify-between gap-2 pt-1 border-t border-white/5 text-xs">
+        {/* Region & Language Selector (Zero Leakage) */}
+        <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-white/5 text-xs flex-wrap">
           <div className="flex items-center gap-2">
-            {/* India ⇄ Global Toggle */}
-            <button
-              type="button"
-              id="lane-toggle-btn"
-              onClick={() => setIsGlobalMode(!isGlobalMode)}
-              className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/10 text-zinc-200 font-bold hover:bg-zinc-800 transition-colors cursor-pointer"
-            >
-              {isGlobalMode ? "🌍 Global" : "🇮🇳 India"}
-            </button>
+            {/* Region Switcher */}
+            <div className="inline-flex rounded-xl bg-zinc-900 p-0.5 border border-white/10">
+              <button
+                type="button"
+                id="lane-toggle-india"
+                onClick={() => {
+                  setIsGlobalMode(false);
+                  setSelectedIndiaLang("all");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  !isGlobalMode
+                    ? "bg-white text-black shadow-sm font-black"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                🇮🇳 India
+              </button>
+              <button
+                type="button"
+                id="lane-toggle-global"
+                onClick={() => {
+                  setIsGlobalMode(true);
+                  setSelectedGlobalLang("all");
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
+                  isGlobalMode
+                    ? "bg-white text-black shadow-sm font-black"
+                    : "text-zinc-400 hover:text-white"
+                }`}
+              >
+                🌍 Global
+              </button>
+            </div>
 
-            {/* Language Dropdown */}
+            {/* Language Dropdown for India Mode */}
             {!isGlobalMode && (
               <select
-                id="language-select-dropdown"
-                value={selectedLanguage}
-                onChange={(e) => setSelectedLanguage(e.target.value)}
-                className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/10 text-zinc-300 font-medium cursor-pointer focus:outline-none"
+                id="language-select-india"
+                value={selectedIndiaLang}
+                onChange={(e) => setSelectedIndiaLang(e.target.value)}
+                className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/10 text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none"
               >
-                {LANGUAGES.map((l) => (
+                {INDIA_LANGUAGES.map((l) => (
+                  <option key={l.id} value={l.id}>
+                    {l.label}
+                  </option>
+                ))}
+              </select>
+            )}
+
+            {/* Language Dropdown for Global Mode (Russian, Brazilian, Korean, Spanish, English) */}
+            {isGlobalMode && (
+              <select
+                id="language-select-global"
+                value={selectedGlobalLang}
+                onChange={(e) => setSelectedGlobalLang(e.target.value)}
+                className="px-2.5 py-1 rounded-lg bg-zinc-900 border border-white/10 text-zinc-200 text-xs font-medium cursor-pointer focus:outline-none"
+              >
+                {GLOBAL_LANGUAGES.map((l) => (
                   <option key={l.id} value={l.id}>
                     {l.label}
                   </option>
@@ -218,7 +334,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
             )}
           </div>
 
-          {/* Control 4: Include Expired Checkbox */}
+          {/* Include Expired Checkbox */}
           <label className="flex items-center gap-1.5 text-zinc-400 cursor-pointer text-[11px] select-none">
             <input
               type="checkbox"
@@ -232,13 +348,13 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         </div>
       </div>
 
-      {/* ── 3. RADAR ROW: Single-creator Audios (1 creator so far) ───────────── */}
+      {/* ── 3. RADAR ROW: Single-creator Audios ───────────────────────────────── */}
       {radarAudios.length > 0 && (
         <div className="flex flex-col gap-2 mt-2">
           <div className="flex items-center justify-between text-xs">
             <span className="font-bold text-zinc-300 flex items-center gap-1.5">
               <span>📡</span>
-              <span>Radar: 1 creator so far</span>
+              <span>Radar: 1 creator early breakout</span>
             </span>
             <span className="text-[10px] text-zinc-500">{radarAudios.length} early signals</span>
           </div>
@@ -265,13 +381,20 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
 
       {/* ── 4. MAIN MULTI-CREATOR LIST ────────────────────────────────────────── */}
       <div className="flex flex-col gap-2.5 mt-2">
-        <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
-          Multi-Creator Trends ({mainList.length})
-        </span>
+        <div className="flex items-center justify-between">
+          <span className="text-xs font-bold text-zinc-400 uppercase tracking-wider">
+            Trending Catalog ({mainList.length} audios)
+          </span>
+          {trends.length > mainList.length && (
+            <span className="text-[10px] text-zinc-500">
+              Filtered from {trends.length} active
+            </span>
+          )}
+        </div>
 
         {mainList.length === 0 ? (
           <div className="p-8 text-center bg-zinc-900/40 rounded-2xl border border-white/5 text-xs text-zinc-500">
-            No audios match the current filter selection.
+            No audios match the current filter selection. Try switching between India/Global or clear niche filter.
           </div>
         ) : (
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -279,14 +402,26 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
               <div
                 key={t.id}
                 onClick={() => onSelectTrend(t)}
-                className="p-3 rounded-2xl bg-zinc-950 border border-white/10 hover:border-white/20 transition-all cursor-pointer flex items-center justify-between gap-3"
+                className="p-3.5 rounded-2xl bg-zinc-950 border border-white/10 hover:border-white/20 transition-all cursor-pointer flex items-center justify-between gap-3 shadow-md"
               >
                 <div className="flex flex-col min-w-0">
                   <h3 className="text-xs font-bold text-white truncate">{t.song}</h3>
                   <p className="text-[11px] text-zinc-400 truncate">{t.artist}</p>
-                  <p className="text-[10px] text-emerald-400 font-semibold mt-1">
-                    👥 {t.reelCount || 2} creators
-                  </p>
+                  <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                    <span className="text-[10px] text-emerald-400 font-semibold">
+                      👥 {t.reelCount || 2} creators
+                    </span>
+                    {t.stage && (
+                      <span className="text-[10px] text-zinc-400 bg-zinc-900 px-1.5 py-0.5 rounded border border-white/5">
+                        {t.stage}
+                      </span>
+                    )}
+                    {t.language && (
+                      <span className="text-[10px] text-primary bg-primary/10 px-1.5 py-0.5 rounded uppercase font-bold">
+                        {t.language}
+                      </span>
+                    )}
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -294,12 +429,27 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
                     e.stopPropagation();
                     onSavePick(t);
                   }}
-                  className="px-2.5 py-1.5 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-[11px] font-semibold border border-white/10 flex-shrink-0 cursor-pointer"
+                  className="px-3 py-2 rounded-xl bg-zinc-900 hover:bg-zinc-800 text-zinc-200 text-[11px] font-semibold border border-white/10 flex-shrink-0 cursor-pointer"
                 >
-                  Use It
+                  Save Pick
                 </button>
               </div>
             ))}
+          </div>
+        )}
+
+        {/* Load More Button for Infinite Catalog */}
+        {hasMore && onLoadMore && (
+          <div className="flex justify-center pt-4">
+            <button
+              type="button"
+              id="load-more-trends-btn"
+              onClick={onLoadMore}
+              disabled={isLoadingMore}
+              className="w-full sm:w-auto px-6 py-2.5 rounded-xl bg-zinc-900 border border-white/10 hover:bg-zinc-800 text-xs text-white font-bold transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+            >
+              {isLoadingMore ? "Loading more audios..." : `Load More Audios (Showing ${mainList.length}) ⬇️`}
+            </button>
           </div>
         )}
       </div>

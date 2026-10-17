@@ -137,16 +137,27 @@ def _apply_languages_filter(q, language: Optional[str] = None, languages: Option
     if not lang_list:
         return q
 
-    # 'global' = strictly verified foreign languages (en, es, pt, ko, ja, ru, fr, de, it) or global discovery source
-    # Indian regional languages and instrumental unclassified rows are strictly excluded
+    # 'global' = strictly verified foreign languages (en, es, pt, ko, ja, ru, fr, de, it)
+    # Indian regional languages and Indian artists are strictly excluded from Global
+    global_codes_list = ["en", "es", "pt", "ko", "ja", "ru", "fr", "de", "it"]
+    indian_codes_list = ["hi", "pa", "ta", "te", "ml", "kn", "bn", "mr", "gu", "ne", "bho", "hne", "or"]
+
     if "global" in lang_list:
-        global_codes = "en,es,pt,ko,ja,ru,fr,de,it"
-        indian_codes = "hi,pa,ta,te,ml,kn,bn,mr,gu,ne,bho,hne,or,instrumental"
-        return q.or_(
-            f"language_final.in.({global_codes}),"
-            f"discovery_source.eq.global,"
-            f"and(language_final.is.null,language.in.({global_codes}))"
-        ).or_("trend_origin.neq.IN,trend_origin.is.null").or_(f"language.not.in.({indian_codes}),language.is.null")
+        global_codes = ",".join(global_codes_list)
+        indian_codes = ",".join(indian_codes_list)
+        return (
+            q.or_(f"language_final.in.({global_codes}),and(language_final.is.null,language.in.({global_codes}))")
+            .not_.in_("language_final", indian_codes_list)
+            .not_.in_("language", indian_codes_list)
+        )
+
+    if "india" in lang_list:
+        indian_codes = ",".join(indian_codes_list + ["instrumental"])
+        return (
+            q.or_(f"language_final.in.({indian_codes}),and(language_final.is.null,language.in.({indian_codes}))")
+            .not_.in_("language_final", global_codes_list)
+            .not_.in_("language", global_codes_list)
+        )
 
     filter_or = f"language_final.in.({','.join(lang_list)}),and(language_final.is.null,language.in.({','.join(lang_list)}))"
     return q.or_(filter_or)
