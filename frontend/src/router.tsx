@@ -27,8 +27,8 @@ export const getRouter = () => {
     context: { queryClient },
     scrollRestoration: true,
     defaultPreload: 'intent',
-    defaultPreloadDelay: 50,
-    defaultPreloadStaleTime: 5 * 60_000, // 5 min cache for preloaded routes
+    defaultPreloadDelay: 250, // Order 81: Prevent accidental mouse-over micro-movements from firing speculative SSR requests
+    defaultPreloadStaleTime: 10 * 60_000, // 10 min cache for preloaded routes
   });
 
   return router;

@@ -117,7 +117,7 @@ function TrendsFeed() {
     getNextPageParam: (lastPage, allPages) =>
       lastPage.has_more ? allPages.length + 1 : undefined,
     staleTime: 5 * 60_000,
-    refetchInterval: 10 * 60_000,
+    refetchInterval: false, // Order 81: Disabled periodic refetch to prevent idle tabs from burning Vercel Edge requests
     refetchOnWindowFocus: false,
   });
 
