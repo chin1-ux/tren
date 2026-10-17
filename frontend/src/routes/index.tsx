@@ -1,1169 +1,319 @@
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
-import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { useQuery, useInfiniteQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, Loader2 } from "lucide-react";
-import { fetchFeed, fetchAskSearch, fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
-import { TrendCard } from "@/components/TrendCard";
-import { SkeletonCard } from "@/components/SkeletonCard";
-import { DanceTrendModal } from "@/components/DanceTrendModal";
-import { ApiErrorBanner } from "@/components/ApiErrorBanner";
-import { PlanGate } from "@/components/PlanGate";
-import { OnboardingFlow } from "@/components/OnboardingFlow";
-// import { FeatureTutorial } from "@/components/FeatureTutorial";
-import { ParticleBackground } from "@/components/ParticleBackground";
-import { TrenddropLogo } from "@/components/TrenddropLogo";
-import { toast } from "sonner";
-import { motion, AnimatePresence } from "framer-motion";
-
+import {
+  Layers,
+  Compass,
+  BookmarkCheck,
+  Settings,
+  LayoutDashboard,
+  Wrench,
+  LogOut,
+  Sparkles,
+  AlertTriangle,
+} from "lucide-react";
+import {
+  fetchFeed,
+  fetchRecentScraperRuns,
+  toggleTrendTarget,
+  type UiTrend,
+} from "@/lib/api";
+import { DeckView } from "@/components/DeckView";
+import { ExploreView } from "@/components/ExploreView";
+import { PicksView } from "@/components/PicksView";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { AudioIdentityCard } from "@/components/AudioIdentityCard";
-import { ActiveLanguageBadge } from "@/components/ActiveLanguageBadge";
-import { TrendFiltersModal, type FilterState } from "@/components/TrendFiltersModal";
+import { TrenddropLogo } from "@/components/TrenddropLogo";
 import { useUserStore } from "@/store/useAppStore";
-import { useEffectivePlan } from "@/lib/plan";
 import { useAuth } from "@/contexts/AuthContext";
 import { RouteErrorBoundary } from "@/components/RouteErrorBoundary";
-import { isIndianAudio, INDIAN_LANG_CODES } from "@/lib/indianAudioDetector";
+import { toast } from "sonner";
 
 export const Route = createFileRoute("/")({
   head: () => ({
     meta: [
-      { title: "Trendrop — India's Trend Intelligence" },
-      { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-focused AI trend detection." },
+      { title: "Trendrop — Audio Intelligence & Deck" },
+      {
+        name: "description",
+        content: "Discover breakout audios before your competitors. High-speed swipe deck and trend intelligence.",
+      },
     ],
   }),
   component: TrendsFeed,
   errorComponent: RouteErrorBoundary,
 });
 
-const LANGUAGES = [
-  { code: "all", label: "🌐 All" },
-  { code: "global", label: "🌐 Global" },
-  { code: "hi",  label: "🇮🇳 Hindi" },
-  { code: "pa",  label: "🌾 Punjabi" },
-  { code: "ta",  label: "🌴 Tamil" },
-  { code: "te",  label: "🌟 Telugu" },
-  { code: "ml",  label: "🥥 Malayalam" },
-  { code: "kn",  label: "🎯 Kannada" },
-  { code: "bn",  label: "🐯 Bengali" },
-  { code: "mr",  label: "🦁 Marathi" },
-  { code: "gu",  label: "🪔 Gujarati" },
-  { code: "ne",  label: "🏔️ Nepali" },
-  { code: "es",  label: "🇪🇸 Spanish" },
-  { code: "pt",  label: "🇧🇷 Portuguese" },
-  { code: "ko",  label: "🇰🇷 Korean" },
-  { code: "instrumental", label: "🎼 Instrumental" },
-  { code: "other",        label: "🌐 Other" },
-];
-
-const NICHES = [
-  { id: "all",      label: "All" },
-  { id: "fitness",  label: "💪 Fitness" },
-  { id: "food",     label: "🍜 Food" },
-  { id: "comedy",   label: "😂 Comedy" },
-  { id: "fashion",  label: "👗 Fashion" },
-  { id: "business", label: "💼 Business" },
-  { id: "travel",   label: "✈️ Travel" },
-  { id: "beauty",   label: "💄 Beauty" },
-  { id: "devotional", label: "🙏 Devotional" },
-  { id: "tech",     label: "💻 Tech" },
-  { id: "dance",    label: "💃 Dance" },
-  { id: "narrative_edit", label: "🎞️ Creative Edit" },
-  { id: "romance_relationship", label: "💕 Romance" },
-];
-
-const NICHE_KEYWORDS_MAP: Record<string, string[]> = {
-  fitness: ["workout", "gym", "fitness", "exercise", "bodybuilding", "physique", "cardio", "protein", "training", "reps"],
-  food: ["recipe", "cooking", "food", "kitchen", "dish", "tasty", "street food", "restaurant", "cafe", "baking"],
-  comedy: ["meme", "comedy", "funny", "skit", "humor", "hilarious", "laugh", "relatable", "joke"],
-  fashion: ["outfit", "ootd", "fashion", "style", "clothing", "lookbook", "wear", "styling", "grwm", "outfit-showcase", "boutique"],
-  business: ["business", "startup", "finance", "wealth", "career", "entrepreneur", "money", "productivity"],
-  travel: ["travel", "trip", "scenic", "vacation", "mountains", "wanderlust", "explore", "nature", "vlog"],
-  beauty: ["makeup", "skincare", "beauty", "cosmetics", "glow up", "glam", "hair"],
-  devotional: ["devotional", "bhakti", "temple", "spiritual", "prayer", "bhajan", "puja", "god", "divine"],
-  tech: ["tech", "technology", "coding", "software", "ai", "gadget", "developer", "hardware"],
-  narrative_edit: ["cinematic", "storytelling", "creative edit", "transition", "capcut", "edit", "montage", "visuals", "aesthetic"],
-  romance_relationship: ["romance", "romantic", "couple", "love", "relationship", "wedding", "dating"],
-  dance: ["choreography", "dance", "routine", "hookstep", "dancer", "moves", "dancing"],
-};
-
-function matchesNiche(t: UiTrend, niche: string): boolean {
-  if (!niche || niche === "all") return true;
-  const tag = (t.nicheTag || "").toLowerCase();
-  if (tag === niche) return true;
-  if (t.semanticNiches && t.semanticNiches.some(s => s.toLowerCase() === niche)) return true;
-  if (t.contentType && t.contentType.toLowerCase() === niche) return true;
-  
-  // High-accuracy semantic match from whyThisWorks and used_for_note (85%+ accuracy)
-  const context = `${t.whyThisWorks || ""} ${t.used_for_note || ""} ${t.used_for || ""} ${t.idealContentDescription || ""}`.toLowerCase();
-  const kws = NICHE_KEYWORDS_MAP[niche] || [];
-  return kws.some(kw => context.includes(kw));
-}
-
-function matchesNiches(t: UiTrend, niches: string[]): boolean {
-  if (!niches || niches.length === 0 || niches.includes("all")) return true;
-  return niches.some((n) => matchesNiche(t, n));
-}
-
-type SortMode = "velocity" | "time_left" | "newest";
-
 function TrendsFeed() {
   const navigate = useNavigate();
-  const [language, setLanguage] = useState<string>("all");
-  const [sortMode] = useState<any>("newest");
-  const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
-  const [searchQuery, setSearchQuery] = useState("");
-  const [showFilterDrawer, setShowFilterDrawer] = useState(false);
-  const [now, setNow] = useState<number>(() => Date.now());
-  const prevCountRef = useRef<number>(0);
+  const { user, logout } = useAuth();
+  const userEmail = useUserStore((s) => s.email);
 
-  // Order 77: 3-tap Onboarding & Today's 5 Landing State
-  const [showOnboarding, setShowOnboarding] = useState<boolean>(() => {
+  // Tab State: deck | explore | picks (synced with URL search params)
+  const [activeTab, setActiveTab] = useState<"deck" | "explore" | "picks">(() => {
     if (typeof window !== "undefined") {
-      return !localStorage.getItem("trendrop_onboarded");
+      const p = new URLSearchParams(window.location.search);
+      const t = p.get("tab");
+      if (t === "explore" || t === "picks") return t;
     }
-    return false;
+    return "deck";
   });
-  const [todaysFiveOnly, setTodaysFiveOnly] = useState<boolean>(true);
-  const [appMode, setAppMode] = useState<"today" | "explore" | "saved">("today");
-  const [lane, setLane] = useState<"india" | "global">("india");
-  const [selectedStage, setSelectedStage] = useState<string>("all");
-  const [askResult, setAskResult] = useState<{ intent: string; direct_answer: string; results: UiTrend[] } | null>(null);
-  const [isSearching, setIsSearching] = useState(false);
 
-  const handleAskSearch = async (e?: React.FormEvent) => {
-    if (e) e.preventDefault();
-    if (!searchQuery.trim()) {
-      setAskResult(null);
-      return;
-    }
-    setIsSearching(true);
-    try {
-      const res = await fetchAskSearch(searchQuery.trim());
-      setAskResult(res);
-      setTodaysFiveOnly(false);
-    } catch (err) {
-      console.warn("Ask-it search error:", err);
-    } finally {
-      setIsSearching(false);
+  const [showAvatarMenu, setShowAvatarMenu] = useState(false);
+
+  // Sync tab with URL
+  const handleTabChange = (tab: "deck" | "explore" | "picks") => {
+    setActiveTab(tab);
+    if (typeof window !== "undefined") {
+      const url = new URL(window.location.href);
+      if (tab === "deck") {
+        url.searchParams.delete("tab");
+      } else {
+        url.searchParams.set("tab", tab);
+      }
+      window.history.replaceState({}, "", url.toString());
     }
   };
 
-  // Unified multi-dimensional filter state initialized synchronously from localStorage
-  const [filters, setFilters] = useState<FilterState>(() => {
-    let savedLang = "all";
-    let savedNichesList = ["all"];
-    if (typeof window !== "undefined") {
-      savedLang = localStorage.getItem("trendrop_pref_language") ?? "all";
-      try {
-        const savedNiches = localStorage.getItem("trendrop_pref_niches");
-        if (savedNiches) {
-          const parsed = JSON.parse(savedNiches);
-          if (Array.isArray(parsed) && parsed.length > 0) {
-            savedNichesList = parsed;
-          }
-        } else {
-          const single = localStorage.getItem("trendrop_pref_niche");
-          if (single && single !== "all") {
-            savedNichesList = [single];
-          }
-        }
-      } catch {
-        savedNichesList = ["all"];
-      }
-    }
-    return {
-      lifecycle: "all",
-      urgency: "all",
-      minOpportunityScore: 0,
-      minVelocity: 0,
-      outlierOnly: false,
-      goldenHourOnly: false,
-      niches: savedNichesList,
-      language: savedLang,
-      format: "all",
-      freshnessPreset: "all",
-      selectedRunIds: [],
-    };
-  });
-
-  const [preferredLanguages, setPreferredLanguages] = useState<string[]>(() => {
-    if (typeof window !== "undefined") {
-      const savedLangs = localStorage.getItem("trendrop_preferred_languages");
-      if (savedLangs) {
-        try {
-          const parsed = JSON.parse(savedLangs);
-          if (Array.isArray(parsed)) return parsed;
-        } catch (e) {}
-      }
-    }
-    return [];
-  });
-
-  // Reactive user email for avatar — F-1/ADD-8: use selector, not getState()
-  const userEmail = useUserStore((s) => s.email);
-  const userPlan = useEffectivePlan();
-  const { loading: isAuthLoading } = useAuth();
-
-  const [isPendingFilter, startFilterTransition] = useTransition();
-
-  const updateFilter = useCallback((updated: Partial<FilterState>) => {
-    setDisplayLimit(15);
-    startFilterTransition(() => {
-      setFilters((prev) => {
-        const next = { ...prev, ...updated };
-        if (typeof window !== "undefined") {
-          if (updated.language !== undefined) {
-            localStorage.setItem("trendrop_pref_language", updated.language);
-          }
-          if (updated.niches !== undefined) {
-            localStorage.setItem("trendrop_pref_niches", JSON.stringify(updated.niches));
-            localStorage.setItem("trendrop_pref_niche", updated.niches.length === 1 ? updated.niches[0] : updated.niches.join(","));
-          }
-        }
-        return next;
-      });
-    });
-  }, []);
-
-  const resetAllFilters = useCallback(() => {
-    setDisplayLimit(15);
-    setShowTargetedOnly(false);
-    startFilterTransition(() => {
-      setFilters({
-        lifecycle: "all",
-        urgency: "all",
-        minOpportunityScore: 0,
-        minVelocity: 0,
-        outlierOnly: false,
-        goldenHourOnly: false,
-        niches: ["all"],
-        language: "all",
-        format: "all",
-        freshnessPreset: "all",
-        selectedRunIds: [],
-      });
-    });
-    if (typeof window !== "undefined") {
-      localStorage.setItem("trendrop_pref_language", "all");
-      localStorage.setItem("trendrop_pref_niches", JSON.stringify(["all"]));
-      localStorage.setItem("trendrop_pref_niche", "all");
-    }
-  }, []);
-
-
-  // Calculate active filter count for badge
-  const activeFilterCount = useMemo(() => {
-    let count = 0;
-    if (filters.lifecycle !== "all") count++;
-    if (filters.urgency !== "all") count++;
-    if (filters.minOpportunityScore > 0) count++;
-    if (filters.minVelocity > 0) count++;
-    if (filters.outlierOnly) count++;
-    if (filters.goldenHourOnly) count++;
-    if (filters.niches.length > 0 && !filters.niches.includes("all")) count++;
-    if (filters.language !== "all") count++;
-    if (filters.format !== "all") count++;
-    if (filters.freshnessPreset !== "all" || (filters.selectedRunIds && filters.selectedRunIds.length > 0)) count++;
-    return count;
-  }, [filters]);
-
-  // Compute active language filter array: explicit filter > saved user preferences > undefined (all)
-  const activeLanguages = useMemo(() => {
-    if (filters.language && filters.language !== "all") {
-      return filters.language.includes(",") ? filters.language.split(",").map(s => s.trim()).filter(Boolean) : [filters.language];
-    }
-    if (preferredLanguages && preferredLanguages.length > 0) return preferredLanguages;
-    return undefined;
-  }, [filters.language, preferredLanguages]);
-
-  // Progressive rendering limit for fast DOM paint on mobile
-  const [displayLimit, setDisplayLimit] = useState<number>(15);
-  const [showTargetedOnly, setShowTargetedOnly] = useState<boolean>(false);
-
-  useEffect(() => {
-    setDisplayLimit(15);
-  }, [filters, sortMode, showTargetedOnly]);
-
-  // Tick every minute for countdown timers
-  useEffect(() => {
-    const id = setInterval(() => setNow(Date.now()), 60_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Stagger secondary queries by 1500ms so rising & emerging get full initial bandwidth.
-  // Peaked, expired, resurging, targeted, scraper-runs are non-critical for first paint.
-  const [secondaryReady, setSecondaryReady] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setSecondaryReady(true), 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
-  const {
-    data: scraperRunsData,
-  } = useQuery({
+  // ── Scraper Runs Query (For Data Delay Banner & Next Drop Calculation) ──────
+  const { data: scraperRuns = [] } = useQuery({
     queryKey: ["scraper-runs"],
-    queryFn: () => fetchRecentScraperRuns(6),
-    staleTime: 60_000,
-    refetchInterval: 5 * 60_000,
-    enabled: secondaryReady,
-  });
-  const scraperRuns = scraperRunsData ?? [];
-
-  const {
-    data: targetedData,
-    isLoading: targetedLoading,
-  } = useQuery({
-    queryKey: ["trends-targeted"],
-    queryFn: () => fetchTargetedTrends(),
-    staleTime: 60_000,
-    placeholderData: (prev) => prev,
-    enabled: secondaryReady || showTargetedOnly,
+    queryFn: () => fetchRecentScraperRuns(5),
+    staleTime: 5 * 60_000,
+    refetchOnWindowFocus: false,
   });
 
-  const {
-    data: lastDetectedTimes,
-  } = useQuery({
-    queryKey: ["trends-last-detected"],
-    queryFn: () => fetchLastDetectedTimes(),
-    staleTime: 60_000,
-    enabled: secondaryReady,
-  });
+  const { isDataDelayed, nextDropTime } = useMemo(() => {
+    if (!scraperRuns || scraperRuns.length === 0) {
+      return { isDataDelayed: false, nextDropTime: "in 2 hours" };
+    }
+    const latest = scraperRuns[0];
+    const ts = new Date(latest.run_at || latest.created_at).getTime();
+    if (isNaN(ts)) {
+      return { isDataDelayed: false, nextDropTime: "in 2 hours" };
+    }
 
-  // Order 77 Item 5 & Order 79 Steps 1-2: Infinite Paged Unified Feed Query
+    const ageHours = (Date.now() - ts) / (1000 * 60 * 60);
+    const nextDropHours = Math.max(0.5, Math.round((3.0 - (ageHours % 3.0)) * 10) / 10);
+    return {
+      isDataDelayed: ageHours > 6.0,
+      nextDropTime: `in ~${nextDropHours}h`,
+    };
+  }, [scraperRuns]);
+
+  // ── Infinite Unified Feed Query ───────────────────────────────────────────
   const {
     data: infiniteFeedData,
-    fetchNextPage,
-    hasNextPage,
-    isFetchingNextPage,
     isLoading: isFeedLoading,
     isError: isFeedError,
-    error: feedError,
     refetch: refetchFeed,
   } = useInfiniteQuery({
-    queryKey: [
-      "unified-feed",
-      appMode,
-      lane,
-      filters.language,
-      activeLanguages,
-      filters.niches,
-      filters.lifecycle,
-      selectedStage,
-      sortMode,
-    ],
-    queryFn: ({ pageParam = 1 }) => {
-      let langParam = filters.language;
-      let langsParam = activeLanguages;
-      if (lane === "global") {
-        langParam = "global";
-        langsParam = undefined;
-      } else if (lane === "india" && (!filters.language || filters.language === "all")) {
-        langsParam = INDIAN_LANG_CODES;
-      }
-
-      return fetchFeed({
+    queryKey: ["unified-feed-deck"],
+    queryFn: ({ pageParam = 1 }) =>
+      fetchFeed({
         page: pageParam as number,
-        limit: 20,
-        mode: appMode === "today" ? "today" : undefined,
-        language: langParam,
-        languages: langsParam,
-        niche: filters.niches[0] !== "all" ? filters.niches[0] : undefined,
-        status: filters.lifecycle !== "all" ? filters.lifecycle : undefined,
-        stage: selectedStage !== "all" ? selectedStage : undefined,
-        sort: sortMode,
-      });
-    },
+        limit: 30,
+        sort: "newest",
+      }),
     initialPageParam: 1,
-    getNextPageParam: (lastPage, allPages) => {
-      if (lastPage.has_more) {
-        return allPages.length + 1;
-      }
-      return undefined;
-    },
+    getNextPageParam: (lastPage, allPages) =>
+      lastPage.has_more ? allPages.length + 1 : undefined,
     staleTime: 5 * 60_000,
     refetchInterval: 10 * 60_000,
     refetchOnWindowFocus: false,
   });
 
-  const feedTrends = useMemo(() => {
+  const allTrends = useMemo(() => {
     return infiniteFeedData?.pages.flatMap((p) => p.trends) ?? [];
   }, [infiniteFeedData]);
-  const totalCount = infiniteFeedData?.pages[0]?.total ?? feedTrends.length;
 
-  const deduplicatedTrends = useMemo(() => {
-    return {
-      rising: feedTrends.filter((t) => t.status === "rising"),
-      emerging: feedTrends.filter((t) => t.status === "emerging" || t.isEmerging),
-      resurging: feedTrends.filter((t) => t.status === "resurging"),
-      peaked: feedTrends.filter((t) => t.status === "peaked"),
-      expired: feedTrends.filter((t) => t.status === "expired"),
-    };
-  }, [feedTrends]);
-
-  const emergingCount = deduplicatedTrends.emerging.length;
-
-  useEffect(() => {
-    if (emergingCount > prevCountRef.current && prevCountRef.current > 0) {
-      const diff = emergingCount - prevCountRef.current;
-      toast(`🚨 ${diff} new early trend${diff > 1 ? "s" : ""} detected!`, {
-        description: "Prioritized right at the top of your feed — act fast!",
-      });
+  // ── Saved Picks State ─────────────────────────────────────────────────────
+  const [savedPicks, setSavedPicks] = useState<UiTrend[]>(() => {
+    if (typeof window !== "undefined") {
+      try {
+        const raw = localStorage.getItem("trendrop_saved_picks");
+        if (raw) return JSON.parse(raw);
+      } catch {}
     }
-    prevCountRef.current = emergingCount;
-  }, [emergingCount]);
+    return [];
+  });
 
-  const allTrends = useMemo(() => {
-    return feedTrends;
-  }, [feedTrends]);
+  const handleSavePick = useCallback(async (trend: UiTrend) => {
+    setSavedPicks((prev) => {
+      if (prev.some((p) => p.id === trend.id)) return prev;
+      const next = [trend, ...prev];
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trendrop_saved_picks", JSON.stringify(next));
+      }
+      return next;
+    });
 
-  const isLoading = isFeedLoading && feedTrends.length === 0;
-  const isError = isFeedError && feedTrends.length === 0;
+    try {
+      await toggleTrendTarget(trend.id, "target");
+    } catch {}
+  }, []);
 
-  const refetch = () => {
-    refetchFeed();
+  const handleRemovePick = useCallback((trendId: string) => {
+    setSavedPicks((prev) => {
+      const next = prev.filter((p) => p.id !== trendId);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("trendrop_saved_picks", JSON.stringify(next));
+      }
+      return next;
+    });
+    toast.info("Removed from Picks");
+  }, []);
+
+  const handleSelectTrend = (trend: UiTrend) => {
+    navigate({ to: "/trend/$id", params: { id: trend.id } });
   };
 
-  // Pre-calculate targeted Set for instant O(1) card lookups without running 30+ separate hooks
-  const targetedSet = useMemo(() => {
-    return new Set((targetedData ?? []).map((t: any) => String(t.id)));
-  }, [targetedData]);
-
-  const trends = useMemo(() => {
-    if (askResult && askResult.results.length > 0) {
-      return askResult.results;
-    }
-    if (appMode === "saved") {
-      return targetedData ?? [];
-    }
-    let list = feedTrends;
-    if (appMode === "today" && todaysFiveOnly && !searchQuery && activeFilterCount === 0) {
-      return list.slice(0, 5);
-    }
-
-    // 0. Scraper Run & Freshness Batch filter (isolate or combine scrape cohorts)
-    const hasCustomRuns = filters.selectedRunIds && filters.selectedRunIds.length > 0;
-    const hasFreshnessPreset = filters.freshnessPreset && filters.freshnessPreset !== "all";
-
-    if (hasCustomRuns || hasFreshnessPreset) {
-      const targetTrendIds = new Set<number>();
-      let activeRuns: ScraperRunInfo[] = [];
-
-      if (hasCustomRuns) {
-        activeRuns = scraperRuns.filter((r) => filters.selectedRunIds.includes(r.run_id));
-      } else if (filters.freshnessPreset === "latest" && scraperRuns.length > 0) {
-        activeRuns = [scraperRuns[0]];
-      } else if (filters.freshnessPreset === "previous" && scraperRuns.length > 1) {
-        activeRuns = [scraperRuns[1]];
-      } else if (filters.freshnessPreset === "last_2" && scraperRuns.length > 0) {
-        activeRuns = scraperRuns.slice(0, 2);
-      }
-
-      for (const r of activeRuns) {
-        for (const id of r.trend_ids || []) {
-          targetTrendIds.add(Number(id));
-        }
-      }
-
-      list = list.filter((t) => {
-        const tid = Number(t.id);
-        // 1. Direct match in target trend IDs from cron_runs
-        if (targetTrendIds.size > 0 && targetTrendIds.has(tid)) {
-          return true;
-        }
-
-        // 2. Fallback to time-window relative to runs or preset
-        if (!t.firstDetectedAt && !t.createdAt) return false;
-        const detectedTime = new Date(t.firstDetectedAt || t.createdAt!).getTime();
-        if (isNaN(detectedTime)) return false;
-
-        const currentNow = now || Date.now();
-        const ageHours = (currentNow - detectedTime) / (1000 * 60 * 60);
-
-        // If specific runs were matched, check if detectedTime falls inside run windows (+/- buffer)
-        if (activeRuns.length > 0) {
-          return activeRuns.some((r) => {
-            const startMs = new Date(r.run_at).getTime() - 15 * 60 * 1000;
-            const endMs = (r.completed_at ? new Date(r.completed_at).getTime() : startMs + 45 * 60 * 1000) + 15 * 60 * 1000;
-            return detectedTime >= startMs && detectedTime <= endMs;
-          });
-        }
-
-        // Preset-based relative age fallback
-        if (filters.freshnessPreset === "latest") {
-          return ageHours <= 3.5;
-        }
-        if (filters.freshnessPreset === "previous") {
-          return ageHours > 3.5 && ageHours <= 7.0;
-        }
-        if (filters.freshnessPreset === "last_2") {
-          return ageHours <= 7.0;
-        }
-        if (filters.freshnessPreset === "today") {
-          return ageHours <= 24.0;
-        }
-        return true;
-      });
-    }
-
-    // 1. Lifecycle Stage filter
-    if (filters.lifecycle && filters.lifecycle !== "all") {
-      list = list.filter((t) => (t.status ?? "rising").toLowerCase() === filters.lifecycle.toLowerCase());
-    }
-
-    // 2. Urgency / Creation Window filter (window_hours_remaining)
-    if (filters.urgency && filters.urgency !== "all") {
-      list = list.filter((t) => {
-        const hrs = t.hoursLeft ?? 0;
-        if (filters.urgency === "under6") return hrs > 0 && hrs <= 6;
-        if (filters.urgency === "under12") return hrs > 0 && hrs <= 12;
-        if (filters.urgency === "under24") return hrs > 0 && hrs <= 24;
-        if (filters.urgency === "under48") return hrs > 0 && hrs <= 48;
-        return true;
-      });
-    }
-
-    // 3. Minimum Opportunity Score filter
-    if (filters.minOpportunityScore > 0) {
-      list = list.filter((t) => (t.opportunityScore ?? 0) >= filters.minOpportunityScore);
-    }
-
-    // 4. Minimum Velocity Multiplier filter
-    if (filters.minVelocity > 0) {
-      list = list.filter((t) => (t.viralMultiplier ?? 0) >= filters.minVelocity);
-    }
-
-    // 5. Creator Outlier filter (blew up from small creator accounts)
-    if (filters.outlierOnly) {
-      list = list.filter((t) => !!t.hasCreatorOutlier);
-    }
-
-    // 6. Golden Hour filter (high velocity + <28% saturation)
-    if (filters.goldenHourOnly) {
-      list = list.filter((t) => {
-        const sat = t.indiaSaturationPct ?? t.globalSaturationPct ?? (t.saturationScore ? t.saturationScore * 100 : 0);
-        const vel = t.viralMultiplier ?? 0;
-        const status = (t.status ?? "rising").toLowerCase();
-        return (sat > 0 && sat <= 28 && (vel >= 15 || (t.opportunityScore ?? 0) >= 75)) ||
-               (status === "emerging" && (vel >= 12 || (t.opportunityScore ?? 0) >= 70));
-      });
-    }
-
-    // 7. Video Format filter
-    if (filters.format && filters.format !== "all") {
-      list = list.filter((t) => {
-        if (filters.format === "dance") return !!t.isDance;
-        if (filters.format === "narrative") return !!t.isNarrativeEdit || t.contentType === "Narrative";
-        if (filters.format === "faceless") return t.contentType === "Faceless" || (t.whyThisWorks || "").toLowerCase().includes("faceless");
-        return true;
-      });
-    }
-
-    // 8. High-accuracy multi-niche filter
-    if (filters.niches && !filters.niches.includes("all") && filters.niches.length > 0) {
-      list = list.filter((t) => matchesNiches(t, filters.niches));
-    }
-
-    // 9. Language filter guard
-    if (filters.language && filters.language !== "all") {
-      const allowed = filters.language.split(",").map(l => l.trim().toLowerCase());
-      const wantsGlobal = allowed.includes("global");
-
-      list = list.filter((t) => {
-        const raw = (t.rawLanguage || "").toLowerCase().trim();
-        const lbl = (t.language || "").toLowerCase().trim();
-        const src = (t.discoverySource || "").toLowerCase().trim();
-        const fb = (t.fallbackLanguage || "").toLowerCase().trim();
-        const lf = (t.languageFinal || "").toLowerCase().trim();
-
-        // High-accuracy semantic Indian audio classifier (inspects scripts, title, artist, tokens)
-        const isIndian = isIndianAudio(t);
-
-        if (wantsGlobal) {
-          // Absolute Rule 1: If semantic engine identifies ANY Indian trait, REJECT 100%!
-          if (isIndian) {
-            return false;
-          }
-
-          // Absolute Rule 2: Explicitly reject any Indian language codes
-          if (INDIAN_LANG_CODES.has(raw) || INDIAN_LANG_CODES.has(lbl) || INDIAN_LANG_CODES.has(fb) || INDIAN_LANG_CODES.has(lf)) {
-            return false;
-          }
-
-          // Absolute Rule 3: Reject "instrumental" or "other" unless verified foreign global crawler
-          if (raw === "instrumental" || lf === "instrumental" || raw === "other") {
-            return src === "global" && (t.trendOrigin || "").toUpperCase() !== "IN";
-          }
-
-          // Verified international language codes (STRICT: Notice "instrumental" is REMOVED!)
-          const GLOBAL_CODES = new Set(["en", "english", "es", "spanish", "pt", "portuguese", "ko", "korean", "ja", "japanese", "ru", "russian", "fr", "french", "de", "german", "it", "italian"]);
-
-          // Verified global crawler source or verified international language code
-          if (src === "global" || GLOBAL_CODES.has(raw) || GLOBAL_CODES.has(lf)) {
-            return (t.trendOrigin || "").toUpperCase() !== "IN";
-          }
-
-          // Default: Only allow if verified foreign language and not Indian origin
-          return Boolean(raw && !INDIAN_LANG_CODES.has(raw) && raw !== "other" && (t.trendOrigin || "").toUpperCase() !== "IN");
-        }
-
-        // For specific language selections:
-        const matchesIndianLang = (
-          (allowed.includes("hi") && (["hindi", "hi"].includes(raw) || ["hindi", "hi"].includes(lf) || (isIndian && !allowed.some(c => c !== "hi" && (raw === c || lf === c))))) ||
-          (allowed.includes("pa") && (["punjabi", "pa"].includes(raw) || ["punjabi", "pa"].includes(lf))) ||
-          (allowed.includes("ta") && (["tamil", "ta"].includes(raw) || ["tamil", "ta"].includes(lf))) ||
-          (allowed.includes("te") && (["telugu", "te"].includes(raw) || ["telugu", "te"].includes(lf))) ||
-          (allowed.includes("ml") && (["malayalam", "ml"].includes(raw) || ["malayalam", "ml"].includes(lf))) ||
-          (allowed.includes("kn") && (["kannada", "kn"].includes(raw) || ["kannada", "kn"].includes(lf))) ||
-          (allowed.includes("bn") && (["bengali", "bn"].includes(raw) || ["bengali", "bn"].includes(lf))) ||
-          (allowed.includes("mr") && (["marathi", "mr"].includes(raw) || ["marathi", "mr"].includes(lf))) ||
-          (allowed.includes("gu") && (["gujarati", "gu"].includes(raw) || ["gujarati", "gu"].includes(lf))) ||
-          (allowed.includes("ne") && (["nepali", "ne"].includes(raw) || ["nepali", "ne"].includes(lf))) ||
-          (allowed.includes("instrumental") && (raw === "instrumental" || lf === "instrumental" || (t.song && t.song.toLowerCase().includes("instrumental"))))
-        );
-
-        return (
-          allowed.includes(raw) ||
-          allowed.includes(lbl) ||
-          allowed.includes(lf) ||
-          matchesIndianLang ||
-          (allowed.includes("ko") && ["korean", "ko"].includes(raw)) ||
-          (allowed.includes("es") && ["spanish", "es"].includes(raw)) ||
-          (allowed.includes("pt") && ["portuguese", "pt"].includes(raw)) ||
-          (allowed.includes("en") && !isIndian && ["english", "en"].includes(raw))
-        );
-      });
-    }
-
-    // 10. Search query filter
-    if (!searchQuery.trim()) return list;
-    const q = searchQuery.toLowerCase();
-    return list.filter(
-      (t) =>
-        (t.song ?? "").toLowerCase().includes(q) ||
-        (t.artist ?? "").toLowerCase().includes(q) ||
-        (t.contentType ?? "").toLowerCase().includes(q) ||
-        (t.whyThisWorks ?? "").toLowerCase().includes(q)
-    );
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns]);
-
-  const withCountdown = useCallback((t: UiTrend): UiTrend => ({
-    ...t,
-    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
-  }), []);
+  const handleLogout = async () => {
+    await logout();
+    navigate({ to: "/login" });
+  };
 
   return (
-    <div className="flex flex-col gap-0 pb-24">
-        {/* ── Hero Section with Particle Background & Header ───────────────────────────────── */}
-        <div className="relative overflow-hidden bg-gradient-to-b from-[rgba(230,57,70,0.12)] to-transparent px-4 pb-4 pt-6 rounded-b-[2rem] border-b border-border/30">
-          <ParticleBackground />
+    <div className="flex flex-col min-h-screen pb-20 max-w-xl mx-auto px-4 pt-4">
+      {/* ── HEADER ──────────────────────────────────────────────────────────── */}
+      <header className="flex items-center justify-between pb-3 mb-3 border-b border-white/10 relative">
+        <TrenddropLogo size={32} />
 
-          {/* Header Row */}
-          <div className="relative flex items-center justify-between mb-4">
-            {/* Logo */}
-            <TrenddropLogo size={34} />
+        <div className="flex items-center gap-2.5">
+          <ThemeToggle />
 
-            <div className="flex items-center gap-2">
-            {/* Theme Toggle */}
-            <ThemeToggle />
-
-            {/* User avatar */}
+          {/* Profile Avatar with Dropdown */}
+          <div className="relative">
             <button
-              onClick={() => navigate({ to: "/settings" })}
-              className="relative rounded-full overflow-hidden h-8 w-8 border border-white/10 hover:border-primary/50 transition-all flex-shrink-0"
-              aria-label="Profile"
+              type="button"
+              id="header-profile-avatar"
+              onClick={() => setShowAvatarMenu(!showAvatarMenu)}
+              className="h-8 w-8 rounded-full overflow-hidden border border-white/20 hover:border-primary/60 transition-all flex items-center justify-center bg-gradient-to-br from-primary/30 to-purple-600/30 text-white font-bold text-xs uppercase cursor-pointer"
+              aria-label="User Menu"
             >
-              <div className="h-full w-full flex items-center justify-center bg-gradient-to-br from-primary/40 to-secondary/40 text-xs font-bold text-white uppercase">
-                {userEmail ? userEmail.charAt(0) : "T"}
-              </div>
+              {userEmail ? userEmail.charAt(0) : "T"}
             </button>
-          </div>
-        </div>
-      </div>
 
-      {/* ── Feed Search & Unified Filter Controls ─────────────────────────────────── */}
-      <div className="sticky top-0 z-20 sticky-header bg-background/90 backdrop-blur-xl px-4 pt-3 pb-2 border-b border-border/80">
-        {/* Top Control Bar: Search Input + Modern Filter Action Button */}
-        <div className="flex items-center gap-2 mb-2.5">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-            <input
-              id="search-query"
-              name="searchQuery"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") handleAskSearch();
-              }}
-              placeholder="Search or ask AI: 'what should i use for a gym reel?'"
-              className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
-            />
-            {isSearching ? (
-              <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-primary" />
-            ) : searchQuery ? (
-              <button onClick={() => { setSearchQuery(""); setAskResult(null); }} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="h-4 w-4 text-muted-foreground" />
-              </button>
-            ) : null}
-          </div>
-
-          {/* Unified Filter Button */}
-          <button
-            type="button"
-            id="open-filters-modal-btn"
-            onClick={() => setShowFilterDrawer(true)}
-            className={`flex items-center gap-1.5 px-3 py-2.5 rounded-xl border text-xs font-bold transition-all flex-shrink-0 cursor-pointer ${
-              activeFilterCount > 0
-                ? "bg-primary text-white border-primary shadow-sm shadow-primary/30 ring-1 ring-primary/40"
-                : "bg-muted/70 text-foreground border-border hover:bg-muted"
-            }`}
-          >
-            <SlidersHorizontal className="h-4 w-4" />
-            <span>Filters</span>
-            {activeFilterCount > 0 && (
-              <span className="h-5 min-w-[20px] px-1 rounded-full bg-white text-primary text-[10px] font-extrabold flex items-center justify-center">
-                {activeFilterCount}
-              </span>
-            )}
-          </button>
-        </div>
-
-        {/* Ask-It Direct Answer Card */}
-        {askResult && (
-          <div className="mb-2.5 rounded-xl border border-primary/30 bg-primary/10 p-3.5 space-y-1.5 animate-in fade-in-50">
-            <div className="flex items-center justify-between">
-              <span className="text-[11px] font-bold text-primary uppercase tracking-wider flex items-center gap-1.5">
-                <Sparkles className="h-3.5 w-3.5" /> AI Recommendation
-              </span>
-              <button
-                onClick={() => { setAskResult(null); setSearchQuery(""); }}
-                className="text-muted-foreground hover:text-foreground text-xs"
+            {showAvatarMenu && (
+              <div
+                className="absolute right-0 top-10 w-52 rounded-2xl bg-zinc-950 border border-white/15 p-2 shadow-2xl z-50 flex flex-col gap-1 backdrop-blur-xl animate-fade-in-up"
+                onClick={() => setShowAvatarMenu(false)}
               >
-                Clear
-              </button>
-            </div>
-            <p className="text-xs font-medium text-foreground/90 leading-snug">
-              {askResult.direct_answer}
-            </p>
-          </div>
-        )}
-
-        {/* App Mode Segmented Switcher: Today | Explore | Saved */}
-        <div className="grid grid-cols-3 gap-1 bg-muted/60 p-1 rounded-xl mb-2 text-xs font-bold">
-          <button
-            type="button"
-            id="mode-today-tab"
-            onClick={() => { setAppMode("today"); setAskResult(null); }}
-            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              appMode === "today"
-                ? "bg-primary text-white shadow-sm shadow-primary/30"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Sparkles className="h-3.5 w-3.5" />
-            <span>Today</span>
-          </button>
-          <button
-            type="button"
-            id="mode-explore-tab"
-            onClick={() => { setAppMode("explore"); setAskResult(null); }}
-            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              appMode === "explore"
-                ? "bg-primary text-white shadow-sm shadow-primary/30"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Flame className="h-3.5 w-3.5" />
-            <span>Explore</span>
-          </button>
-          <button
-            type="button"
-            id="mode-saved-tab"
-            onClick={() => { setAppMode("saved"); setAskResult(null); }}
-            className={`py-2 rounded-lg transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              appMode === "saved"
-                ? "bg-primary text-white shadow-sm shadow-primary/30"
-                : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
-            <Target className="h-3.5 w-3.5" />
-            <span>Saved ({targetedData?.length ?? 0})</span>
-          </button>
-        </div>
-
-        {/* 4 Tappable Search Prompts (Order 79E Item D) */}
-        {!searchQuery && !askResult && appMode === "explore" && (
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar py-1 mb-2">
-            <span className="text-[10px] uppercase font-bold text-muted-foreground/80 self-center flex-shrink-0 mr-0.5">Try:</span>
-            {[
-              "Rising fashion audios",
-              "Dance trends in India",
-              "Global comedy blowing up",
-              "Still alive but old",
-            ].map((prompt) => (
-              <button
-                key={prompt}
-                onClick={() => {
-                  setSearchQuery(prompt);
-                  setIsSearching(true);
-                  fetchAskSearch(prompt)
-                    .then((res) => setAskResult(res))
-                    .catch((err) => console.warn(err))
-                    .finally(() => setIsSearching(false));
-                }}
-                className="flex-shrink-0 rounded-full bg-muted/50 hover:bg-muted/90 px-2.5 py-1 text-[11px] text-muted-foreground hover:text-foreground border border-border/50 transition-all cursor-pointer"
-              >
-                {prompt}
-              </button>
-            ))}
-          </div>
-        )}
-
-        {/* Explore Sub-Rail: India/Global Lane Toggle + Verified Stage Tag Pills */}
-        {appMode === "explore" && (
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
-            {/* 🇮🇳 India ⇄ 🌍 Global Lane Toggle */}
-            <button
-              type="button"
-              id="lane-toggle-btn"
-              onClick={() => setLane((l) => (l === "india" ? "global" : "india"))}
-              className="flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-bold bg-muted/80 text-foreground border border-border/70 hover:bg-muted transition-all cursor-pointer"
-            >
-              {lane === "india" ? "🇮🇳 India" : "🌍 Global"}
-            </button>
-
-            <div className="h-4 w-[1px] bg-border mx-1 flex-shrink-0" />
-
-            {/* Stage Tag Pills */}
-            {[
-              { id: "all",         label: "All Active" },
-              { id: "Blowing up",  label: "🚀 Blowing up" },
-              { id: "Still going", label: "✨ Still going" },
-              { id: "Comeback",    label: "🔁 Comeback" },
-              { id: "Fading",      label: "📉 Fading" },
-              { id: "Expired",     label: "⏱️ Expired" },
-            ].map((st) => {
-              const isSelected = selectedStage === st.id;
-              return (
-                <button
-                  key={st.id}
-                  id={`stage-pill-${st.id.replace(/\s+/g, "-").toLowerCase()}`}
-                  onClick={() => setSelectedStage(st.id)}
-                  className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all cursor-pointer ${
-                    isSelected
-                      ? "bg-foreground/15 text-foreground border border-border/70 font-bold"
-                      : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-                  }`}
-                >
-                  {st.label}
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Today Sub-Rail: Top 5 Toggle */}
-        {appMode === "today" && (
-          <div className="flex gap-1.5 overflow-x-auto no-scrollbar pb-1 items-center">
-            <button
-              type="button"
-              id="todays-five-chip"
-              onClick={() => setTodaysFiveOnly((prev) => !prev)}
-              className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all cursor-pointer ${
-                todaysFiveOnly
-                  ? "bg-primary text-white shadow-sm ring-1 ring-primary/40"
-                  : "bg-muted/70 text-muted-foreground hover:text-foreground hover:bg-muted"
-              }`}
-            >
-              <Sparkles className="h-3.5 w-3.5 text-amber-300" />
-              {todaysFiveOnly ? "Today's Top 5" : "All Today Trends"}
-            </button>
-          </div>
-        )}
-
-        {/* Active Applied Filters Strip (when filters are engaged) */}
-        {activeFilterCount > 0 && (
-          <div className="flex items-center gap-1.5 pt-2 overflow-x-auto no-scrollbar">
-            <span className="text-[11px] font-bold text-muted-foreground flex-shrink-0">Active:</span>
-            {filters.lifecycle !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-primary/15 text-primary text-[10px] font-bold">
-                Stage: {filters.lifecycle}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ lifecycle: "all" })} />
-              </span>
-            )}
-            {filters.urgency !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
-                Window: {filters.urgency === "under6" ? "<6h" : filters.urgency === "under12" ? "<12h" : "<24h"}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ urgency: "all" })} />
-              </span>
-            )}
-            {filters.minOpportunityScore > 0 && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
-                Score: {filters.minOpportunityScore}+
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ minOpportunityScore: 0 })} />
-              </span>
-            )}
-            {filters.minVelocity > 0 && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
-                Vel: {filters.minVelocity}x+
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ minVelocity: 0 })} />
-              </span>
-            )}
-            {filters.outlierOnly && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-bold">
-                Creator Outliers
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ outlierOnly: false })} />
-              </span>
-            )}
-            {filters.niches.length > 0 && !filters.niches.includes("all") && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-500/15 text-blue-400 text-[10px] font-bold">
-                Niches ({filters.niches.length})
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ niches: ["all"] })} />
-              </span>
-            )}
-            {filters.language !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary/30 text-secondary-foreground text-[10px] font-bold">
-                Lang: {filters.language.toUpperCase()}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ language: "all" })} />
-              </span>
-            )}
-            {filters.format !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-foreground text-[10px] font-bold">
-                Format: {filters.format}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ format: "all" })} />
-              </span>
-            )}
-            {filters.freshnessPreset !== "all" && filters.freshnessPreset !== "custom" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
-                Batch: {filters.freshnessPreset === "latest" ? "Run A (Latest)" : filters.freshnessPreset === "previous" ? "Run B (Previous)" : filters.freshnessPreset === "last_2" ? "Last 2 Runs" : "Today"}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ freshnessPreset: "all" })} />
-              </span>
-            )}
-            {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
-                Runs ({filters.selectedRunIds.length} combined)
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ selectedRunIds: [], freshnessPreset: "all" })} />
-              </span>
-            )}
-            <button
-              type="button"
-              onClick={resetAllFilters}
-              className="flex-shrink-0 text-[10px] text-muted-foreground hover:text-foreground underline ml-1 cursor-pointer"
-            >
-              Reset All
-            </button>
-          </div>
-        )}
-      </div>
-
-      {/* ── Feed ──────────────────────────────────────────────────────────────── */}
-      <div className="space-y-4 px-4 pt-4">
-        {/* Active Language Filter Indicator Badge */}
-        <ActiveLanguageBadge
-          activeLanguages={activeLanguages}
-          languagesMap={LANGUAGES}
-          onClear={() => {
-            setLanguage("all");
-            updateFilter({ niches: ["all"], language: "all" });
-            setPreferredLanguages([]);
-            if (typeof window !== "undefined") {
-              localStorage.removeItem("trendrop_pref_language");
-              localStorage.removeItem("trendrop_preferred_languages");
-              localStorage.removeItem("trendrop_pref_niche");
-              localStorage.removeItem("trendrop_pref_niches");
-            }
-            toast.success("Filters reset to All");
-          }}
-        />
-
-        {/* Outage / Staleness Notice (Order 80 B3) */}
-        {trends.length > 0 && Boolean(trends[0]?.is_stale) && (
-          <div className="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex items-center justify-between text-xs text-amber-300">
-            <div className="flex items-center gap-2">
-              <span className="h-2 w-2 rounded-full bg-amber-400 animate-pulse shrink-0" />
-              <span>
-                <strong>Data delayed:</strong> Updated {(() => {
-                  const lu = trends[0].last_updated;
-                  if (!lu) return "over 12h ago";
-                  try {
-                    const diffHours = Math.max(0, Math.round((Date.now() - new Date(lu).getTime()) / (1000 * 60 * 60)));
-                    return diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
-                  } catch {
-                    return "over 12h ago";
-                  }
-                })()} (ingest delayed &gt;12h). Outage guard is actively preserving decay windows and momentum.
-              </span>
-            </div>
-            <span className="hidden sm:inline-block text-[10px] font-bold uppercase tracking-wider text-amber-400/80 bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded">
-              Protected Mode
-            </span>
-          </div>
-        )}
-
-        {deduplicatedTrends.emerging.length > 0 && (
-          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3 flex items-center justify-between">
-            <p className="text-xs text-[#ff006e] font-semibold">
-              ⚡ <strong>{deduplicatedTrends.emerging.length} Early Trend{deduplicatedTrends.emerging.length > 1 ? "s" : ""}</strong> detected — prioritized first. First-mover advantage active!
-            </p>
-          </div>
-        )}
-
-        {isError && (
-          <div className="space-y-2">
-            <ApiErrorBanner message={(feedError as any)?.message || "Service temporarily unavailable"} />
-            <button onClick={() => refetch()} className="text-xs font-semibold text-primary underline">
-              Try again
-            </button>
-          </div>
-        )}
-
-        {isLoading ? (
-          <>
-            <SkeletonCard />
-            <SkeletonCard />
-            <SkeletonCard />
-          </>
-        ) : !isError && trends.length === 0 ? (
-          <div className="glass-card p-12 text-center">
-            <p className="text-4xl mb-3">{showTargetedOnly ? "🎯" : filters.lifecycle === "emerging" ? "🚨" : "🎵"}</p>
-            <p className="text-base font-semibold">
-              {showTargetedOnly
-                ? "Your targeted workspace is empty"
-                : filters.lifecycle !== "all"
-                ? `No ${filters.lifecycle} trends found`
-                : "No trends found for this filter"}
-            </p>
-            <p className="mt-1 text-sm text-muted-foreground">
-              {showTargetedOnly
-                ? "Click 'Target Trend' on any trend card to save and track your targeted audios here."
-                : "Our active trend rail is monitoring the ecosystem continuously."}
-            </p>
-            {(() => {
-              const tabKey = showTargetedOnly ? null : filters.lifecycle;
-              const lastTime = tabKey && tabKey !== "all" ? lastDetectedTimes?.[tabKey] : null;
-              if (!lastTime) return null;
-              try {
-                const d = new Date(lastTime);
-                const diffHours = Math.max(0, Math.round((Date.now() - d.getTime()) / (1000 * 60 * 60)));
-                const datePart = d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
-                const timePart = d.toLocaleTimeString("en-US", { hour: "2-digit", minute: "2-digit", timeZoneName: "short" });
-                const relPart = diffHours < 1 ? "just now" : diffHours < 24 ? `${diffHours}h ago` : `${Math.floor(diffHours / 24)}d ago`;
-                return (
-                  <div className="mt-4 inline-flex items-center gap-2 rounded-full border border-border/40 bg-muted/50 px-3.5 py-1 text-xs text-muted-foreground">
-                    <span className="h-1.5 w-1.5 rounded-full bg-primary/70 animate-pulse" />
-                    <span>Last <strong>{tabKey}</strong> detected: {datePart} at {timePart} ({relPart})</span>
-                  </div>
-                );
-              } catch {
-                return null;
-              }
-            })()}
-          </div>
-        ) : (
-          <div className="flex flex-col gap-4">
-            {trends.map((t) => {
-              const card = (
-                <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
-                  <TrendCard
-                    trend={withCountdown(t)}
-                    onDanceTap={setDanceTrend}
-                    selectedNiches={filters.niches}
-                    selectedNiche={filters.niches[0]}
-                    isTargeted={targetedSet.has(String(t.id))}
-                    showStatusBadge={true}
-                  />
+                <div className="px-3 py-2 border-b border-white/10">
+                  <span className="text-[10px] text-zinc-500 uppercase font-bold block">Account</span>
+                  <p className="text-xs text-white font-semibold truncate">{userEmail || "Guest User"}</p>
                 </div>
-              );
 
-              if (t.status === "emerging") {
-                return (
-                  <PlanGate
-                    key={t.id}
-                    feature="Early Detection Feed"
-                    requiredPlan="pro"
-                    currentPlan={userPlan}
-                    onUpgrade={() => window.location.href = '/pricing'}
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/dashboard" })}
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-900 flex items-center gap-2 cursor-pointer"
+                >
+                  <LayoutDashboard className="h-4 w-4 text-zinc-400" />
+                  <span>Dashboard</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/studio" })}
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-900 flex items-center gap-2 cursor-pointer"
+                >
+                  <Wrench className="h-4 w-4 text-zinc-400" />
+                  <span>Studio</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => navigate({ to: "/settings" })}
+                  className="w-full px-3 py-2 rounded-xl text-left text-xs text-zinc-300 hover:text-white hover:bg-zinc-900 flex items-center gap-2 cursor-pointer"
+                >
+                  <Settings className="h-4 w-4 text-zinc-400" />
+                  <span>Settings</span>
+                </button>
+
+                {user && (
+                  <button
+                    type="button"
+                    onClick={handleLogout}
+                    className="w-full px-3 py-2 rounded-xl text-left text-xs text-red-400 hover:bg-red-500/10 flex items-center gap-2 cursor-pointer border-t border-white/5 mt-1"
                   >
-                    {card}
-                  </PlanGate>
-                );
-              }
-
-              return card;
-            })}
+                    <LogOut className="h-4 w-4" />
+                    <span>Log out</span>
+                  </button>
+                )}
+              </div>
+            )}
           </div>
-        )}
+        </div>
+      </header>
 
-        {hasNextPage && (
-          <div className="text-center py-6">
-            <button
-              id="load-more-trends-btn"
-              onClick={() => fetchNextPage()}
-              disabled={isFetchingNextPage}
-              className="inline-flex items-center gap-2 rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-5 py-3 transition-all shadow-sm cursor-pointer"
-            >
-              {isFetchingNextPage ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Loading next trends...
-                </>
-              ) : (
-                <>
-                  Load more trends (Showing {trends.length} of {totalCount})
-                </>
-              )}
-            </button>
-          </div>
-        )}
+      {/* ── TOP THREE TABS: Deck | Explore | Picks ───────────────────────────── */}
+      <div className="grid grid-cols-3 gap-1 p-1 bg-zinc-900/80 border border-white/10 rounded-2xl mb-4 backdrop-blur-md">
+        <button
+          type="button"
+          id="nav-tab-deck"
+          onClick={() => handleTabChange("deck")}
+          className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === "deck"
+              ? "bg-white text-black shadow-md font-black"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Layers className="h-4 w-4" />
+          <span>Deck</span>
+        </button>
 
-        {!hasNextPage && trends.length > 0 && (
-          <div className="text-center py-6 border-t border-border/40 mt-4 space-y-1.5">
-            <p className="text-xs text-muted-foreground font-medium">
-              ✨ You've seen all {trends.length} trends
-            </p>
-            {scraperRuns.length > 0 && (() => {
-              const latestRun = scraperRuns[0];
-              const ageHours = (Date.now() - new Date(latestRun.run_at).getTime()) / (1000 * 3600);
-              if (ageHours > 6) {
-                return (
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-amber-500/10 text-amber-500 text-[11px] font-semibold border border-amber-500/20">
-                    <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
-                    Data is delayed (last sync {Math.round(ageHours)}h ago)
-                  </div>
-                );
-              }
-              return (
-                <p className="text-[11px] text-muted-foreground/70">
-                  Updated {Math.round(ageHours * 60)} min ago
-                </p>
-              );
-            })()}
-          </div>
-        )}
+        <button
+          type="button"
+          id="nav-tab-explore"
+          onClick={() => handleTabChange("explore")}
+          className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === "explore"
+              ? "bg-white text-black shadow-md font-black"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <Compass className="h-4 w-4" />
+          <span>Explore</span>
+        </button>
+
+        <button
+          type="button"
+          id="nav-tab-picks"
+          onClick={() => handleTabChange("picks")}
+          className={`py-2 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+            activeTab === "picks"
+              ? "bg-white text-black shadow-md font-black"
+              : "text-zinc-400 hover:text-white"
+          }`}
+        >
+          <BookmarkCheck className="h-4 w-4" />
+          <span>Picks ({savedPicks.length})</span>
+        </button>
       </div>
 
-      <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
-
-      {/* Multi-Dimensional Intelligence Filters Modal — lazy-mounted on first open */}
-      {showFilterDrawer && (
-        <TrendFiltersModal
-          isOpen={showFilterDrawer}
-          onClose={() => setShowFilterDrawer(false)}
-          filters={filters}
-          onChange={updateFilter}
-          onReset={resetAllFilters}
-          nichesList={NICHES}
-          languagesList={LANGUAGES}
-          totalResultsCount={trends.length}
-          scraperRuns={scraperRuns}
+      {/* ── ACTIVE TAB VIEW ──────────────────────────────────────────────────── */}
+      {activeTab === "deck" && (
+        <DeckView
+          trends={allTrends}
+          isLoading={isFeedLoading && allTrends.length === 0}
+          isError={isFeedError}
+          onRetry={refetchFeed}
+          nextDropTime={nextDropTime}
+          isDataDelayed={isDataDelayed}
+          onSavePick={handleSavePick}
         />
       )}
 
-      {/* 3-Tap Onboarding Flow for first-time creators */}
-      {showOnboarding && (
-        <OnboardingFlow onComplete={() => setShowOnboarding(false)} />
+      {activeTab === "explore" && (
+        <ExploreView
+          trends={allTrends}
+          onSelectTrend={handleSelectTrend}
+          onSavePick={handleSavePick}
+        />
       )}
 
+      {activeTab === "picks" && (
+        <PicksView picks={savedPicks} onRemovePick={handleRemovePick} />
+      )}
     </div>
   );
 }

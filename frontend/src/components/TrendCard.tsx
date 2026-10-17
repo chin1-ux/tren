@@ -368,16 +368,6 @@ function TrialReelBadge({
       </span>
     );
   }
-  if (globalPct < 35 && hoursLeft > 8) {
-    return (
-      <span
-        title="Trend is early — test with non-followers before posting broadly"
-        className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 cursor-help"
-      >
-        🧪 Try as Trial Reel first
-      </span>
-    );
-  }
   return null;
 }
 
@@ -576,7 +566,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       if (globalSat !== undefined && globalSat < 30) return "🚀 Early discovery window open";
       return null;
     }
-    if (score >= 80) return "🚀 Act now — prime opportunity window";
+    if (score >= 80) return "🚀 High opportunity discovery window";
     if (score >= 60) return "⚡ High momentum — post soon";
     if (score >= 40) return "📈 Growing popularity";
     if (globalSat && globalSat >= 80) return "⚠️ High saturation — test with care";
@@ -604,7 +594,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
           );
         })()}
 
-        {/* Golden Hour / Audio Expiry Radar Badge */}
+        {/* Audio Expiry Radar Badge */}
         {(() => {
           const radar = getGoldenHourExpiryMeta(trend);
           if (!radar) return null;
@@ -1003,11 +993,11 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             {/* Creator scores */}
             <div className="space-y-2">
               <div className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-                <span>🕒 Optimal Post Window:</span>
+                <span>🕒 Best Posting Time:</span>
                 <strong className="text-foreground font-semibold">{formatPostTimeIst(trend.optimalPostHourIst)}</strong>
               </div>
               <div className="flex items-center gap-2">
-                <ScorePill label="Hook Power" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
+                <ScorePill label="Hook Retention" value={hookRetention} tone={hookRetention >= 0.7 ? "good" : hookRetention >= 0.5 ? "mid" : "bad"} />
               </div>
             </div>
 

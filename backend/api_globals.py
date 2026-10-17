@@ -51,6 +51,16 @@ socket.getaddrinfo = _ipv4_only
 
 try:
     from supabase import create_client, Client
+    # Order 81-E: Configure default PostgREST return method to minimal (Prefer: return=minimal)
+    # Saves ~15-20 MB/day by preventing unread full-row payloads on every insert/update/upsert
+    from postgrest import SyncRequestBuilder
+    from postgrest.types import ReturnMethod
+    if hasattr(SyncRequestBuilder, "update") and hasattr(SyncRequestBuilder.update, "__kwdefaults__"):
+        SyncRequestBuilder.update.__kwdefaults__["returning"] = ReturnMethod.minimal
+    if hasattr(SyncRequestBuilder, "insert") and hasattr(SyncRequestBuilder.insert, "__kwdefaults__"):
+        SyncRequestBuilder.insert.__kwdefaults__["returning"] = ReturnMethod.minimal
+    if hasattr(SyncRequestBuilder, "upsert") and hasattr(SyncRequestBuilder.upsert, "__kwdefaults__"):
+        SyncRequestBuilder.upsert.__kwdefaults__["returning"] = ReturnMethod.minimal
 except Exception as e:
     logger.warning(f"Supabase library import failed: {e}")
     create_client = None

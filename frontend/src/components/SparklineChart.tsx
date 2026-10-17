@@ -10,7 +10,7 @@ export const SparklineChart = ({ data, color = "green", height = 24 }: Sparkline
   if (!data || data.length < 2) {
     return (
       <div className="flex h-6 items-center justify-center text-[10px] text-white/40 italic">
-        Tracking started...
+        Gathering points...
       </div>
     );
   }

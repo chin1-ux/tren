@@ -1,0 +1,35 @@
+================================================================================
+ORDER 81 PHASE 3: AUDIO PREVIEW SOURCE COVERAGE TEST REPORT
+Timestamp: 2026-10-17T10:12:43.778620+00:00
+================================================================================
+
+Total Audios Tested: 100
+iTunes Search Hits: 52 (52.0%)
+Deezer Search Hits: 0 (0.0%)
+Combined Coverage: 52 (52.0%)
+Coverage Requirement: >= 60%
+VERDICT: DELETE AUDIO-ONLY PLAYER (< 60%)
+
+SAMPLE 20 RESULTS:
+ID     | Matched | iTunes | Deezer | Title                          | Artist              
+--------------------------------------------------------------------------------
+8024   | True    | True   | False  | Ishqaun Dhishqyaun             | Sanjay Leela Bhansal
+8023   | True    | True   | False  | Mazhi Peyyum                   | Ganesh Raghavendra, 
+8022   | True    | True   | False  | Putaapu Gang                   | Anirudh Ravichander,
+8021   | False   | False  | False  | Golden Streets Beyond Mirrors  | Soren Vilaro        
+8020   | True    | True   | False  | Dudi Dudi Dam Dam Dance Dodi D | Magic Kids World    
+8019   | True    | True   | False  | Sun Saiyan                     | Masroor Fateh Ali Kh
+8018   | True    | True   | False  | Bota Pra Virar                 | Igor Kannário, Macac
+8017   | False   | False  | False  | Broken Prem                    | Mohammad SHiblu     
+8016   | True    | True   | False  | Do Din Ki Zindagi (From "Gunma | Himesh Reshammiya, S
+8015   | True    | True   | False  | Karisal Tarisal (From “Tajmaha | K. S. Chithra       
+8014   | True    | True   | False  | Ghoomar                        | Shreya Ghoshal, Swar
+8013   | True    | True   | False  | Lal Sadhi Thi Mana             | Ashish Kumbhar, Anta
+8012   | True    | True   | False  | Chal Diye Tum Kahan            | AUR                 
+8011   | True    | True   | False  | Veera Raja Veera               | A.R. Rahman, Shankar
+8010   | True    | True   | False  | Choli Ke Peeche                | Alka Yagnik, Ila Aru
+8009   | True    | True   | False  | Dandiye Ke Bahane              | Udit Narayan, Sadhan
+8008   | True    | True   | False  | Kamar Tari Nai Mapi Tara Maap  | Govind Bhabhor, Amit
+8007   | True    | True   | False  | Callin' U (Tamally Maak)       | Elyanna             
+8006   | False   | False  | False  | Mr. Lova Lova (From "Ishq")    | Anu Malik, Udit Nara
+8005   | True    | True   | False  | Passinho Do Jamal - Toma Toma  | Mc Cj Forte Abraço, 
