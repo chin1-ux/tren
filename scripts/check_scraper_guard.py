@@ -8,14 +8,20 @@ from dotenv import load_dotenv
 load_dotenv("backend/.env")
 load_dotenv(".env")
 
-def check_guard_v3(min_gap_minutes: int = 150):
+def check_guard_v3(min_gap_minutes: int = None):
     """
     Guard v3:
     - Queries GitHub API for recent scraper_cron runs.
     - Measures elapsed time from run START (created_at).
-    - Any run started in the last 150 minutes (cancelled, in_progress, queued, or success) blocks execution.
+    - Any run started within the threshold (default 600m / 10h, configurable via SCRAPER_GUARD_MIN_GAP_MINUTES) blocks execution.
     - Consumes 0 Supabase egress.
     """
+    if min_gap_minutes is None:
+        try:
+            min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "600"))
+        except (ValueError, TypeError):
+            min_gap_minutes = 600
+
     now_dt = datetime.now(timezone.utc)
     current_run_id = os.getenv("GITHUB_RUN_ID")
     repo = os.getenv("GITHUB_REPOSITORY", "chin1-ux/tren")
