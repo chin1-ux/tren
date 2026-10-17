@@ -51,6 +51,16 @@ socket.getaddrinfo = _ipv4_only
 
 try:
     from supabase import create_client, Client
+    # Order 81-E: Configure default PostgREST return method to minimal (Prefer: return=minimal)
+    # Saves ~15-20 MB/day by preventing unread full-row payloads on every insert/update/upsert
+    from postgrest import SyncRequestBuilder
+    from postgrest.types import ReturnMethod
+    if hasattr(SyncRequestBuilder, "update") and hasattr(SyncRequestBuilder.update, "__kwdefaults__"):
+        SyncRequestBuilder.update.__kwdefaults__["returning"] = ReturnMethod.minimal
+    if hasattr(SyncRequestBuilder, "insert") and hasattr(SyncRequestBuilder.insert, "__kwdefaults__"):
+        SyncRequestBuilder.insert.__kwdefaults__["returning"] = ReturnMethod.minimal
+    if hasattr(SyncRequestBuilder, "upsert") and hasattr(SyncRequestBuilder.upsert, "__kwdefaults__"):
+        SyncRequestBuilder.upsert.__kwdefaults__["returning"] = ReturnMethod.minimal
 except Exception as e:
     logger.warning(f"Supabase library import failed: {e}")
     create_client = None
@@ -391,6 +401,36 @@ if supabase_url_debug and service_key_debug and create_client:
         if "SUPABASE_SERVICE_ROLE_KEY" in os.environ:
             del os.environ["SUPABASE_SERVICE_ROLE_KEY"]
 
+# --- Telemetry: Database Egress Tracking (Supabase / HTTPX Client Wrapper) ---
+import contextvars
+import re
+import httpx
+
+_db_telemetry_ctx: contextvars.ContextVar = contextvars.ContextVar("db_telemetry_stats", default=None)
+
+_orig_httpx_send = getattr(httpx.Client, "_orig_send_unpatched", httpx.Client.send)
+httpx.Client._orig_send_unpatched = _orig_httpx_send
+
+def _telemetry_httpx_send(self, request, *args, **kwargs):
+    response = _orig_httpx_send(self, request, *args, **kwargs)
+    try:
+        stats = _db_telemetry_ctx.get()
+        if stats is not None and "supabase.co" in str(request.url.host):
+            m = re.search(r'/rest/v1/([a-zA-Z0-9_]+)', str(request.url.path))
+            tbl = m.group(1) if m else 'other'
+            b = len(response.content) if hasattr(response, "content") else 0
+            stats["calls"] += 1
+            stats["bytes"] += b
+            if tbl not in stats["by_table"]:
+                stats["by_table"][tbl] = {"calls": 0, "bytes": 0}
+            stats["by_table"][tbl]["calls"] += 1
+            stats["by_table"][tbl]["bytes"] += b
+    except Exception:
+        pass
+    return response
+
+httpx.Client.send = _telemetry_httpx_send
+
 SUPABASE_URL = os.getenv("SUPABASE_URL")
 SUPABASE_KEY = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
 try:
@@ -607,6 +647,23 @@ app.add_middleware(
     allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["Authorization", "Content-Type", "X-Request-ID", "Accept", "Origin"],
 )
+
+@app.middleware("http")
+async def db_telemetry_middleware(request: Request, call_next):
+    stats = {"calls": 0, "bytes": 0, "by_table": {}}
+    token = _db_telemetry_ctx.set(stats)
+    try:
+        response = await call_next(request)
+        if stats["calls"] > 0 or request.url.path.startswith("/api/"):
+            logger.info(
+                f"[DB_STATS] route={request.url.path} supabase_calls={stats['calls']} supabase_bytes={stats['bytes']} by_table={stats['by_table']}"
+            )
+        response.headers["x-supabase-calls"] = str(stats["calls"])
+        response.headers["x-supabase-bytes"] = str(stats["bytes"])
+        response.headers["x-supabase-by-table"] = json.dumps(stats["by_table"])
+        return response
+    finally:
+        _db_telemetry_ctx.reset(token)
 
 
 
