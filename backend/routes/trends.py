@@ -336,122 +336,45 @@ def search_ask(
     if not clean_q:
         return JSONResponse({"direct_answer": "Please ask a question about what audio you want.", "results": []})
         
-    cache_key = clean_q.lower()
-    now_ts = time.time()
-    if cache_key in _ASK_SEARCH_CACHE:
-        entry = _ASK_SEARCH_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 86400:
-            return JSONResponse(
-                content=entry["data"],
-                headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "HIT-MEM"}
-            )
-            
     try:
-        from llm import call_llm
-        system_prompt = (
-            "You are Trendrop's creator trend search assistant. A creator asks a question or describes what audio/sound "
-            "they are looking for on Instagram Reels.\n"
-            "Analyze the query and return a valid JSON object with:\n"
-            "{\n"
-            '  "intent": "<short summary of creator search intent>",\n'
-            '  "direct_answer": "<1-2 sentence direct, actionable advice or answer for the creator>",\n'
-            '  "filters": {\n'
-            '    "niche": "<niche if applicable: fitness, food, comedy, fashion, business, travel, beauty, devotional, tech, dance, narrative_edit, romance_relationship, or null>",\n'
-            '    "language": "<language code if specified: hi, pa, ta, te, ml, kn, bn, mr, en, es, pt, ko, or null>",\n'
-            '    "min_velocity": null,\n'
-            '    "max_saturation": null,\n'
-            '    "sort_by": "<newest | velocity | opportunity>",\n'
-            '    "keywords": ["<keyword1>", "<keyword2>"]\n'
-            "  }\n"
-            "}\n"
-            "Only output JSON. Do not include markdown or explanations outside the JSON."
-        )
-        try:
-            parsed = call_llm(system_prompt, f"Creator query: {clean_q}")
-        except Exception as e:
-            logger.warning(f"Ask-it LLM error, falling back to SQL: {e}")
-            parsed = {
-                "intent": "Keyword search",
-                "direct_answer": f"Searching active trends matching '{clean_q}'.",
-                "filters": {"keywords": clean_q.split(), "sort_by": "velocity"}
-            }
-            
-        intent = parsed.get("intent", "Search")
-        direct_answer = parsed.get("direct_answer", "")
-        filters = parsed.get("filters", {})
-        is_gibberish = parsed.get("is_gibberish", False) or any(
-            g in clean_q.lower() for g in ["asdf", "qwer", "zxcv", "jkl;", "lksd", "qwerty"]
-        )
+        from search_v2_engine import execute_search_v2
         
-        if is_gibberish:
-            result_payload = {
-                "intent": "Unrecognized or gibberish search",
-                "direct_answer": f"No trends found matching '{clean_q}'. Try searching for a specific niche (e.g. 'gym motivation'), language, or song title.",
-                "results": []
-            }
-            _ASK_SEARCH_CACHE[cache_key] = {"time": now_ts, "data": result_payload}
-            return JSONResponse(
-                content=result_payload,
-                headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "MISS"}
-            )
-        
-        query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
-        
-        lang = filters.get("language")
-        if lang:
-            query = query.or_(f"language_final.eq.{lang},language.eq.{lang}")
-            
-        niche = filters.get("niche")
-        if niche:
-            query = query.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
-            
-        keywords = [k for k in (filters.get("keywords") or []) if len(k) > 2 and k.lower() not in ("audio", "trend", "song", "sound", "reels")]
-        if not lang and not niche and keywords:
-            kw = keywords[0]
-            query = query.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%,audio_artist.ilike.%{kw}%")
-            
-        sort_by = filters.get("sort_by")
-        if sort_by == "velocity":
-            query = query.order("velocity_avg", desc=True)
-        elif sort_by == "opportunity":
-            query = query.order("opportunity_score", desc=True)
-        else:
-            query = query.order("first_detected_at", desc=True)
-            
-        query = query.limit(5)
+        # Check cache
+        cache_key = clean_q.lower()
+        now_ts = time.time()
+        if cache_key in _ASK_SEARCH_CACHE:
+            entry = _ASK_SEARCH_CACHE[cache_key]
+            if now_ts - entry.get("time", 0) < 86400:
+                return JSONResponse(
+                    content=entry["data"],
+                    headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "HIT-MEM"}
+                )
+
+        # Fetch candidate active trends with slim columns
+        query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0).order("first_detected_at", desc=True).limit(200)
         res = execute_supabase_get(query)
-        data = res.data or []
+        raw_trends = res.data or []
+
+        # Execute Search V2 deterministic pipeline
+        search_res = execute_search_v2(clean_q, raw_trends, current_mode="india")
         
-        # If strict intersection of filters was empty, relax filters gracefully so creator gets relevant trends
-        if len(data) == 0 and not is_gibberish:
-            fallback_q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
-            if lang and niche:
-                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang},niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
-            elif lang:
-                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang}")
-            elif niche:
-                fallback_q = fallback_q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
-            elif keywords:
-                kw = keywords[0]
-                fallback_q = fallback_q.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%")
-            fallback_q = fallback_q.order("velocity_avg", desc=True).limit(5)
-            fb_res = execute_supabase_get(fallback_q)
-            data = fb_res.data or []
-            
-        trends = _normalize_trends_slim(data)
-        if len(trends) == 0 and not direct_answer:
-            direct_answer = f"No active trends found matching '{clean_q}'. Try broadening your search or choosing a niche tag."
-            
+        # Normalize trends for UI output
+        results_ui = _normalize_trends_slim(search_res["results"])
+        
         result_payload = {
-            "intent": intent,
-            "direct_answer": direct_answer,
-            "results": trends
+            "intent": search_res["count_line"],
+            "direct_answer": search_res["count_line"],
+            "count_line": search_res["count_line"],
+            "parsed_filter": search_res["parsed_filter"],
+            "chips": search_res["chips"],
+            "results": results_ui
         }
+
         _ASK_SEARCH_CACHE[cache_key] = {"time": now_ts, "data": result_payload}
         if len(_ASK_SEARCH_CACHE) > 500:
             oldest_k = min(_ASK_SEARCH_CACHE.keys(), key=lambda k: _ASK_SEARCH_CACHE[k]["time"])
             _ASK_SEARCH_CACHE.pop(oldest_k, None)
-            
+
         return JSONResponse(
             content=result_payload,
             headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "MISS"}

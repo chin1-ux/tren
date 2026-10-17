@@ -48,7 +48,7 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
   // AI Search Box
   const [searchQuery, setSearchQuery] = useState("");
   const [isSearching, setIsSearching] = useState(false);
-  const [askResult, setAskResult] = useState<{ intent: string; results: UiTrend[] } | null>(null);
+  const [askResult, setAskResult] = useState<{ intent: string; count_line?: string; chips?: Array<{ key: string; label: string }>; results: UiTrend[] } | null>(null);
 
   const handleSearch = async (e?: React.FormEvent) => {
     if (e) e.preventDefault();
@@ -116,6 +116,37 @@ export const ExploreView: React.FC<ExploreViewProps> = ({
         />
         <Search className="absolute left-3.5 top-3 h-4 w-4 text-zinc-500" />
       </form>
+      {askResult && (
+        <div className="flex flex-col gap-1.5 -mt-2">
+          <div className="flex items-center justify-between text-[11px] text-zinc-300 bg-zinc-900/90 border border-white/10 px-3 py-2 rounded-xl">
+            <span id="search-count-line" className="font-semibold text-emerald-400">{askResult.count_line || askResult.intent}</span>
+            <button
+              type="button"
+              id="clear-search-btn"
+              onClick={() => {
+                setAskResult(null);
+                setSearchQuery("");
+              }}
+              className="text-[10px] text-zinc-400 hover:text-white underline cursor-pointer"
+            >
+              Clear
+            </button>
+          </div>
+          {askResult.chips && askResult.chips.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 pt-0.5">
+              {askResult.chips.map((chip, idx) => (
+                <span
+                  key={idx}
+                  data-testid="search-chip"
+                  className="px-2 py-0.5 rounded-md bg-primary/20 border border-primary/40 text-primary text-[10px] font-bold flex items-center gap-1"
+                >
+                  <span>{chip.label}</span>
+                </span>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── 2. FOUR CONTROLS ONLY ──────────────────────────────────────────────── */}
       <div className="flex flex-col gap-2.5">

@@ -732,13 +732,14 @@ export async function fetchFeed(options?: {
   };
 }
 
-export async function fetchAskSearch(q: string): Promise<{ intent: string; direct_answer: string; results: UiTrend[] }> {
-  const data = await http<{ intent: string; direct_answer: string; results: ApiTrend[] }>(
+export async function fetchAskSearch(q: string): Promise<{ intent: string; count_line: string; chips: Array<{ key: string; label: string }>; results: UiTrend[] }> {
+  const data = await http<{ intent: string; count_line?: string; chips?: Array<{ key: string; label: string }>; results: ApiTrend[] }>(
     `/api/search/ask?q=${encodeURIComponent(q)}`
   );
   return {
     intent: data.intent || "",
-    direct_answer: data.direct_answer || "",
+    count_line: data.count_line || data.intent || "",
+    chips: data.chips || [],
     results: (data.results || []).map(adaptTrend),
   };
 }
