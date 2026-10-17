@@ -1,0 +1,966 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Trendrop - Quality Gate Contact Sheet (Shadow Mode)</title>
+<style>
+  :root {
+    --bg: #0b0f19;
+    --card: #151d2f;
+    --border: #232f48;
+    --text: #f1f5f9;
+    --text-muted: #94a3b8;
+    --tier-a: #10b981;
+    --tier-b: #3b82f6;
+    --tier-c: #ef4444;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  body { background: var(--bg); color: var(--text); padding: 32px 20px; line-height: 1.5; }
+  .container { max-width: 1200px; margin: 0 auto; }
+  header { margin-bottom: 32px; border-bottom: 1px solid var(--border); padding-bottom: 24px; }
+  h1 { font-size: 26px; font-weight: 800; display: flex; align-items: center; gap: 10px; }
+  .badge-shadow { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.4); padding: 3px 10px; border-radius: 9999px; font-size: 13px; }
+  .stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 20px; }
+  .stat-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px; padding: 18px; }
+  .stat-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; font-weight: 700; letter-spacing: 0.05em; }
+  .stat-value { font-size: 28px; font-weight: 800; margin-top: 6px; }
+  .section { margin-top: 40px; }
+  h2 { font-size: 18px; font-weight: 700; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; }
+  .table-wrapper { overflow-x: auto; background: var(--card); border: 1px solid var(--border); border-radius: 12px; }
+  table { width: 100%; border-collapse: collapse; text-align: left; font-size: 13px; }
+  th { background: rgba(0, 0, 0, 0.25); padding: 12px 16px; font-weight: 700; color: var(--text-muted); border-bottom: 1px solid var(--border); }
+  td { padding: 12px 16px; border-bottom: 1px solid var(--border); }
+  tr:last-child td { border-bottom: none; }
+  .chip { display: inline-block; padding: 3px 8px; border-radius: 6px; font-weight: 700; font-size: 11px; }
+  .chip-a { background: rgba(16, 185, 129, 0.15); color: #34d399; border: 1px solid rgba(16, 185, 129, 0.3); }
+  .chip-b { background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); }
+  .chip-c { background: rgba(239, 68, 68, 0.15); color: #f87171; border: 1px solid rgba(239, 68, 68, 0.3); }
+  .chip-lang { background: rgba(255, 255, 255, 0.08); color: var(--text); border: 1px solid rgba(255, 255, 255, 0.15); }
+  .reason { color: #cbd5e1; font-family: monospace; font-size: 12px; }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Trendrop Quality Gate Contact Sheet <span class="badge-shadow">Shadow Mode</span></h1>
+    <p style="color: var(--text-muted); margin-top: 6px; font-size: 14px;">Evaluated 2016 live database trends. Shadow mode: zero feed filters applied, zero data deleted.</p>
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-label">Tier A (High Confidence Music)</div>
+        <div class="stat-value" style="color: var(--tier-a);">635</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">31.5% of catalog</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tier B (Eligible / Emerging)</div>
+        <div class="stat-value" style="color: var(--tier-b);">338</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">16.8% of catalog</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Tier C (Quarantined / Hidden)</div>
+        <div class="stat-value" style="color: var(--tier-c);">1043</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">51.7% of catalog</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-label">Hard Test (Never-Hide in Tier C)</div>
+        <div class="stat-value" style="color: #10b981;">PASS (0)</div>
+        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">Guaranteed user saves & >=3 creators</div>
+      </div>
+    </div>
+  </header>
+
+  <!-- Section 1: 50 Would-be-hidden (Tier C) -->
+  <div class="section">
+    <h2><span class="chip chip-c">Tier C</span> 50 Would-be-hidden Audios (Quarantined)</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Lang</th>
+            <th>Creators</th>
+            <th>Quarantine Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7609</td>
+            <td style="font-weight: 700;">Laal Ishq</td>
+            <td style="color: var(--text-muted);">Sanjay Leela Bhansali, Arijit Singh, Siddharth-Garima</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7856</td>
+            <td style="font-weight: 700;">Kete Dina Nabu</td>
+            <td style="color: var(--text-muted);">Abinash Dash, Satya Ranjan Bal</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6271</td>
+            <td style="font-weight: 700;">Danger Up Ahead</td>
+            <td style="color: var(--text-muted);">Global Genius</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7156</td>
+            <td style="font-weight: 700;">RADE RAPATE</td>
+            <td style="color: var(--text-muted);">YUNG DSA, Starboibeatz</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7237</td>
+            <td style="font-weight: 700;">Dham Dhama Dhama Baje Dhol</td>
+            <td style="color: var(--text-muted);">Ramniwas Bhadka Balara, Mahiraj</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7315</td>
+            <td style="font-weight: 700;">Background</td>
+            <td style="color: var(--text-muted);">Polytunes</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7743</td>
+            <td style="font-weight: 700;">GYM</td>
+            <td style="color: var(--text-muted);">CHMCL SØUP, ATSMXN</td>
+            <td><span class="chip chip-lang">KO</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine<br>foreign_language_in_india_mode_ko_creators_1_lt_3</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7561</td>
+            <td style="font-weight: 700;">James Dean</td>
+            <td style="color: var(--text-muted);">Cairokee</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7345</td>
+            <td style="font-weight: 700;">Video Games</td>
+            <td style="color: var(--text-muted);">Lana Del Rey</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#8002</td>
+            <td style="font-weight: 700;">Shook Ones, Pt. II</td>
+            <td style="color: var(--text-muted);">Mobb Deep</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7786</td>
+            <td style="font-weight: 700;">Machlat Aave Mai Kalika</td>
+            <td style="color: var(--text-muted);">Subhash Soni</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7903</td>
+            <td style="font-weight: 700;">Swalla - Raga Fusion - Adi Tala</td>
+            <td style="color: var(--text-muted);">IndianRaga, Mahesh Raghvan, Vivek Ramanan</td>
+            <td><span class="chip chip-lang">KO</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine<br>foreign_language_in_india_mode_ko_creators_1_lt_3</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7892</td>
+            <td style="font-weight: 700;">Tum Se Hi</td>
+            <td style="color: var(--text-muted);">Pritam, Mohit Chauhan, Irshad Kamil</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7875</td>
+            <td style="font-weight: 700;">Wicked Game</td>
+            <td style="color: var(--text-muted);">Chris Isaak</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7891</td>
+            <td style="font-weight: 700;">Hamesha Tumko Chaha (From "Devdas")</td>
+            <td style="color: var(--text-muted);">Kavita Krishnamurthy, Udit Narayan</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7528</td>
+            <td style="font-weight: 700;">Mujhe Tum Yaad Karna</td>
+            <td style="color: var(--text-muted);">Lata Mangeshkar,  Kishore Kumar</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6303</td>
+            <td style="font-weight: 700;">You got me</td>
+            <td style="color: var(--text-muted);">Ian Dawick</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7350</td>
+            <td style="font-weight: 700;">Kaash Tu Mila Hota (From "Code Blue")</td>
+            <td style="color: var(--text-muted);">Jubin Nautiyal, Shabab Azmi</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7755</td>
+            <td style="font-weight: 700;">Olli Belli Jelli Belli</td>
+            <td style="color: var(--text-muted);">Vijay Prakash, Javed Ali, Sunidhi Chauhan</td>
+            <td><span class="chip chip-lang">TE</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7117</td>
+            <td style="font-weight: 700;">Nachdi Phira</td>
+            <td style="color: var(--text-muted);">Meghna Mishra</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7951</td>
+            <td style="font-weight: 700;">X-COOL! (Instrumental Ultra Slowed)</td>
+            <td style="color: var(--text-muted);">tienanh109, HDN, hailong140</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7369</td>
+            <td style="font-weight: 700;">Dak Bangla Jhankar Beats</td>
+            <td style="color: var(--text-muted);">Lakhwinder Lucky, Dj Harshit Shah, DJ MHD IND</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6881</td>
+            <td style="font-weight: 700;">COOOK PARDON</td>
+            <td style="color: var(--text-muted);">Lvbel C5, AKDO</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7924</td>
+            <td style="font-weight: 700;">Rap do Silva - Lula</td>
+            <td style="color: var(--text-muted);">Bob Rum</td>
+            <td><span class="chip chip-lang">PT</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">foreign_language_in_india_mode_pt_creators_2_lt_3</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6269</td>
+            <td style="font-weight: 700;">Mickey's Christmas</td>
+            <td style="color: var(--text-muted);">Mickey SIM</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6497</td>
+            <td style="font-weight: 700;">SUELTA</td>
+            <td style="color: var(--text-muted);">Dayaní</td>
+            <td><span class="chip chip-lang">UNKNOWN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7744</td>
+            <td style="font-weight: 700;">The Moment</td>
+            <td style="color: var(--text-muted);">Dhruv Goel</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7210</td>
+            <td style="font-weight: 700;">Innunu Bekagide (Karaoke)</td>
+            <td style="color: var(--text-muted);">Vasuki Vaibhav</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6385</td>
+            <td style="font-weight: 700;">Scraping old dried paint off the easel short</td>
+            <td style="color: var(--text-muted);">DAN TONY</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7985</td>
+            <td style="font-weight: 700;">Idarkuthaane Aasaipattai</td>
+            <td style="color: var(--text-muted);">D. Imman, Vaikom Vijayalakshmi, Madhan Karky</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7711</td>
+            <td style="font-weight: 700;">Não Me Cutuca</td>
+            <td style="color: var(--text-muted);">Anitta, Alceu Valença</td>
+            <td><span class="chip chip-lang">PT</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine<br>foreign_language_in_india_mode_pt_creators_1_lt_3</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7600</td>
+            <td style="font-weight: 700;">Jum Jum Maya</td>
+            <td style="color: var(--text-muted);">M. M. Keeravani, Sunitha</td>
+            <td><span class="chip chip-lang">TE</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7798</td>
+            <td style="font-weight: 700;">Eylül'de Gel</td>
+            <td style="color: var(--text-muted);">Alpay</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7018</td>
+            <td style="font-weight: 700;">Tamil Tamil (From "Pokkiri")</td>
+            <td style="color: var(--text-muted);">Mani Sharma, Ranjith Govind, Shweta Mohan, Pa. Vijay</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7257</td>
+            <td style="font-weight: 700;">Sorry (Latino Remix) [feat. J Balvin]</td>
+            <td style="color: var(--text-muted);">Justin Bieber</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6445</td>
+            <td style="font-weight: 700;">Riot In The City</td>
+            <td style="color: var(--text-muted);">Riot Squad</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6850</td>
+            <td style="font-weight: 700;">Happy Go Lucky (Reels Sound - Before and After)</td>
+            <td style="color: var(--text-muted);">Corduroy Egg</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7885</td>
+            <td style="font-weight: 700;">Paththavaikkum (From "Devara Part 1") [Tamil]</td>
+            <td style="color: var(--text-muted);">Anirudh Ravichander, Deepthi Suresh, Vignesh Shivan</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6777</td>
+            <td style="font-weight: 700;">Yeko Yeno</td>
+            <td style="color: var(--text-muted);">Mahalakshmi Iyer, Ram Narayan, Joshua Sridhar</td>
+            <td><span class="chip chip-lang">KN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#4081</td>
+            <td style="font-weight: 700;">Kuruvi Kuruvi</td>
+            <td style="color: var(--text-muted);">Vidyasagar, Praveen Mani, Benny Dayal, Suvi, Na. Muthukumar</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7340</td>
+            <td style="font-weight: 700;">Cute Oggy</td>
+            <td style="color: var(--text-muted);">NGUYEN HOAI MY</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7925</td>
+            <td style="font-weight: 700;">Homem de Paradoxo</td>
+            <td style="color: var(--text-muted);">Dinx Debochada, MC D2 DA BAIXADA</td>
+            <td><span class="chip chip-lang">PT</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine<br>foreign_language_in_india_mode_pt_creators_1_lt_3</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7663</td>
+            <td style="font-weight: 700;">Sawan Ki Rut Hai</td>
+            <td style="color: var(--text-muted);">Sonu Nigam</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7643</td>
+            <td style="font-weight: 700;">Em Eisaba</td>
+            <td style="color: var(--text-muted);">Mahmoud Al-Turky</td>
+            <td><span class="chip chip-lang">OTHER</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6949</td>
+            <td style="font-weight: 700;">God Bless Our Troops God Bless America (And Gentlemen Start Your Engines)</td>
+            <td style="color: var(--text-muted);">Whoaster</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6889</td>
+            <td style="font-weight: 700;">Chun Lai</td>
+            <td style="color: var(--text-muted);">Retro Vibes</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6967</td>
+            <td style="font-weight: 700;">Tension Me Chali Jayi Janawa</td>
+            <td style="color: var(--text-muted);">Anup Yadav</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7801</td>
+            <td style="font-weight: 700;">Maa</td>
+            <td style="color: var(--text-muted);">Mani Maan</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7762</td>
+            <td style="font-weight: 700;">Kya Se Kya Ho Gaya Bewafa</td>
+            <td style="color: var(--text-muted);">Mohammed Rafi</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7864</td>
+            <td style="font-weight: 700;">Milegi Milegi</td>
+            <td style="color: var(--text-muted);">Mika Singh, Sachin-Jigar</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">1</td>
+            <td class="reason">single_creator_quarantine</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <!-- Section 2: 50 Would-be-shown (Tier A / Tier B) -->
+  <div class="section">
+    <h2><span class="chip chip-a">Tier A/B</span> 50 Would-be-shown Audios (Feed Eligible)</h2>
+    <div class="table-wrapper">
+      <table>
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Tier</th>
+            <th>Title</th>
+            <th>Artist</th>
+            <th>Lang</th>
+            <th>Creators</th>
+            <th>Eligibility Reason</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7659</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Just Chill</td>
+            <td style="color: var(--text-muted);">Sonu Nigam, Jayesh Gandhi, Amrita Kak</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6636</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">The King And His Sword</td>
+            <td style="color: var(--text-muted);">M. M. Keeravaani</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">5</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6273</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Harleys In Hawaii</td>
+            <td style="color: var(--text-muted);">Katy Perry</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">10</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7689</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Bhor Bhayi Din Chad Gaya</td>
+            <td style="color: var(--text-muted);">Vidhi Sharma</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6331</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Humsafar (Movie: Saiyaara)</td>
+            <td style="color: var(--text-muted);">Sachet-Parampara, Sachet Tandon, Parampara Tandon, Irshad Kamil, Prashant Pandey</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">8</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7749</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Here Merry Making</td>
+            <td style="color: var(--text-muted);">Kunal Ganjawala, Sunitha Kapoor</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6278</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Inaam</td>
+            <td style="color: var(--text-muted);">Jasleen Royal, Badshah, Ansh Chahal</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">5</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7707</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Chiggy Wiggy</td>
+            <td style="color: var(--text-muted);">Kylie Minogue, Sonu Nigam, Suzanne, A.R. Rahman</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7829</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">FUNK TAKA</td>
+            <td style="color: var(--text-muted);">ICEDMANE, DYSMANE</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7113</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Filam</td>
+            <td style="color: var(--text-muted);">Duryodhan Rana, Jaiveer Thakur, Prodbysoundscape</td>
+            <td><span class="chip chip-lang">KO</span></td>
+            <td style="font-weight: 600;">13</td>
+            <td class="reason">tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7682</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Meri Maa Ke Barabar Koi Nahi</td>
+            <td style="color: var(--text-muted);">Jubin Nautiyal, Payal Dev, Manoj Muntashir</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#5523</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">CEO</td>
+            <td style="color: var(--text-muted);">Cheema Y, Gur Sidhu</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">5</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7777</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Aradhi Aaly Nava</td>
+            <td style="color: var(--text-muted);">Sakhrabai Tekale</td>
+            <td><span class="chip chip-lang">MR</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7338</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Bike Turns Villain</td>
+            <td style="color: var(--text-muted);">Anirudh Ravichander</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7251</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Ek Kachori Do Samosa</td>
+            <td style="color: var(--text-muted);">Vipin Soni</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6589</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Zaroorat</td>
+            <td style="color: var(--text-muted);">Mithoon, Mustafa Zahid</td>
+            <td><span class="chip chip-lang">UNKNOWN</span></td>
+            <td style="font-weight: 600;">6</td>
+            <td class="reason">tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6224</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Attt Karti</td>
+            <td style="color: var(--text-muted);">Jassi Gill</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7778</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">O Aay Tere Bhawan Mein</td>
+            <td style="color: var(--text-muted);">Anuradha Paudwal, Sonu Nigam</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6732</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Rocky Walks Up The Stairs</td>
+            <td style="color: var(--text-muted);">Ravi Basrur</td>
+            <td><span class="chip chip-lang">KN</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6788</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Happy Family</td>
+            <td style="color: var(--text-muted);">Siddhu Kumar</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7384</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Sad Music</td>
+            <td style="color: var(--text-muted);">Max-Music</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6297</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Parallel Universe Lines</td>
+            <td style="color: var(--text-muted);">Alan BandK</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6594</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Brown Rang</td>
+            <td style="color: var(--text-muted);">Yo Yo Honey Singh</td>
+            <td><span class="chip chip-lang">UNKNOWN</span></td>
+            <td style="font-weight: 600;">4</td>
+            <td class="reason">tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7859</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Bodyguard Bgm</td>
+            <td style="color: var(--text-muted);">Raaj Sriram</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7008</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">fragment</td>
+            <td style="color: var(--text-muted);">slxughter</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">6</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7900</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Cute Kids</td>
+            <td style="color: var(--text-muted);">Sundar C Babu, Ganga, Varsha Renjith</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6488</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Priya Phool</td>
+            <td style="color: var(--text-muted);">Kobid Bazra, Bikesh Bazra, Deepson Putuwar</td>
+            <td><span class="chip chip-lang">NE</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6284</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Udaarian - 2.0</td>
+            <td style="color: var(--text-muted);">Satinder Sartaaj, Jatinder Shah</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#4193</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Ganeshay Dheemahi</td>
+            <td style="color: var(--text-muted);">Abby V</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6644</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Musicaltunnel</td>
+            <td style="color: var(--text-muted);">musicaltunnel</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">20</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6734</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Aujla Szn</td>
+            <td style="color: var(--text-muted);">Karan Aujla, Mxrci</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">8</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6315</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Family Oneness (Background Score)</td>
+            <td style="color: var(--text-muted);">D. Imman</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7229</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Alfaaz - Vocals</td>
+            <td style="color: var(--text-muted);">Hamza Malik, Zain Zohaib</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">35</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#5078</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">God’s Favorite (feat. Sultaan)</td>
+            <td style="color: var(--text-muted);">Jordan Sandhu, Sultaan, Kaptaan, Avvy Sra</td>
+            <td><span class="chip chip-lang">PA</span></td>
+            <td style="font-weight: 600;">11</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7108</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Rah Mein Nikal Chala</td>
+            <td style="color: var(--text-muted);">Rajesh Rajnish</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6538</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">HOTEL LOBBY (Unc & Phew)</td>
+            <td style="color: var(--text-muted);">Quavo, Takeoff</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#4098</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">KALYANI</td>
+            <td style="color: var(--text-muted);">ARJN, KDS, FIFTY4, Shreya Ghoshal</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">34</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6730</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Dil Ye Bekarar Kyun Hai</td>
+            <td style="color: var(--text-muted);">Mohit Chauhan, Shreya Ghoshal</td>
+            <td><span class="chip chip-lang">ML</span></td>
+            <td style="font-weight: 600;">5</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6386</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Con la Misma Piedra</td>
+            <td style="color: var(--text-muted);">Julio Iglesias</td>
+            <td><span class="chip chip-lang">KN</span></td>
+            <td style="font-weight: 600;">3</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#4606</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Alfaaz</td>
+            <td style="color: var(--text-muted);">Hamza Malik, Zain Zohaib</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">32</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#8009</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Dandiye Ke Bahane</td>
+            <td style="color: var(--text-muted);">Udit Narayan, Sadhana Sargam</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7982</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Humbo Humbo Vichhudo</td>
+            <td style="color: var(--text-muted);">Jaysinh Gadhavi</td>
+            <td><span class="chip chip-lang">GU</span></td>
+            <td style="font-weight: 600;">4</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7967</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Pump Up</td>
+            <td style="color: var(--text-muted);">Rawme Hooda</td>
+            <td><span class="chip chip-lang">INSTRUMENTAL</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6588</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Savi Savi Nenapu</td>
+            <td style="color: var(--text-muted);">Hariharan</td>
+            <td><span class="chip chip-lang">UNKNOWN</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7359</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Mere Nishan</td>
+            <td style="color: var(--text-muted);">Mohammed</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">6</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6233</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Pairon Mein Bandhan Hai (From "Mohabbatein") (feat. Amitabh Bachchan, Shah Rukh Khan, Aishwarya Rai, Anupam Kher, Uday Chopra, Shamita Shetty, Jugal Hansraj, Kim Sharma, Jimmy Shergill, Preeti Jhangiani)</td>
+            <td style="color: var(--text-muted);">Jatin-Lalit, Udbhav, Manohar Shetty, Ishaan, Shweta Pandit, Sonali Bhatawdekar, Pritha Mazumdar</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">5</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#6348</td>
+            <td><span class="chip chip-b">Tier B</span></td>
+            <td style="font-weight: 700;">Saajanji Ghar Aaye (From "Kuch Kuch Hota Hai")</td>
+            <td style="color: var(--text-muted);">Jatin-Lalit, Kumar Sanu, Alka Yagnik, Kavita Krishnamurthy</td>
+            <td><span class="chip chip-lang">HI</span></td>
+            <td style="font-weight: 600;">2</td>
+            <td class="reason">tier_b_eligible_adoption</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7971</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Chalre Chalre Waal</td>
+            <td style="color: var(--text-muted);">Shanzy Sial</td>
+            <td><span class="chip chip-lang">EN</span></td>
+            <td style="font-weight: 600;">6</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7122</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">ICONIC BY MISTAKE</td>
+            <td style="color: var(--text-muted);">ILLIT, LE SSERAFIM, KATSEYE</td>
+            <td><span class="chip chip-lang">KO</span></td>
+            <td style="font-weight: 600;">7</td>
+            <td class="reason">tier_a_high_quality_multi_creator</td>
+          </tr>
+          <tr>
+            <td style="color: var(--text-muted); font-weight: 600;">#7265</td>
+            <td><span class="chip chip-a">Tier A</span></td>
+            <td style="font-weight: 700;">Malaril Malare</td>
+            <td style="color: var(--text-muted);">S. P. Balasubrahmanyam</td>
+            <td><span class="chip chip-lang">TA</span></td>
+            <td style="font-weight: 600;">13</td>
+            <td class="reason">never_hide_market_fit_multi_creator<br>tier_a_high_quality_multi_creator</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+</body>
+</html>
