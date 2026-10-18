@@ -180,6 +180,18 @@ SLIM_FEED_COLUMNS = (
 _FEED_UNIFIED_CACHE: dict = {}
 _ASK_SEARCH_CACHE: dict = {}
 
+def _clean_analysis_text(text: Optional[str]) -> Optional[str]:
+    if not text:
+        return None
+    t_lower = text.lower()
+    if (
+        "currently driving high engagement" in t_lower
+        or "adapt the visual style of" in t_lower
+        or "automated fallback classification" in t_lower
+    ):
+        return None
+    return text
+
 def _normalize_trends_slim(trends: list) -> list:
     """Fast slim normalization: sanitizes title, artist, language, niches without DB reel fetches."""
     if not trends:
@@ -202,6 +214,10 @@ def _normalize_trends_slim(trends: list) -> list:
             t["artist"] = norm_artist
             if not t.get("content_type"):
                 t["content_type"] = "viral"
+
+            # Server-side template nulling (Order 93 D.c)
+            t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
+            t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
 
             lang_final = (t.get("language_final") or "").strip().lower()
             if lang_final and lang_final not in ("unknown", "other", ""):

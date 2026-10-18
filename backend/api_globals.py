@@ -800,7 +800,18 @@ def _normalize_trends(trends: list) -> list:
         t["song"]   = t.get("audio_title")
         t["artist"] = t.get("audio_artist")
         t["used_for"] = t.get("used_for")
-        t["used_for_note"] = t.get("used_for_note")
+        
+        # Server-side template nulling (Order 93 D.c)
+        def _clean(val):
+            if not val:
+                return None
+            vl = val.lower()
+            if "currently driving high engagement" in vl or "adapt the visual style of" in vl or "automated fallback classification" in vl:
+                return None
+            return val
+
+        t["why_this_works"] = _clean(t.get("why_this_works"))
+        t["used_for_note"] = _clean(t.get("used_for_note"))
         ct = (t.get("content_type") or "").lower().strip().replace(" ", "_")
         t["content_type"] = CONTENT_TYPE_NORMALIZE.get(ct, ct)
         

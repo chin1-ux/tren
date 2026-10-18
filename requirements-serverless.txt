@@ -1,0 +1,16 @@
+# Lightweight serverless dependencies for Vercel API function
+# Target: Function bundle <= 25 MB (Order 93 Section D.d)
+# Excludes psycopg2-binary, cryptography, redis, rq, schedule, uvicorn
+fastapi==0.137.1
+mangum
+requests
+python-dotenv
+supabase
+slowapi
+pydantic
+email-validator
+python-multipart
+resend
+razorpay
+bcrypt
+pyjwt

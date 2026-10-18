@@ -1,0 +1,134 @@
+{
+  "threshold_165m": [
+    {
+      "tick_id": "39053040589",
+      "time": "2026-10-17T17:16:38Z",
+      "gap_from_last_real_minutes": 182.9,
+      "threshold": 165,
+      "action": "PROCEED (gap 182.9m >= 165m threshold)"
+    },
+    {
+      "tick_id": "39062715163",
+      "time": "2026-10-17T19:29:58Z",
+      "gap_from_last_real_minutes": 133.3,
+      "threshold": 165,
+      "action": "SKIP (gap 133.3m < 165m threshold)"
+    },
+    {
+      "tick_id": "39074828271",
+      "time": "2026-10-17T22:22:48Z",
+      "gap_from_last_real_minutes": 306.2,
+      "threshold": 165,
+      "action": "PROCEED (gap 306.2m >= 165m threshold)"
+    },
+    {
+      "tick_id": "39085269151",
+      "time": "2026-10-18T01:06:39Z",
+      "gap_from_last_real_minutes": 163.8,
+      "threshold": 165,
+      "action": "SKIP (gap 163.8m < 165m threshold)"
+    },
+    {
+      "tick_id": "39102355951",
+      "time": "2026-10-18T05:58:03Z",
+      "gap_from_last_real_minutes": 455.2,
+      "threshold": 165,
+      "action": "PROCEED (gap 455.2m >= 165m threshold)"
+    },
+    {
+      "tick_id": "39104754603",
+      "time": "2026-10-18T06:38:27Z",
+      "gap_from_last_real_minutes": 40.4,
+      "threshold": 165,
+      "action": "PROCEED (manual workflow_dispatch bypasses guard)"
+    }
+  ],
+  "threshold_360m": [
+    {
+      "tick_id": "39053040589",
+      "time": "2026-10-17T17:16:38Z",
+      "gap_from_last_real_minutes": 182.9,
+      "threshold": 360,
+      "action": "SKIP (gap 182.9m < 360m threshold)"
+    },
+    {
+      "tick_id": "39062715163",
+      "time": "2026-10-17T19:29:58Z",
+      "gap_from_last_real_minutes": 316.2,
+      "threshold": 360,
+      "action": "SKIP (gap 316.2m < 360m threshold)"
+    },
+    {
+      "tick_id": "39074828271",
+      "time": "2026-10-17T22:22:48Z",
+      "gap_from_last_real_minutes": 489.1,
+      "threshold": 360,
+      "action": "PROCEED (gap 489.1m >= 360m threshold)"
+    },
+    {
+      "tick_id": "39085269151",
+      "time": "2026-10-18T01:06:39Z",
+      "gap_from_last_real_minutes": 163.8,
+      "threshold": 360,
+      "action": "SKIP (gap 163.8m < 360m threshold)"
+    },
+    {
+      "tick_id": "39102355951",
+      "time": "2026-10-18T05:58:03Z",
+      "gap_from_last_real_minutes": 455.2,
+      "threshold": 360,
+      "action": "PROCEED (gap 455.2m >= 360m threshold)"
+    },
+    {
+      "tick_id": "39104754603",
+      "time": "2026-10-18T06:38:27Z",
+      "gap_from_last_real_minutes": 40.4,
+      "threshold": 360,
+      "action": "PROCEED (manual workflow_dispatch bypasses guard)"
+    }
+  ],
+  "threshold_600m": [
+    {
+      "tick_id": "39053040589",
+      "time": "2026-10-17T17:16:38Z",
+      "gap_from_last_real_minutes": 182.9,
+      "threshold": 600,
+      "action": "SKIP (gap 182.9m < 600m threshold)"
+    },
+    {
+      "tick_id": "39062715163",
+      "time": "2026-10-17T19:29:58Z",
+      "gap_from_last_real_minutes": 316.2,
+      "threshold": 600,
+      "action": "SKIP (gap 316.2m < 600m threshold)"
+    },
+    {
+      "tick_id": "39074828271",
+      "time": "2026-10-17T22:22:48Z",
+      "gap_from_last_real_minutes": 489.1,
+      "threshold": 600,
+      "action": "SKIP (gap 489.1m < 600m threshold)"
+    },
+    {
+      "tick_id": "39085269151",
+      "time": "2026-10-18T01:06:39Z",
+      "gap_from_last_real_minutes": 652.9,
+      "threshold": 600,
+      "action": "PROCEED (gap 652.9m >= 600m threshold)"
+    },
+    {
+      "tick_id": "39102355951",
+      "time": "2026-10-18T05:58:03Z",
+      "gap_from_last_real_minutes": 291.4,
+      "threshold": 600,
+      "action": "SKIP (gap 291.4m < 600m threshold)"
+    },
+    {
+      "tick_id": "39104754603",
+      "time": "2026-10-18T06:38:27Z",
+      "gap_from_last_real_minutes": 331.8,
+      "threshold": 600,
+      "action": "PROCEED (manual workflow_dispatch bypasses guard)"
+    }
+  ]
+}

@@ -1,0 +1,230 @@
+{
+  "db_total_size": {
+    "bytes": 315296915,
+    "pretty": "301 MB"
+  },
+  "schemas": [
+    {
+      "schema": "public",
+      "relation_count": 86,
+      "bytes": 299720704,
+      "pretty": "286 MB"
+    },
+    {
+      "schema": "pg_toast",
+      "relation_count": 154,
+      "bytes": 76652544,
+      "pretty": "73 MB"
+    },
+    {
+      "schema": "pg_catalog",
+      "relation_count": 64,
+      "bytes": 12853248,
+      "pretty": "12 MB"
+    },
+    {
+      "schema": "auth",
+      "relation_count": 27,
+      "bytes": 2170880,
+      "pretty": "2120 kB"
+    },
+    {
+      "schema": "storage",
+      "relation_count": 8,
+      "bytes": 368640,
+      "pretty": "360 kB"
+    },
+    {
+      "schema": "information_schema",
+      "relation_count": 4,
+      "bytes": 253952,
+      "pretty": "248 kB"
+    },
+    {
+      "schema": "realtime",
+      "relation_count": 2,
+      "bytes": 57344,
+      "pretty": "56 kB"
+    },
+    {
+      "schema": "vault",
+      "relation_count": 1,
+      "bytes": 24576,
+      "pretty": "24 kB"
+    }
+  ],
+  "table_bloat": [
+    {
+      "schema": "public",
+      "table": "reels",
+      "n_live_tup": 54433,
+      "n_dead_tup": 8796,
+      "dead_pct": 13.91,
+      "size": "163 MB"
+    },
+    {
+      "schema": "public",
+      "table": "audio_trend_scores",
+      "n_live_tup": 44193,
+      "n_dead_tup": 3620,
+      "dead_pct": 7.57,
+      "size": "25 MB"
+    },
+    {
+      "schema": "public",
+      "table": "trend_lifecycle",
+      "n_live_tup": 18469,
+      "n_dead_tup": 1702,
+      "dead_pct": 8.44,
+      "size": "6320 kB"
+    },
+    {
+      "schema": "public",
+      "table": "content_trends",
+      "n_live_tup": 2570,
+      "n_dead_tup": 524,
+      "dead_pct": 16.94,
+      "size": "1792 kB"
+    },
+    {
+      "schema": "public",
+      "table": "tracked_audio",
+      "n_live_tup": 5206,
+      "n_dead_tup": 258,
+      "dead_pct": 4.72,
+      "size": "888 kB"
+    },
+    {
+      "schema": "public",
+      "table": "trends",
+      "n_live_tup": 2041,
+      "n_dead_tup": 159,
+      "dead_pct": 7.23,
+      "size": "21 MB"
+    },
+    {
+      "schema": "public",
+      "table": "creator_baselines",
+      "n_live_tup": 685,
+      "n_dead_tup": 153,
+      "dead_pct": 18.26,
+      "size": "264 kB"
+    },
+    {
+      "schema": "auth",
+      "table": "sessions",
+      "n_live_tup": 55,
+      "n_dead_tup": 56,
+      "dead_pct": 50.45,
+      "size": "232 kB"
+    },
+    {
+      "schema": "auth",
+      "table": "refresh_tokens",
+      "n_live_tup": 301,
+      "n_dead_tup": 54,
+      "dead_pct": 15.21,
+      "size": "392 kB"
+    },
+    {
+      "schema": "public",
+      "table": "spotify_feed_cache",
+      "n_live_tup": 25,
+      "n_dead_tup": 50,
+      "dead_pct": 66.67,
+      "size": "224 kB"
+    },
+    {
+      "schema": "public",
+      "table": "watchlist",
+      "n_live_tup": 153,
+      "n_dead_tup": 49,
+      "dead_pct": 24.26,
+      "size": "224 kB"
+    },
+    {
+      "schema": "public",
+      "table": "credit_balances",
+      "n_live_tup": 0,
+      "n_dead_tup": 48,
+      "dead_pct": 100.0,
+      "size": "40 kB"
+    },
+    {
+      "schema": "auth",
+      "table": "flow_state",
+      "n_live_tup": 5,
+      "n_dead_tup": 44,
+      "dead_pct": 89.8,
+      "size": "80 kB"
+    },
+    {
+      "schema": "public",
+      "table": "news_virality_predictions",
+      "n_live_tup": 20,
+      "n_dead_tup": 40,
+      "dead_pct": 66.67,
+      "size": "360 kB"
+    },
+    {
+      "schema": "public",
+      "table": "admin_users_deprecated_20240813",
+      "n_live_tup": 1,
+      "n_dead_tup": 39,
+      "dead_pct": 97.5,
+      "size": "48 kB"
+    }
+  ],
+  "recent_cron_runs": [
+    {
+      "id": 984,
+      "github_run_id": null,
+      "created_at": "2026-10-17 19:45:32.768415",
+      "conclusion": null,
+      "egress_requests": 0,
+      "egress_bytes": 0
+    },
+    {
+      "id": 983,
+      "github_run_id": null,
+      "created_at": "2026-10-17 16:03:58.266742",
+      "conclusion": null,
+      "egress_requests": 0,
+      "egress_bytes": 0
+    },
+    {
+      "id": 982,
+      "github_run_id": null,
+      "created_at": "2026-10-17 08:57:59.085620",
+      "conclusion": null,
+      "egress_requests": 0,
+      "egress_bytes": 0
+    },
+    {
+      "id": 981,
+      "github_run_id": null,
+      "created_at": "2026-10-17 06:38:00.952141",
+      "conclusion": null,
+      "egress_requests": 0,
+      "egress_bytes": 0
+    },
+    {
+      "id": 980,
+      "github_run_id": null,
+      "created_at": "2026-10-16 23:08:55.018162",
+      "conclusion": null,
+      "egress_requests": 0,
+      "egress_bytes": 0
+    }
+  ],
+  "egress_log": {
+    "total_rows": 0,
+    "recent": []
+  },
+  "trends_stats": {
+    "total": 2041,
+    "completed_status": 1616,
+    "clean_why_this_works": 1747,
+    "template_why_this_works": 294
+  }
+}

@@ -49,8 +49,8 @@ def finalize_run():
             "run_at": now_iso,
             "status": "success" if run_conclusion == "success" else "failure",
             "conclusion": run_conclusion,
-            "github_run_id": str(github_run_id) if github_run_id else None,
-            "notes": f"Recorded by finalize_cron_run (job_status={job_status})"
+            "github_run_id": int(github_run_id) if (github_run_id and str(github_run_id).isdigit()) else None,
+            "cutoff_reason": f"Recorded by finalize_cron_run (job_status={job_status}, conclusion={run_conclusion})"
         }
         
         try:
