@@ -11,6 +11,8 @@ import traceback
 
 from routes.auth import router as auth_router
 app.include_router(auth_router)
+from routes.deck import router as deck_router
+app.include_router(deck_router)
 from routes.trends import router as trends_router
 app.include_router(trends_router)
 from routes.ai import router as ai_router
@@ -25,8 +27,6 @@ from routes.system import router as system_router
 app.include_router(system_router)
 from routes.users import router as users_router
 app.include_router(users_router)
-from routes.deck import router as deck_router
-app.include_router(deck_router)
 
 
 @app.get("/api/health", tags=["Health"]) 
