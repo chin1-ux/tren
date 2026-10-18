@@ -36,13 +36,14 @@ jobs:
           playwright install chromium
           python -m camoufox fetch
 
-      - name: Check 2h45m Early Exit Guard
+      - name: Check Early Exit Guard
         id: guard
         timeout-minutes: 5
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SCRAPER_GUARD_MIN_GAP_MINUTES: ${{ vars.SCRAPER_GUARD_MIN_GAP_MINUTES }}
         run: |
           python scripts/check_scraper_guard.py
 
