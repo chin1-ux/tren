@@ -206,8 +206,8 @@ def _normalize_trends_slim(trends: list) -> list:
                 continue
 
             raw_title = t.get("audio_title") or t.get("song") or ""
-            raw_artist = t.get("audio_artist") or t.get("artist") or ""
-            norm_title, norm_artist = normalize_audio_title(raw_title, raw_artist)
+            norm_title = normalize_audio_title(raw_title)
+            norm_artist = raw_artist
             t["audio_title"] = norm_title
             t["audio_artist"] = norm_artist
             t["song"] = norm_title
