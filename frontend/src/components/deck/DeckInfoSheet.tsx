@@ -28,7 +28,9 @@ export function DeckInfoSheet({ trend, isOpen, onClose }: DeckInfoSheetProps) {
       })
     : 'Recently';
 
-  const instagramUrl = `https://www.instagram.com/reels/audio/${trend.id}/`;
+  const instagramUrl = trend.audio_id
+    ? `https://www.instagram.com/reels/audio/${trend.audio_id}/`
+    : `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(trend.audio_title + ' ' + trend.audio_artist)}`;
 
   return (
     <div

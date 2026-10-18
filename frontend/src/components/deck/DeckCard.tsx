@@ -64,6 +64,33 @@ export function DeckCard({
   // Stage pill mapping: emerging -> "Just starting", rising -> "Blowing up"
   const stagePill = trend.stage_label || (trend.status === 'rising' ? 'Blowing up' : 'Just starting');
 
+  // Stage-specific pulsating outline and glow
+  const stageGlowClass = (() => {
+    const s = (trend.status || '').toLowerCase();
+    if (s === 'rising') {
+      return 'border-2 border-rose-500 shadow-[0_0_35px_rgba(244,63,94,0.45)] ring-1 ring-rose-400/60 animate-pulse';
+    }
+    if (s === 'emerging') {
+      return 'border-2 border-cyan-400 shadow-[0_0_30px_rgba(34,211,238,0.4)] ring-1 ring-cyan-300/60 animate-pulse';
+    }
+    if (s === 'peaked') {
+      return 'border-2 border-amber-400 shadow-[0_0_30px_rgba(251,191,36,0.4)] ring-1 ring-amber-300/60';
+    }
+    if (s === 'resurging') {
+      return 'border-2 border-purple-500 shadow-[0_0_35px_rgba(168,85,247,0.45)] ring-1 ring-purple-400/60 animate-pulse';
+    }
+    return 'border border-white/20 shadow-2xl';
+  })();
+
+  const stageBadgeStyle = (() => {
+    const s = (trend.status || '').toLowerCase();
+    if (s === 'rising') return 'bg-rose-500/25 text-rose-300 border-rose-500/40';
+    if (s === 'emerging') return 'bg-cyan-500/25 text-cyan-300 border-cyan-500/40';
+    if (s === 'peaked') return 'bg-amber-500/25 text-amber-300 border-amber-500/40';
+    if (s === 'resurging') return 'bg-purple-500/25 text-purple-300 border-purple-500/40';
+    return 'bg-white/10 text-white/90 border-white/15';
+  })();
+
   return (
     <motion.div
       style={{
@@ -97,7 +124,7 @@ export function DeckCard({
         onClick={() => {
           if (isFront) onOpenWatch();
         }}
-        className={`w-full h-full rounded-[28px] border border-white/10 shadow-2xl flex flex-col justify-between p-6 overflow-hidden relative cursor-grab active:cursor-grabbing backdrop-blur-md ${
+        className={`w-full h-full rounded-[28px] ${stageGlowClass} flex flex-col justify-between p-6 overflow-hidden relative cursor-grab active:cursor-grabbing backdrop-blur-xl ${
           isDark ? 'text-white' : 'text-zinc-900'
         }`}
       >
@@ -133,7 +160,7 @@ export function DeckCard({
                 New today
               </span>
             )}
-            <span className="px-2.5 py-1 rounded-full bg-white/10 text-white/90 text-[11px] font-semibold tracking-wide backdrop-blur-xs">
+            <span className={`px-2.5 py-1 rounded-full border text-[11px] font-semibold tracking-wide backdrop-blur-xs ${stageBadgeStyle}`}>
               {stagePill}
             </span>
           </div>
@@ -151,25 +178,36 @@ export function DeckCard({
         </div>
 
         {/* Center Content: Title, Artist, Proof Line */}
-        <div className="space-y-4 my-auto z-20">
-          <div className="space-y-2">
+        <div className="space-y-3.5 my-2 z-20">
+          <div className="space-y-1.5">
             <h2
-              className="text-3xl sm:text-4xl font-extrabold leading-[1.15] tracking-tight font-display line-clamp-3"
+              className="text-2xl sm:text-3xl font-extrabold leading-[1.2] tracking-tight font-display line-clamp-2"
               style={{ color: isDark ? '#FFFFFF' : '#111827' }}
             >
               {trend.audio_title}
             </h2>
-            <p className="text-base sm:text-lg text-white/70 font-medium truncate">
+            <p className="text-sm sm:text-base text-white/70 font-medium truncate">
               {trend.audio_artist}
             </p>
           </div>
 
           {/* Hard Fact Proof Line */}
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/30 border border-white/5 backdrop-blur-md">
-            <span className="text-xs font-mono font-medium text-white/80">
+          <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-black/35 border border-white/10 backdrop-blur-md">
+            <span className="text-xs font-mono font-medium text-white/85">
               {proofLine}
             </span>
           </div>
+        </div>
+
+        {/* Creator Use-Case Section ("What kind of reels this audio is being used for") */}
+        <div className="rounded-2xl bg-black/40 border border-white/10 p-3.5 backdrop-blur-md space-y-1.5 z-20" onClick={(e) => e.stopPropagation()}>
+          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono font-bold tracking-wider uppercase text-amber-300/90">
+            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+            <span>What kind of reels this audio is being used for</span>
+          </div>
+          <p className="text-xs text-white/85 leading-relaxed font-normal line-clamp-3">
+            {trend.used_for || (trend.niche ? `Popular in ${trend.niche} creator reels, dynamic transitions, and viral aesthetic hooks.` : 'Used for fast-paced visual storytelling, lifestyle cuts, and viral creator reels.')}
+          </p>
         </div>
 
         {/* Bottom Tags and Tap-to-Watch CTA */}

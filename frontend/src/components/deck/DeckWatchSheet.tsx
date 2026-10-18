@@ -31,14 +31,13 @@ export function DeckWatchSheet({ trend, isOpen, onClose }: DeckWatchSheetProps) 
     supabase
       .from('reels')
       .select('reel_id, owner_username, view_count')
-      .eq('audio_id', trend.id)
+      .eq('audio_id', String(trend.audio_id || trend.id))
       .order('view_count', { ascending: false })
       .limit(5)
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
           setReels(data as TrackedReel[]);
         } else {
-          // If no reels matched directly by audio_id, check by trend_id or fallback
           setReels([]);
         }
         setLoading(false);
@@ -51,7 +50,9 @@ export function DeckWatchSheet({ trend, isOpen, onClose }: DeckWatchSheetProps) 
   const currentReel = reels[currentIndex];
   const totalReels = reels.length;
 
-  const instagramAudioUrl = `https://www.instagram.com/reels/audio/${trend.id}/`;
+  const instagramAudioUrl = trend.audio_id
+    ? `https://www.instagram.com/reels/audio/${trend.audio_id}/`
+    : `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(trend.audio_title + ' ' + trend.audio_artist)}`;
   const instagramReelUrl = currentReel?.reel_id
     ? `https://www.instagram.com/reel/${currentReel.reel_id}/`
     : instagramAudioUrl;

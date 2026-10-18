@@ -379,93 +379,86 @@ function DeckScreen() {
   }, [activeTab, isOnboardingOpen, infoTrend, watchTrend, deck, currentIndex, handleSwipe, handleUndo]);
 
   const activeCards = deck.slice(currentIndex, currentIndex + 3);
-  const isCaughtUp = currentIndex >= deck.length && !loading;
+  const isCaughtUp = currentIndex >= deck.length && !loading;  return (
+    <div className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 text-zinc-100 font-sans select-none relative">
+      {/* Background ambient lighting */}
+      <div className="absolute inset-0 bg-radial-[at_top_center] from-red-600/10 via-zinc-950/40 to-transparent pointer-events-none" />
 
-  return (
-    <div className="flex flex-col h-screen w-screen bg-[#0A0A0F] text-zinc-100 overflow-hidden font-sans select-none">
       {/* Top Header Bar */}
-      <header className="flex items-center justify-between px-4 py-3 border-b border-zinc-800/80 bg-zinc-950/80 backdrop-blur-md z-40">
-        {/* Left: Mode Toggle & Niche Chip */}
-        <div className="flex items-center gap-2">
-          <button
-            onClick={() => {
-              const newMode = mode === 'india' ? 'global' : 'india';
-              setMode(newMode);
-              if (typeof window !== 'undefined') {
-                localStorage.setItem('trendrop_deck_mode', newMode);
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs font-semibold text-zinc-200 hover:border-zinc-700 active:scale-95 transition-all"
-          >
-            <span>{mode === 'india' ? '🇮🇳 India' : '🌍 Global'}</span>
-          </button>
-
-          <button
-            onClick={() => setIsOnboardingOpen(true)}
-            className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900 border border-zinc-800 text-xs text-zinc-300 hover:border-zinc-700 active:scale-95 transition-all"
-          >
-            <span className="truncate max-w-[100px]">
-              {selectedNiches.length > 0 ? selectedNiches.join(', ') : 'All Niches'}
-            </span>
-            <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
-          </button>
-        </div>
-
-        {/* Center/Right: Progress "7 / 15" */}
-        {activeTab === 'deck' && (
+      <header className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl z-40 sticky top-0">
+        <div className="flex items-center justify-between">
+          {/* Left: Mode Toggle & Niche Chip */}
           <div className="flex items-center gap-2">
-            <span className="text-xs font-mono font-medium text-zinc-400">
-              {Math.min(currentIndex + 1, deck.length || 15)} / {deck.length || 15}
-            </span>
+            <button
+              onClick={() => {
+                const newMode = mode === 'india' ? 'global' : 'india';
+                setMode(newMode);
+                if (typeof window !== 'undefined') {
+                  localStorage.setItem('trendrop_deck_mode', newMode);
+                }
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-white/10 text-xs font-semibold text-zinc-200 hover:border-white/20 active:scale-95 transition-all shadow-xs"
+            >
+              <span>{mode === 'india' ? '🇮🇳 India' : '🌍 Global'}</span>
+            </button>
+
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-white/10 text-xs text-zinc-300 hover:border-white/20 active:scale-95 transition-all shadow-xs"
+            >
+              <span className="truncate max-w-[100px]">
+                {selectedNiches.length > 0 ? selectedNiches.join(', ') : 'All Niches'}
+              </span>
+              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+            </button>
           </div>
-        )}
 
-        {/* Profile Avatar Menu */}
-        <div className="relative">
-          <button
-            onClick={() => setIsProfileMenuOpen((prev) => !prev)}
-            className="w-8 h-8 rounded-full bg-gradient-to-tr from-[#FF3B5C] to-purple-600 flex items-center justify-center text-white text-xs font-bold shadow-md hover:opacity-90 active:scale-95 transition-transform"
-            aria-label="User Profile"
-          >
-            {auth.user?.email ? auth.user.email[0].toUpperCase() : 'T'}
-          </button>
-
-          {isProfileMenuOpen && (
-            <div className="absolute right-0 mt-2 w-48 bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl p-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
-              <div className="px-3 py-2 border-b border-zinc-800 text-xs">
-                <p className="font-bold text-white truncate">
-                  {auth.user?.email || 'Guest Explorer'}
-                </p>
-                <p className="text-[10px] text-zinc-500 font-mono">
-                  {streakDays}d streak active
-                </p>
-              </div>
-
-              <div className="py-1 space-y-0.5">
-                <Link
-                  to="/settings"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-                >
-                  <Settings className="w-4 h-4 text-zinc-400" />
-                  Settings
-                </Link>
-                <Link
-                  to="/dashboard"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-                >
-                  <LayoutDashboard className="w-4 h-4 text-zinc-400" />
-                  Dashboard
-                </Link>
-                <Link
-                  to="/studio"
-                  className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-xs text-zinc-300 hover:bg-zinc-800 hover:text-white transition-colors"
-                >
-                  <Video className="w-4 h-4 text-zinc-400" />
-                  Studio
-                </Link>
-              </div>
+          {/* Right: Progress "7 / 15" */}
+          {activeTab === 'deck' && (
+            <div className="flex items-center gap-2">
+              <span className="text-xs font-mono font-medium text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+                {Math.min(currentIndex + 1, deck.length || 15)} / {deck.length || 15}
+              </span>
             </div>
           )}
+        </div>
+
+        {/* Sub-view Switcher Tabs: Deck | Feed | Picks */}
+        <div className="flex items-center justify-center p-1 rounded-full bg-zinc-900/80 border border-white/10 max-w-sm mx-auto w-full">
+          <button
+            onClick={() => setActiveTab('deck')}
+            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
+              activeTab === 'deck'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Layers className="w-3.5 h-3.5" />
+            <span>Deck</span>
+          </button>
+          <Link
+            to="/"
+            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200"
+          >
+            <Compass className="w-3.5 h-3.5" />
+            <span>Feed</span>
+          </Link>
+          <button
+            onClick={() => setActiveTab('picks')}
+            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
+              activeTab === 'picks'
+                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
+                : 'text-zinc-400 hover:text-zinc-200'
+            }`}
+          >
+            <Bookmark className="w-3.5 h-3.5" />
+            <span>Picks</span>
+            {savedAudios.length > 0 && (
+              <span className="px-1.5 py-0.2 bg-white/25 text-white text-[10px] rounded-full font-mono">
+                {savedAudios.length}
+              </span>
+            )}
+          </button>
         </div>
       </header>
 
@@ -681,41 +674,7 @@ function DeckScreen() {
         )}
       </main>
 
-      {/* Bottom Tab Bar (Deck, Explore, Picks) */}
-      <nav className="flex items-center justify-around border-t border-zinc-800/80 bg-zinc-950/90 backdrop-blur-md py-2 px-6 z-40">
-        <button
-          onClick={() => setActiveTab('deck')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 transition-colors ${
-            activeTab === 'deck' ? 'text-[#FF3B5C]' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Layers className="w-5 h-5" />
-          <span className="text-[10px] font-semibold tracking-wider uppercase">Deck</span>
-        </button>
 
-        <button
-          onClick={() => setActiveTab('explore')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 transition-colors ${
-            activeTab === 'explore' ? 'text-[#FF3B5C]' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Compass className="w-5 h-5" />
-          <span className="text-[10px] font-semibold tracking-wider uppercase">Explore</span>
-        </button>
-
-        <button
-          onClick={() => setActiveTab('picks')}
-          className={`flex flex-col items-center gap-1 py-1 px-4 transition-colors relative ${
-            activeTab === 'picks' ? 'text-[#FF3B5C]' : 'text-zinc-500 hover:text-zinc-300'
-          }`}
-        >
-          <Bookmark className="w-5 h-5" />
-          <span className="text-[10px] font-semibold tracking-wider uppercase">Picks</span>
-          {savedAudios.length > 0 && (
-            <span className="absolute top-0.5 right-3 w-2 h-2 rounded-full bg-[#FF3B5C]" />
-          )}
-        </button>
-      </nav>
 
       {/* Sheets: Details Sheet & Live Watch Embed */}
       <DeckInfoSheet

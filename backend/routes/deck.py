@@ -53,11 +53,12 @@ STAGE_LABEL_MAP = {
     "expired": "Expired"
 }
 
-# Slim columns to fetch from DB (total row size <= 300 bytes)
+# Slim columns to fetch from DB (total row size <= 350 bytes)
 DECK_SELECT_COLS = (
-    "id,audio_title,audio_artist,status,first_detected_at,"
+    "id,audio_id,audio_title,audio_artist,status,first_detected_at,"
     "reel_count,audio_use_count,language_final,language,"
-    "niche_tag,semantic_niches,window_hours_remaining,is_voiceover,is_seed_data"
+    "niche_tag,semantic_niches,used_for_note,why_this_works,"
+    "window_hours_remaining,is_voiceover,is_seed_data"
 )
 
 # In-memory edge cache for public deck responses (TTL 300s)
@@ -218,8 +219,10 @@ def get_deck_trends(
                 except Exception:
                     pass
 
+            used_for = (r.get("used_for_note") or r.get("why_this_works") or "").strip()
             items.append({
                 "id": r["id"],
+                "audio_id": r.get("audio_id"),
                 "audio_title": r.get("audio_title") or "Unknown Audio",
                 "audio_artist": r.get("audio_artist") or "Unknown Artist",
                 "status": r.get("status") or "emerging",
@@ -231,7 +234,8 @@ def get_deck_trends(
                 "reel_count": int(r.get("reel_count") or 0),
                 "audio_use_count": int(r.get("audio_use_count") or 0),
                 "language": (r.get("language_final") or r.get("language") or "").strip(),
-                "niche": _resolve_niche(r)
+                "niche": _resolve_niche(r),
+                "used_for": used_for if used_for else None
             })
 
         payload = {
@@ -351,8 +355,10 @@ def get_explore_trends(
                 except Exception:
                     pass
 
+            used_for = (r.get("used_for_note") or r.get("why_this_works") or "").strip()
             items.append({
                 "id": r["id"],
+                "audio_id": r.get("audio_id"),
                 "audio_title": r.get("audio_title") or "Unknown Audio",
                 "audio_artist": r.get("audio_artist") or "Unknown Artist",
                 "status": r.get("status") or "emerging",
@@ -364,7 +370,8 @@ def get_explore_trends(
                 "reel_count": int(r.get("reel_count") or 0),
                 "audio_use_count": int(r.get("audio_use_count") or 0),
                 "language": (r.get("language_final") or r.get("language") or "").strip(),
-                "niche": _resolve_niche(r)
+                "niche": _resolve_niche(r),
+                "used_for": used_for if used_for else None
             })
 
         next_cursor = items[-1]["id"] if items and len(items) == limit else None

@@ -13,8 +13,8 @@ export function BottomTabBar() {
   const { user, logout } = useAuth();
   const userPlan = useEffectivePlan();
 
-  const PUBLIC_ROUTES = ["/deck", "/login", "/signup", "/terms", "/privacy", "/data-rights"];
-  const shouldHide = PUBLIC_ROUTES.includes(currentPath) || currentPath.startsWith("/deck") || !user;
+  const PUBLIC_ROUTES = ["/login", "/signup", "/verify-phone"];
+  const shouldHide = PUBLIC_ROUTES.includes(currentPath);
 
   if (shouldHide) {
     return null;
@@ -58,7 +58,7 @@ export function BottomTabBar() {
       <ul className={`grid relative ${gridColsClass}`}>
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
-            ? currentPath === "/"
+            ? currentPath === "/" || currentPath.startsWith("/deck")
             : currentPath.startsWith(to);
           
           return (

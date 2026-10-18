@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
@@ -601,6 +601,21 @@ function TrendsFeed() {
           <div className="relative flex items-center justify-between mb-4">
             {/* Logo */}
             <TrenddropLogo size={34} />
+
+            {/* View Switcher: Swipe Deck vs Feed */}
+            <div className="flex items-center p-1 rounded-full bg-surface/85 border border-border/80 shadow-xs backdrop-blur-md">
+              <Link
+                to="/deck"
+                className="px-3 py-1 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all flex items-center gap-1"
+              >
+                <span>🔥 Swipe Deck</span>
+              </Link>
+              <button
+                className="px-3 py-1 rounded-full text-xs font-bold bg-primary text-primary-foreground shadow-xs flex items-center gap-1 cursor-default"
+              >
+                <span>📑 Feed</span>
+              </button>
+            </div>
 
             <div className="flex items-center gap-2">
             {/* Theme Toggle */}

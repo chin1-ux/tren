@@ -5,6 +5,7 @@
 
 export interface DeckTrend {
   id: number;
+  audio_id?: string | null;
   audio_title: string;
   audio_artist: string;
   status: string;
@@ -17,6 +18,7 @@ export interface DeckTrend {
   audio_use_count: number;
   language: string;
   niche: string | null;
+  used_for?: string | null;
   score?: number;
   is_top_5?: boolean;
   is_exploration?: boolean;
