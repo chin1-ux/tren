@@ -697,6 +697,7 @@ export async function fetchAudioHistory(trendId: string | number): Promise<Array
 
 export async function fetchTrends(language?: string, sort?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
+  params.set("limit", "500");
   if (languages) {
     const langStr = Array.isArray(languages) ? languages.join(",") : languages;
     if (langStr) params.set("languages", langStr);
@@ -712,6 +713,7 @@ export async function fetchTrends(language?: string, sort?: string, niche?: stri
 
 export async function fetchEmergingTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
+  params.set("limit", "500");
   if (languages) {
     const langStr = Array.isArray(languages) ? languages.join(",") : languages;
     if (langStr) params.set("languages", langStr);
@@ -731,6 +733,7 @@ export async function fetchEmergingTrends(language?: string, niche?: string, lan
 
 export async function fetchPeakedTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
+  params.set("limit", "500");
   if (languages) {
     const langStr = Array.isArray(languages) ? languages.join(",") : languages;
     if (langStr) params.set("languages", langStr);
@@ -750,6 +753,7 @@ export async function fetchPeakedTrends(language?: string, niche?: string, langu
 
 export async function fetchExpiredTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
+  params.set("limit", "500");
   if (languages) {
     const langStr = Array.isArray(languages) ? languages.join(",") : languages;
     if (langStr) params.set("languages", langStr);
@@ -769,6 +773,7 @@ export async function fetchExpiredTrends(language?: string, niche?: string, lang
 
 export async function fetchResurgingTrends(language?: string, niche?: string, languages?: string[] | string): Promise<UiTrend[]> {
   const params = new URLSearchParams();
+  params.set("limit", "500");
   if (languages) {
     const langStr = Array.isArray(languages) ? languages.join(",") : languages;
     if (langStr) params.set("languages", langStr);

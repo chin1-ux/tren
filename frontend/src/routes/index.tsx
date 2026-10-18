@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchRecentScraperRuns, fetchLastDetectedTimes, type UiTrend, type ScraperRunInfo } from "@/lib/api";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchLastDetectedTimes, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -142,16 +142,11 @@ function TrendsFeed() {
     }
     return {
       lifecycle: "all",
-      urgency: "all",
       minOpportunityScore: 0,
       minVelocity: 0,
-      outlierOnly: false,
       goldenHourOnly: false,
       niches: savedNichesList,
       language: savedLang,
-      format: "all",
-      freshnessPreset: "all",
-      selectedRunIds: [],
     };
   });
 
@@ -176,7 +171,6 @@ function TrendsFeed() {
   const [isPendingFilter, startFilterTransition] = useTransition();
 
   const updateFilter = useCallback((updated: Partial<FilterState>) => {
-    setDisplayLimit(15);
     startFilterTransition(() => {
       setFilters((prev) => {
         const next = { ...prev, ...updated };
@@ -195,21 +189,15 @@ function TrendsFeed() {
   }, []);
 
   const resetAllFilters = useCallback(() => {
-    setDisplayLimit(15);
     setShowTargetedOnly(false);
     startFilterTransition(() => {
       setFilters({
         lifecycle: "all",
-        urgency: "all",
         minOpportunityScore: 0,
         minVelocity: 0,
-        outlierOnly: false,
         goldenHourOnly: false,
         niches: ["all"],
         language: "all",
-        format: "all",
-        freshnessPreset: "all",
-        selectedRunIds: [],
       });
     });
     if (typeof window !== "undefined") {
@@ -224,15 +212,11 @@ function TrendsFeed() {
   const activeFilterCount = useMemo(() => {
     let count = 0;
     if (filters.lifecycle !== "all") count++;
-    if (filters.urgency !== "all") count++;
     if (filters.minOpportunityScore > 0) count++;
     if (filters.minVelocity > 0) count++;
-    if (filters.outlierOnly) count++;
     if (filters.goldenHourOnly) count++;
     if (filters.niches.length > 0 && !filters.niches.includes("all")) count++;
     if (filters.language !== "all") count++;
-    if (filters.format !== "all") count++;
-    if (filters.freshnessPreset !== "all" || (filters.selectedRunIds && filters.selectedRunIds.length > 0)) count++;
     return count;
   }, [filters]);
 
@@ -245,13 +229,7 @@ function TrendsFeed() {
     return undefined;
   }, [filters.language, preferredLanguages]);
 
-  // Progressive rendering limit for fast DOM paint on mobile
-  const [displayLimit, setDisplayLimit] = useState<number>(15);
   const [showTargetedOnly, setShowTargetedOnly] = useState<boolean>(false);
-
-  useEffect(() => {
-    setDisplayLimit(15);
-  }, [filters, sortMode, showTargetedOnly]);
 
   // Tick every minute for countdown timers
   useEffect(() => {
@@ -260,23 +238,12 @@ function TrendsFeed() {
   }, []);
 
   // Stagger secondary queries by 1500ms so rising & emerging get full initial bandwidth.
-  // Peaked, expired, resurging, targeted, scraper-runs are non-critical for first paint.
+  // Peaked, expired, resurging, targeted are non-critical for first paint.
   const [secondaryReady, setSecondaryReady] = useState(false);
   useEffect(() => {
     const timer = setTimeout(() => setSecondaryReady(true), 1500);
     return () => clearTimeout(timer);
   }, []);
-
-  const {
-    data: scraperRunsData,
-  } = useQuery({
-    queryKey: ["scraper-runs"],
-    queryFn: () => fetchRecentScraperRuns(6),
-    staleTime: 10 * 60_000,
-    refetchInterval: false,
-    enabled: secondaryReady,
-  });
-  const scraperRuns = scraperRunsData ?? [];
 
   const {
     data: targetedData,
@@ -446,9 +413,10 @@ function TrendsFeed() {
       ...deduplicatedTrends.expired,
     ];
     return merged.sort((a, b) => {
-      const aPriority = STATUS_ORDER[a.status ?? "rising"] ?? 1;
-      const bPriority = STATUS_ORDER[b.status ?? "rising"] ?? 1;
-      return aPriority - bPriority;
+      const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      if (timeB !== timeA) return timeB - timeA;
+      return Number(b.id) - Number(a.id);
     });
   }, [deduplicatedTrends]);
 
@@ -471,104 +439,22 @@ function TrendsFeed() {
   const trends = useMemo(() => {
     let list = showTargetedOnly ? (targetedData ?? []) : (allTrends ?? []);
 
-    // 0. Scraper Run & Freshness Batch filter (isolate or combine scrape cohorts)
-    const hasCustomRuns = filters.selectedRunIds && filters.selectedRunIds.length > 0;
-    const hasFreshnessPreset = filters.freshnessPreset && filters.freshnessPreset !== "all";
-
-    if (hasCustomRuns || hasFreshnessPreset) {
-      const targetTrendIds = new Set<number>();
-      let activeRuns: ScraperRunInfo[] = [];
-
-      if (hasCustomRuns) {
-        activeRuns = scraperRuns.filter((r) => filters.selectedRunIds.includes(r.run_id));
-      } else if (filters.freshnessPreset === "latest" && scraperRuns.length > 0) {
-        activeRuns = [scraperRuns[0]];
-      } else if (filters.freshnessPreset === "previous" && scraperRuns.length > 1) {
-        activeRuns = [scraperRuns[1]];
-      } else if (filters.freshnessPreset === "last_2" && scraperRuns.length > 0) {
-        activeRuns = scraperRuns.slice(0, 2);
-      }
-
-      for (const r of activeRuns) {
-        for (const id of r.trend_ids || []) {
-          targetTrendIds.add(Number(id));
-        }
-      }
-
-      list = list.filter((t) => {
-        const tid = Number(t.id);
-        // 1. Direct match in target trend IDs from cron_runs
-        if (targetTrendIds.size > 0 && targetTrendIds.has(tid)) {
-          return true;
-        }
-
-        // 2. Fallback to time-window relative to runs or preset
-        if (!t.firstDetectedAt && !t.createdAt) return false;
-        const detectedTime = new Date(t.firstDetectedAt || t.createdAt!).getTime();
-        if (isNaN(detectedTime)) return false;
-
-        const currentNow = now || Date.now();
-        const ageHours = (currentNow - detectedTime) / (1000 * 60 * 60);
-
-        // If specific runs were matched, check if detectedTime falls inside run windows (+/- buffer)
-        if (activeRuns.length > 0) {
-          return activeRuns.some((r) => {
-            const startMs = new Date(r.run_at).getTime() - 15 * 60 * 1000;
-            const endMs = (r.completed_at ? new Date(r.completed_at).getTime() : startMs + 45 * 60 * 1000) + 15 * 60 * 1000;
-            return detectedTime >= startMs && detectedTime <= endMs;
-          });
-        }
-
-        // Preset-based relative age fallback
-        if (filters.freshnessPreset === "latest") {
-          return ageHours <= 3.5;
-        }
-        if (filters.freshnessPreset === "previous") {
-          return ageHours > 3.5 && ageHours <= 7.0;
-        }
-        if (filters.freshnessPreset === "last_2") {
-          return ageHours <= 7.0;
-        }
-        if (filters.freshnessPreset === "today") {
-          return ageHours <= 24.0;
-        }
-        return true;
-      });
-    }
-
     // 1. Lifecycle Stage filter
     if (filters.lifecycle && filters.lifecycle !== "all") {
       list = list.filter((t) => (t.status ?? "rising").toLowerCase() === filters.lifecycle.toLowerCase());
     }
 
-    // 2. Urgency / Creation Window filter (window_hours_remaining)
-    if (filters.urgency && filters.urgency !== "all") {
-      list = list.filter((t) => {
-        const hrs = t.hoursLeft ?? 0;
-        if (filters.urgency === "under6") return hrs > 0 && hrs <= 6;
-        if (filters.urgency === "under12") return hrs > 0 && hrs <= 12;
-        if (filters.urgency === "under24") return hrs > 0 && hrs <= 24;
-        if (filters.urgency === "under48") return hrs > 0 && hrs <= 48;
-        return true;
-      });
-    }
-
-    // 3. Minimum Opportunity Score filter
+    // 2. Minimum Opportunity Score filter
     if (filters.minOpportunityScore > 0) {
       list = list.filter((t) => (t.opportunityScore ?? 0) >= filters.minOpportunityScore);
     }
 
-    // 4. Minimum Velocity Multiplier filter
+    // 3. Minimum Velocity Multiplier filter
     if (filters.minVelocity > 0) {
       list = list.filter((t) => (t.viralMultiplier ?? 0) >= filters.minVelocity);
     }
 
-    // 5. Creator Outlier filter (blew up from small creator accounts)
-    if (filters.outlierOnly) {
-      list = list.filter((t) => !!t.hasCreatorOutlier);
-    }
-
-    // 6. Golden Hour filter (high velocity + <28% saturation)
+    // 4. Golden Hour filter (high velocity + <28% saturation)
     if (filters.goldenHourOnly) {
       list = list.filter((t) => {
         const sat = t.indiaSaturationPct ?? t.globalSaturationPct ?? (t.saturationScore ? t.saturationScore * 100 : 0);
@@ -579,22 +465,12 @@ function TrendsFeed() {
       });
     }
 
-    // 7. Video Format filter
-    if (filters.format && filters.format !== "all") {
-      list = list.filter((t) => {
-        if (filters.format === "dance") return !!t.isDance;
-        if (filters.format === "narrative") return !!t.isNarrativeEdit || t.contentType === "Narrative";
-        if (filters.format === "faceless") return t.contentType === "Faceless" || (t.whyThisWorks || "").toLowerCase().includes("faceless");
-        return true;
-      });
-    }
-
-    // 8. High-accuracy multi-niche filter
+    // 5. High-accuracy multi-niche filter
     if (filters.niches && !filters.niches.includes("all") && filters.niches.length > 0) {
       list = list.filter((t) => matchesNiches(t, filters.niches));
     }
 
-    // 9. Language filter guard
+    // 6. Language filter guard
     if (filters.language && filters.language !== "all") {
       const allowed = filters.language.split(",").map(l => l.trim().toLowerCase());
       const wantsGlobal = allowed.includes("global");
@@ -665,17 +541,33 @@ function TrendsFeed() {
       });
     }
 
-    // 10. Search query filter
-    if (!searchQuery.trim()) return list;
+    // 7. Search query filter
+    if (!searchQuery.trim()) {
+      // Ensure strict sorting newest to oldest
+      return [...list].sort((a, b) => {
+        const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+        const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        if (timeB !== timeA) return timeB - timeA;
+        return Number(b.id) - Number(a.id);
+      });
+    }
+
     const q = searchQuery.toLowerCase();
-    return list.filter(
+    const filtered = list.filter(
       (t) =>
         (t.song ?? "").toLowerCase().includes(q) ||
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q) ||
         (t.whyThisWorks ?? "").toLowerCase().includes(q)
     );
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, scraperRuns]);
+
+    return filtered.sort((a, b) => {
+      const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
+      const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      if (timeB !== timeA) return timeB - timeA;
+      return Number(b.id) - Number(a.id);
+    });
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery]);
 
   const withCountdown = useCallback((t: UiTrend): UiTrend => ({
     ...t,
@@ -761,7 +653,6 @@ function TrendsFeed() {
             id="targeted-quick-filter"
             onClick={() => {
               setShowTargetedOnly((prev) => !prev);
-              setDisplayLimit(15);
             }}
             className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
               showTargetedOnly
@@ -779,7 +670,6 @@ function TrendsFeed() {
             id="golden-hour-quick-filter"
             onClick={() => {
               updateFilter({ goldenHourOnly: !filters.goldenHourOnly });
-              setDisplayLimit(15);
             }}
             className={`flex-shrink-0 flex items-center gap-1.5 rounded-full px-3 py-1.5 text-xs font-bold transition-all ${
               filters.goldenHourOnly
@@ -808,7 +698,6 @@ function TrendsFeed() {
                 onClick={() => {
                   if (showTargetedOnly) setShowTargetedOnly(false);
                   updateFilter({ lifecycle: st.id });
-                  setDisplayLimit(15);
                 }}
                 className={`flex-shrink-0 flex items-center gap-1 rounded-full px-3 py-1.5 text-xs font-semibold transition-all ${
                   isSelected
@@ -837,12 +726,6 @@ function TrendsFeed() {
                 <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ lifecycle: "all" })} />
               </span>
             )}
-            {filters.urgency !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
-                Window: {filters.urgency === "under6" ? "<6h" : filters.urgency === "under12" ? "<12h" : "<24h"}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ urgency: "all" })} />
-              </span>
-            )}
             {filters.minOpportunityScore > 0 && (
               <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-400 text-[10px] font-bold">
                 Score: {filters.minOpportunityScore}+
@@ -855,10 +738,10 @@ function TrendsFeed() {
                 <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ minVelocity: 0 })} />
               </span>
             )}
-            {filters.outlierOnly && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-purple-500/15 text-purple-400 text-[10px] font-bold">
-                Creator Outliers
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ outlierOnly: false })} />
+            {filters.goldenHourOnly && (
+              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 text-[10px] font-bold">
+                Golden Hour
+                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ goldenHourOnly: false })} />
               </span>
             )}
             {filters.niches.length > 0 && !filters.niches.includes("all") && (
@@ -871,24 +754,6 @@ function TrendsFeed() {
               <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-secondary/30 text-secondary-foreground text-[10px] font-bold">
                 Lang: {filters.language.toUpperCase()}
                 <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ language: "all" })} />
-              </span>
-            )}
-            {filters.format !== "all" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-muted text-foreground text-[10px] font-bold">
-                Format: {filters.format}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ format: "all" })} />
-              </span>
-            )}
-            {filters.freshnessPreset !== "all" && filters.freshnessPreset !== "custom" && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
-                Batch: {filters.freshnessPreset === "latest" ? "Run A (Latest)" : filters.freshnessPreset === "previous" ? "Run B (Previous)" : filters.freshnessPreset === "last_2" ? "Last 2 Runs" : "Today"}
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ freshnessPreset: "all" })} />
-              </span>
-            )}
-            {filters.selectedRunIds && filters.selectedRunIds.length > 0 && (
-              <span className="flex-shrink-0 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-cyan-500/15 text-cyan-400 text-[10px] font-bold">
-                Runs ({filters.selectedRunIds.length} combined)
-                <X className="h-2.5 w-2.5 cursor-pointer" onClick={() => updateFilter({ selectedRunIds: [], freshnessPreset: "all" })} />
               </span>
             )}
             <button
@@ -983,7 +848,7 @@ function TrendsFeed() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {trends.slice(0, displayLimit).map((t) => {
+            {trends.map((t) => {
               const card = (
                 <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
                   <TrendCard
@@ -1015,17 +880,6 @@ function TrendsFeed() {
             })}
           </div>
         )}
-
-        {displayLimit < trends.length && (
-          <div className="text-center py-4">
-            <button
-              onClick={() => setDisplayLimit((prev) => Math.min(prev + 15, trends.length))}
-              className="rounded-xl bg-primary/10 hover:bg-primary/20 text-primary text-xs font-semibold px-4 py-2.5 transition-all shadow-sm"
-            >
-              Load more trends ({trends.length - displayLimit} remaining)
-            </button>
-          </div>
-        )}
       </div>
 
       <DanceTrendModal trend={danceTrend} onClose={() => setDanceTrend(null)} />
@@ -1041,7 +895,6 @@ function TrendsFeed() {
           nichesList={NICHES}
           languagesList={LANGUAGES}
           totalResultsCount={trends.length}
-          scraperRuns={scraperRuns}
         />
       )}
 

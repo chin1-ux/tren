@@ -260,24 +260,24 @@ def _normalize_trends_slim(trends: list) -> list:
 def get_unified_feed(
     request: Request,
     page: int = 1,
-    limit: int = 20,
+    limit: int = 200,
     language: Optional[str] = None,
     languages: Optional[str] = None,
     niche: Optional[str] = None,
     status: Optional[str] = None,
-    sort: Optional[str] = "priority",
+    sort: Optional[str] = "newest",
     current_user: str = Depends(get_current_user)
 ):
     """
     Order 77 Item 5: Unified, fast, cached feed endpoint.
-    Returns 20 slim trends per page, no reel arrays, edge-cache headers.
+    Returns slim trends per page, no reel arrays, edge-cache headers.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         now_ts = time.time()
         page = max(1, page)
-        limit = min(50, max(1, limit))
+        limit = min(1000, max(1, limit))
         
         lang_key = languages or language or "all"
         niche_key = niche or "all"
@@ -309,8 +309,6 @@ def get_unified_feed(
             q = q.order("velocity_avg", desc=True)
         elif sort == "opportunity":
             q = q.order("opportunity_score", desc=True)
-        elif sort == "newest":
-            q = q.order("first_detected_at", desc=True)
         else:
             q = q.order("first_detected_at", desc=True)
             
@@ -322,6 +320,7 @@ def get_unified_feed(
         total_count = res.count or len(raw_trends)
         
         trends = _normalize_trends_slim(raw_trends)
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         payload = {
             "trends": trends,
@@ -493,19 +492,19 @@ def get_trends(
     languages: Optional[str] = None,
     sort: Optional[str] = "newest",
     niche: Optional[str] = None,
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 200,
     page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch RISING trends from Supabase (Slim & Paginated).
-    Defaults to limit=20, max=50 for strict egress safety.
+    Defaults to limit=200, max=1000.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         now_ts = time.time()
-        limit_val = min(max(1, limit or 20), 50)
+        limit_val = min(max(1, limit or 200), 1000)
         page_val = max(1, page or 1)
         start_idx = (page_val - 1) * limit_val
         end_idx = start_idx + limit_val - 1
@@ -559,7 +558,7 @@ def get_trends(
         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
         q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
 
-        rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         q = q.gte("created_at", rising_cutoff)
         q = _apply_languages_filter(q, language, languages)
 
@@ -594,9 +593,9 @@ def get_trends(
             res_fb = execute_supabase_get(q_fb)
             trends = _normalize_trends_slim(res_fb.data or [])
 
-        # 70/30 Indian / Global distribution
+        # 70/30 Indian / Global distribution (only for non-newest sorts)
         active_lang = languages or language
-        if not active_lang or active_lang == "all":
+        if sort != "newest" and (not active_lang or active_lang == "all"):
             _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or", "", None}
             indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS or (t.get("discovery_source") or "regional") != "global"]
             english = [t for t in trends if t not in indian]
@@ -619,7 +618,7 @@ def get_trends(
         elif sort == "velocity":
             trends.sort(key=lambda t: t.get("velocity_avg") or 0.0, reverse=True)
         else:
-            trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
+            trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
 
         freshness = _get_data_freshness()
         for t in trends:
@@ -785,7 +784,7 @@ def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None,
     languages: Optional[str] = None, 
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 200,
     page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
@@ -793,7 +792,7 @@ def get_emerging_trends(
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
     Pro/Agency feature only. Slim + paginated to protect Supabase egress.
     """
-    limit_val = min(max(1, limit or 20), 50)
+    limit_val = min(max(1, limit or 200), 1000)
     page_val = max(1, page or 1)
     start_idx = (page_val - 1) * limit_val
     end_idx = start_idx + limit_val - 1
@@ -842,7 +841,7 @@ def get_emerging_trends(
         )
 
         q_72 = _apply_languages_filter(q_72, language, languages)
-        q_72 = q_72.order("velocity_avg", desc=True)
+        q_72 = q_72.order("first_detected_at", desc=True)
         q_72 = q_72.range(start_idx, end_idx)
         res = q_72.execute()
         trends = _normalize_trends_slim(res.data or [])
@@ -881,32 +880,13 @@ def get_emerging_trends(
                     f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff_7d})"
                 )
                 q_7d = _apply_languages_filter(q_7d, language, languages)
-                q_7d = q_7d.order("velocity_avg", desc=True).range(start_idx, end_idx)
+                q_7d = q_7d.order("first_detected_at", desc=True).range(start_idx, end_idx)
                 res_7d = q_7d.execute()
                 trends = _normalize_trends_slim(res_7d.data or [])
             except Exception as _lookback_err:
                 logger.warning(f"Emerging 7d lookback error: {_lookback_err}")
 
-        # --- 70/30 Distribution for Emerging tab ---
-        active_lang = languages or language
-        if not active_lang or active_lang == "all":
-            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
-            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
-                      or (t.get("discovery_source") or "") == "regional"]
-            english = [t for t in trends if t not in indian]
-            interleaved = []
-            i_idx, e_idx = 0, 0
-            while i_idx < len(indian) or e_idx < len(english):
-                for _ in range(2):
-                    if i_idx < len(indian):
-                        interleaved.append(indian[i_idx])
-                        i_idx += 1
-                if e_idx < len(english):
-                    interleaved.append(english[e_idx])
-                    e_idx += 1
-            trends = interleaved
-
-        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         if user_id:
             for trend in trends:
@@ -1205,19 +1185,19 @@ def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
     languages: Optional[str] = None,
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 200,
     page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch PEAKED trends — trends that have peaked but still have value.
     These are trends that dropped below 60% of their peak velocity.
-    Slim + paginated (default 20, max 50).
+    Slim + paginated (default 200, max 1000).
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
         
-    limit_val = min(max(1, limit or 20), 50)
+    limit_val = min(max(1, limit or 200), 1000)
     page_val = max(1, page or 1)
     start_idx = (page_val - 1) * limit_val
     end_idx = start_idx + limit_val - 1
@@ -1252,7 +1232,7 @@ def get_peaked_trends(
         q = q.range(start_idx, end_idx)
         res = q.execute()
         trends = _normalize_trends_slim(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
@@ -1273,16 +1253,16 @@ def get_resurging_trends(
     request: Request,
     language: Optional[str] = None,
     languages: Optional[str] = None,
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 200,
     page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch RESURGING trends — audio that previously peaked or expired and has
     come back with sustained new signal. Sorted by status_changed_at DESC (most recent resurgence on top).
-    Slim + paginated (default 20, max 50).
+    Slim + paginated (default 200, max 1000).
     """
-    limit_val = min(max(1, limit or 20), 50)
+    limit_val = min(max(1, limit or 200), 1000)
     page_val = max(1, page or 1)
     start_idx = (page_val - 1) * limit_val
     end_idx = start_idx + limit_val - 1
@@ -1325,7 +1305,7 @@ def get_resurging_trends(
         q = q.range(start_idx, end_idx)
         res = q.execute()
         trends = _normalize_trends_slim(res.data or [])
-        trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
+        trends.sort(key=lambda t: t.get("status_changed_at") or t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         _RESURGING_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_RESURGING_TRENDS_CACHE) > 100:
@@ -1349,16 +1329,16 @@ def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
     languages: Optional[str] = None,
-    limit: Optional[int] = 20,
+    limit: Optional[int] = 200,
     page: Optional[int] = 1,
     current_user: str = Depends(get_current_user),
 ):
     """
     Fetch EXPIRED trends — trends that have passed their window or aged out.
     These are trends that are no longer active but may still have historical value.
-    Slim + paginated (default 20, max 50).
+    Slim + paginated (default 200, max 1000).
     """
-    limit_val = min(max(1, limit or 20), 50)
+    limit_val = min(max(1, limit or 200), 1000)
     page_val = max(1, page or 1)
     start_idx = (page_val - 1) * limit_val
     end_idx = start_idx + limit_val - 1
@@ -1392,6 +1372,7 @@ def get_expired_trends(
         q = q.range(start_idx, end_idx)
         res = q.execute()
         trends = _normalize_trends_slim(res.data or [])
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
 
         _EXPIRED_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_EXPIRED_TRENDS_CACHE) > 100:
