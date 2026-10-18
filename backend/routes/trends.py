@@ -196,6 +196,10 @@ def _normalize_trends_slim(trends: list) -> list:
     """Fast slim normalization: sanitizes title, artist, language, niches without DB reel fetches."""
     if not trends:
         return trends
+    for t in trends:
+        if isinstance(t, dict):
+            t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
+            t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
     try:
         from audio_title_normalize import normalize_audio_title
         clean_trends = []

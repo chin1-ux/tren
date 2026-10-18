@@ -696,6 +696,15 @@ def _normalize_trends(trends: list) -> list:
     """Normalize content_type and inject song/artist aliases on each trend row."""
     if not trends:
         return trends
+    for t in trends:
+        if isinstance(t, dict):
+            w = (t.get("why_this_works") or "").lower()
+            u = (t.get("used_for_note") or "").lower()
+            for needle in ["currently driving high engagement", "adapt the visual style of", "automated fallback classification"]:
+                if needle in w:
+                    t["why_this_works"] = None
+                if needle in u:
+                    t["used_for_note"] = None
 
     from audio_title_normalize import normalize_audio_title
     now_ts = time.time()
