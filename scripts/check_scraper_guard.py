@@ -18,9 +18,9 @@ def check_guard_v3(min_gap_minutes: int = None):
     """
     if min_gap_minutes is None:
         try:
-            min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "600"))
+            min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "165"))
         except (ValueError, TypeError):
-            min_gap_minutes = 600
+            min_gap_minutes = 165
 
     now_dt = datetime.now(timezone.utc)
     current_run_id = os.getenv("GITHUB_RUN_ID")

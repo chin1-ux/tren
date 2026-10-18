@@ -206,6 +206,80 @@ def _rebuild_spotify_feed_cache():
 
 
 
+def _get_last_log_lines(n: int = 20) -> str:
+    """Read the last n lines from pipeline.log for alerting."""
+    try:
+        for handler in logging.root.handlers:
+            try:
+                handler.flush()
+            except Exception:
+                pass
+        if os.path.exists(log_file):
+            with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                raw_snippet = "".join(lines[-n:]).strip()
+                return raw_snippet.encode("ascii", errors="replace").decode("ascii")
+    except Exception as e:
+        logging.warning(f"Could not read last log lines from {log_file}: {e}")
+    return "(Log lines unavailable)"
+
+
+def _send_scraper_failure_alert(subject: str, message: str, log_snippet: str = "", is_escalation: bool = False) -> bool:
+    """
+    Fires an operator alert when the scraper pipeline yields 0 reels or encounters an ingest outage.
+    Dispatches via Telegram, Discord, Email, and structured logging.
+    """
+    level = logging.CRITICAL if is_escalation else logging.ERROR
+    prefix = "[CRON ESCALATION ALERT]" if is_escalation else "[CRON PARTIAL/OUTAGE ALERT]"
+    alert_banner = f"{prefix} {subject}"
+    
+    full_text = f"{alert_banner}\n\n{message}"
+    if log_snippet:
+        full_text += f"\n\n--- Last 20 Log Lines ---\n{log_snippet}"
+        
+    logging.log(level, full_text)
+    
+    # Prepend emoji for webhook channels (Discord, Telegram, Email)
+    emoji_prefix = "🚨 " if is_escalation else "⚠️ "
+    webhook_text = f"{emoji_prefix}{full_text}"
+    
+    sent = False
+    telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
+    telegram_chat = os.getenv("TELEGRAM_CHAT_ID")
+    discord_webhook = os.getenv("DISCORD_WEBHOOK_URL") or os.getenv("CRON_HEARTBEAT_WEBHOOK_URL")
+
+    if telegram_token and telegram_chat:
+        try:
+            import requests
+            tg_url = f"https://api.telegram.org/bot{telegram_token}/sendMessage"
+            payload = {"chat_id": telegram_chat, "text": webhook_text[:4000]}
+            res = requests.post(tg_url, json=payload, timeout=10)
+            if res.status_code == 200:
+                sent = True
+        except Exception as tg_err:
+            logging.warning(f"Failed to dispatch Telegram failure alert: {tg_err}")
+
+    if discord_webhook:
+        try:
+            import requests
+            payload = {"content": webhook_text[:2000]}
+            res = requests.post(discord_webhook, json=payload, timeout=10)
+            if res.status_code in (200, 204):
+                sent = True
+        except Exception as dc_err:
+            logging.warning(f"Failed to dispatch Discord failure alert: {dc_err}")
+
+    email_alert_to = os.getenv("CRON_HEARTBEAT_ALERT_EMAIL")
+    if email_alert_to and is_escalation:
+        try:
+            from heartbeat_monitor import _send_email
+            _send_email(f"Trendrop Pipeline Alert: {subject}", f"<pre>{webhook_text}</pre>")
+            sent = True
+        except Exception as em_err:
+            logging.warning(f"Failed to dispatch Email failure alert: {em_err}")
+
+    return sent
+
+
 def _send_cron_heartbeat():
     """
     Emit a direct operator heartbeat after a successful pipeline run.
@@ -266,7 +340,12 @@ def _get_supabase():
         load_dotenv(os.path.join(script_dir, ".env"))
     url = os.getenv("SUPABASE_URL")
     key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
-    return create_client(url, key)
+    raw = create_client(url, key)
+    try:
+        from supabase_metrics_client import MonitoredSupabaseClient
+        return MonitoredSupabaseClient(raw)
+    except Exception:
+        return raw
 
 
 def verify_database_schema(sb):
@@ -408,6 +487,8 @@ def run_full_pipeline(stages: list = None):
         try:
             run_state["stage"] = "instagram_scrape"
             logging.info("Step 1/5: Scraping Instagram trending reels...")
+            if os.getenv("TEST_FORCE_LOGIN_WALL_ERROR") == "1":
+                raise RuntimeError("INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page (https://www.instagram.com/accounts/login/) during scrape. Please refresh cookies.json.")
             insta = InstagramScraper()
             new_reels_count = insta.scrape_trending_reels()
             reels_scraped = new_reels_count
@@ -415,10 +496,36 @@ def run_full_pipeline(stages: list = None):
             reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
             uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
             logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
+        except RuntimeError as e:
+            run_state["stage"] = "instagram_scrape_failed"
+            err_msg = str(e)
+            if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
+                run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
+                logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
+                try:
+                    alert_sys = AlertSystem()
+                    alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
+                    run_state["login_wall_alert_sent"] = True
+                except Exception as alert_err:
+                    logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
+            else:
+                run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
+                logging.error(f"Step 1/5 FAILED (Instagram RuntimeError): {e}", exc_info=True)
         except Exception as e:
             run_state["stage"] = "instagram_scrape_failed"
-            run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
-            logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
+            err_msg = str(e)
+            if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
+                run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
+                logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
+                try:
+                    alert_sys = AlertSystem()
+                    alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
+                    run_state["login_wall_alert_sent"] = True
+                except Exception as alert_err:
+                    logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
+            else:
+                run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
+                logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
     # 2. YouTube Data Fetcher
     if _stage("scrape"):
@@ -790,6 +897,23 @@ def run_full_pipeline(stages: list = None):
                 classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
                 logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
 
+                # S2.2 Post-Ingestion Normalizer:
+                # Null template fallback text on new trends so the UI does not display generic filler,
+                # and set analysis_status = 'pending' to enqueue for genuine LLM analysis.
+                if trend_ids:
+                    try:
+                        sb_norm = _get_supabase()
+                        for tid in trend_ids:
+                            sb_norm.table("trends").update({
+                                "why_this_works": None,
+                                "used_for_note": None,
+                                "analysis_status": "pending",
+                                "analysis_attempts": 0
+                            }).eq("id", tid).execute()
+                        logging.info(f"Step 3a-1: Post-Ingestion Normalizer initialized {len(trend_ids)} trends to analysis_status='pending' and nulled template text.")
+                    except Exception as _norm_err:
+                        logging.warning(f"Step 3a-1 Post-Ingestion Normalizer warning (non-fatal): {_norm_err}")
+
                 # Order 35: Auto-classify newly created trends (language_final + used_for)
                 if trend_ids:
                     try:
@@ -914,7 +1038,55 @@ def run_full_pipeline(stages: list = None):
     # Log run record to Supabase
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     completed_at = datetime.now(timezone.utc)
-    status = "success" if not run_state.get("cutoff_reason") else "partial"
+    
+    # Order 80 B2: Check if scrape was active and yielded 0 new reels
+    if _stage("scrape") and new_reels_count == 0:
+        if not run_state.get("cutoff_reason"):
+            run_state["cutoff_reason"] = "zero_reels"
+        status = "partial"
+
+        # Check consecutive zero runs in cron_runs for escalation
+        consecutive_zeros = 1
+        try:
+            sb_check = _get_supabase()
+            prev_runs = sb_check.table("cron_runs").select("id, reels_scraped, new_reels_count, status, cutoff_reason").order("created_at", desc=True).limit(2).execute()
+            if prev_runs.data and len(prev_runs.data) >= 2:
+                if all((r.get("reels_scraped", 0) == 0 or r.get("new_reels_count", 0) == 0) for r in prev_runs.data):
+                    consecutive_zeros = 3
+                elif (prev_runs.data[0].get("reels_scraped", 0) == 0 or prev_runs.data[0].get("new_reels_count", 0) == 0):
+                    consecutive_zeros = 2
+            elif prev_runs.data and len(prev_runs.data) == 1:
+                if (prev_runs.data[0].get("reels_scraped", 0) == 0 or prev_runs.data[0].get("new_reels_count", 0) == 0):
+                    consecutive_zeros = 2
+        except Exception as check_err:
+            logging.warning(f"Could not query consecutive zero runs from cron_runs: {check_err}")
+
+        is_escalation = (consecutive_zeros >= 3)
+        last_logs = _get_last_log_lines(20)
+
+        if is_escalation:
+            alert_subj = f"CRITICAL: 3 Consecutive Pipeline Runs with 0 Reels (Run at {start.strftime('%Y-%m-%d %H:%M:%S UTC')})"
+            alert_body = (
+                f"Pipeline run completed with ZERO new reels across 3 CONSECUTIVE runs.\n"
+                f"• Cutoff reason: {run_state.get('cutoff_reason')}\n"
+                f"• Last stage: {run_state.get('stage')}\n"
+                f"• Duration: {int(elapsed)}s\n"
+                f"• Consecutive zero-reels runs: {consecutive_zeros}\n"
+                f"• Immediate action required: Ingest is blocked, session cookie expired, or Instagram DOM structure changed."
+            )
+        else:
+            alert_subj = f"WARNING: Pipeline Run Yielded 0 Reels (Run at {start.strftime('%Y-%m-%d %H:%M:%S UTC')})"
+            alert_body = (
+                f"Pipeline run completed with ZERO new reels.\n"
+                f"• Cutoff reason: {run_state.get('cutoff_reason')}\n"
+                f"• Last stage: {run_state.get('stage')}\n"
+                f"• Duration: {int(elapsed)}s\n"
+                f"• Status set to: partial (zero_reels)"
+            )
+        _send_scraper_failure_alert(alert_subj, alert_body, log_snippet=last_logs, is_escalation=is_escalation)
+    else:
+        status = "success" if not run_state.get("cutoff_reason") else "partial"
+
     try:
         sb = _get_supabase()
         payload = {
@@ -981,7 +1153,7 @@ def run_full_pipeline(stages: list = None):
     if 'creator_scraper' in locals() and creator_scraper:
         scrapers_to_check.append(creator_scraper)
 
-    if any(getattr(s, "login_wall_detected", False) for s in scrapers_to_check):
+    if not run_state.get("login_wall_alert_sent") and any(getattr(s, "login_wall_detected", False) for s in scrapers_to_check):
         all_targets = []
         for s in scrapers_to_check:
             all_targets.extend(getattr(s, "login_wall_targets", []))

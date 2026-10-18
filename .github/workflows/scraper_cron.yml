@@ -73,6 +73,7 @@ jobs:
 
       - name: Finalize & Record Cron Run
         if: always() && steps.guard.outputs.skip != 'true'
+        continue-on-error: true
         timeout-minutes: 5
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
