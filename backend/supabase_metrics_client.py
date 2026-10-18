@@ -3,8 +3,7 @@ backend/supabase_metrics_client.py
 -----------------------------------
 Transparent metrics and caching proxy wrapper for Supabase client.
 1. Intercepts queries to track requests count and estimated bytes per table.
-2. Eliminates N+1 loops via in-memory caching for read-heavy tables (audio_official_counts, user tokens).
-3. Persists per-run telemetry into egress_log and cron_runs.
+2. Persists per-run telemetry into egress_log and cron_runs.
 """
 
 import time
@@ -12,6 +11,7 @@ import json
 import logging
 from typing import Any, Dict, Optional, Set
 from collections import defaultdict
+from datetime import datetime, timezone
 
 logger = logging.getLogger("supabase_metrics")
 
@@ -46,6 +46,10 @@ class MetricsRequestWrapper:
         self.builder = self.builder.limit(*args, **kwargs)
         return self
 
+    def range(self, *args, **kwargs):
+        self.builder = self.builder.range(*args, **kwargs)
+        return self
+
     def gte(self, *args, **kwargs):
         self.builder = self.builder.gte(*args, **kwargs)
         return self
@@ -58,17 +62,32 @@ class MetricsRequestWrapper:
         self.builder = self.builder.lte(*args, **kwargs)
         return self
 
+    def insert(self, *args, **kwargs):
+        self.builder = self.builder.insert(*args, **kwargs)
+        return self
+
+    def update(self, *args, **kwargs):
+        self.builder = self.builder.update(*args, **kwargs)
+        return self
+
+    def upsert(self, *args, **kwargs):
+        self.builder = self.builder.upsert(*args, **kwargs)
+        return self
+
+    def delete(self, *args, **kwargs):
+        self.builder = self.builder.delete(*args, **kwargs)
+        return self
+
     def execute(self):
         # 1. Check in-memory cache for audio_official_counts
         if self._is_audio_official_lookup and self._target_audio_id:
             cached_val = self.tracker.get_cached_audio_official(self._target_audio_id)
             if cached_val is not None:
                 self.tracker.record_cache_hit(self.table_name)
-                # Mock Supabase response
                 class CachedResponse:
                     def __init__(self, data):
                         self.data = data
-                        self.count = len(data)
+                        self.count = len(data) if isinstance(data, list) else 1
                 return CachedResponse(cached_val)
 
         # 2. Execute real request
@@ -78,7 +97,6 @@ class MetricsRequestWrapper:
 
         # Estimate bytes transferred
         data = getattr(res, "data", None) or []
-        # Rough JSON wire size approximation
         try:
             byte_count = len(json.dumps(data))
         except Exception:
@@ -156,6 +174,49 @@ class SupabaseMetricsTracker:
             "bytes_by_table": dict(self.bytes_by_table),
             "cache_hits_by_table": dict(self.cache_hits_by_table)
         }
+
+    def persist(self, workflow: str = "scraper", github_run_id: Optional[Any] = None, sb_client: Optional[Any] = None):
+        """
+        Persists per-table accounting to egress_log and aggregates to cron_runs.
+        Safe, non-fatal, logs errors cleanly.
+        """
+        if not sb_client:
+            logger.debug("No sb_client provided; skipping persist.")
+            return
+
+        run_id_int = int(github_run_id) if (github_run_id and str(github_run_id).isdigit()) else None
+
+        # 1. Insert per-table rows into egress_log
+        now_iso = datetime.now(timezone.utc).isoformat()
+        log_rows = []
+        for table, reqs in self.requests_by_table.items():
+            b = self.bytes_by_table.get(table, 0)
+            log_rows.append({
+                "created_at": now_iso,
+                "workflow": workflow,
+                "github_run_id": run_id_int,
+                "table_name": table,
+                "requests_count": reqs,
+                "estimated_bytes": b
+            })
+
+        if log_rows:
+            try:
+                sb_client.table("egress_log").insert(log_rows, returning="minimal").execute()
+                logger.info(f"Persisted {len(log_rows)} rows to egress_log (total_bytes={self.total_bytes}, requests={self.total_requests})")
+            except Exception as e:
+                logger.warning(f"Could not persist to egress_log: {e}")
+
+        # 2. Update cron_runs row if github_run_id is known
+        if run_id_int:
+            try:
+                sb_client.table("cron_runs").update({
+                    "egress_requests": self.total_requests,
+                    "egress_bytes": self.total_bytes
+                }, returning="minimal").eq("github_run_id", run_id_int).execute()
+                logger.info(f"Updated cron_runs for github_run_id={run_id_int} with egress={self.total_bytes}b")
+            except Exception as e:
+                logger.warning(f"Could not update cron_runs telemetry: {e}")
 
 
 class MonitoredSupabaseClient:
