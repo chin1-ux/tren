@@ -175,12 +175,13 @@ function RootComponent() {
   }, []);
 
   const isAdminRoute = currentPath.startsWith("/admin");
+  const isDeckRoute = currentPath.startsWith("/deck");
 
   return (
     <QueryClientProvider client={queryClient}>
       <AuthProvider>
         <AuthWrapper>
-          <div className={`mx-auto flex min-h-screen w-full flex-col bg-background overflow-x-hidden relative ${isAdminRoute ? "" : "max-w-lg lg:max-w-2xl xl:max-w-4xl 2xl:max-w-5xl pb-24"}`}>
+          <div className={`mx-auto flex min-h-screen w-full flex-col bg-background overflow-x-hidden relative ${isAdminRoute || isDeckRoute ? "" : "max-w-lg lg:max-w-2xl xl:max-w-4xl 2xl:max-w-5xl pb-24"}`}>
 
             <AnimatePresence mode="wait">
               <motion.div
@@ -195,9 +196,9 @@ function RootComponent() {
               </motion.div>
             </AnimatePresence>
           </div>
-          <GlobalAudioPlayer />
-          <BottomTabBar />
-          <InstallBanner />
+          {!isDeckRoute && <GlobalAudioPlayer />}
+          {!isDeckRoute && <BottomTabBar />}
+          {!isDeckRoute && <InstallBanner />}
           <Toaster
             position="top-center"
             toastOptions={{

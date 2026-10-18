@@ -13,8 +13,8 @@ export function BottomTabBar() {
   const { user, logout } = useAuth();
   const userPlan = useEffectivePlan();
 
-  const PUBLIC_ROUTES = ["/login", "/signup", "/terms", "/privacy", "/data-rights"];
-  const shouldHide = PUBLIC_ROUTES.includes(currentPath) || !user;
+  const PUBLIC_ROUTES = ["/deck", "/login", "/signup", "/terms", "/privacy", "/data-rights"];
+  const shouldHide = PUBLIC_ROUTES.includes(currentPath) || currentPath.startsWith("/deck") || !user;
 
   if (shouldHide) {
     return null;

@@ -5,6 +5,7 @@ import { useEffect, useRef } from "react";
 
 // Public routes that don't require standard user authentication (admin routes have their own beforeLoad check)
 const PUBLIC_ROUTES = [
+  "/deck",
   "/login", 
   "/signup", 
   "/verify-phone",
