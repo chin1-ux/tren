@@ -1,0 +1,23 @@
+{
+  "Rule A (reel_count >= 2)": {
+    "rule": "A",
+    "db_rows": 42,
+    "deduped_total": 42,
+    "india_count": 27,
+    "global_count": 42
+  },
+  "Rule B (reel_count >= 2 OR audio_use_count >= 50000)": {
+    "rule": "B",
+    "db_rows": 70,
+    "deduped_total": 70,
+    "india_count": 50,
+    "global_count": 70
+  },
+  "Rule C (no reel/use filter)": {
+    "rule": "C",
+    "db_rows": 129,
+    "deduped_total": 129,
+    "india_count": 91,
+    "global_count": 129
+  }
+}

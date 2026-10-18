@@ -107,8 +107,25 @@ function matchesNiches(t: UiTrend, niches: string[]): boolean {
 
 type SortMode = "velocity" | "time_left" | "newest";
 
+const DECK_LIVE = false; // Going live = one constant I flip later
+
 function TrendsFeed() {
   const navigate = useNavigate();
+
+  // Opt-in redirect for Order 100 (?deck=1 or deck_beta=1 in localStorage)
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      const params = new URLSearchParams(window.location.search);
+      const isDeckOptIn = params.get("deck") === "1" || localStorage.getItem("deck_beta") === "1";
+      if (DECK_LIVE || isDeckOptIn) {
+        if (params.get("deck") === "1") {
+          localStorage.setItem("deck_beta", "1");
+        }
+        navigate({ to: "/deck" });
+      }
+    }
+  }, [navigate]);
+
   const [language, setLanguage] = useState<string>("all");
   const [sortMode] = useState<any>("newest");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);

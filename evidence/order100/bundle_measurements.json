@@ -1,0 +1,191 @@
+{
+  "deck_route_chunk": "deck-6rt1uLFu.js",
+  "deck_route_metrics": {
+    "raw_kb": 0.29,
+    "gzip_kb": 0.2
+  },
+  "target_max_gzip_kb": 60,
+  "pass": true,
+  "all_assets": {
+    "RouteErrorBoundary-BJGuvx92.js": {
+      "raw_kb": 1.22,
+      "gzip_kb": 0.69
+    },
+    "TrendCard-GEzSJcKh.js": {
+      "raw_kb": 45.08,
+      "gzip_kb": 13.2
+    },
+    "admin.analytics-Bj3LBBqc.js": {
+      "raw_kb": 3.99,
+      "gzip_kb": 1.57
+    },
+    "admin.audit-D-LnVsUD.js": {
+      "raw_kb": 6.0,
+      "gzip_kb": 2.12
+    },
+    "admin.login-D6E4oBoi.js": {
+      "raw_kb": 3.46,
+      "gzip_kb": 1.36
+    },
+    "admin.plans-CFD7GWAI.js": {
+      "raw_kb": 8.39,
+      "gzip_kb": 2.13
+    },
+    "admin.users-DKPHORAN.js": {
+      "raw_kb": 9.87,
+      "gzip_kb": 2.58
+    },
+    "dashboard-BMt9NQDN.js": {
+      "raw_kb": 37.73,
+      "gzip_kb": 9.53
+    },
+    "dashboard-goPLdzFY.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "data-rights-BBKAYScI.js": {
+      "raw_kb": 10.14,
+      "gzip_kb": 3.1
+    },
+    "deals.index-DfZEuYo-.js": {
+      "raw_kb": 0.87,
+      "gzip_kb": 0.47
+    },
+    "deals.new-BIr4cFKu.js": {
+      "raw_kb": 0.36,
+      "gzip_kb": 0.25
+    },
+    "deck-6rt1uLFu.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "deck-DFDn3qQ1.js": {
+      "raw_kb": 49.1,
+      "gzip_kb": 12.22
+    },
+    "dialog-D_mQA-jx.js": {
+      "raw_kb": 1.87,
+      "gzip_kb": 0.78
+    },
+    "generate-BsEz4n3J.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "generate-DgA_eBTI.js": {
+      "raw_kb": 0.31,
+      "gzip_kb": 0.22
+    },
+    "ideas-BsEz4n3J.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "ideas-C60vouTt.js": {
+      "raw_kb": 0.34,
+      "gzip_kb": 0.24
+    },
+    "index-4o5Vffzu.js": {
+      "raw_kb": 50.85,
+      "gzip_kb": 16.11
+    },
+    "index-Cq5FCn1T.js": {
+      "raw_kb": 357.88,
+      "gzip_kb": 103.33
+    },
+    "index-DbOjNodE.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "input-D5X7vs9v.js": {
+      "raw_kb": 0.59,
+      "gzip_kb": 0.37
+    },
+    "login-guis5d6U.js": {
+      "raw_kb": 4.39,
+      "gzip_kb": 1.9
+    },
+    "marketplace-DZwRj8xL.js": {
+      "raw_kb": 0.37,
+      "gzip_kb": 0.26
+    },
+    "pricing-CRM18UD6.js": {
+      "raw_kb": 5.04,
+      "gzip_kb": 1.39
+    },
+    "privacy-DYZfQrqn.js": {
+      "raw_kb": 6.8,
+      "gzip_kb": 2.12
+    },
+    "proof-BwDlvjew.js": {
+      "raw_kb": 4.86,
+      "gzip_kb": 1.58
+    },
+    "reset-password-NL9lUD3n.js": {
+      "raw_kb": 3.06,
+      "gzip_kb": 1.32
+    },
+    "settings-f0XxIjSI.js": {
+      "raw_kb": 18.05,
+      "gzip_kb": 5.09
+    },
+    "signup-dKv1H5_K.js": {
+      "raw_kb": 4.58,
+      "gzip_kb": 1.94
+    },
+    "stats-BnTfk_k4.js": {
+      "raw_kb": 8.12,
+      "gzip_kb": 2.39
+    },
+    "stats-CQEzVRbK.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "studio-CNsgbmSa.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "styles-DJknp3_f.css": {
+      "raw_kb": 190.36,
+      "gzip_kb": 27.31
+    },
+    "terms-Ddq6s1SN.js": {
+      "raw_kb": 4.87,
+      "gzip_kb": 1.73
+    },
+    "trend._id-CDoybjS7.js": {
+      "raw_kb": 0.29,
+      "gzip_kb": 0.2
+    },
+    "trend._id-GGQRYggN.js": {
+      "raw_kb": 21.33,
+      "gzip_kb": 5.74
+    },
+    "update-password-qMbN9RrX.js": {
+      "raw_kb": 3.03,
+      "gzip_kb": 1.37
+    },
+    "vendor-icons-EeTZdePk.js": {
+      "raw_kb": 19.61,
+      "gzip_kb": 7.03
+    },
+    "vendor-motion-Du28vSD9.js": {
+      "raw_kb": 124.76,
+      "gzip_kb": 41.0
+    },
+    "vendor-radix-zFah9Jcx.js": {
+      "raw_kb": 38.22,
+      "gzip_kb": 13.16
+    },
+    "vendor-react-CSrlDwFb.js": {
+      "raw_kb": 188.41,
+      "gzip_kb": 59.14
+    },
+    "vendor-supabase-CPBQX_2L.js": {
+      "raw_kb": 205.07,
+      "gzip_kb": 53.49
+    },
+    "verify-phone-WWnC3e5c.js": {
+      "raw_kb": 4.13,
+      "gzip_kb": 1.77
+    }
+  }
+}

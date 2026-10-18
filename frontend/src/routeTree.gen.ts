@@ -24,6 +24,7 @@ import { Route as MarketplaceRouteImport } from './routes/marketplace'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as IdeasRouteImport } from './routes/ideas'
 import { Route as GenerateRouteImport } from './routes/generate'
+import { Route as DeckRouteImport } from './routes/deck'
 import { Route as DataRightsRouteImport } from './routes/data-rights'
 import { Route as DashboardRouteImport } from './routes/dashboard'
 import { Route as IndexRouteImport } from './routes/index'
@@ -111,6 +112,11 @@ const GenerateRoute = GenerateRouteImport.update({
   path: '/generate',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DeckRoute = DeckRouteImport.update({
+  id: '/deck',
+  path: '/deck',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const DataRightsRoute = DataRightsRouteImport.update({
   id: '/data-rights',
   path: '/data-rights',
@@ -171,6 +177,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
+  '/deck': typeof DeckRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/login': typeof LoginRoute
@@ -199,6 +206,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
+  '/deck': typeof DeckRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/login': typeof LoginRoute
@@ -228,6 +236,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/dashboard': typeof DashboardRoute
   '/data-rights': typeof DataRightsRoute
+  '/deck': typeof DeckRoute
   '/generate': typeof GenerateRoute
   '/ideas': typeof IdeasRoute
   '/login': typeof LoginRoute
@@ -258,6 +267,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/data-rights'
+    | '/deck'
     | '/generate'
     | '/ideas'
     | '/login'
@@ -286,6 +296,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/data-rights'
+    | '/deck'
     | '/generate'
     | '/ideas'
     | '/login'
@@ -314,6 +325,7 @@ export interface FileRouteTypes {
     | '/'
     | '/dashboard'
     | '/data-rights'
+    | '/deck'
     | '/generate'
     | '/ideas'
     | '/login'
@@ -343,6 +355,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   DashboardRoute: typeof DashboardRoute
   DataRightsRoute: typeof DataRightsRoute
+  DeckRoute: typeof DeckRoute
   GenerateRoute: typeof GenerateRoute
   IdeasRoute: typeof IdeasRoute
   LoginRoute: typeof LoginRoute
@@ -475,6 +488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof GenerateRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/deck': {
+      id: '/deck'
+      path: '/deck'
+      fullPath: '/deck'
+      preLoaderRoute: typeof DeckRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/data-rights': {
       id: '/data-rights'
       path: '/data-rights'
@@ -559,6 +579,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   DashboardRoute: DashboardRoute,
   DataRightsRoute: DataRightsRoute,
+  DeckRoute: DeckRoute,
   GenerateRoute: GenerateRoute,
   IdeasRoute: IdeasRoute,
   LoginRoute: LoginRoute,

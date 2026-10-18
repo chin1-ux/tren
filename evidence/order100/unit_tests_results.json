@@ -1,0 +1,26 @@
+[
+  {
+    "name": "Stage Mapping (C3)",
+    "status": "PASS"
+  },
+  {
+    "name": "Number Formatting (formatCount)",
+    "status": "PASS"
+  },
+  {
+    "name": "Deduplication & Title Normalization (C2)",
+    "status": "PASS"
+  },
+  {
+    "name": "Taste Multiplier Bounds [0.6, 1.4]",
+    "status": "PASS"
+  },
+  {
+    "name": "Freshness Decay Half-Life (24h)",
+    "status": "PASS"
+  },
+  {
+    "name": "Eligibility Rule B Compliance",
+    "status": "PASS"
+  }
+]
