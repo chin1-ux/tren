@@ -1,19 +1,16 @@
 import os
 import sys
-import subprocess
 import json
-from datetime import datetime, timezone, timedelta
-from dotenv import load_dotenv
-
-load_dotenv("backend/.env")
-load_dotenv(".env")
+import subprocess
+from datetime import datetime, timezone
 
 def check_guard_v3(min_gap_minutes: int = None):
     """
-    Guard v3:
-    - Queries GitHub API for recent scraper_cron runs.
-    - Measures elapsed time from run START (created_at).
-    - Any run started within the threshold (default 600m / 10h, configurable via SCRAPER_GUARD_MIN_GAP_MINUTES) blocks execution.
+    Tier-3 Early Exit Guard for Scraper Pipeline.
+    Zero-egress guard based on GitHub Actions API workflow run history.
+    - Measures elapsed time from run START (created_at) of the last real scraping run (duration >= 3m).
+    - Manual workflow_dispatch triggers bypass the guard automatically.
+    - Any run started within the threshold (default 165m / 2h45m) blocks execution.
     - Consumes 0 Supabase egress.
     """
     if min_gap_minutes is None:
@@ -21,6 +18,12 @@ def check_guard_v3(min_gap_minutes: int = None):
             min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "165"))
         except (ValueError, TypeError):
             min_gap_minutes = 165
+
+    # Manual workflow_dispatch always bypasses guard
+    if os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch":
+        msg = "Proceeding: manual trigger via workflow_dispatch bypasses guard."
+        print(msg)
+        return False, msg
 
     now_dt = datetime.now(timezone.utc)
     current_run_id = os.getenv("GITHUB_RUN_ID")
@@ -34,7 +37,7 @@ def check_guard_v3(min_gap_minutes: int = None):
     
     # Attempt 1: GitHub API via gh CLI or curl
     try:
-        cmd = ["gh", "run", "list", "--workflow", "scraper_cron.yml", "--repo", repo, "--limit", "10", "--json", "databaseId,createdAt,status,conclusion"]
+        cmd = ["gh", "run", "list", "--workflow", "scraper_cron.yml", "--repo", repo, "--limit", "15", "--json", "databaseId,createdAt,updatedAt,status,conclusion"]
         env = os.environ.copy()
         if gh_token:
             env["GH_TOKEN"] = gh_token
@@ -50,7 +53,7 @@ def check_guard_v3(min_gap_minutes: int = None):
         try:
             import urllib.request
             req = urllib.request.Request(
-                f"https://api.github.com/repos/{repo}/actions/workflows/scraper_cron.yml/runs?per_page=10",
+                f"https://api.github.com/repos/{repo}/actions/workflows/scraper_cron.yml/runs?per_page=15",
                 headers={
                     "Authorization": f"Bearer {gh_token}",
                     "Accept": "application/vnd.github.v3+json",
@@ -63,6 +66,7 @@ def check_guard_v3(min_gap_minutes: int = None):
                     runs.append({
                         "databaseId": r.get("id"),
                         "createdAt": r.get("created_at"),
+                        "updatedAt": r.get("updated_at"),
                         "status": r.get("status"),
                         "conclusion": r.get("conclusion")
                     })
@@ -83,34 +87,43 @@ def check_guard_v3(min_gap_minutes: int = None):
                 print(msg)
                 return True, msg
 
-        # Rule 2: Elapsed time from START (createdAt) of the most recent other run
+        # Rule 2: Elapsed time from START (createdAt) of the most recent REAL scraping run (duration >= 3m)
         for r in runs:
             r_id = str(r.get("databaseId"))
             if current_run_id and r_id == str(current_run_id):
                 continue
             created_str = r.get("createdAt")
+            updated_str = r.get("updatedAt")
             if created_str:
                 created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
+                # Ignore runs that exited in under 180s (guard skips)
+                if updated_str:
+                    updated_dt = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
+                    dur_sec = (updated_dt - created_dt).total_seconds()
+                    if dur_sec < 180 and r.get("conclusion") == "success":
+                        # This run only ran for < 3m, so it skipped at guard — ignore it
+                        continue
+
                 diff_minutes = (now_dt - created_dt).total_seconds() / 60.0
                 conclusion = r.get("conclusion") or r.get("status")
                 if diff_minutes < min_gap_minutes:
-                    msg = f"Skipping: last run #{r_id} started {diff_minutes:.1f}m ago (under {min_gap_minutes}m threshold; conclusion={conclusion})."
+                    msg = f"Skipping: last real scrape #{r_id} started {diff_minutes:.1f}m ago (under {min_gap_minutes}m threshold; conclusion={conclusion})."
                     print(msg)
                     return True, msg
                 else:
-                    msg = f"Proceeding: last run #{r_id} started {diff_minutes:.1f}m ago (>={min_gap_minutes}m threshold; conclusion={conclusion})."
+                    msg = f"Proceeding: last real scrape #{r_id} started {diff_minutes:.1f}m ago (>={min_gap_minutes}m threshold; conclusion={conclusion})."
                     print(msg)
                     return False, msg
 
     # Fallback to Supabase cron_runs only if GitHub API is completely unavailable
-    print("Warning: GitHub API returned no runs. Falling back to Supabase cron_runs check.")
+    print("Warning: GitHub API returned no valid runs. Falling back to Supabase cron_runs check.")
     url = os.getenv("SUPABASE_URL")
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
     if url and key:
         try:
             from supabase import create_client
             sb = create_client(url, key)
-            res = sb.table("cron_runs").select("id, created_at, run_at, status").order("created_at", desc=True).limit(5).execute()
+            res = sb.table("cron_runs").select("id, created_at, run_at, status, reels_scraped").order("created_at", desc=True).limit(5).execute()
             rows = res.data or []
             for r in rows:
                 c_str = r.get("run_at") or r.get("created_at")
