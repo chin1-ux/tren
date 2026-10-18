@@ -87,23 +87,56 @@ def check_guard_v3(min_gap_minutes: int = None):
                 print(msg)
                 return True, msg
 
-        # Rule 2: Elapsed time from START (createdAt) of the most recent REAL scraping run (duration >= 3m)
+        # Rule 2: Elapsed time from START (createdAt) of the most recent REAL scraping run
+        # A REAL run is defined by the pipeline step actually executing (conclusion != 'skipped'),
+        # NEVER by duration. Skipped runs never reset the clock.
+        def is_real_scraping_run(run_dict):
+            rid = str(run_dict.get("databaseId"))
+            try:
+                cmd_j = ["gh", "api", f"/repos/{repo}/actions/runs/{rid}/jobs", "--jq", ".jobs[0].steps"]
+                env_j = os.environ.copy()
+                if gh_token:
+                    env_j["GH_TOKEN"] = gh_token
+                res_j = subprocess.run(cmd_j, env=env_j, capture_output=True, text=True, timeout=10)
+                if res_j.returncode == 0 and res_j.stdout.strip():
+                    steps_data = json.loads(res_j.stdout.strip())
+                    for s in steps_data:
+                        if "Run Full Scraper" in s.get("name", ""):
+                            c = s.get("conclusion")
+                            st = s.get("status")
+                            # If pipeline step was skipped, this run was a guard skip
+                            if c == "skipped":
+                                return False
+                            # If step concluded (success/failure/cancelled) or is running, it is a REAL run
+                            if c in ("success", "failure", "cancelled") or st == "in_progress":
+                                return True
+            except Exception as _je:
+                pass
+            
+            # Fallback check via Supabase cron_runs
+            if url and key:
+                try:
+                    from supabase import create_client
+                    sb_check = create_client(url, key)
+                    res_cr = sb_check.table("cron_runs").select("id").eq("github_run_id", rid).limit(1).execute()
+                    if res_cr.data:
+                        return True
+                except Exception:
+                    pass
+            return False
+
         for r in runs:
             r_id = str(r.get("databaseId"))
             if current_run_id and r_id == str(current_run_id):
                 continue
+            
+            if not is_real_scraping_run(r):
+                # Skipped run at guard — ignore it completely, does not reset clock
+                continue
+
             created_str = r.get("createdAt")
-            updated_str = r.get("updatedAt")
             if created_str:
                 created_dt = datetime.fromisoformat(created_str.replace("Z", "+00:00"))
-                # Ignore runs that exited in under 180s (guard skips)
-                if updated_str:
-                    updated_dt = datetime.fromisoformat(updated_str.replace("Z", "+00:00"))
-                    dur_sec = (updated_dt - created_dt).total_seconds()
-                    if dur_sec < 180 and r.get("conclusion") == "success":
-                        # This run only ran for < 3m, so it skipped at guard — ignore it
-                        continue
-
                 diff_minutes = (now_dt - created_dt).total_seconds() / 60.0
                 conclusion = r.get("conclusion") or r.get("status")
                 if diff_minutes < min_gap_minutes:
