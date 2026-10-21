@@ -216,6 +216,7 @@ def _get_last_log_lines(n: int = 20) -> str:
                 pass
         if os.path.exists(log_file):
             with open(log_file, "r", encoding="utf-8", errors="replace") as f:
+                lines = f.readlines()
                 raw_snippet = "".join(lines[-n:]).strip()
                 return raw_snippet.encode("ascii", errors="replace").decode("ascii")
     except Exception as e:
@@ -1004,17 +1005,20 @@ def run_full_pipeline(stages: list = None):
     # Append one snapshot per trend for this pipeline run so velocity persistence
     # can be evaluated against real historical data on future runs.
     if _stage("snapshots") and refresher is not None:
-        try:
-            run_state["stage"] = "snapshot_write"
-            sb = _get_supabase()
-            snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
-            if snapshot_rows:
-                sb.table("trend_snapshots").insert(snapshot_rows).execute()
-                logging.info(f"Step 4/5: Recorded {len(snapshot_rows)} trend snapshot rows.")
-            else:
-                logging.info("Step 4/5: No trend snapshot rows to record.")
-        except Exception as e:
-            logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
+        if new_reels_count == 0:
+            logging.warning("Step 4/5: Skipping trend_snapshots recording because 0 new reels were ingested this run (prevents flat snapshot history poisoning).")
+        else:
+            try:
+                run_state["stage"] = "snapshot_write"
+                sb = _get_supabase()
+                snapshot_rows = refresher.get_snapshot_rows(captured_at=start)
+                if snapshot_rows:
+                    sb.table("trend_snapshots").insert(snapshot_rows).execute()
+                    logging.info(f"Step 4/5: Recorded {len(snapshot_rows)} trend snapshot rows.")
+                else:
+                    logging.info("Step 4/5: No trend snapshot rows to record.")
+            except Exception as e:
+                logging.error(f"Step 4/5 FAILED (trend snapshots): {e}", exc_info=True)
 
     # 5. Alert System: notify users of new rising trends
     if _stage("alerts") and trend_ids:
