@@ -375,20 +375,14 @@ function DeckScreen() {
 
   return (
     <div
-      className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 font-sans select-none relative"
-      style={{ background: '#FFF8F5' }}
+      className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 font-sans select-none relative bg-background text-foreground"
     >
       {/* Animated background */}
       <VinylBackground />
 
       {/* Top Header Bar */}
       <header
-        className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b z-40 sticky top-0"
-        style={{
-          borderColor: 'rgba(255,77,61,0.1)',
-          background: 'rgba(255,248,245,0.9)',
-          backdropFilter: 'blur(20px)',
-        }}
+        className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b border-border/40 z-40 sticky top-0 bg-background/85 backdrop-blur-xl"
       >
         <div className="flex items-center justify-between">
           {/* Left: Mode Toggle & Niche Chip */}
@@ -459,7 +453,7 @@ function DeckScreen() {
         {/* Sub-view Switcher */}
         <div
           className="flex items-center justify-center p-1 rounded-full max-w-sm mx-auto w-full"
-          style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.06)' }}
+          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
         >
           <button
             onClick={() => setActiveTab('deck')}
