@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Check, Globe, Sparkles, X } from 'lucide-react';
+import { Check, Sparkles, X, Globe, Layers, ArrowRight } from 'lucide-react';
 import { API_URL, getAuthToken } from '@/lib/api';
 
 interface DeckOnboardingProps {
@@ -27,22 +27,24 @@ const AVAILABLE_NICHES = [
 ];
 
 const INDIA_LANGUAGES = [
-  { id: 'hi', label: 'Hindi' },
-  { id: 'en', label: 'English' },
-  { id: 'pa', label: 'Punjabi' },
-  { id: 'ta', label: 'Tamil' },
-  { id: 'te', label: 'Telugu' },
-  { id: 'ml', label: 'Malayalam' },
-  { id: 'kn', label: 'Kannada' },
-  { id: 'instrumental', label: 'Instrumental' },
+  { id: 'hi', label: '🇮🇳 Hindi' },
+  { id: 'pa', label: '🌾 Punjabi' },
+  { id: 'ta', label: '🌴 Tamil' },
+  { id: 'te', label: '🌟 Telugu' },
+  { id: 'ml', label: '🥥 Malayalam' },
+  { id: 'kn', label: '🎯 Kannada' },
+  { id: 'mr', label: '🦁 Marathi' },
+  { id: 'gu', label: '🪔 Gujarati' },
+  { id: 'bn', label: '🐯 Bengali' },
+  { id: 'instrumental', label: '🎼 Instrumental' },
 ];
 
-const GLOBAL_EXTRA_LANGUAGES = [
-  { id: 'es', label: 'Spanish' },
-  { id: 'pt', label: 'Portuguese' },
-  { id: 'ko', label: 'Korean' },
-  { id: 'ar', label: 'Arabic' },
-  { id: 'other', label: 'Other Global' },
+const GLOBAL_LANGUAGES = [
+  { id: 'en', label: '🇬🇧 Global English' },
+  { id: 'es', label: '🇪🇸 Spanish' },
+  { id: 'pt', label: '🇧🇷 Portuguese (Brazil)' },
+  { id: 'ko', label: '🇰🇷 Korean' },
+  { id: 'instrumental', label: '🎼 BGM / Instrumental' },
 ];
 
 export function DeckOnboarding({
@@ -50,20 +52,41 @@ export function DeckOnboarding({
   onComplete,
   onClose,
   initialMode = 'india',
-  initialLanguages = ['hi', 'en'],
+  initialLanguages = ['hi', 'pa'],
   initialNiches = [],
 }: DeckOnboardingProps) {
-  const [step, setStep] = useState<1 | 2 | 3>(1);
-  const [mode, setMode] = useState<string>(initialMode);
-  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(initialLanguages);
+  const [step, setStep] = useState<1 | 2>(1);
+  const [mode, setMode] = useState<string>(initialMode === 'global' ? 'global' : 'india');
+  const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
+    if (initialLanguages && initialLanguages.length > 0) return initialLanguages;
+    return initialMode === 'global' ? ['en', 'es'] : ['hi', 'pa'];
+  });
   const [selectedNiches, setSelectedNiches] = useState<string[]>(initialNiches);
 
   if (!isOpen) return null;
 
+  const currentLanguagesList = mode === 'india' ? INDIA_LANGUAGES : GLOBAL_LANGUAGES;
+
+  const handleModeChange = (newMode: 'india' | 'global') => {
+    if (newMode === mode) return;
+    setMode(newMode);
+    // Reset to sensible defaults for that market to prevent cross-contamination
+    if (newMode === 'india') {
+      setSelectedLanguages(['hi', 'en']);
+    } else {
+      setSelectedLanguages(['en', 'es']);
+    }
+  };
+
   const toggleLanguage = (langId: string) => {
-    setSelectedLanguages((prev) =>
-      prev.includes(langId) ? prev.filter((l) => l !== langId) : [...prev, langId]
-    );
+    setSelectedLanguages((prev) => {
+      if (prev.includes(langId)) {
+        // Prevent deselecting everything
+        if (prev.length <= 1) return prev;
+        return prev.filter((l) => l !== langId);
+      }
+      return [...prev, langId];
+    });
   };
 
   const toggleNiche = (nicheId: string) => {
@@ -81,7 +104,7 @@ export function DeckOnboarding({
   const handleFinish = async () => {
     const prefs = {
       mode,
-      languages: selectedLanguages.length > 0 ? selectedLanguages : ['hi', 'en'],
+      languages: selectedLanguages.length > 0 ? selectedLanguages : (mode === 'india' ? ['hi', 'en'] : ['en']),
       niches: selectedNiches,
     };
 
@@ -93,7 +116,7 @@ export function DeckOnboarding({
       localStorage.setItem('trendrop_deck_onboarded', 'true');
     }
 
-    // Attempt save to API if token present
+    // Save to API if token present
     const token = getAuthToken();
     if (token) {
       try {
@@ -109,7 +132,7 @@ export function DeckOnboarding({
             global_enabled: mode === 'global',
           }),
         });
-      } catch (err) {
+      } catch {
         // Non-blocking fallback
       }
     }
@@ -117,146 +140,175 @@ export function DeckOnboarding({
     onComplete(prefs);
   };
 
-  const availableLangs = mode === 'india'
-    ? INDIA_LANGUAGES
-    : [...INDIA_LANGUAGES, ...GLOBAL_EXTRA_LANGUAGES];
-
   return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/80 backdrop-blur-sm p-0 sm:p-4 animate-in fade-in duration-200">
-      <div className="w-full max-w-md bg-zinc-900 border border-zinc-800 rounded-t-3xl sm:rounded-3xl p-6 text-zinc-100 shadow-2xl space-y-6">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-md p-0 sm:p-4 animate-in fade-in duration-200">
+      <div
+        className="w-full max-w-md rounded-t-3xl sm:rounded-3xl p-6 shadow-2xl space-y-6"
+        style={{
+          background: '#FFF8F5',
+          border: '1px solid rgba(255,77,61,0.18)',
+        }}
+      >
         {/* Top Header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="w-2 h-2 rounded-full bg-[#FF3B5C]" />
-            <span className="text-xs font-mono uppercase tracking-wider text-zinc-400">
-              Personalize Your Feed · Tap {step}/3
+            <span className="w-2.5 h-2.5 rounded-full" style={{ background: '#FF4D3D' }} />
+            <span className="text-xs font-bold uppercase tracking-wider text-[#FF4D3D]" style={{ fontFamily: 'Inter, sans-serif' }}>
+              Personalize Your Deck · Step {step} of 2
             </span>
           </div>
           {onClose && (
             <button
               onClick={onClose}
-              className="p-1 rounded-full text-zinc-400 hover:text-white"
+              className="p-1 rounded-full text-[#9A9AA8] hover:text-[#0E0E10] transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
           )}
         </div>
 
-        {/* Step 1: Mode Selection */}
+        {/* Step 1: Market & Languages (Logically Connected) */}
         {step === 1 && (
-          <div className="space-y-4">
+          <div className="space-y-5">
             <div className="space-y-1">
-              <h3 className="text-xl font-bold font-display text-white">Select Regional Scope</h3>
-              <p className="text-xs text-zinc-400">
-                Choose whether you want verified India trends or Global breakout audios.
+              <h3 className="text-xl font-extrabold text-[#0E0E10]" style={{ fontFamily: "'Bricolage Grotesque', system-ui" }}>
+                Target Audience & Languages
+              </h3>
+              <p className="text-xs text-[#6B6B78]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Select where your audience is based to load strictly matching sounds.
               </p>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 pt-2">
+            {/* Market Toggle: India vs Global */}
+            <div
+              className="grid grid-cols-2 p-1 rounded-2xl border"
+              style={{ background: 'rgba(0,0,0,0.03)', borderColor: 'rgba(0,0,0,0.06)' }}
+            >
               <button
-                onClick={() => setMode('india')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
+                type="button"
+                onClick={() => handleModeChange('india')}
+                className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                style={
                   mode === 'india'
-                    ? 'border-[#FF3B5C] bg-[#FF3B5C]/10 text-white shadow-lg'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-300 hover:border-zinc-700'
-                }`}
+                    ? {
+                        background: '#FF4D3D',
+                        color: '#fff',
+                        boxShadow: '0 4px 12px rgba(255,77,61,0.3)',
+                      }
+                    : {
+                        color: '#6B6B78',
+                      }
+                }
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">🇮🇳</span>
-                  {mode === 'india' && <Check className="w-4 h-4 text-[#FF3B5C]" />}
-                </div>
-                <div className="font-bold text-sm">India Focus</div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">Top Indian languages</div>
+                <span>🇮🇳 India Focus</span>
               </button>
 
               <button
-                onClick={() => setMode('global')}
-                className={`p-4 rounded-2xl border text-left transition-all ${
+                type="button"
+                onClick={() => handleModeChange('global')}
+                className="py-2.5 px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-2"
+                style={
                   mode === 'global'
-                    ? 'border-[#FF3B5C] bg-[#FF3B5C]/10 text-white shadow-lg'
-                    : 'border-zinc-800 bg-zinc-950/60 text-zinc-300 hover:border-zinc-700'
-                }`}
+                    ? {
+                        background: '#FF4D3D',
+                        color: '#fff',
+                        boxShadow: '0 4px 12px rgba(255,77,61,0.3)',
+                      }
+                    : {
+                        color: '#6B6B78',
+                      }
+                }
               >
-                <div className="flex items-center justify-between mb-2">
-                  <span className="text-2xl">🌍</span>
-                  {mode === 'global' && <Check className="w-4 h-4 text-[#FF3B5C]" />}
-                </div>
-                <div className="font-bold text-sm">Global Focus</div>
-                <div className="text-[11px] text-zinc-400 mt-0.5">Cross-cultural audios</div>
+                <span>🌍 Global Focus</span>
               </button>
             </div>
 
-            <div className="pt-4 flex items-center justify-between">
+            {/* Language Selection strictly for the chosen market */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <span className="text-[11px] font-bold text-[#6B6B78] uppercase tracking-wider" style={{ fontFamily: 'Inter, sans-serif' }}>
+                  {mode === 'india' ? 'Indian Languages' : 'International Languages'}
+                </span>
+                <span className="text-[11px] text-[#9A9AA8]">
+                  {selectedLanguages.length} selected
+                </span>
+              </div>
+
+              <div className="grid grid-cols-2 gap-2 max-h-[220px] overflow-y-auto pr-1">
+                {currentLanguagesList.map((lang) => {
+                  const isSelected = selectedLanguages.includes(lang.id);
+                  return (
+                    <button
+                      key={lang.id}
+                      type="button"
+                      onClick={() => toggleLanguage(lang.id)}
+                      className="px-3 py-2.5 rounded-xl border text-xs font-medium text-left flex items-center justify-between transition-all"
+                      style={
+                        isSelected
+                          ? {
+                              background: '#FFFFFF',
+                              borderColor: '#FF4D3D',
+                              color: '#0E0E10',
+                              boxShadow: '0 2px 8px rgba(255,77,61,0.12)',
+                            }
+                          : {
+                              background: 'rgba(0,0,0,0.02)',
+                              borderColor: 'rgba(0,0,0,0.06)',
+                              color: '#6B6B78',
+                            }
+                      }
+                    >
+                      <span className="font-semibold">{lang.label}</span>
+                      {isSelected && (
+                        <div
+                          className="w-4 h-4 rounded-full flex items-center justify-center text-white"
+                          style={{ background: '#FF4D3D' }}
+                        >
+                          <Check className="w-2.5 h-2.5" />
+                        </div>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Footer Navigation */}
+            <div className="pt-2 flex items-center justify-between">
               <button
+                type="button"
                 onClick={handleFinish}
-                className="text-xs font-mono text-zinc-400 hover:text-zinc-200 transition-colors"
+                className="text-xs text-[#9A9AA8] hover:text-[#0E0E10] transition-colors"
+                style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 Skip for now
               </button>
               <button
+                type="button"
                 onClick={() => setStep(2)}
-                className="px-6 py-2.5 rounded-full bg-[#FF3B5C] hover:bg-[#E02A4A] text-white text-xs font-semibold shadow-md transition-all active:scale-95"
+                className="px-6 py-2.5 rounded-full text-white text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                style={{
+                  background: '#FF4D3D',
+                  boxShadow: '0 4px 14px rgba(255,77,61,0.3)',
+                  fontFamily: "'Bricolage Grotesque', system-ui",
+                }}
               >
-                Next: Languages
+                <span>Next: Choose Niches</span>
+                <ArrowRight className="w-3.5 h-3.5" />
               </button>
             </div>
           </div>
         )}
 
-        {/* Step 2: Language Selection */}
+        {/* Step 2: Content Niches (Pick up to 3) */}
         {step === 2 && (
           <div className="space-y-4">
             <div className="space-y-1">
-              <h3 className="text-xl font-bold font-display text-white">Select Audio Languages</h3>
-              <p className="text-xs text-zinc-400">
-                Choose the languages you want to hear in your deck stack.
-              </p>
-            </div>
-
-            <div className="grid grid-cols-2 gap-2 max-h-[260px] overflow-y-auto pr-1">
-              {availableLangs.map((lang) => {
-                const isSelected = selectedLanguages.includes(lang.id);
-                return (
-                  <button
-                    key={lang.id}
-                    onClick={() => toggleLanguage(lang.id)}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-medium text-left flex items-center justify-between transition-all ${
-                      isSelected
-                        ? 'border-[#FF3B5C] bg-[#FF3B5C]/15 text-white'
-                        : 'border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-zinc-200'
-                    }`}
-                  >
-                    <span>{lang.label}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-[#FF3B5C]" />}
-                  </button>
-                );
-              })}
-            </div>
-
-            <div className="pt-4 flex items-center justify-between">
-              <button
-                onClick={() => setStep(1)}
-                className="text-xs font-mono text-zinc-400 hover:text-zinc-200"
-              >
-                Back
-              </button>
-              <button
-                onClick={() => setStep(3)}
-                className="px-6 py-2.5 rounded-full bg-[#FF3B5C] hover:bg-[#E02A4A] text-white text-xs font-semibold shadow-md transition-all active:scale-95"
-              >
-                Next: Niches
-              </button>
-            </div>
-          </div>
-        )}
-
-        {/* Step 3: Niche Selection (up to 3) */}
-        {step === 3 && (
-          <div className="space-y-4">
-            <div className="space-y-1">
-              <h3 className="text-xl font-bold font-display text-white">Select Niches (Up to 3)</h3>
-              <p className="text-xs text-zinc-400">
-                Prioritizes audio styles that align with your content niche.
+              <h3 className="text-xl font-extrabold text-[#0E0E10]" style={{ fontFamily: "'Bricolage Grotesque', system-ui" }}>
+                Select Niches (Up to 3)
+              </h3>
+              <p className="text-xs text-[#6B6B78]" style={{ fontFamily: 'Inter, sans-serif' }}>
+                Prioritizes breakout audio tailored to your content genre.
               </p>
             </div>
 
@@ -266,33 +318,60 @@ export function DeckOnboarding({
                 return (
                   <button
                     key={niche.id}
+                    type="button"
                     onClick={() => toggleNiche(niche.id)}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-medium text-left flex items-center justify-between transition-all ${
+                    className="px-3 py-2.5 rounded-xl border text-xs font-medium text-left flex items-center justify-between transition-all"
+                    style={
                       isSelected
-                        ? 'border-[#FF3B5C] bg-[#FF3B5C]/15 text-white'
-                        : 'border-zinc-800 bg-zinc-950/40 text-zinc-400 hover:text-zinc-200'
-                    }`}
+                        ? {
+                            background: '#FFFFFF',
+                            borderColor: '#FF4D3D',
+                            color: '#0E0E10',
+                            boxShadow: '0 2px 8px rgba(255,77,61,0.12)',
+                          }
+                        : {
+                            background: 'rgba(0,0,0,0.02)',
+                            borderColor: 'rgba(0,0,0,0.06)',
+                            color: '#6B6B78',
+                          }
+                    }
                   >
-                    <span>{niche.label}</span>
-                    {isSelected && <Check className="w-3.5 h-3.5 text-[#FF3B5C]" />}
+                    <span className="font-semibold">{niche.label}</span>
+                    {isSelected && (
+                      <div
+                        className="w-4 h-4 rounded-full flex items-center justify-center text-white"
+                        style={{ background: '#FF4D3D' }}
+                      >
+                        <Check className="w-2.5 h-2.5" />
+                      </div>
+                    )}
                   </button>
                 );
               })}
             </div>
 
-            <div className="pt-4 flex items-center justify-between">
+            {/* Footer Navigation */}
+            <div className="pt-2 flex items-center justify-between">
               <button
-                onClick={() => setStep(2)}
-                className="text-xs font-mono text-zinc-400 hover:text-zinc-200"
+                type="button"
+                onClick={() => setStep(1)}
+                className="text-xs text-[#9A9AA8] hover:text-[#0E0E10] transition-colors"
+                style={{ fontFamily: 'Inter, sans-serif' }}
               >
                 Back
               </button>
               <button
+                type="button"
                 onClick={handleFinish}
-                className="px-6 py-2.5 rounded-full bg-[#FF3B5C] hover:bg-[#E02A4A] text-white text-xs font-semibold shadow-md transition-all active:scale-95 flex items-center gap-1.5"
+                className="px-6 py-2.5 rounded-full text-white text-xs font-bold transition-all active:scale-95 flex items-center gap-1.5"
+                style={{
+                  background: '#FF4D3D',
+                  boxShadow: '0 4px 14px rgba(255,77,61,0.3)',
+                  fontFamily: "'Bricolage Grotesque', system-ui",
+                }}
               >
                 <Sparkles className="w-3.5 h-3.5" />
-                Start Swiping
+                <span>Start Swiping</span>
               </button>
             </div>
           </div>

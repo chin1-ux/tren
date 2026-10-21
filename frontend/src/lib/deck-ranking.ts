@@ -11,6 +11,7 @@ export interface DeckTrend {
   status: string;
   stage_label: string;
   first_detected_at: string | null;
+  last_seen_at?: string | null;
   age_hours?: number;
   is_new_today?: boolean;
   creator_count: number;
@@ -19,10 +20,13 @@ export interface DeckTrend {
   language: string;
   niche: string | null;
   used_for?: string | null;
+  used_for_note?: string | null;
+  why_this_works?: string | null;
   score?: number;
   is_top_5?: boolean;
   is_exploration?: boolean;
 }
+
 
 export interface UserSwipe {
   trend_id: number;
@@ -52,7 +56,8 @@ export interface AffinityProfile {
  */
 export function calculateBaseScore(trend: DeckTrend, nowMs: number = Date.now()): number {
   const st = (trend.status || '').toLowerCase().trim();
-  const statusWeight = st === 'rising' ? 1.0 : st === 'emerging' ? 0.9 : 0.8;
+  const isExpired = st === 'expired';
+  const statusWeight = st === 'rising' ? 1.0 : st === 'emerging' ? 0.9 : st === 'resurging' ? 0.85 : st === 'peaked' ? 0.8 : 0.75;
 
   let ageHours = trend.age_hours;
   if (ageHours === undefined || ageHours === null) {
@@ -64,8 +69,10 @@ export function calculateBaseScore(trend: DeckTrend, nowMs: number = Date.now())
     }
   }
 
-  // 24h half-life: 0.5 ** (ageHours / 24)
-  const freshnessDecay = Math.pow(0.5, ageHours / 24.0);
+  // 24h half-life for active; bounded decay for historical/expired so they remain rankable in filtered pools
+  const freshnessDecay = isExpired
+    ? Math.max(0.25, Math.pow(0.5, ageHours / (24.0 * 14)))
+    : Math.pow(0.5, ageHours / 24.0);
 
   const creators = Math.max(0, trend.creator_count || 1);
   const reels = Math.max(0, trend.reel_count || 0);
@@ -213,8 +220,15 @@ export function rankDeck(
     };
   });
 
-  // Sort descending by score
-  scored.sort((a, b) => (b.score || 0) - (a.score || 0));
+  // Sort descending: strictly NEWEST to OLDEST by discovery date (first_detected_at)
+  scored.sort((a, b) => {
+    const timeA = a.first_detected_at ? new Date(a.first_detected_at).getTime() : 0;
+    const timeB = b.first_detected_at ? new Date(b.first_detected_at).getTime() : 0;
+    if (timeB !== timeA) {
+      return timeB - timeA;
+    }
+    return (b.score || 0) - (a.score || 0);
+  });
 
   // Exploration partition: 20% of deckSize (e.g. 3 cards in a 15-card deck)
   const exploreTargetCount = Math.floor(deckSize * 0.20);

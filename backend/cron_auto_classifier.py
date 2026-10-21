@@ -28,6 +28,7 @@ load_dotenv(os.path.join(backend_dir, ".env"))
 from supabase import create_client
 from artist_language_map import get_artist_language
 from llm import call_gemini_only
+from reel_pattern_engine import analyze_trend_reels
 
 logger = logging.getLogger("cron_auto_classifier")
 
@@ -248,10 +249,12 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
 
     sb = get_supabase()
     now_iso = datetime.now(timezone.utc).isoformat()
+    GLOBAL_LANG_CODES = {"en", "es", "pt", "ko", "ja", "ru", "fr", "de", "it"}
+    INDIAN_LANG_CODES = {"hi", "pa", "ta", "te", "kn", "ml", "mr", "bn", "gu", "ne", "bho"}
 
     # 1. Fetch trend records
     res = sb.table("trends") \
-        .select("id, audio_title, audio_artist, sample_captions, language_final, used_for") \
+        .select("id, audio_id, audio_title, audio_artist, sample_captions, language_final, used_for, why_this_works") \
         .in_("id", trend_ids) \
         .execute()
 
@@ -261,7 +264,7 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
 
     logger.info(f"Auto-classifying {len(trends)} trends: {trend_ids}")
 
-    # 2. Language Classification
+    # 2. Language Classification with Strict Market Isolation
     lang_map = classify_languages_batch(trends)
     lang_updated_cnt = 0
     if lang_map:
@@ -272,30 +275,49 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
 
         for lcode, tids in by_lang.items():
             try:
-                sb.table("trends").update({
+                update_payload = {
                     "language_final": lcode,
                     "language": lcode,
                     "llm_classification_status": "verified"
-                }).in_("id", tids).execute()
+                }
+                # Strict isolation: English and foreign songs are strictly GLOBAL
+                if lcode in GLOBAL_LANG_CODES:
+                    update_payload["trend_origin"] = "GLOBAL"
+                    update_payload["discovery_source"] = "global"
+                elif lcode in INDIAN_LANG_CODES:
+                    update_payload["trend_origin"] = "IN"
+
+                sb.table("trends").update(update_payload).in_("id", tids).execute()
                 lang_updated_cnt += len(tids)
             except Exception as e:
                 logger.warning(f"Failed to bulk update language={lcode} for IDs {tids}: {e}")
 
-    # 3. Used-For Classification
-    used_for_map = classify_used_for_batch(trends)
+    # 3. High-Accuracy Reel Pattern Engine for 'why_this_works' and 'used_for'
     used_for_updated_cnt = 0
-    if used_for_map:
-        for tid, data in used_for_map.items():
-            try:
-                is_fb = data.get("is_fallback", False)
-                sb.table("trends").update({
-                    "used_for": data["used_for"],
-                    "used_for_note": data["used_for_note"],
-                    "used_for_classified_at": None if is_fb else now_iso
-                }).eq("id", tid).execute()
-                used_for_updated_cnt += 1
-            except Exception as e:
-                logger.warning(f"Failed to update used_for for trend ID {tid}: {e}")
+    for t in trends:
+        tid = t["id"]
+        aid = t.get("audio_id")
+        title = t.get("audio_title") or ""
+        artist = t.get("audio_artist") or ""
+
+        try:
+            pattern_res = analyze_trend_reels(
+                audio_id=aid,
+                audio_title=title,
+                audio_artist=artist,
+                supabase_client=sb,
+                max_reels=40
+            )
+
+            sb.table("trends").update({
+                "used_for": pattern_res.get("used_for") or "other",
+                "used_for_note": pattern_res.get("used_for_note") or "",
+                "why_this_works": pattern_res.get("why_this_works") or "",
+                "used_for_classified_at": now_iso
+            }).eq("id", tid).execute()
+            used_for_updated_cnt += 1
+        except Exception as e:
+            logger.warning(f"Failed to analyze reel patterns for trend ID {tid}: {e}")
 
     logger.info(f"Auto-classification complete for {len(trends)} trends: language={lang_updated_cnt}, used_for={used_for_updated_cnt}")
     return {
@@ -314,7 +336,7 @@ def run_unclassified_safety_net_pass(limit: int = 50) -> Dict[str, Any]:
     res = sb.table("trends") \
         .select("id") \
         .neq("status", "unqualified") \
-        .or_("language_final.is.null,used_for.is.null,used_for_note.eq.Automated fallback classification.,used_for_classified_at.is.null") \
+        .or_("language_final.is.null,used_for.is.null,why_this_works.is.null,why_this_works.like.The track %is currently driving high engagement%,used_for_note.eq.Automated fallback classification.,used_for_classified_at.is.null") \
         .limit(limit) \
         .execute()
 

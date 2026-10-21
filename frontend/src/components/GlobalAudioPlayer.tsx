@@ -52,7 +52,7 @@ export const GlobalAudioPlayer: React.FC = () => {
         animate={{ y: 0, opacity: 1, scale: 1 }}
         exit={{ y: 90, opacity: 0, scale: 0.95 }}
         transition={{ type: "spring", stiffness: 350, damping: 28 }}
-        className="fixed z-50 bottom-[76px] left-3 right-3 sm:left-auto sm:right-6 sm:bottom-[82px] sm:w-[430px]"
+        className="fixed z-[75] bottom-[76px] left-3 right-3 sm:left-auto sm:right-6 sm:bottom-[82px] sm:w-[430px]"
       >
         <div className="relative overflow-hidden rounded-2xl border border-white/20 dark:border-white/10 bg-surface/95 dark:bg-zinc-950/95 backdrop-blur-2xl p-3.5 shadow-[0_16px_45px_rgba(0,0,0,0.35)] dark:shadow-[0_20px_55px_rgba(0,0,0,0.7)]">
           {/* Top Amber Glowing Bar for Viral Drop Window */}

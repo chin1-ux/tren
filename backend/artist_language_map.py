@@ -72,6 +72,17 @@ ARTIST_LANGUAGE_MAP = {
     "Jubin Nautiyal": "hi",
     "Darshan Raval": "hi",
     "B Praak": "hi",
+    "Rani Rangili": "hi",
+    "Tejas Vinchurkar": "hi",
+    "Suneel Lodhi": "hi",
+    "Abhijeet Bhattacharya": "hi",
+    "Mithun Bairagi": "hi",
+    "Mohit Chauhan": "hi",
+    "Lucky Ali": "hi",
+    "Arjan Dhillon": "pa",
+    "Ankita Bhattacharyya": "bn",
+    "Sooraj Santhosh": "ml",
+    "Vivek-Mervin": "ta",
 
     # --- Korean (ko) ---
     "BTS": "ko",

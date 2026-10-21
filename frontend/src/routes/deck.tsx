@@ -4,19 +4,15 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   RotateCcw,
   X,
-  Play,
   Check,
   Compass,
   Bookmark,
   Layers,
   Settings,
   LayoutDashboard,
-  Video,
-  LogOut,
   ChevronDown,
   Sparkles,
   RefreshCw,
-  ExternalLink
 } from 'lucide-react';
 
 import {
@@ -24,16 +20,16 @@ import {
   type UserSwipe,
   rankDeck
 } from '@/lib/deck-ranking';
-import { DeckCard } from '@/components/deck/DeckCard';
-import { DeckInfoSheet } from '@/components/deck/DeckInfoSheet';
-import { DeckWatchSheet } from '@/components/deck/DeckWatchSheet';
-import { DeckOnboarding } from '@/components/deck/DeckOnboarding';
-import { DeckExplore } from '@/components/deck/DeckExplore';
-import { DeckPicks } from '@/components/deck/DeckPicks';
+import { VinylRecord }     from '@/components/deck/VinylRecord';
+import { VinylInfoModal }  from '@/components/deck/VinylInfoModal';
+import { VinylBackground } from '@/components/deck/VinylBackground';
+import { DeckExplore }     from '@/components/deck/DeckExplore';
+import { DeckPicks }       from '@/components/deck/DeckPicks';
+import { DeckOnboarding }  from '@/components/deck/DeckOnboarding';
 import { API_URL, getAuthToken } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
-
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
+
 
 export const Route = createFileRoute('/deck')({
   head: () => ({
@@ -64,13 +60,16 @@ function DeckScreen() {
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
       try {
-        return JSON.parse(localStorage.getItem('trendrop_deck_languages') || '["hi", "en"]');
+        const saved = JSON.parse(localStorage.getItem('trendrop_deck_languages') || '[]');
+        if (Array.isArray(saved) && saved.length > 0) return saved;
       } catch {
-        return ['hi', 'en'];
+        return [];
       }
     }
-    return ['hi', 'en'];
+    return [];
   });
+
+  const [includeExpiredDeck, setIncludeExpiredDeck] = useState<boolean>(false);
 
   const [selectedNiches, setSelectedNiches] = useState<string[]>(() => {
     if (typeof window !== 'undefined') {
@@ -97,8 +96,7 @@ function DeckScreen() {
   const [lastSwipedCard, setLastSwipedCard] = useState<DeckTrend | null>(null);
 
   // Sheet dialogs
-  const [infoTrend, setInfoTrend] = useState<DeckTrend | null>(null);
-  const [watchTrend, setWatchTrend] = useState<DeckTrend | null>(null);
+  const [selectedVinyl, setSelectedVinyl] = useState<DeckTrend | null>(null);
   const [isOnboardingOpen, setIsOnboardingOpen] = useState(false);
   const [isProfileMenuOpen, setIsProfileMenuOpen] = useState(false);
   const [skipToast, setSkipToast] = useState<{ show: boolean; trendId?: number }>({ show: false });
@@ -116,10 +114,10 @@ function DeckScreen() {
     return 1;
   });
 
-  // Opt-in check
+  // Onboarding check
   useEffect(() => {
     if (typeof window !== 'undefined') {
-      localStorage.setItem('deck_beta', '1');
+      localStorage.removeItem('deck_beta');
       const onboarded = localStorage.getItem('trendrop_deck_onboarded');
       if (!onboarded) {
         setIsOnboardingOpen(true);
@@ -150,7 +148,7 @@ function DeckScreen() {
 
     try {
       const payload = JSON.stringify({ swipes: batch });
-      if (typeof navigator !== 'undefined' && navigator.sendBeacon) {
+      if (typeof navigator !== 'undefined' && 'sendBeacon' in navigator) {
         // Use sendBeacon or fetch keepalive
         fetch(`${API_URL}/api/swipes`, {
           method: 'POST',
@@ -243,6 +241,9 @@ function DeckScreen() {
         if (selectedNiches.length > 0) {
           params.append('niches', selectedNiches.join(','));
         }
+        if (includeExpiredDeck || selectedNiches.length > 0) {
+          params.append('include_expired', 'true');
+        }
 
         const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
@@ -263,7 +264,7 @@ function DeckScreen() {
     };
 
     fetchDeckPool();
-  }, [mode, selectedLanguages, selectedNiches]);
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck]);
 
   // Handle Swipe (Use / Skip)
   const handleSwipe = useCallback(
@@ -357,35 +358,38 @@ function DeckScreen() {
     }
   }, [currentIndex, lastSwipedCard]);
 
-  // Keyboard shortcut listener (Section E)
+  // Keyboard shortcut listener
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      if (activeTab !== 'deck' || isOnboardingOpen || infoTrend || watchTrend) return;
-      if (e.key === 'ArrowRight') {
-        handleSwipe('use');
-      } else if (e.key === 'ArrowLeft') {
-        handleSwipe('skip');
-      } else if (e.key === 'Enter') {
-        if (deck[currentIndex]) {
-          setWatchTrend(deck[currentIndex]);
-        }
-      } else if (e.key.toLowerCase() === 'z') {
-        handleUndo();
-      }
+      if (activeTab !== 'deck' || isOnboardingOpen || selectedVinyl) return;
+      if (e.key === 'ArrowUp')    { handleSwipe('use');  }
+      else if (e.key === 'ArrowDown') { handleSwipe('skip'); }
+      else if (e.key === 'z')         { handleUndo(); }
     };
-
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [activeTab, isOnboardingOpen, infoTrend, watchTrend, deck, currentIndex, handleSwipe, handleUndo]);
+  }, [activeTab, isOnboardingOpen, selectedVinyl, deck, currentIndex, handleSwipe, handleUndo]);
 
-  const activeCards = deck.slice(currentIndex, currentIndex + 3);
-  const isCaughtUp = currentIndex >= deck.length && !loading;  return (
-    <div className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 text-zinc-100 font-sans select-none relative">
-      {/* Background ambient lighting */}
-      <div className="absolute inset-0 bg-radial-[at_top_center] from-red-600/10 via-zinc-950/40 to-transparent pointer-events-none" />
+  const currentVinyl = deck[currentIndex];
+  const isCaughtUp = currentIndex >= deck.length && !loading;
+
+  return (
+    <div
+      className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 font-sans select-none relative"
+      style={{ background: '#FFF8F5' }}
+    >
+      {/* Animated background */}
+      <VinylBackground />
 
       {/* Top Header Bar */}
-      <header className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b border-white/5 bg-zinc-950/70 backdrop-blur-xl z-40 sticky top-0">
+      <header
+        className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b z-40 sticky top-0"
+        style={{
+          borderColor: 'rgba(255,77,61,0.1)',
+          background: 'rgba(255,248,245,0.9)',
+          backdropFilter: 'blur(20px)',
+        }}
+      >
         <div className="flex items-center justify-between">
           {/* Left: Mode Toggle & Niche Chip */}
           <div className="flex items-center gap-2">
@@ -397,64 +401,99 @@ function DeckScreen() {
                   localStorage.setItem('trendrop_deck_mode', newMode);
                 }
               }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-white/10 text-xs font-semibold text-zinc-200 hover:border-white/20 active:scale-95 transition-all shadow-xs"
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-xs active:scale-95"
+              style={{
+                background: '#FF4D3D', color: '#fff',
+                border: 'none', boxShadow: '0 2px 8px rgba(255,77,61,0.3)',
+              }}
             >
               <span>{mode === 'india' ? '🇮🇳 India' : '🌍 Global'}</span>
             </button>
 
             <button
               onClick={() => setIsOnboardingOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full bg-zinc-900/90 border border-white/10 text-xs text-zinc-300 hover:border-white/20 active:scale-95 transition-all shadow-xs"
+              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95"
+              style={{
+                background: 'rgba(255,77,61,0.08)',
+                border: '1px solid rgba(255,77,61,0.2)',
+                color: '#FF4D3D',
+              }}
             >
               <span className="truncate max-w-[100px]">
                 {selectedNiches.length > 0 ? selectedNiches.join(', ') : 'All Niches'}
               </span>
-              <ChevronDown className="w-3.5 h-3.5 text-zinc-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 shrink-0" />
             </button>
+
+            {/* Expired Toggle Chip in Deck Header */}
+            {activeTab === 'deck' && (
+              <button
+                onClick={() => setIncludeExpiredDeck((prev) => !prev)}
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs transition-all active:scale-95"
+                style={{
+                  background: includeExpiredDeck ? 'rgba(100,116,139,0.18)' : 'rgba(0,0,0,0.05)',
+                  border: `1px solid ${includeExpiredDeck ? 'rgba(100,116,139,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                  color: includeExpiredDeck ? '#334155' : '#9A9AA8',
+                  fontWeight: includeExpiredDeck ? 700 : 500,
+                }}
+                title="Toggle including expired tracks in deck"
+              >
+                <span>{includeExpiredDeck ? '⛔ +Expired' : 'Active Only'}</span>
+              </button>
+            )}
           </div>
 
-          {/* Right: Progress "7 / 15" */}
+          {/* Right: Progress */}
           {activeTab === 'deck' && (
             <div className="flex items-center gap-2">
-              <span className="text-xs font-mono font-medium text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/10">
+              <span
+                className="text-xs font-mono font-medium px-2.5 py-1 rounded-full"
+                style={{ background: 'rgba(255,77,61,0.08)', color: '#FF4D3D', border: '1px solid rgba(255,77,61,0.15)' }}
+              >
                 {Math.min(currentIndex + 1, deck.length || 15)} / {deck.length || 15}
               </span>
             </div>
           )}
         </div>
 
-        {/* Sub-view Switcher Tabs: Deck | Feed | Picks */}
-        <div className="flex items-center justify-center p-1 rounded-full bg-zinc-900/80 border border-white/10 max-w-sm mx-auto w-full">
+        {/* Sub-view Switcher */}
+        <div
+          className="flex items-center justify-center p-1 rounded-full max-w-sm mx-auto w-full"
+          style={{ background: 'rgba(0,0,0,0.05)', border: '1px solid rgba(0,0,0,0.06)' }}
+        >
           <button
             onClick={() => setActiveTab('deck')}
-            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 ${
-              activeTab === 'deck'
-                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
+            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5`}
+            style={activeTab === 'deck'
+              ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
+              : { color: '#9A9AA8' }
+            }
           >
             <Layers className="w-3.5 h-3.5" />
             <span>Deck</span>
           </button>
           <Link
             to="/"
-            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 text-zinc-400 hover:text-zinc-200"
+            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+            style={{ color: '#9A9AA8' }}
           >
             <Compass className="w-3.5 h-3.5" />
             <span>Feed</span>
           </Link>
           <button
             onClick={() => setActiveTab('picks')}
-            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative ${
-              activeTab === 'picks'
-                ? 'bg-gradient-to-r from-red-600 to-rose-600 text-white shadow-md'
-                : 'text-zinc-400 hover:text-zinc-200'
-            }`}
+            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative"
+            style={activeTab === 'picks'
+              ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
+              : { color: '#9A9AA8' }
+            }
           >
             <Bookmark className="w-3.5 h-3.5" />
             <span>Picks</span>
             {savedAudios.length > 0 && (
-              <span className="px-1.5 py-0.2 bg-white/25 text-white text-[10px] rounded-full font-mono">
+              <span className="px-1.5 py-0.2 text-[10px] rounded-full font-mono"
+                style={{ background: 'rgba(199,242,58,0.8)', color: '#0E0E10' }}
+              >
                 {savedAudios.length}
               </span>
             )}
@@ -493,101 +532,102 @@ function DeckScreen() {
               </button>
             </div>
           ) : isCaughtUp ? (
-            // End State per B2: "You're caught up" with "Updated Xm ago" and link to Explore
-            <div className="w-full max-w-[390px] p-8 text-center bg-zinc-900/40 border border-zinc-800 rounded-3xl space-y-5 animate-in fade-in duration-300">
-              <div className="w-16 h-16 rounded-full bg-emerald-500/10 border border-emerald-500/20 text-emerald-400 flex items-center justify-center mx-auto">
-                <Check className="w-8 h-8" />
+            // Caught up state
+            <div
+              className="w-full max-w-[390px] p-8 text-center rounded-3xl space-y-5 animate-in fade-in duration-300"
+              style={{ background: '#fff', border: '1px solid rgba(255,77,61,0.12)', boxShadow: '0 4px 24px rgba(255,77,61,0.08)' }}
+            >
+              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'rgba(199,242,58,0.15)', border: '1.5px solid rgba(199,242,58,0.5)' }}
+              >
+                <Check className="w-8 h-8" style={{ color: '#4A7C00' }} />
               </div>
-
               <div className="space-y-1.5">
-                <h3 className="text-2xl font-bold font-display text-white">
+                <h3 className="text-2xl font-bold" style={{ color: '#0E0E10', fontFamily: "'Bricolage Grotesque', system-ui" }}>
                   You're caught up
                 </h3>
-                <p className="text-xs font-mono text-zinc-400">
-                  Updated {freshnessMinutes}m ago
-                </p>
-                <p className="text-xs text-zinc-500 pt-1">
-                  You've reviewed today's top 15 verified breakout audios.
-                </p>
+                <p className="text-xs font-mono" style={{ color: '#9A9AA8' }}>Updated {freshnessMinutes}m ago</p>
+                <p className="text-xs pt-1" style={{ color: '#9A9AA8' }}>You've reviewed today's top verified breakout audios.</p>
               </div>
-
               <div className="pt-2">
                 <button
                   onClick={() => setActiveTab('explore')}
-                  className="w-full py-3.5 px-6 rounded-2xl bg-[#FF3B5C] hover:bg-[#E02A4A] text-white text-sm font-semibold shadow-xl transition-all active:scale-95"
+                  className="w-full py-3.5 px-6 rounded-2xl text-white text-sm font-semibold shadow-xl transition-all active:scale-95"
+                  style={{ background: '#FF4D3D', boxShadow: '0 6px 20px rgba(255,77,61,0.35)' }}
                 >
                   Explore All Trends
                 </button>
               </div>
             </div>
           ) : (
-            // 3-Card Stack & Bottom Action Buttons
+            // Vinyl stack + action buttons
             <div className="w-full max-w-[390px] flex flex-col items-center h-full max-h-[660px]">
-              {/* Stack Container */}
+              {/* Single Vinyl Showcase (one at a time) */}
               <div className="w-full flex-1 relative min-h-[460px] max-h-[540px]">
-                {activeCards.map((card, i) => (
-                  <DeckCard
-                    key={card.id}
-                    trend={card}
-                    isFront={i === 0}
-                    stackIndex={i}
-                    onSwipe={(act) => handleSwipe(act)}
-                    onOpenInfo={() => setInfoTrend(card)}
-                    onOpenWatch={() => setWatchTrend(card)}
-                  />
-                ))}
+                <AnimatePresence mode="wait">
+                  {currentVinyl && (
+                    <VinylRecord
+                      key={currentVinyl.id}
+                      trend={currentVinyl}
+                      isFront={true}
+                      stackIndex={0}
+                      onSwipe={(act) => handleSwipe(act)}
+                      onClick={() => setSelectedVinyl(currentVinyl)}
+                    />
+                  )}
+                </AnimatePresence>
               </div>
 
-              {/* Bottom Row: Undo, Skip, Watch, Use (touch targets >= 48px per Section E) */}
+              {/* Action buttons — vertical swipe hint */}
               <div className="w-full flex items-center justify-center gap-4 py-4 px-2">
-                {/* Undo Button */}
+                {/* Undo */}
                 <button
                   onClick={handleUndo}
                   disabled={currentIndex === 0}
-                  className="w-12 h-12 rounded-full bg-zinc-900/90 border border-zinc-800 flex items-center justify-center text-zinc-400 hover:text-white disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all shadow-md"
-                  aria-label="Undo swipe (Z)"
-                  title="Undo (Z)"
+                  className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
+                  style={{ background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.08)', color: '#9A9AA8' }}
+                  aria-label="Undo"
                 >
                   <RotateCcw className="w-5 h-5" />
                 </button>
 
-                {/* Skip Button */}
+                {/* Pass (down) */}
                 <button
                   onClick={() => handleSwipe('skip')}
-                  className="w-15 h-15 rounded-full bg-zinc-900/90 border border-zinc-800 text-rose-400 hover:bg-rose-950/40 hover:border-rose-800 flex items-center justify-center active:scale-90 transition-all shadow-lg"
-                  aria-label="Skip audio (Left Arrow)"
-                  title="Skip (Left Arrow)"
+                  className="w-15 h-15 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                  style={{
+                    background: 'rgba(255,77,61,0.08)',
+                    border: '1.5px solid rgba(255,77,61,0.25)',
+                    color: '#FF4D3D',
+                  }}
+                  aria-label="Pass (flick down)"
                 >
                   <X className="w-7 h-7" />
                 </button>
 
-                {/* Watch Button */}
-                <button
-                  onClick={() => {
-                    if (deck[currentIndex]) setWatchTrend(deck[currentIndex]);
-                  }}
-                  className="w-12 h-12 rounded-full bg-zinc-900/90 border border-zinc-800 text-zinc-300 hover:text-white flex items-center justify-center active:scale-90 transition-all shadow-md"
-                  aria-label="Watch reel embed (Enter)"
-                  title="Watch reel (Enter)"
-                >
-                  <Play className="w-5 h-5 ml-0.5" />
-                </button>
-
-                {/* Use It Button */}
+                {/* Use It (up) */}
                 <button
                   onClick={() => handleSwipe('use')}
-                  className="w-15 h-15 rounded-full bg-[#FF3B5C] hover:bg-[#E02A4A] text-white flex items-center justify-center active:scale-90 transition-all shadow-xl shadow-rose-950/50"
-                  aria-label="Use It / Save to Picks (Right Arrow)"
-                  title="Use It (Right Arrow)"
+                  className="w-15 h-15 rounded-full text-white flex items-center justify-center active:scale-90 transition-all"
+                  style={{
+                    background: '#FF4D3D',
+                    boxShadow: '0 6px 20px rgba(255,77,61,0.4)',
+                  }}
+                  aria-label="Use It (flick up)"
                 >
                   <Check className="w-8 h-8 stroke-[3]" />
                 </button>
               </div>
+
+              {/* Swipe hint label */}
+              <p className="text-[11px] pb-2" style={{ color: '#C7A09A', fontFamily: 'Inter, sans-serif' }}>
+                Flick up to use · Flick down to pass · Tap to open
+              </p>
             </div>
           )
         ) : activeTab === 'explore' ? (
           <DeckExplore
-            onSelectTrend={(t) => setInfoTrend(t)}
+            onSelectTrend={(t) => setSelectedVinyl(t)}
             mode={mode}
             onModeChange={(m) => setMode(m)}
           />
@@ -605,6 +645,7 @@ function DeckScreen() {
               }
             }}
             streakDays={streakDays}
+            onSelectTrend={(t) => setSelectedVinyl(t)}
           />
         )}
 
@@ -674,20 +715,15 @@ function DeckScreen() {
         )}
       </main>
 
-
-
-      {/* Sheets: Details Sheet & Live Watch Embed */}
-      <DeckInfoSheet
-        trend={infoTrend}
-        isOpen={Boolean(infoTrend)}
-        onClose={() => setInfoTrend(null)}
-      />
-
-      <DeckWatchSheet
-        trend={watchTrend}
-        isOpen={Boolean(watchTrend)}
-        onClose={() => setWatchTrend(null)}
-      />
+      {/* Vinyl Info Modal */}
+      {selectedVinyl && (
+        <VinylInfoModal
+          trend={selectedVinyl}
+          onClose={() => setSelectedVinyl(null)}
+          onUse={() => { handleSwipe('use'); setSelectedVinyl(null); }}
+          onSkip={() => { handleSwipe('skip'); setSelectedVinyl(null); }}
+        />
+      )}
 
       <DeckOnboarding
         isOpen={isOnboardingOpen}

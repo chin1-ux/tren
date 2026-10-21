@@ -112,15 +112,11 @@ const DECK_LIVE = false; // Going live = one constant I flip later
 function TrendsFeed() {
   const navigate = useNavigate();
 
-  // Opt-in redirect for Order 100 (?deck=1 or deck_beta=1 in localStorage)
+  // Opt-in redirect ONLY if explicit ?deck=1 query param is provided
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      const isDeckOptIn = params.get("deck") === "1" || localStorage.getItem("deck_beta") === "1";
-      if (DECK_LIVE || isDeckOptIn) {
-        if (params.get("deck") === "1") {
-          localStorage.setItem("deck_beta", "1");
-        }
+      if (params.get("deck") === "1") {
         navigate({ to: "/deck" });
       }
     }
@@ -339,7 +335,7 @@ function TrendsFeed() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
-    enabled: secondaryReady,
+    enabled: secondaryReady || filters.lifecycle === "expired" || (filters.niches.length > 0 && !filters.niches.includes("all")) || filters.language !== "all" || Boolean(searchQuery.trim()),
   });
 
   const {
@@ -461,14 +457,14 @@ function TrendsFeed() {
       list = list.filter((t) => (t.status ?? "rising").toLowerCase() === filters.lifecycle.toLowerCase());
     }
 
-    // 2. Minimum Opportunity Score filter
+    // 2. Minimum Opportunity Score filter (exempt expired audios when filtering so historical details are visible)
     if (filters.minOpportunityScore > 0) {
-      list = list.filter((t) => (t.opportunityScore ?? 0) >= filters.minOpportunityScore);
+      list = list.filter((t) => (t.status === "expired" || (t.opportunityScore ?? 0) >= filters.minOpportunityScore));
     }
 
-    // 3. Minimum Velocity Multiplier filter
+    // 3. Minimum Velocity Multiplier filter (exempt expired audios when filtering so historical details are visible)
     if (filters.minVelocity > 0) {
-      list = list.filter((t) => (t.viralMultiplier ?? 0) >= filters.minVelocity);
+      list = list.filter((t) => (t.status === "expired" || (t.viralMultiplier ?? 0) >= filters.minVelocity));
     }
 
     // 4. Golden Hour filter (high velocity + <28% saturation)

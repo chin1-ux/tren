@@ -629,3 +629,27 @@ h1, h2, h3, h4, h5, h6 {
     background: rgba(21, 21, 28, 0.95);
   }
 }
+
+/* ── High-Performance Rendering & Zero-Lag Scrolling ────────────────────────── */
+.tilt-card, article.tilt-card {
+  content-visibility: auto;
+  contain-intrinsic-size: 0 280px;
+  transform: translateZ(0);
+  backface-visibility: hidden;
+}
+
+.no-scrollbar {
+  -webkit-overflow-scrolling: touch;
+}
+
+/* ── GPU-Accelerated Vinyl Disc Animation ─────────────────────────────────── */
+@keyframes vinyl-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+.vinyl-spin-gpu {
+  animation: vinyl-spin 20s linear infinite;
+  will-change: transform;
+  transform: translateZ(0);
+}

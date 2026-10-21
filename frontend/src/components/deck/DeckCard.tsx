@@ -199,16 +199,18 @@ export function DeckCard({
           </div>
         </div>
 
-        {/* Creator Use-Case Section ("What kind of reels this audio is being used for") */}
-        <div className="rounded-2xl bg-black/40 border border-white/10 p-3.5 backdrop-blur-md space-y-1.5 z-20" onClick={(e) => e.stopPropagation()}>
-          <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono font-bold tracking-wider uppercase text-amber-300/90">
-            <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-            <span>What kind of reels this audio is being used for</span>
+        {/* Creator Use-Case Section ("What kind of reels this audio is being used for") - Only rendered when real data exists */}
+        {trend.used_for && (
+          <div className="rounded-2xl bg-black/40 border border-white/10 p-3.5 backdrop-blur-md space-y-1.5 z-20" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center gap-1.5 text-[10px] sm:text-[11px] font-mono font-bold tracking-wider uppercase text-amber-300/90">
+              <Sparkles className="w-3.5 h-3.5 text-amber-400 shrink-0" />
+              <span>What kind of reels this audio is being used for</span>
+            </div>
+            <p className="text-xs text-white/85 leading-relaxed font-normal line-clamp-3">
+              {trend.used_for}
+            </p>
           </div>
-          <p className="text-xs text-white/85 leading-relaxed font-normal line-clamp-3">
-            {trend.used_for || (trend.niche ? `Popular in ${trend.niche} creator reels, dynamic transitions, and viral aesthetic hooks.` : 'Used for fast-paced visual storytelling, lifestyle cuts, and viral creator reels.')}
-          </p>
-        </div>
+        )}
 
         {/* Bottom Tags and Tap-to-Watch CTA */}
         <div className="space-y-3 z-20">

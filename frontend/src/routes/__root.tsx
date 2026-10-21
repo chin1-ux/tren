@@ -196,7 +196,7 @@ function RootComponent() {
               </motion.div>
             </AnimatePresence>
           </div>
-          {!isDeckRoute && <GlobalAudioPlayer />}
+          <GlobalAudioPlayer />
           <BottomTabBar />
           {!isDeckRoute && <InstallBanner />}
           <Toaster

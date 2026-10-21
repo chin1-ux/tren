@@ -49,6 +49,7 @@ class TrendRefresher:
         if not self.supabase_url or not self.supabase_key:
             raise ValueError("Supabase credentials missing from .env")
         self.supabase: Client = create_client(self.supabase_url, self.supabase_key)
+        self.failed_trend_ids = set()
 
     def _retry_supabase_call(self, fn, max_retries: int = 3, delay: float = 0.5):
         """
@@ -164,15 +165,27 @@ class TrendRefresher:
             "throttled": 0,
             "outage_guard_active": outage_guard,
         }
+        self.failed_trend_ids = set()
         rising_baseline = self._get_rising_baseline()
 
+        trends = []
+        page_size = 1000
+        offset = 0
         try:
-            res = self.supabase.table("trends") \
-                .select("*") \
-                .eq("is_seed_data", False) \
-                .execute()
-            trends = res.data or []
-            logger.info(f"Found {len(trends)} total trends to refresh")
+            while True:
+                res = self._retry_supabase_call(
+                    lambda: self.supabase.table("trends")
+                    .select("*")
+                    .eq("is_seed_data", False)
+                    .range(offset, offset + page_size - 1)
+                    .execute()
+                )
+                batch = res.data or []
+                trends.extend(batch)
+                if len(batch) < page_size:
+                    break
+                offset += page_size
+            logger.info(f"Found {len(trends)} total trends to refresh (paginated across {offset // page_size + 1} pages)")
         except Exception as e:
             logger.error(f"Failed to fetch trends: {e}", exc_info=True)
             return summary
@@ -290,8 +303,12 @@ class TrendRefresher:
 
                 clean_use_cnt = int(trend.get("audio_use_count") or 0)
                 if outage_guard:
-                    new_window = window_hours
-                    logger.info(f"outage_guard_active: Preserving window_hours_remaining={new_window}h for '{audio_title}' (no decrement).")
+                    if window_hours <= 0:
+                        new_window = 0
+                        logger.info(f"outage_guard_active: Trend '{audio_title}' already at window_hours_remaining<=0; allowing expiration.")
+                    else:
+                        new_window = window_hours
+                        logger.info(f"outage_guard_active: Preserving window_hours_remaining={new_window}h for '{audio_title}' (no decrement).")
                 elif new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
@@ -313,14 +330,16 @@ class TrendRefresher:
                     local_summary["expired"] += 1
                     return local_summary
 
-                if not outage_guard and (age_hours >= min_visible_hours or new_window <= 0):
+                # Trends with window <= 0 must expire even during outage guard.
+                # Age ceiling check applies when outage guard is not active.
+                if new_window <= 0 or (not outage_guard and age_hours >= min_visible_hours):
                     self._update_status(trend_id, "expired", {
                         "window_hours_remaining": 0,
                         "reel_count": total_reels_count,
                         "high_confidence": bool(trend.get("high_confidence", False)),
                         "promotion_reason": trend.get("promotion_reason"),
                     }, previous_status=current_status)
-                    logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h)")
+                    logger.info(f"[EXPIRED] '{audio_title}' (age={age_hours:.1f}h, window={new_window}h)")
                     local_summary["expired"] += 1
                     return local_summary
 
@@ -461,6 +480,15 @@ class TrendRefresher:
                     logger.info(f"outage_guard_active: Holding '{audio_title}' in '{current_status}' (prevented demotion to '{new_status}').")
                     new_status = current_status
 
+                # Outage guard & creator floor protection:
+                # No promotions (rising/emerging) during an outage blackout, or if creator count is 0
+                if outage_guard and new_status in ["rising", "emerging"] and new_status != current_status:
+                    logger.info(f"outage_guard_active: Blocking promotion of '{audio_title}' to '{new_status}' during outage (holding in '{current_status}').")
+                    new_status = current_status
+                elif new_status in ["rising", "emerging"] and new_status != current_status and creator_count == 0:
+                    logger.info(f"creator_floor_active: Blocking promotion of '{audio_title}' to '{new_status}' because creators=0 (holding in '{current_status}').")
+                    new_status = current_status
+
                 self._update_status(trend_id, new_status, {
                     "window_hours_remaining": new_window,
                     "velocity_avg": velocity_for_check,
@@ -479,6 +507,8 @@ class TrendRefresher:
                     
             except Exception as e:
                 logger.error(f"Error refreshing trend_id={trend.get('id')}: {e}", exc_info=True)
+                if trend.get("id"):
+                    self.failed_trend_ids.add(trend["id"])
                 local_summary["errors"] += 1
                 
             return local_summary
@@ -771,12 +801,27 @@ class TrendRefresher:
         """
         Build append-only snapshot rows for the current run.
         The pipeline should call this once per run after trend refresh completes.
+        Paginates trends and skips any trends that errored during refresh.
         """
         try:
-            query = self.supabase.table("trends").select("id,audio_title,audio_artist,velocity_avg").eq("is_seed_data", False)
-            if trend_ids:
-                query = query.in_("id", list(trend_ids))
-            trends = query.execute().data or []
+            trends = []
+            page_size = 1000
+            offset = 0
+            while True:
+                query = self.supabase.table("trends").select("id,audio_title,audio_artist,velocity_avg").eq("is_seed_data", False)
+                if trend_ids:
+                    query = query.in_("id", list(trend_ids))
+                batch = query.range(offset, offset + page_size - 1).execute().data or []
+                trends.extend(batch)
+                if len(batch) < page_size or trend_ids:
+                    break
+                offset += page_size
+
+            failed_ids = getattr(self, "failed_trend_ids", set())
+            valid_trends = [t for t in trends if t.get("id") not in failed_ids]
+            if failed_ids:
+                logger.warning(f"get_snapshot_rows: Skipped {len(failed_ids)} errored trends from snapshot write.")
+
             rows = []
             now_iso = (captured_at or datetime.now(timezone.utc)).astimezone(timezone.utc).isoformat()
             
@@ -793,7 +838,7 @@ class TrendRefresher:
             
             import concurrent.futures
             with concurrent.futures.ThreadPoolExecutor(max_workers=3) as executor:
-                rows = list(executor.map(process_snapshot, trends))
+                rows = list(executor.map(process_snapshot, valid_trends))
                 
             return rows
         except Exception as e:

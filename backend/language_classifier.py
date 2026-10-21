@@ -29,7 +29,7 @@ ALLOWED_LANGUAGES = {
     "en", "es", "pt", "ko", "instrumental", "other", "unknown"
 }
 
-TARGET_GEMINI_MODEL = "gemini-2.0-flash"
+TARGET_GEMINI_MODEL = "gemini-3.5-flash-lite"
 
 _GLOBAL_GEMINI_KEYS = None
 _LAST_GEMINI_CALL_TIME = 0.0

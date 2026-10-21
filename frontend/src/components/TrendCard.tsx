@@ -78,7 +78,7 @@ function getLifecycleStatusBadge(status?: string): { label: string; color: strin
     case "peaked":
       return { label: "Peaked", color: "text-amber-500 dark:text-amber-400 font-bold", bg: "bg-amber-500/15 border-amber-500/35", icon: "🏔️" };
     case "expired":
-      return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "💀" };
+      return { label: "Expired", color: "text-slate-400 dark:text-slate-400", bg: "bg-slate-500/15 border-slate-500/30", icon: "⛔" };
     case "rising":
     default:
       return { label: "Rising", color: "text-emerald-400 dark:text-emerald-300", bg: "bg-emerald-500/15 border-emerald-500/30", icon: "📈" };
@@ -605,6 +605,12 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             </div>
           );
         })()}
+
+        {trend.status === "expired" && (
+          <div className="mt-1 flex items-center gap-1.5 text-[10px] text-muted-foreground/80 font-mono">
+            <span>⛔ Historical archive · Past viral window</span>
+          </div>
+        )}
 
         {/* Dual-Date Timeline Telemetry: First caught vs Latest rescraped */}
         {(() => {

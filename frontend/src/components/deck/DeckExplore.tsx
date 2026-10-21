@@ -16,6 +16,7 @@ const STAGES = [
   { id: 'blowing_up', label: 'Blowing up' },
   { id: 'everyones_using_it', label: "Everyone's using it" },
   { id: 'comeback', label: 'Comeback' },
+  { id: 'expired', label: '⛔ Expired' },
 ];
 
 const NICHES = [
@@ -76,7 +77,9 @@ export function DeckExplore({ onSelectTrend, mode, onModeChange }: DeckExplorePr
 
       if (cursorVal) params.append('cursor', cursorVal.toString());
       if (selectedStage !== 'all') params.append('stage', selectedStage);
-      if (includeExpired) params.append('include_expired', 'true');
+      if (includeExpired || selectedStage === 'expired' || selectedNiche !== 'all' || selectedLanguage !== 'all' || searchQuery.trim()) {
+        params.append('include_expired', 'true');
+      }
       if (selectedNiche !== 'all') params.append('niche', selectedNiche);
       if (selectedLanguage !== 'all') params.append('language', selectedLanguage);
       if (searchQuery.trim()) params.append('search', searchQuery.trim());
@@ -266,39 +269,91 @@ export function DeckExplore({ onSelectTrend, mode, onModeChange }: DeckExplorePr
         ) : (
           trends.map((t) => {
             const creators = t.creator_count || 1;
+            const rawSnippet = (t.why_this_works || t.used_for_note || t.used_for || '').trim();
+            const isCanned = (s: string) => {
+              if (!s || s.length < 8) return true;
+              const l = s.toLowerCase();
+              return (
+                l.includes('currently driving high engagement') ||
+                l.includes('automated fallback') ||
+                l.includes('sporadic') ||
+                l.includes('creators consistently use this sound') ||
+                l.includes('fast-paced visual storytelling') ||
+                l.includes('adapt the visual style')
+              );
+            };
+            const detailSnippet = !isCanned(rawSnippet) ? rawSnippet : '';
+
             return (
               <div
                 key={t.id}
                 onClick={() => onSelectTrend(t)}
-                className="p-3.5 rounded-2xl bg-zinc-900/70 border border-zinc-800 hover:border-zinc-700 transition-all flex items-center justify-between gap-3 cursor-pointer active:scale-[0.99]"
+                className={`p-3.5 rounded-2xl border transition-all flex flex-col gap-2.5 cursor-pointer active:scale-[0.99] ${
+                  isExpired
+                    ? 'bg-zinc-950/80 border-zinc-800/80 hover:border-zinc-700'
+                    : 'bg-zinc-900/70 border-zinc-800 hover:border-zinc-700'
+                }`}
               >
-                <div className="min-w-0 flex-1">
-                  <div className="flex items-center gap-2">
-                    <h4 className="text-sm font-bold text-white truncate font-display">
-                      {t.audio_title}
-                    </h4>
-                    {t.is_new_today && (
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
-                    )}
+                <div className="flex items-start justify-between gap-3">
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center gap-2">
+                      <h4 className="text-sm font-bold text-white truncate font-display">
+                        {t.audio_title}
+                      </h4>
+                      {t.is_new_today && !isExpired && (
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-400 shrink-0" />
+                      )}
+                    </div>
+                    <p className="text-xs text-zinc-400 truncate mt-0.5">
+                      {t.audio_artist}
+                    </p>
+                    <p className="text-[11px] font-mono text-zinc-500 mt-1">
+                      {formatCount(creators)} creators · caught {formatAge(t.age_hours)}
+                    </p>
                   </div>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5">
-                    {t.audio_artist}
-                  </p>
-                  <p className="text-[11px] font-mono text-zinc-500 mt-1">
-                    {formatCount(creators)} creators · caught {formatAge(t.age_hours)}
-                  </p>
+
+                  <div className="flex flex-col items-end gap-1.5 shrink-0">
+                    <span
+                      className={`px-2.5 py-1 rounded-full text-[11px] font-semibold border ${
+                        isExpired
+                          ? 'bg-slate-800/80 text-slate-300 border-slate-700/60'
+                          : t.status === 'emerging'
+                          ? 'bg-pink-500/15 text-pink-300 border-pink-500/30'
+                          : t.status === 'resurging'
+                          ? 'bg-purple-500/15 text-purple-300 border-purple-500/30'
+                          : 'bg-zinc-800 text-zinc-300 border-zinc-700/60'
+                      }`}
+                    >
+                      {isExpired ? '⛔ Expired' : t.stage_label}
+                    </span>
+                    <div className="flex items-center gap-1.5">
+                      {t.niche && (
+                        <span className="text-[10px] font-mono text-zinc-400 px-1.5 py-0.5 rounded bg-zinc-800/60 border border-zinc-800">
+                          {t.niche}
+                        </span>
+                      )}
+                      {t.language && (
+                        <span className="text-[10px] font-mono text-zinc-400 uppercase px-1.5 py-0.5 rounded bg-zinc-800/60 border border-zinc-800">
+                          {t.language}
+                        </span>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
-                <div className="flex flex-col items-end gap-1.5 shrink-0">
-                  <span className="px-2.5 py-1 rounded-full bg-zinc-800 text-zinc-300 text-[11px] font-semibold">
-                    {t.stage_label}
-                  </span>
-                  {t.language && (
-                    <span className="text-[10px] font-mono text-zinc-500 uppercase">
-                      {t.language}
-                    </span>
-                  )}
-                </div>
+                {/* Details Banner: Why this works / Used for pattern */}
+                {detailSnippet && (
+                  <div className="rounded-xl bg-zinc-950/70 border border-zinc-800/80 p-2.5 text-xs text-zinc-300 leading-snug">
+                    <span className="font-bold text-amber-400">💡 Why this works: </span>
+                    {detailSnippet}
+                  </div>
+                )}
+
+                {isExpired && (
+                  <div className="flex items-center gap-1.5 text-[10px] font-mono text-zinc-500 pt-0.5">
+                    <span>⚠️ Historical reference · Past viral window</span>
+                  </div>
+                )}
               </div>
             );
           })

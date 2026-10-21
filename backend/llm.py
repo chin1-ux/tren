@@ -13,18 +13,19 @@ def _ipv4_only(*args, **kwargs):
     res = _orig_getaddrinfo(*args, **kwargs)
     if args:
         host = str(args[0]).lower()
-        if host in ("testserver", "localhost", "127.0.0.1", "googleapis.com") or host.endswith(".googleapis.com"):
+        if host in ("testserver", "localhost", "127.0.0.1"):
             return res
     ipv4_res = [r for r in res if r[0] == socket.AF_INET]
     return ipv4_res if ipv4_res else res
 socket.getaddrinfo = _ipv4_only
 
-# Available Gemini models (verified 2026-08-24):
-# gemini-3.6-flash — latest stable, primary
-# gemini-3.5-flash-lite — secondary fallback
+# Available Gemini models (verified 2026-10-19):
+# gemini-3.5-flash-lite — fast, high availability free tier
+# gemini-3.5-flash — high capacity flash
 _GEMINI_FALLBACK_MODELS = [
-    "gemini-3.6-flash",
     "gemini-3.5-flash-lite",
+    "gemini-3.5-flash",
+    "gemini-3.6-flash",
 ]
 
 

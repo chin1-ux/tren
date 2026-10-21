@@ -18,11 +18,13 @@ export interface ResolvedAudio {
   externalUrl?: string | null;
 }
 
+import { API_URL } from "./api";
+
 // In-memory runtime cache
 const memoryCache = new Map<string, ResolvedAudio>();
 
-// Storage cache key (v4: strictly audited to invalidate any previously mismatched audio)
-const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v4_strict";
+// Storage cache key (v5: strictly audited to invalidate cross-artist mismatches and normalize diacritics)
+const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v5_strict";
 
 /**
  * Check if a URL is an actual audio stream file (m4a, mp3, aac) and NOT an HTML page
@@ -60,6 +62,7 @@ function getStorageCache(): Record<string, ResolvedAudio> {
     localStorage.removeItem("trendrop_resolved_audio_cache_v1");
     localStorage.removeItem("trendrop_resolved_audio_cache_v2");
     localStorage.removeItem("trendrop_resolved_audio_cache_v3");
+    localStorage.removeItem("trendrop_resolved_audio_cache_v4_strict");
 
     const raw = localStorage.getItem(CACHE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -88,11 +91,13 @@ function saveToStorageCache(key: string, data: ResolvedAudio) {
 }
 
 /**
- * Clean and normalize text strings for tokenization
+ * Clean and normalize text strings for tokenization (strips diacritics e.g. ROSÉ -> rose)
  */
 function normalizeString(s?: string | null): string {
   if (!s) return "";
   return s
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "") // Strip diacritics / accents: ROSÉ -> ROSE
     .toLowerCase()
     .replace(/[\(\[].*?[\)\]]/g, "") // remove parenthetical content like (feat. ...)
     .replace(/[^a-z0-9\s]/g, " ")     // keep alphanumeric
@@ -148,7 +153,9 @@ export function isOriginalCreatorAudio(title?: string, artist?: string): boolean
 
 /**
  * Calculate match confidence between requested track and iTunes candidate.
- * STRICT: If target artist is known and candidate artist has 0 token overlap, returns 0.
+ * STRICT:
+ * 1. Title must match at least 65% of words (prevents matching 1 word out of 3).
+ * 2. Artist overlap is balanced across both target and candidate.
  */
 export function calculateMatchConfidence(
   targetTitle: string,
@@ -172,23 +179,29 @@ export function calculateMatchConfidence(
   const matchedTitleWords = titleWords.filter((w) => candTitleWords.has(w));
   const titleScore = matchedTitleWords.length / titleWords.length;
 
+  // STRICT TITLE VETO: Reject if fewer than 65% of title words match!
+  if (titleScore < 0.65) {
+    return 0;
+  }
+
   // Stopwords for artist matching
   const artistStopwords = new Set(["the", "feat", "ft", "and", "official", "music", "audio", "records"]);
   const artistWords = normTargetArtist.split(" ").filter((w) => w.length > 1 && !artistStopwords.has(w));
-  const candArtistWords = new Set(normCandArtist.split(" ").filter((w) => w.length > 1 && !artistStopwords.has(w)));
+  const candArtistList = normCandArtist.split(" ").filter((w) => w.length > 1 && !artistStopwords.has(w));
+  const candArtistWords = new Set(candArtistList);
 
   let artistScore = 0.5; // Neutral if no artist provided
 
   if (artistWords.length > 0) {
     const matchedArtistWords = artistWords.filter((w) => candArtistWords.has(w));
-    const artistOverlap = matchedArtistWords.length / artistWords.length;
-
-    // STRICT REJECTION: If target artist is specified but has ZERO overlap with candidate artist, REJECT!
-    if (artistOverlap === 0) {
-      return 0; // Absolute veto: prevents Drake playing for Tyler, The Creator
+    if (matchedArtistWords.length === 0) {
+      return 0; // Absolute veto: target artist was not found in candidate
     }
 
-    artistScore = artistOverlap;
+    // Overlap relative to both target and candidate (prevents matching 1 name in 5 artists)
+    const targetOverlap = matchedArtistWords.length / artistWords.length;
+    const candOverlap = matchedArtistWords.length / Math.max(1, candArtistList.length);
+    artistScore = (targetOverlap * 0.7) + (candOverlap * 0.3);
   }
 
   // 60% Title weight, 40% Artist weight
@@ -344,6 +357,32 @@ export async function resolveAudioTrack(params: {
     }
   } catch (err) {
     console.warn(`[audio-resolver] Failed to resolve "${fullQuery}":`, err);
+  }
+
+  // Step 5D: If iTunes has no match, fetch reel audio stream from backend
+  if (params.id) {
+    try {
+      const streamRes = await fetch(`${API_URL}/api/deck/${params.id}/stream`);
+      if (streamRes.ok) {
+        const streamData = await streamRes.json();
+        if (streamData.audio_url) {
+          const resolved: ResolvedAudio = {
+            previewUrl: streamData.audio_url,
+            title: params.song,
+            artist: params.artist,
+            coverUrl: null,
+            sourceType: "stream",
+            viralStartSec: 0,
+            viralDurationSec: 15,
+            durationSec: 30,
+            externalUrl: params.audioId ? `https://www.instagram.com/reels/audio/${params.audioId}/` : null,
+          };
+          memoryCache.set(cacheKey, resolved);
+          saveToStorageCache(cacheKey, resolved);
+          return resolved;
+        }
+      }
+    } catch {}
   }
 
   // Fallback: unresolved (never serve an incorrect artist)
