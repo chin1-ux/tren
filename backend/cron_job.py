@@ -415,10 +415,12 @@ def run_full_pipeline(stages: list = None):
         run_count = 0
 
     if not os.environ.get("SCRAPER_MODE"):
-        # Alternate between "india" and "global" on consecutive cron runs
-        scrape_mode = "global" if (run_count % 2 == 1) else "india"
+        # Peak-hour schedule: India daytime (02:00-16:00 UTC = 07:30-21:30 IST) runs India mode;
+        # India night / Americas-Europe peak (16:00-02:00 UTC) runs Global mode.
+        now_utc = datetime.now(timezone.utc)
+        scrape_mode = "india" if (2 <= now_utc.hour < 16) else "global"
         os.environ["SCRAPER_MODE"] = scrape_mode
-        logging.info(f"Selected scraper mode for run #{run_count}: {scrape_mode}")
+        logging.info(f"Selected scraper mode based on UTC hour {now_utc.hour} ({now_utc.strftime('%H:%M UTC')}): {scrape_mode}")
     else:
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
@@ -1092,10 +1094,11 @@ def run_full_pipeline(stages: list = None):
         status = "success" if not run_state.get("cutoff_reason") else "partial"
 
     try:
-        sb = _get_supabase()
+        github_run_id = os.environ.get("GITHUB_RUN_ID")
         payload = {
             "run_at": start.isoformat(),
             "completed_at": completed_at.isoformat(),
+            "github_run_id": int(github_run_id) if (github_run_id and str(github_run_id).isdigit()) else None,
             "duration_seconds": round(elapsed, 3),
             "new_reels_count": new_reels_count,
             "new_trends_found": len(trend_ids),

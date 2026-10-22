@@ -282,6 +282,7 @@ export function DeckExplore({ onSelectTrend, mode, onModeChange }: DeckExplorePr
                 l.includes('adapt the visual style')
               );
             };
+            const isExpired = (t.status || '').toLowerCase() === 'expired';
             const detailSnippet = !isCanned(rawSnippet) ? rawSnippet : '';
 
             return (

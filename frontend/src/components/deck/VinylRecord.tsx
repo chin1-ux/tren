@@ -83,6 +83,12 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
         audioId: trend.audio_id,
         previewUrl: trend.preview_url || undefined,
       });
+      if (!resolved.previewUrl) {
+        if (trend.audio_id) {
+          window.open(`https://www.instagram.com/reels/audio/${trend.audio_id}/`, '_blank');
+        }
+        return;
+      }
       playTrack({
         id: trend.id,
         title: resolved.title,
@@ -99,6 +105,18 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
     }
   };
 
+  // Prefetch audio preview in background for the active vinyl so play is instant
+  useEffect(() => {
+    if (!isFront || !trend?.audio_title) return;
+    resolveAudioTrack({
+      id: trend.id,
+      song: trend.audio_title,
+      artist: trend.audio_artist,
+      audioId: trend.audio_id,
+      previewUrl: trend.preview_url || undefined,
+    }).catch(() => {});
+  }, [isFront, trend?.id, trend?.audio_title, trend?.audio_artist, trend?.audio_id, trend?.preview_url]);
+
   // Drag-driven 3D tilt
   const rotateX = useTransform(y, [-200, 200], [22, -22]);
   const rotateZ = useTransform(x, [-160, 160], [10, -10]);
@@ -111,6 +129,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
   const spin    = useMotionValue(0);
   const spinAnim = useRef<ReturnType<typeof animate> | null>(null);
   const [dragging, setDragging] = useState(false);
+  const isDraggingRef = useRef(false);
 
   useEffect(() => {
     if (!isFront || dragging) return;
@@ -124,6 +143,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
   }, [isFront, dragging]);
 
   const handleDragStart = () => {
+    isDraggingRef.current = true;
     setDragging(true);
     spinAnim.current?.stop();
   };
@@ -132,6 +152,10 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
     setDragging(false);
     const oy = info.offset.y;
     const vy = info.velocity.y;
+
+    setTimeout(() => {
+      isDraggingRef.current = false;
+    }, 80);
 
     if (oy < -100 || vy < -400) { onSwipe('use');  return; }
     if (oy >  100 || vy >  400) { onSwipe('skip'); return; }
@@ -150,7 +174,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
   };
 
   const handleClick = () => {
-    if (Math.abs(x.get()) < 6 && Math.abs(y.get()) < 6) {
+    if (!isDraggingRef.current && Math.abs(x.get()) < 18 && Math.abs(y.get()) < 18) {
       onClick();
     }
   };
@@ -196,7 +220,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
           alignItems: 'center',
           justifyContent: 'center',
           cursor: isFront ? 'grab' : 'default',
-          gap: 16,
+          gap: 10,
         }}
         drag={isFront}
         dragConstraints={{ top: 0, bottom: 0, left: 0, right: 0 }}
@@ -211,7 +235,8 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
           className={isFront && !dragging ? 'vinyl-spin-gpu' : ''}
           style={{ position: 'relative', flexShrink: 0, willChange: 'transform' }}
         >
-          <svg width="280" height="280" viewBox="0 0 320 320"
+          <svg viewBox="0 0 320 320"
+            className="w-[210px] h-[210px] sm:w-[270px] sm:h-[270px]"
             style={{ filter: 'drop-shadow(0 18px 44px rgba(255,77,61,0.28)) drop-shadow(0 4px 14px rgba(0,0,0,0.08))' }}
           >
             <defs>
@@ -318,7 +343,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
           <p style={{
             fontFamily: "'Bricolage Grotesque', system-ui",
             fontWeight: 800, fontSize: 16, color: 'var(--text, #0E0E10)',
-            textAlign: 'center', maxWidth: 280,
+            textAlign: 'center', maxWidth: 'min(270px, 82vw)', padding: '0 4px',
             overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
             margin: 0,
           }}>
@@ -417,13 +442,21 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
                 lower.includes('automated fallback') ||
                 lower.includes('sporadic') ||
                 lower.includes('creators consistently use this sound') ||
-                lower.includes('fast-paced visual storytelling')
+                lower.includes('fast-paced visual storytelling') ||
+                lower.includes('resonates with') ||
+                lower.includes('positive content during these times') ||
+                lower.includes('emotional state') ||
+                lower.includes('sentiments about life') ||
+                lower.includes('evokes positive emotions') ||
+                lower.includes('popular choice for content creators') ||
+                lower.includes('cultural and emotional climate')
               );
             };
 
             const genuineWhy = !isCanned(why) ? why : null;
             const genuineUsed = !isCanned(used) ? used : null;
-            const display = genuineWhy || genuineUsed;
+            // Prioritize concrete creator use case over theoretical why_this_works
+            const display = genuineUsed || genuineWhy;
             if (!display) return null;
 
             return (

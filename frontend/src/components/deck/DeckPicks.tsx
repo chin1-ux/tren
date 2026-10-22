@@ -62,8 +62,13 @@ export function DeckPicks({
         song: t.audio_title,
         artist: t.audio_artist,
         audioId: t.audio_id,
-        previewUrl: t.preview_url || undefined,
       });
+      if (!resolved.previewUrl) {
+        if (t.audio_id) {
+          window.open(`https://www.instagram.com/reels/audio/${t.audio_id}/`, '_blank');
+        }
+        return;
+      }
       playTrack({
         id: t.id,
         title: resolved.title,

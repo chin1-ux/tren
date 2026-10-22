@@ -115,7 +115,7 @@ def get_deck_trends(
     mode: str = Query("india", description="'india' or 'global'"),
     langs: Optional[str] = Query(None, description="Comma-separated language list"),
     niches: Optional[str] = Query(None, description="Comma-separated niche list"),
-    limit: int = Query(120, le=120),
+    limit: int = Query(120, le=200),
     include_expired: Optional[bool] = Query(False, description="Whether to include expired audios in deck pool"),
     authorization: Optional[str] = Header(None)
 ):
@@ -272,6 +272,18 @@ def get_deck_trends(
                 "popular audio for creator other reels",
                 "popular in general creator reels",
                 "used for fast-paced visual storytelling",
+                "resonates with",
+                "positive content during these times",
+                "current emotional state",
+                "cultural and emotional climate",
+                "sentiments about life",
+                "evokes positive emotions",
+                "positive and encouraging tone",
+                "popular choice for content creators",
+                "is spreading right now because",
+                "insufficient reel data",
+                "no indexed reel evidence",
+                "sampled reels show completely discordant themes",
             ]
             for needle in canned_needles:
                 if needle in why_this_works.lower():
@@ -338,48 +350,83 @@ def get_deck_trend_reels(trend_id: int):
         audio_id = trend.get("audio_id")
         title = trend.get("audio_title")
 
-        reels = []
+        candidates = []
+        seen_ids = set()
+
+        # 1. Fetch candidates by audio_id (primary index)
         if audio_id:
-            # Fetch 20 candidates to have pool for scoring, ordered by scraped_at desc (newest first)
             r_res = supabase.table("reels")\
                 .select("id, reel_id, owner_username, view_count, like_count, thumbnail_url, video_url, created_at, scraped_at, posted_at")\
                 .eq("audio_id", str(audio_id))\
-                .order("scraped_at", desc=True)\
-                .limit(20)\
+                .order("view_count", desc=True)\
+                .limit(40)\
                 .execute()
-            reels = r_res.data or []
+            for r in (r_res.data or []):
+                if r["id"] not in seen_ids:
+                    seen_ids.add(r["id"])
+                    candidates.append(r)
 
-        if not reels and title:
-            r_res = supabase.table("reels")\
+        # 2. Also pool candidates by audio_title to catch reels scraped under matching title
+        if title:
+            r_res2 = supabase.table("reels")\
                 .select("id, reel_id, owner_username, view_count, like_count, thumbnail_url, video_url, created_at, scraped_at, posted_at")\
                 .eq("audio_title", title)\
-                .order("scraped_at", desc=True)\
-                .limit(20)\
+                .order("view_count", desc=True)\
+                .limit(40)\
                 .execute()
-            reels = r_res.data or []
+            for r in (r_res2.data or []):
+                if r["id"] not in seen_ids:
+                    seen_ids.add(r["id"])
+                    candidates.append(r)
 
-        # Sort: newest scraped first. Within reels scraped in the same run (same scraped_at),
-        # rank by engagement (views + 3*likes) so high-performing reels surface first.
-        def _reel_sort_key(r):
-            scraped_ts = str(r.get("scraped_at") or "")
-            engagement = int(r.get("view_count") or 0) + 3 * int(r.get("like_count") or 0)
-            return (scraped_ts, engagement)
+        # 3. Sort candidates by engagement (views + 3 * likes)
+        def _reel_score(r):
+            views = int(r.get("view_count") or 0)
+            likes = int(r.get("like_count") or 0)
+            return views + 3 * likes
 
-        reels.sort(key=_reel_sort_key, reverse=True)
-        reels = reels[:6]
+        candidates.sort(key=_reel_score, reverse=True)
+
+        # 4. Creator Deduplication: keep only the single best reel per creator account
+        # Prevents one account from dominating all 6 preview slots
+        deduped_by_creator = []
+        seen_creators = set()
+        for r in candidates:
+            creator = (r.get("owner_username") or "").lower().strip()
+            if creator and creator not in {"creator", "unknown", "none", ""}:
+                if creator in seen_creators:
+                    continue
+                seen_creators.add(creator)
+            deduped_by_creator.append(r)
+
+        # 5. Quality Filter (Anti-Trash Gate):
+        # If there are reels with >= 2,000 views, exclude zero/sub-500 view trash reels
+        high_quality = [r for r in deduped_by_creator if int(r.get("view_count") or 0) >= 2000]
+        if high_quality:
+            final_reels = high_quality[:6]
+        else:
+            # Fallback to best available if sound is brand-new / early
+            final_reels = deduped_by_creator[:6]
 
         items = []
-        for r in reels:
+        for r in final_reels:
             rid = r.get("reel_id")
+            views = int(r.get("view_count") or 0)
+            likes = int(r.get("like_count") or 0)
             thumb = f"/api/deck/thumb/{rid}" if rid else r.get("thumbnail_url")
+            video_url = r.get("video_url")
+            # Only valid, unexpired MP4 CDN streams
+            is_valid_mp4 = bool(video_url and (".mp4" in video_url or "cdninstagram" in video_url) and _is_safe_unexpired_video_url(video_url))
+
             items.append({
                 "id": r["id"],
                 "reel_id": rid,
                 "owner_username": r.get("owner_username") or "creator",
-                "view_count": int(r.get("view_count") or 0),
-                "like_count": int(r.get("like_count") or 0),
+                "view_count": views,
+                "like_count": likes,
+                "is_high_engagement": views >= 25000,
                 "thumbnail_url": thumb,
-                "video_url": r.get("video_url"),
+                "video_url": video_url if is_valid_mp4 else None,
                 "instagram_url": f"https://www.instagram.com/reel/{rid}/" if rid else None,
                 "embed_url": f"https://www.instagram.com/p/{rid}/embed/" if rid else None
             })
@@ -390,10 +437,37 @@ def get_deck_trend_reels(trend_id: int):
         return JSONResponse(content={"reels": []})
 
 
+def _is_safe_unexpired_video_url(url: Optional[str]) -> bool:
+    """Check if video_url is valid and not an expired Instagram CDN URL."""
+    if not url or not isinstance(url, str):
+        return False
+    if "cdninstagram.com" in url or "fbcdn.net" in url:
+        m = re.search(r"[?&]oe=([0-9a-fA-F]+)", url)
+        if m:
+            try:
+                expiry = int(m.group(1), 16)
+                if time.time() >= expiry - 60:
+                    return False
+            except Exception:
+                return False
+    return True
+
+
+def _is_safe_audio_stream_url(url: Optional[str]) -> bool:
+    """Check if URL is a genuine audio stream (e.g. mp3/m4a/aac) and not an Instagram CDN video URL."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.lower()
+    if "cdninstagram.com" in u or "fbcdn.net" in u or ".mp4" in u:
+        return False
+    return u.endswith((".m4a", ".mp3", ".aac", ".ogg")) or "audio-ssl.itunes.apple.com" in u or "mzstatic.com" in u
+
+
 @router.get("/api/deck/{trend_id}/stream")
 def get_deck_trend_audio_stream(trend_id: int):
     """
-    Public audio stream resolver for deck cards: returns stream URL from Apple/Spotify or top scraped reel.
+    Public audio stream resolver for deck cards: returns verified public stream URL.
+    Strictly filters out Instagram CDN video URLs to prevent client 403 errors.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Database not configured")
@@ -408,14 +482,18 @@ def get_deck_trend_audio_stream(trend_id: int):
         title = trend.get("audio_title")
 
         if audio_id:
-            r_res = supabase.table("reels").select("video_url").eq("audio_id", str(audio_id)).not_.is_("video_url", "null").limit(1).execute()
-            if r_res.data and r_res.data[0].get("video_url"):
-                return JSONResponse(content={"audio_url": r_res.data[0]["video_url"]})
+            r_res = supabase.table("reels").select("video_url").eq("audio_id", str(audio_id)).not_.is_("video_url", "null").limit(5).execute()
+            for r in (r_res.data or []):
+                v_url = r.get("video_url")
+                if v_url and _is_safe_audio_stream_url(v_url):
+                    return JSONResponse(content={"audio_url": v_url})
 
         if title:
-            r_res = supabase.table("reels").select("video_url").eq("audio_title", title).not_.is_("video_url", "null").limit(1).execute()
-            if r_res.data and r_res.data[0].get("video_url"):
-                return JSONResponse(content={"audio_url": r_res.data[0]["video_url"]})
+            r_res = supabase.table("reels").select("video_url").eq("audio_title", title).not_.is_("video_url", "null").limit(5).execute()
+            for r in (r_res.data or []):
+                v_url = r.get("video_url")
+                if v_url and _is_safe_audio_stream_url(v_url):
+                    return JSONResponse(content={"audio_url": v_url})
 
         return JSONResponse(content={"audio_url": None})
     except Exception as e:

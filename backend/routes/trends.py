@@ -909,13 +909,26 @@ def get_emerging_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+_LAST_DETECTED_CACHE: dict = {"time": 0, "data": None}
+
 @router.get("/api/trends/last-detected")
 def get_last_detected_times():
     """
     Returns the newest detection timestamp per trend status.
     Used by frontend empty states across all tabs to inform users
     when a trend of that category was last detected.
+    Cached in-memory for 300s to avoid 5 repeated sequential DB roundtrips.
     """
+    now_ts = time.time()
+    if _LAST_DETECTED_CACHE.get("data") and (now_ts - _LAST_DETECTED_CACHE.get("time", 0) < 300):
+        return JSONResponse(
+            content=_LAST_DETECTED_CACHE["data"],
+            headers={
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "X-Cache": "HIT-MEM"
+            }
+        )
+
     if not supabase:
         return JSONResponse(content={})
     try:
@@ -935,13 +948,16 @@ def get_last_detected_times():
                 result[st] = item.get("first_detected_at") or item.get("created_at")
             else:
                 result[st] = None
+
+        _LAST_DETECTED_CACHE["time"] = now_ts
+        _LAST_DETECTED_CACHE["data"] = result
         return JSONResponse(
             content=result,
-            headers={"Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"}
+            headers={
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "X-Cache": "MISS"
+            }
         )
-    except Exception as e:
-        logger.error(f"Error fetching last detected times: {e}")
-        return JSONResponse(content={})
     except Exception as e:
         logger.error(f"Error fetching last detected times: {e}")
         return JSONResponse(content={})

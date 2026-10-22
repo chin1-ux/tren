@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createFileRoute, useNavigate, Link } from '@tanstack/react-router';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -20,12 +20,12 @@ import {
   type UserSwipe,
   rankDeck
 } from '@/lib/deck-ranking';
-import { VinylRecord }     from '@/components/deck/VinylRecord';
-import { VinylInfoModal }  from '@/components/deck/VinylInfoModal';
-import { VinylBackground } from '@/components/deck/VinylBackground';
-import { DeckExplore }     from '@/components/deck/DeckExplore';
-import { DeckPicks }       from '@/components/deck/DeckPicks';
-import { DeckOnboarding }  from '@/components/deck/DeckOnboarding';
+import { VinylRecord }        from '@/components/deck/VinylRecord';
+import { VinylInfoModal }     from '@/components/deck/VinylInfoModal';
+import { VinylBackground }    from '@/components/deck/VinylBackground';
+import { DeckPicks }          from '@/components/deck/DeckPicks';
+import { DeckOnboarding }     from '@/components/deck/DeckOnboarding';
+import { MilestoneRecapCard } from '@/components/deck/MilestoneRecapCard';
 import { API_URL, getAuthToken } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
@@ -46,8 +46,8 @@ function DeckScreen() {
   const navigate = useNavigate();
   const auth = useAuth?.() || { user: null, loginWithGoogle: async () => {} };
 
-  // Current active tab: 'deck' | 'explore' | 'picks'
-  const [activeTab, setActiveTab] = useState<'deck' | 'explore' | 'picks'>('deck');
+  // Current active tab: 'deck' | 'picks'
+  const [activeTab, setActiveTab] = useState<'deck' | 'picks'>('deck');
 
   // Preferences
   const [mode, setMode] = useState<string>(() => {
@@ -94,6 +94,8 @@ function DeckScreen() {
   const swipeQueueRef = useRef<Array<{ trend_id: number; action: 'use' | 'skip'; reason?: string }>>([]);
   const [savedAudios, setSavedAudios] = useState<DeckTrend[]>([]);
   const [lastSwipedCard, setLastSwipedCard] = useState<DeckTrend | null>(null);
+  const [batchCount, setBatchCount] = useState<number>(1);
+  const [isDealingMore, setIsDealingMore] = useState<boolean>(false);
 
   // Sheet dialogs
   const [selectedVinyl, setSelectedVinyl] = useState<DeckTrend | null>(null);
@@ -266,6 +268,19 @@ function DeckScreen() {
     fetchDeckPool();
   }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck]);
 
+  // Rehydrate savedAudios from rawPool matching 'use' swipes
+  useEffect(() => {
+    if (rawPool.length > 0 && swipes.length > 0) {
+      const useIds = new Set(swipes.filter((s) => s.action === 'use').map((s) => s.trend_id));
+      setSavedAudios((prev) => {
+        const existingIds = new Set(prev.map((p) => p.id));
+        const fromPool = rawPool.filter((c) => useIds.has(c.id) && !existingIds.has(c.id));
+        if (fromPool.length === 0) return prev;
+        return [...prev, ...fromPool];
+      });
+    }
+  }, [rawPool, swipes]);
+
   // Handle Swipe (Use / Skip)
   const handleSwipe = useCallback(
     (action: 'use' | 'skip', reason?: string) => {
@@ -373,6 +388,86 @@ function DeckScreen() {
   const currentVinyl = deck[currentIndex];
   const isCaughtUp = currentIndex >= deck.length && !loading;
 
+  // Unswiped count remaining in rawPool
+  const remainingCandidatesCount = useMemo(() => {
+    const swipedIds = new Set(swipes.map((s) => s.trend_id));
+    return rawPool.filter((c) => !swipedIds.has(c.id)).length;
+  }, [rawPool, swipes]);
+
+  // Deal Next 15 Candidates with continuous batching
+  const handleDealMore = useCallback(async () => {
+    setIsDealingMore(true);
+    try {
+      let poolToUse = rawPool;
+      const swipedIds = new Set(swipes.map((s) => s.trend_id));
+      let unswiped = poolToUse.filter((c) => !swipedIds.has(c.id));
+
+      // If pool is running low (< 5), fetch an expanded pool from backend
+      if (unswiped.length < 5) {
+        try {
+          const params = new URLSearchParams({
+            mode,
+            limit: '120',
+            include_expired: 'true',
+          });
+          if (selectedLanguages.length > 0) {
+            params.append('langs', selectedLanguages.join(','));
+          }
+          if (selectedNiches.length > 0) {
+            params.append('niches', selectedNiches.join(','));
+          }
+          const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+          if (res.ok) {
+            const data = await res.json();
+            const freshTrends: DeckTrend[] = data.trends || [];
+            if (freshTrends.length > 0) {
+              setRawPool(freshTrends);
+              poolToUse = freshTrends;
+              const freshSwiped = new Set(swipes.map((s) => s.trend_id));
+              unswiped = freshTrends.filter((c) => !freshSwiped.has(c.id));
+            }
+          }
+        } catch (fetchErr) {
+          console.warn('Could not replenish deck pool:', fetchErr);
+        }
+      }
+
+      // If still 0 unswiped, automatically clear skips to re-deal with refined taste
+      let activeSwipes = swipes;
+      if (unswiped.length === 0) {
+        activeSwipes = swipes.filter((s) => s.action === 'use');
+        setSwipes(activeSwipes);
+        if (typeof window !== 'undefined') {
+          localStorage.setItem('trendrop_local_swipes', JSON.stringify(activeSwipes));
+        }
+      }
+
+      const nextRanked = rankDeck(poolToUse, activeSwipes, 15);
+      if (nextRanked.length > 0) {
+        setDeck(nextRanked);
+        setCurrentIndex(0);
+        setBatchCount((prev) => prev + 1);
+      }
+    } finally {
+      setIsDealingMore(false);
+    }
+  }, [rawPool, swipes, mode, selectedLanguages, selectedNiches]);
+
+  // Re-shuffle passed tracks (keeps saved audios safe, resets skips)
+  const handleReshufflePassed = useCallback(() => {
+    const keptSwipes = swipes.filter((s) => s.action === 'use');
+    setSwipes(keptSwipes);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('trendrop_local_swipes', JSON.stringify(keptSwipes));
+    }
+    const freshRanked = rankDeck(rawPool, keptSwipes, 15);
+    if (freshRanked.length > 0) {
+      setDeck(freshRanked);
+      setCurrentIndex(0);
+      setBatchCount((prev) => prev + 1);
+    }
+  }, [rawPool, swipes]);
+
   return (
     <div
       className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 font-sans select-none relative bg-background text-foreground"
@@ -466,14 +561,14 @@ function DeckScreen() {
             <Layers className="w-3.5 h-3.5" />
             <span>Deck</span>
           </button>
-          <Link
-            to="/"
-            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5"
+          <button
+            onClick={() => navigate({ to: '/' })}
+            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
             style={{ color: '#9A9AA8' }}
           >
             <Compass className="w-3.5 h-3.5" />
             <span>Feed</span>
-          </Link>
+          </button>
           <button
             onClick={() => setActiveTab('picks')}
             className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative"
@@ -526,38 +621,26 @@ function DeckScreen() {
               </button>
             </div>
           ) : isCaughtUp ? (
-            // Caught up state
-            <div
-              className="w-full max-w-[390px] p-8 text-center rounded-3xl space-y-5 animate-in fade-in duration-300"
-              style={{ background: '#fff', border: '1px solid rgba(255,77,61,0.12)', boxShadow: '0 4px 24px rgba(255,77,61,0.08)' }}
-            >
-              <div className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-                style={{ background: 'rgba(199,242,58,0.15)', border: '1.5px solid rgba(199,242,58,0.5)' }}
-              >
-                <Check className="w-8 h-8" style={{ color: '#4A7C00' }} />
-              </div>
-              <div className="space-y-1.5">
-                <h3 className="text-2xl font-bold" style={{ color: '#0E0E10', fontFamily: "'Bricolage Grotesque', system-ui" }}>
-                  You're caught up
-                </h3>
-                <p className="text-xs font-mono" style={{ color: '#9A9AA8' }}>Updated {freshnessMinutes}m ago</p>
-                <p className="text-xs pt-1" style={{ color: '#9A9AA8' }}>You've reviewed today's top verified breakout audios.</p>
-              </div>
-              <div className="pt-2">
-                <button
-                  onClick={() => setActiveTab('explore')}
-                  className="w-full py-3.5 px-6 rounded-2xl text-white text-sm font-semibold shadow-xl transition-all active:scale-95"
-                  style={{ background: '#FF4D3D', boxShadow: '0 6px 20px rgba(255,77,61,0.35)' }}
-                >
-                  Explore All Trends
-                </button>
-              </div>
-            </div>
+            // Milestone Celebration Card with 1-Tap Deal More & Session Recap
+            <MilestoneRecapCard
+              batchCount={batchCount}
+              sessionSwipesCount={swipes.length}
+              savedAudios={savedAudios}
+              streakDays={streakDays}
+              freshnessMinutes={freshnessMinutes}
+              remainingCandidatesCount={remainingCandidatesCount}
+              onDealMore={handleDealMore}
+              onViewPicks={() => setActiveTab('picks')}
+              onGoToFeed={() => navigate({ to: '/' })}
+              onReshufflePassed={handleReshufflePassed}
+              onSelectTrend={(t) => setSelectedVinyl(t)}
+              isLoadingMore={isDealingMore}
+            />
           ) : (
             // Vinyl stack + action buttons
             <div className="w-full max-w-[390px] flex flex-col items-center h-full max-h-[660px]">
               {/* Single Vinyl Showcase (one at a time) */}
-              <div className="w-full flex-1 relative min-h-[460px] max-h-[540px]">
+              <div className="w-full flex-1 relative min-h-[360px] sm:min-h-[440px] max-h-[500px]">
                 <AnimatePresence mode="wait">
                   {currentVinyl && (
                     <VinylRecord
@@ -588,7 +671,7 @@ function DeckScreen() {
                 {/* Pass (down) */}
                 <button
                   onClick={() => handleSwipe('skip')}
-                  className="w-15 h-15 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                  className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full flex items-center justify-center active:scale-90 transition-all"
                   style={{
                     background: 'rgba(255,77,61,0.08)',
                     border: '1.5px solid rgba(255,77,61,0.25)',
@@ -596,20 +679,20 @@ function DeckScreen() {
                   }}
                   aria-label="Pass (flick down)"
                 >
-                  <X className="w-7 h-7" />
+                  <X className="w-6 h-6 sm:w-7 sm:h-7" />
                 </button>
 
                 {/* Use It (up) */}
                 <button
                   onClick={() => handleSwipe('use')}
-                  className="w-15 h-15 rounded-full text-white flex items-center justify-center active:scale-90 transition-all"
+                  className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full text-white flex items-center justify-center active:scale-90 transition-all"
                   style={{
                     background: '#FF4D3D',
                     boxShadow: '0 6px 20px rgba(255,77,61,0.4)',
                   }}
                   aria-label="Use It (flick up)"
                 >
-                  <Check className="w-8 h-8 stroke-[3]" />
+                  <Check className="w-7 h-7 sm:w-8 sm:h-8 stroke-[3]" />
                 </button>
               </div>
 
@@ -619,12 +702,6 @@ function DeckScreen() {
               </p>
             </div>
           )
-        ) : activeTab === 'explore' ? (
-          <DeckExplore
-            onSelectTrend={(t) => setSelectedVinyl(t)}
-            mode={mode}
-            onModeChange={(m) => setMode(m)}
-          />
         ) : (
           <DeckPicks
             savedAudios={savedAudios}
@@ -725,9 +802,17 @@ function DeckScreen() {
           setMode(prefs.mode);
           setSelectedLanguages(prefs.languages);
           setSelectedNiches(prefs.niches);
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('trendrop_deck_onboarded', 'true');
+          }
           setIsOnboardingOpen(false);
         }}
-        onClose={() => setIsOnboardingOpen(false)}
+        onClose={() => {
+          if (typeof window !== 'undefined') {
+            localStorage.setItem('trendrop_deck_onboarded', 'true');
+          }
+          setIsOnboardingOpen(false);
+        }}
         initialMode={mode}
         initialLanguages={selectedLanguages}
         initialNiches={selectedNiches}

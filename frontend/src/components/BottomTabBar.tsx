@@ -58,13 +58,20 @@ export function BottomTabBar() {
       <ul className={`grid relative ${gridColsClass}`}>
         {tabs.map(({ to, label, Icon }) => {
           const isActive = to === "/"
-            ? currentPath === "/" || currentPath.startsWith("/deck")
+            ? currentPath === "/"
             : currentPath.startsWith(to);
           
           return (
             <li key={to}>
               <Link
                 to={to}
+                preload={false}
+                onClick={(e) => {
+                  if (to === "/" && currentPath !== "/") {
+                    e.preventDefault();
+                    navigate({ to: "/" });
+                  }
+                }}
                 className={`relative flex w-full flex-col items-center justify-center gap-0.5 py-3 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${
                   isActive ? "text-primary" : "text-muted-foreground hover:text-foreground"
                 }`}
@@ -85,7 +92,7 @@ export function BottomTabBar() {
                   {/* All tabs use their Icon for consistent active-state colour */}
                   <Icon className="h-5 w-5" />
                 </motion.div>
-                <span className="text-[10px] sm:text-[11px] font-display mt-0.5">{label}</span>
+                <span className="text-[10px] sm:text-[11px] font-display mt-0.5 truncate max-w-full px-0.5 tracking-tight">{label}</span>
               </Link>
             </li>
           );

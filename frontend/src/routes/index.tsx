@@ -1,7 +1,7 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw } from "lucide-react";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchLastDetectedTimes, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
@@ -250,14 +250,6 @@ function TrendsFeed() {
     return () => clearInterval(id);
   }, []);
 
-  // Stagger secondary queries by 1500ms so rising & emerging get full initial bandwidth.
-  // Peaked, expired, resurging, targeted are non-critical for first paint.
-  const [secondaryReady, setSecondaryReady] = useState(false);
-  useEffect(() => {
-    const timer = setTimeout(() => setSecondaryReady(true), 1500);
-    return () => clearTimeout(timer);
-  }, []);
-
   const {
     data: targetedData,
     isLoading: targetedLoading,
@@ -267,7 +259,6 @@ function TrendsFeed() {
     staleTime: 10 * 60_000,
     refetchInterval: false,
     placeholderData: (prev) => prev,
-    enabled: secondaryReady || showTargetedOnly,
   });
 
   const {
@@ -277,7 +268,6 @@ function TrendsFeed() {
     queryFn: () => fetchLastDetectedTimes(),
     staleTime: 10 * 60_000,
     refetchInterval: false,
-    enabled: secondaryReady,
   });
 
   const {
@@ -320,7 +310,6 @@ function TrendsFeed() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
-    enabled: secondaryReady,
   });
 
   const {
@@ -335,7 +324,6 @@ function TrendsFeed() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
-    enabled: secondaryReady || filters.lifecycle === "expired" || (filters.niches.length > 0 && !filters.niches.includes("all")) || filters.language !== "all" || Boolean(searchQuery.trim()),
   });
 
   const {
@@ -350,7 +338,6 @@ function TrendsFeed() {
     refetchInterval: false,
     refetchOnWindowFocus: false,
     placeholderData: (prev) => prev,
-    enabled: secondaryReady,
   });
 
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
@@ -579,13 +566,48 @@ function TrendsFeed() {
       const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       if (timeB !== timeA) return timeB - timeA;
       return Number(b.id) - Number(a.id);
-    });
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery]);
+    }).map((t) => ({
+      ...t,
+      hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
+    }));
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, now]);
 
-  const withCountdown = useCallback((t: UiTrend): UiTrend => ({
-    ...t,
-    hoursLeft: Math.max(0, Math.ceil((t.expiresAt - Date.now()) / 3600_000)),
-  }), []);
+  // Chunked pagination: initial 10 cards, load 10 more on user action (no artificial limits)
+  const [visibleCount, setVisibleCount] = useState<number>(10);
+
+  // Automatically reset to first 10 cards whenever any filter or search changes
+  useEffect(() => {
+    setVisibleCount(10);
+  }, [filters, searchQuery, showTargetedOnly]);
+
+  const visibleTrends = useMemo(() => {
+    return trends.slice(0, visibleCount);
+  }, [trends, visibleCount]);
+
+  // Smart Scroll state & handlers
+  const [showSmartScroll, setShowSmartScroll] = useState<boolean>(false);
+  const [scrollProgress, setScrollProgress] = useState<number>(0);
+
+  useEffect(() => {
+    const handleScroll = () => {
+      const scrollY = window.scrollY;
+      const docHeight = document.documentElement.scrollHeight - window.innerHeight;
+      setShowSmartScroll(scrollY > 280);
+      if (docHeight > 0) {
+        setScrollProgress(Math.min(100, Math.max(0, Math.round((scrollY / docHeight) * 100))));
+      }
+    };
+    window.addEventListener("scroll", handleScroll, { passive: true });
+    return () => window.removeEventListener("scroll", handleScroll);
+  }, []);
+
+  const scrollToTop = useCallback(() => {
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }, []);
+
+  const scrollToBottom = useCallback(() => {
+    window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "smooth" });
+  }, []);
 
   return (
     <div className="flex flex-col gap-0 pb-24">
@@ -602,7 +624,8 @@ function TrendsFeed() {
             <div className="flex items-center p-1 rounded-full bg-surface/85 border border-border/80 shadow-xs backdrop-blur-md">
               <Link
                 to="/deck"
-                className="px-3 py-1 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all flex items-center gap-1"
+                preload={false}
+                className="px-3 py-1 rounded-full text-xs font-bold text-muted-foreground hover:text-foreground hover:bg-white/5 transition-all flex items-center gap-1 active:scale-95"
               >
                 <span>🔥 Swipe Deck</span>
               </Link>
@@ -876,11 +899,11 @@ function TrendsFeed() {
           </div>
         ) : (
           <div className="flex flex-col gap-4">
-            {trends.map((t) => {
+            {visibleTrends.map((t) => {
               const card = (
                 <div key={t.id} className={t.status === "expired" ? "opacity-50 grayscale-[25%]" : ""}>
                   <TrendCard
-                    trend={withCountdown(t)}
+                    trend={t}
                     onDanceTap={setDanceTrend}
                     selectedNiches={filters.niches}
                     selectedNiche={filters.niches[0]}
@@ -906,6 +929,34 @@ function TrendsFeed() {
 
               return card;
             })}
+
+            {/* Chunked Pagination: Load More (+10) Button */}
+            {visibleCount < trends.length && (
+              <div className="pt-3 pb-6 flex flex-col items-center gap-2">
+                <button
+                  type="button"
+                  id="feed-load-more-btn"
+                  onClick={() => setVisibleCount((prev) => Math.min(prev + 10, trends.length))}
+                  className="w-full max-w-sm py-3 px-6 rounded-2xl bg-gradient-to-r from-primary to-primary/80 hover:from-primary/95 hover:to-primary text-white font-bold text-sm shadow-md shadow-primary/20 hover:shadow-primary/30 active:scale-[0.98] transition-all flex items-center justify-center gap-2 cursor-pointer border border-primary/30"
+                >
+                  <span>Load More Audios (+10)</span>
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-white/20 font-semibold">
+                    {visibleCount} of {trends.length}
+                  </span>
+                </button>
+                <p className="text-[11px] text-muted-foreground font-medium">
+                  Showing {visibleCount} of {trends.length} tracks matching your active filters
+                </p>
+              </div>
+            )}
+            {visibleCount >= trends.length && trends.length > 10 && (
+              <div className="pt-4 pb-8 text-center">
+                <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-muted/50 border border-border/50 text-xs text-muted-foreground font-medium">
+                  <span>✨</span>
+                  <span>All {trends.length} matching trends loaded</span>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -925,6 +976,45 @@ function TrendsFeed() {
           totalResultsCount={trends.length}
         />
       )}
+
+      {/* ── Floating Smart Scroll Quick-Nav ─────────────────────────────── */}
+      <AnimatePresence>
+        {showSmartScroll && (
+          <motion.div
+            initial={{ opacity: 0, y: 15, scale: 0.9 }}
+            animate={{ opacity: 1, y: 0, scale: 1 }}
+            exit={{ opacity: 0, y: 15, scale: 0.9 }}
+            transition={{ duration: 0.18 }}
+            className="fixed bottom-20 right-4 z-40 flex flex-col items-center gap-1 bg-surface/90 backdrop-blur-xl border border-border/90 p-1 rounded-2xl shadow-xl shadow-black/25"
+          >
+            <button
+              type="button"
+              id="smart-scroll-top-btn"
+              onClick={scrollToTop}
+              title="Jump to Top"
+              className="h-8 w-8 rounded-xl flex items-center justify-center text-foreground hover:bg-primary/15 hover:text-primary active:scale-90 transition-all cursor-pointer"
+              aria-label="Scroll to top"
+            >
+              <ChevronUp className="h-4 w-4" />
+            </button>
+
+            <span className="text-[9px] font-extrabold text-muted-foreground px-1 select-none">
+              {scrollProgress}%
+            </span>
+
+            <button
+              type="button"
+              id="smart-scroll-bottom-btn"
+              onClick={scrollToBottom}
+              title="Jump to Bottom"
+              className="h-8 w-8 rounded-xl flex items-center justify-center text-foreground hover:bg-primary/15 hover:text-primary active:scale-90 transition-all cursor-pointer"
+              aria-label="Scroll to bottom"
+            >
+              <ChevronDown className="h-4 w-4" />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
     </div>
   );

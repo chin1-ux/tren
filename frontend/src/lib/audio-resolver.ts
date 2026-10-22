@@ -23,21 +23,40 @@ import { API_URL } from "./api";
 // In-memory runtime cache
 const memoryCache = new Map<string, ResolvedAudio>();
 
-// Storage cache key (v5: strictly audited to invalidate cross-artist mismatches and normalize diacritics)
-const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v5_strict";
+// Storage cache key (v7: strictly genuine audio streams, purged all video CDN URLs)
+const CACHE_STORAGE_KEY = "trendrop_resolved_audio_cache_v7_clean";
 
 /**
- * Check if a URL is an actual audio stream file (m4a, mp3, aac) and NOT an HTML page
+ * Detect expired Instagram CDN URLs by parsing the hexadecimal oe= timestamp
+ */
+export function isInstagramCdnUrlExpired(url?: string | null): boolean {
+  if (!url || typeof url !== "string") return false;
+  if (!url.includes(".cdninstagram.com") && !url.includes("fbcdn.net")) return false;
+  const match = url.match(/[?&]oe=([0-9a-fA-F]+)/);
+  if (!match) return false;
+  try {
+    const expirySec = parseInt(match[1], 16);
+    const nowSec = Math.floor(Date.now() / 1000);
+    // Expired or expiring within 60 seconds
+    return nowSec >= expirySec - 60;
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Check if a URL is an actual audio stream file (m4a, mp3, aac) and NOT an HTML page or Instagram video CDN URL
  */
 export function isAudioStreamUrl(url?: string | null): boolean {
   if (!url || typeof url !== "string") return false;
+  if (isInstagramCdnUrlExpired(url)) return false;
   const u = url.toLowerCase();
-  // Reject web pages
+  // Reject web pages and raw Instagram video chunks that 403 on client audio tags
   if (
-    u.includes("instagram.com/reels/audio") ||
-    u.includes("instagram.com/explore") ||
-    u.includes("instagram.com/p/") ||
-    u.includes("instagram.com/reel/")
+    u.includes("instagram.com") ||
+    u.includes(".cdninstagram.com") ||
+    u.includes("fbcdn.net") ||
+    u.endsWith(".mp4")
   ) {
     return false;
   }
@@ -47,8 +66,7 @@ export function isAudioStreamUrl(url?: string | null): boolean {
     u.endsWith(".aac") ||
     u.endsWith(".ogg") ||
     u.includes("audio-ssl.itunes.apple.com") ||
-    u.includes("mzstatic.com") ||
-    u.includes(".cdninstagram.com")
+    u.includes("mzstatic.com")
   );
 }
 
@@ -58,11 +76,12 @@ export function isAudioStreamUrl(url?: string | null): boolean {
 function getStorageCache(): Record<string, ResolvedAudio> {
   if (typeof window === "undefined") return {};
   try {
-    // Purge legacy caches that may contain cross-artist mismatches
+    // Purge legacy caches that may contain cross-artist mismatches or 403 CDN URLs
     localStorage.removeItem("trendrop_resolved_audio_cache_v1");
     localStorage.removeItem("trendrop_resolved_audio_cache_v2");
     localStorage.removeItem("trendrop_resolved_audio_cache_v3");
     localStorage.removeItem("trendrop_resolved_audio_cache_v4_strict");
+    localStorage.removeItem("trendrop_resolved_audio_cache_v6_unexpired");
 
     const raw = localStorage.getItem(CACHE_STORAGE_KEY);
     return raw ? JSON.parse(raw) : {};
@@ -316,22 +335,26 @@ export async function resolveAudioTrack(params: {
   try {
     let match: any = null;
 
-    // Step 5A: Try full query in India store with 10 candidates
-    const inCandidates = await fetchItunesCandidates(fullQuery, "IN");
-    let result = findBestCandidate(inCandidates, cleanTitle, cleanArtist);
+    // Step 5A+5B: Fire IN store and Global store in PARALLEL — halves latency vs sequential
+    const [inCandidates, globalCandidates] = await Promise.all([
+      fetchItunesCandidates(fullQuery, "IN"),
+      fetchItunesCandidates(fullQuery),
+    ]);
 
-    // Step 5B: If no high-confidence match in IN, try Global store
+    let result = findBestCandidate(inCandidates, cleanTitle, cleanArtist);
     if (!result.candidate) {
-      const globalCandidates = await fetchItunesCandidates(fullQuery);
       result = findBestCandidate(globalCandidates, cleanTitle, cleanArtist);
     }
 
     // Step 5C: If still no match and artist was present, search title alone BUT strictly verify candidate artist
+    // Also fire both stores in parallel
     if (!result.candidate && cleanTitle && cleanArtist) {
-      const titleCandidates = await fetchItunesCandidates(cleanTitle, "IN");
-      result = findBestCandidate(titleCandidates, cleanTitle, cleanArtist);
+      const [titleIN, titleGlobal] = await Promise.all([
+        fetchItunesCandidates(cleanTitle, "IN"),
+        fetchItunesCandidates(cleanTitle),
+      ]);
+      result = findBestCandidate(titleIN, cleanTitle, cleanArtist);
       if (!result.candidate) {
-        const titleGlobal = await fetchItunesCandidates(cleanTitle);
         result = findBestCandidate(titleGlobal, cleanTitle, cleanArtist);
       }
     }
@@ -365,7 +388,7 @@ export async function resolveAudioTrack(params: {
       const streamRes = await fetch(`${API_URL}/api/deck/${params.id}/stream`);
       if (streamRes.ok) {
         const streamData = await streamRes.json();
-        if (streamData.audio_url) {
+        if (streamData.audio_url && isAudioStreamUrl(streamData.audio_url)) {
           const resolved: ResolvedAudio = {
             previewUrl: streamData.audio_url,
             title: params.song,
