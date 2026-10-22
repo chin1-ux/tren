@@ -894,15 +894,15 @@ class TrendEngine:
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}
                 creator_count = len(usernames)
-                velocities = [r.get("velocity_score", 0.0) for r in group_reels]
+                velocities = [(r.get("velocity_score") or 0.0) for r in group_reels]
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
                 all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).gte("created_at", time_threshold_48h).execute()
                 all_reels = all_reels_for_audio_res.data
-                high_velocity_reels = [r for r in all_reels if r.get("velocity_score", 0) > 0.3]
+                high_velocity_reels = [r for r in all_reels if (r.get("velocity_score") or 0.0) > 0.3]
                 
-                max_group_v = max((r.get("velocity_score", 0) for r in high_velocity_reels), default=0.0)
+                max_group_v = max(((r.get("velocity_score") or 0.0) for r in high_velocity_reels), default=0.0)
                 max_group_use = max((r.get("audio_use_count") or 0 for r in high_velocity_reels), default=0)
                 max_group_views = max((r.get("view_count") or 0 for r in high_velocity_reels), default=0)
                 max_group_likes = max((r.get("like_count") or 0 for r in high_velocity_reels), default=0)

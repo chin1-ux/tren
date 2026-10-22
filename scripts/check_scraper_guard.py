@@ -15,9 +15,9 @@ def check_guard_v3(min_gap_minutes: int = None):
     """
     if min_gap_minutes is None:
         try:
-            min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "165"))
+            min_gap_minutes = int(os.getenv("SCRAPER_GUARD_MIN_GAP_MINUTES", "150"))
         except (ValueError, TypeError):
-            min_gap_minutes = 165
+            min_gap_minutes = 150
 
     # Manual workflow_dispatch always bypasses guard
     if os.getenv("GITHUB_EVENT_NAME") == "workflow_dispatch":
