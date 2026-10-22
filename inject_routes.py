@@ -36,7 +36,13 @@ def bundle_python_function():
     )
 
 
-    for filename in ['requirements.txt', 'pyproject.toml', '.python-version']:
+    # Copy lightweight serverless requirements for the function bundle
+    if os.path.exists('requirements-serverless.txt'):
+        shutil.copy2('requirements-serverless.txt', os.path.join(func_dir, 'requirements.txt'))
+    elif os.path.exists('requirements.txt'):
+        shutil.copy2('requirements.txt', os.path.join(func_dir, 'requirements.txt'))
+
+    for filename in ['pyproject.toml', '.python-version']:
         if os.path.exists(filename):
             shutil.copy2(filename, os.path.join(func_dir, filename))
 

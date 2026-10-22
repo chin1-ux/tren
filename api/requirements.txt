@@ -1,6 +1,5 @@
-# Core API deps — keep lightweight for Vercel serverless
+# Core API deps — lightweight for Vercel serverless (bundle <= 25 MB)
 fastapi==0.137.1
-uvicorn
 mangum
 requests
 python-dotenv
@@ -9,12 +8,8 @@ slowapi
 pydantic
 email-validator
 python-multipart
-schedule
 resend
-psycopg2-binary==2.9.12
 razorpay
-redis
-rq
 bcrypt
 pyjwt
 # NOTE: numpy/google-generativeai/apify-client are intentionally omitted

@@ -1,0 +1,5 @@
+[project]
+name = "app"
+version = "0.1.0"
+dependencies = [ "fastapi==0.137.1", "mangum", "requests", "python-dotenv", "supabase", "slowapi", "pydantic", "email-validator", "python-multipart", "resend", "razorpay", "bcrypt", "pyjwt" ]
+requires-python = "~=3.12.0"
