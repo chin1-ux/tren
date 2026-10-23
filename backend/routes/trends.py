@@ -256,6 +256,25 @@ def _normalize_trends_slim(trends: list) -> list:
 
             clean_trends.append(t)
 
+        # Align song-level earliest detection date so any duplicate or variant shows true first caught
+        song_earliest = {}
+        for t in clean_trends:
+            title = (t.get("audio_title") or t.get("song") or "").strip().lower()
+            artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
+            if title and title != "original audio":
+                s_key = f"{title}|||{artist}"
+                fd = t.get("first_detected_at") or t.get("created_at")
+                if fd:
+                    if s_key not in song_earliest or fd < song_earliest[s_key]:
+                        song_earliest[s_key] = fd
+
+        for t in clean_trends:
+            title = (t.get("audio_title") or t.get("song") or "").strip().lower()
+            artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
+            s_key = f"{title}|||{artist}"
+            if s_key in song_earliest:
+                t["first_detected_at"] = song_earliest[s_key]
+
         freshness = _get_data_freshness()
         for t in clean_trends:
             t["last_updated"] = freshness.get("last_updated")

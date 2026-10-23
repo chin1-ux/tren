@@ -431,7 +431,33 @@ function TrendsFeed() {
       ...deduplicatedTrends.peaked,
       ...deduplicatedTrends.expired,
     ];
-    return merged.sort((a, b) => {
+
+    // Ensure all variants of the same song share the true earliest firstCaught date
+    const songEarliest = new Map<string, string>();
+    merged.forEach((t) => {
+      const sKey = (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song")
+        ? `${t.song.trim().toLowerCase()}|||${(t.artist || "").trim().toLowerCase()}`
+        : null;
+      const d = t.firstDetectedAt || t.createdAt;
+      if (sKey && d) {
+        const cur = songEarliest.get(sKey);
+        if (!cur || new Date(d).getTime() < new Date(cur).getTime()) {
+          songEarliest.set(sKey, d);
+        }
+      }
+    });
+
+    const aligned = merged.map((t) => {
+      const sKey = (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song")
+        ? `${t.song.trim().toLowerCase()}|||${(t.artist || "").trim().toLowerCase()}`
+        : null;
+      if (sKey && songEarliest.has(sKey)) {
+        return { ...t, firstDetectedAt: songEarliest.get(sKey) };
+      }
+      return t;
+    });
+
+    return aligned.sort((a, b) => {
       const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
       const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       if (timeB !== timeA) return timeB - timeA;
@@ -599,15 +625,39 @@ function TrendsFeed() {
 
     const combinedList = Array.from(combinedMap.values());
 
-    return combinedList.sort((a, b) => {
-      const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+    // Ensure all variants of the same song share the true earliest firstCaught date
+    const searchSongEarliest = new Map<string, string>();
+    [...(allTrends ?? []), ...combinedList].forEach((t) => {
+      const sKey = (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song")
+        ? `${t.song.trim().toLowerCase()}|||${(t.artist || "").trim().toLowerCase()}`
+        : null;
+      const d = t.firstDetectedAt || t.createdAt;
+      if (sKey && d) {
+        const cur = searchSongEarliest.get(sKey);
+        if (!cur || new Date(d).getTime() < new Date(cur).getTime()) {
+          searchSongEarliest.set(sKey, d);
+        }
+      }
+    });
+
+    const alignedList = combinedList.map((t) => {
+      const sKey = (t.song && t.song !== "Original Audio" && t.song !== "Unknown Song")
+        ? `${t.song.trim().toLowerCase()}|||${(t.artist || "").trim().toLowerCase()}`
+        : null;
+      const trueEarliest = (sKey && searchSongEarliest.has(sKey)) ? searchSongEarliest.get(sKey)! : (t.firstDetectedAt || t.createdAt);
+      return {
+        ...t,
+        firstDetectedAt: trueEarliest,
+        hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
+      };
+    });
+
+    return alignedList.sort((a, b) => {
+      const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : 0;
+      const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : 0;
       if (timeB !== timeA) return timeB - timeA;
       return Number(b.id) - Number(a.id);
-    }).map((t) => ({
-      ...t,
-      hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
-    }));
+    });
   }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, serverSearchResults, now]);
 
   // Chunked pagination: initial 10 cards, load 10 more on user action (no artificial limits)
