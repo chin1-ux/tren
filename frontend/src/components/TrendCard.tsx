@@ -906,9 +906,11 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
               <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
               <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
-                {trend.llmClassificationStatus === "completed" 
-                  ? (trend.idealContentDescription || "No content concept available.") 
-                  : "Not enough data yet for a tailored strategy."}
+                {trend.idealContentDescription 
+                  ? trend.idealContentDescription 
+                  : (trend.llmClassificationStatus === "completed"
+                    ? "No content concept available."
+                    : "Analyzing creator reels for a tailored strategy...")}
               </p>
             </div>
 
