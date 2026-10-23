@@ -107,7 +107,7 @@ Rules:
 - Use "other" for languages not in the list.
 """
         try:
-            resp = call_gemini_only(system_prompt, user_prompt, timeout=15)
+            resp = call_gemini_only(system_prompt, user_prompt, timeout=30)
             if isinstance(resp, str):
                 try:
                     resp = json.loads(resp)
@@ -346,22 +346,43 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
 
 def run_unclassified_safety_net_pass(limit: int = 50) -> Dict[str, Any]:
     """
-    Safety net step: finds active trends with NULL language_final, NULL used_for,
-    un-cleared fallback notes, or NULL classified_at timestamps and re-classifies them.
+    Safety net step: finds active trends with NULL or template language_final, used_for,
+    why_this_works, or ideal_content_description and re-classifies them.
     """
     sb = get_supabase()
-    res = sb.table("trends") \
-        .select("id") \
-        .neq("status", "unqualified") \
-        .or_("language_final.is.null,used_for.is.null,why_this_works.is.null,why_this_works.like.The track %is currently driving high engagement%,used_for_note.eq.Automated fallback classification.,used_for_classified_at.is.null") \
-        .limit(limit) \
-        .execute()
+    try:
+        res = (
+            sb.table("trends")
+            .select("id,why_this_works,language_final,used_for_classified_at,ideal_content_description")
+            .neq("status", "unqualified")
+            .or_("language_final.is.null,why_this_works.is.null,used_for_classified_at.is.null,ideal_content_description.is.null")
+            .order("id", desc=True)
+            .limit(limit)
+            .execute()
+        )
 
-    rows = res.data or []
-    if not rows:
-        logger.info("Safety-net pass: 0 active unclassified trends found.")
-        return {"processed": 0}
+        rows = res.data or []
+        unclassified_ids = []
+        for r in rows:
+            w = r.get("why_this_works") or ""
+            s = r.get("ideal_content_description") or ""
+            if (
+                not r.get("language_final")
+                or not w
+                or "The track " in w
+                or "Insufficient reel" in w
+                or not r.get("used_for_classified_at")
+                or not s
+                or "Not enough data" in s
+            ):
+                unclassified_ids.append(r["id"])
 
-    unclassified_ids = [r["id"] for r in rows]
-    logger.info(f"Safety-net pass: found {len(unclassified_ids)} unclassified active trends. Classifying...")
-    return auto_classify_trends(unclassified_ids)
+        if not unclassified_ids:
+            logger.info("Safety-net pass: 0 active unclassified trends found.")
+            return {"processed": 0}
+
+        logger.info(f"Safety-net pass: found {len(unclassified_ids)} unclassified active trends. Classifying...")
+        return auto_classify_trends(unclassified_ids)
+    except Exception as e:
+        logger.warning(f"Safety-net pass encountered error: {e}")
+        return {"processed": 0, "error": str(e)}
