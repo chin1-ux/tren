@@ -60,6 +60,15 @@ def main():
     except Exception as e:
         print(f'Pipeline execution failed: {e}', file=sys.stderr)
         sys.exit(1)
+
+    # Automatic post-run safety-net: ensure all newly detected and existing trends have real why_this_works & strategy
+    try:
+        from cron_auto_classifier import run_unclassified_safety_net_pass
+        print("Running automatic post-run safety-net classification pass...")
+        run_unclassified_safety_net_pass(limit=50)
+    except Exception as e:
+        print(f"Safety-net classification pass warning (non-fatal): {e}", file=sys.stderr)
+
     after_reels, after_trends = get_counts()
     print(f'After run - reels: {after_reels}, trends: {after_trends}')
     # Show differences

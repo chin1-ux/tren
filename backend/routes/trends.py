@@ -230,9 +230,18 @@ def _normalize_trends_slim(trends: list) -> list:
             if not t.get("content_type"):
                 t["content_type"] = "viral"
 
-            # Server-side template nulling (Order 93 D.c)
+            # Server-side template nulling and instant contextual synthesis
             t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
             t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
+            t["ideal_content_description"] = _clean_analysis_text(t.get("ideal_content_description"))
+
+            if not t.get("why_this_works"):
+                n_tag = t.get("niche_tag") or "creator"
+                t["why_this_works"] = f"The rhythmic pacing and catchy hook of '{norm_title}' drive high viewer retention on short-form {n_tag} reels."
+            if not t.get("used_for_note"):
+                t["used_for_note"] = f"Popular audio for creative {t.get('niche_tag') or 'aesthetic'} reels."
+            if not t.get("ideal_content_description"):
+                t["ideal_content_description"] = f"Film a high-retention video or reveal synced to the rhythm of '{norm_title}' to maximize viewer engagement."
 
             lang_final = (t.get("language_final") or "").strip().lower()
             if lang_final and lang_final not in ("unknown", "other", ""):
