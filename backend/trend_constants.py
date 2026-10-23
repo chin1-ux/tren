@@ -1,10 +1,11 @@
 """
 Shared constants for trend detection, scoring, and lifecycle management.
 """
+import os
 
-RISING_USE_THRESHOLD = 500000
-EMERGING_USE_THRESHOLD = 150000
-GLOBAL_SATURATION_THRESHOLD_REELS = 1000000
+RISING_USE_THRESHOLD = int(os.getenv("RISING_USE_THRESHOLD", "25000"))
+EMERGING_USE_THRESHOLD = int(os.getenv("EMERGING_USE_THRESHOLD", "2000"))
+GLOBAL_SATURATION_THRESHOLD_REELS = int(os.getenv("GLOBAL_SATURATION_THRESHOLD_REELS", "1000000"))
 
 # Vintage audio & resurgence thresholds (configurable heuristics)
 VINTAGE_CATALOG_AGE_DAYS = 365

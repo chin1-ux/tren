@@ -205,24 +205,14 @@ class InstagramScraper:
                 "indiancricket"
             ],
             "GLOBAL_DISCOVERY": [
-                # Broad Humanized Everyday Viral Tags
-                "fyp", "viral", "trending", "foryou", "explorar", "reels", "brasil", "danca",
-                # Global Dance & Challenge Seeds
-                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
-                "hiphopdance", "dancecover", "dancevideo",
-                # Speedup, Remix & Audio Seeds (Catches DJ edits & viral audios)
-                "speedupsongs", "remixreels", "viralaudio", "reelsaudio",
-                "trendingsound", "viralmusic", "reelsound",
-                # Brazilian Phonk & Funk Seeds (High Reel Volatility & Native Dance Steps)
-                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic", "funkremix",
-                "speedupphonk", "driftphonk", "phonkdance", "reelsbrasil",
-                "passinho", "funkmtg", "dancabrasil", "mtgphonk",
-                # Spanish & Latin Seeds
-                "reggaeton", "latinmusic", "latinreels", "spanishmusic", "spanishreels", "latintrend",
-                # K-Pop & Afrobeats Seeds
-                "afrobeats", "afrobeatsreels", "kpop", "kpopdance",
-                # Broad Viral & Music Seeds
-                "music", "trendingaudio", "popmusic", "hiphopreels", "edmmusic", "kpopreels"
+                # 1. Creator Audio, Speed-Up & Template Incubators (High audio density, 0 bot spam)
+                "trendingsound", "reelsaudio", "viralaudio", "speedupsongs", "capcuttemplate", "audiosforedits",
+                # 2. Viral Sub-Culture Launchpads (Where global breakout hits originate)
+                "brazilianphonk", "funkmtg", "phonk", "reggaeton", "afrobeats", "amapiano", "kpopdance",
+                # 3. Global Dance & Challenge Hubs
+                "dancechallenge", "gloomyvibes", "streetstyle", "remixreels", "dancetrend", "passinho",
+                # 4. Regional & Niche Sound Hubs
+                "latinmusic", "latinreels", "spanishmusic", "afrobeatsreels", "kpop", "speedupphonk", "funkbrasil"
             ]
         }
 
