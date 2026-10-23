@@ -71,9 +71,9 @@ def classify_languages_batch(trends: List[Dict[str, Any]]) -> Dict[int, str]:
     if not unresolved:
         return results
 
-    # 2. Gemini Batched Classifier Pass (batch size 10)
-    for i in range(0, len(unresolved), 10):
-        batch = unresolved[i:i + 10]
+    # 2. Gemini Batched Classifier Pass (batch size 5)
+    for i in range(0, len(unresolved), 5):
+        batch = unresolved[i:i + 5]
         sent_ids = {item["id"] for item in batch}
         items_payload = []
         for item in batch:
@@ -170,8 +170,8 @@ def classify_used_for_batch(trends: List[Dict[str, Any]]) -> Dict[int, Dict[str,
         '   [{"id": 1234, "used_for": "category", "note": "One short sentence explanation."}]\n'
     )
 
-    for i in range(0, len(trends), 10):
-        batch = trends[i:i + 10]
+    for i in range(0, len(trends), 5):
+        batch = trends[i:i + 5]
         sent_ids = {item["id"] for item in batch}
         batch_input = []
         for item in batch:
