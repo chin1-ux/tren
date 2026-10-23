@@ -1095,7 +1095,6 @@ def run_full_pipeline(stages: list = None):
 
     try:
         github_run_id = os.environ.get("GITHUB_RUN_ID")
-        sb = _get_supabase()
         payload = {
             "run_at": start.isoformat(),
             "completed_at": completed_at.isoformat(),
@@ -1176,6 +1175,13 @@ def run_full_pipeline(stages: list = None):
     # serves the freshly-written data, not a stale 5-minute window.
     _invalidate_trends_cache()
     _rebuild_spotify_feed_cache()
+
+    # Guaranteed safety-net pass: Auto-classify languages, harvest audio reels, and synthesize patterns
+    try:
+        from cron_auto_classifier import run_unclassified_safety_net_pass
+        run_unclassified_safety_net_pass(limit=25)
+    except Exception as _safety_err:
+        logging.warning(f"Safety-net classification pass failed (non-fatal): {_safety_err}")
 
 
 from datetime import timedelta
