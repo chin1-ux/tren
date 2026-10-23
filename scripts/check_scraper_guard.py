@@ -113,14 +113,25 @@ def check_guard_v3(min_gap_minutes: int = None):
             except Exception as _je:
                 pass
             
-            # Fallback check via Supabase cron_runs
-            if url and key:
+            # Fallback check via Supabase REST API (standard library only)
+            url_env = os.getenv("SUPABASE_URL")
+            key_env = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
+            if url_env and key_env:
                 try:
-                    from supabase import create_client
-                    sb_check = create_client(url, key)
-                    res_cr = sb_check.table("cron_runs").select("id").eq("github_run_id", rid).limit(1).execute()
-                    if res_cr.data:
-                        return True
+                    import urllib.request
+                    req_cr = urllib.request.Request(
+                        f"{url_env.rstrip('/')}/rest/v1/cron_runs?github_run_id=eq.{rid}&select=id&limit=1",
+                        headers={
+                            "apikey": key_env,
+                            "Authorization": f"Bearer {key_env}",
+                            "Accept": "application/json",
+                        }
+                    )
+                    with urllib.request.urlopen(req_cr, timeout=5) as resp_cr:
+                        if resp_cr.status == 200:
+                            data_cr = json.loads(resp_cr.read().decode())
+                            if data_cr:
+                                return True
                 except Exception:
                     pass
             return False
@@ -154,23 +165,31 @@ def check_guard_v3(min_gap_minutes: int = None):
     key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY")
     if url and key:
         try:
-            from supabase import create_client
-            sb = create_client(url, key)
-            res = sb.table("cron_runs").select("id, created_at, run_at, status, reels_scraped").order("created_at", desc=True).limit(5).execute()
-            rows = res.data or []
-            for r in rows:
-                c_str = r.get("run_at") or r.get("created_at")
-                if c_str:
-                    c_dt = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
-                    diff = (now_dt - c_dt).total_seconds() / 60.0
-                    if diff < min_gap_minutes:
-                        msg = f"Skipping (DB fallback): last DB run started {diff:.1f}m ago (under {min_gap_minutes}m)."
-                        print(msg)
-                        return True, msg
-                    else:
-                        msg = f"Proceeding (DB fallback): last DB run started {diff:.1f}m ago (>={min_gap_minutes}m)."
-                        print(msg)
-                        return False, msg
+            import urllib.request
+            req_db = urllib.request.Request(
+                f"{url.rstrip('/')}/rest/v1/cron_runs?select=id,created_at,run_at,status,reels_scraped&order=created_at.desc&limit=5",
+                headers={
+                    "apikey": key,
+                    "Authorization": f"Bearer {key}",
+                    "Accept": "application/json",
+                }
+            )
+            with urllib.request.urlopen(req_db, timeout=5) as resp_db:
+                if resp_db.status == 200:
+                    rows = json.loads(resp_db.read().decode())
+                    for r in rows:
+                        c_str = r.get("run_at") or r.get("created_at")
+                        if c_str:
+                            c_dt = datetime.fromisoformat(c_str.replace("Z", "+00:00"))
+                            diff = (now_dt - c_dt).total_seconds() / 60.0
+                            if diff < min_gap_minutes:
+                                msg = f"Skipping (DB fallback): last DB run started {diff:.1f}m ago (under {min_gap_minutes}m)."
+                                print(msg)
+                                return True, msg
+                            else:
+                                msg = f"Proceeding (DB fallback): last DB run started {diff:.1f}m ago (>={min_gap_minutes}m)."
+                                print(msg)
+                                return False, msg
         except Exception as e:
             print(f"Supabase DB fallback check failed: {e}")
 
