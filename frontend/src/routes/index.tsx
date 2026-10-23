@@ -1,8 +1,8 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery } from "@tanstack/react-query";
-import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, ChevronUp, ChevronDown } from "lucide-react";
-import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchLastDetectedTimes, type UiTrend } from "@/lib/api";
+import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
+import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchLastDetectedTimes, searchTrendsGlobal, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
 import { SkeletonCard } from "@/components/SkeletonCard";
 import { DanceTrendModal } from "@/components/DanceTrendModal";
@@ -126,6 +126,15 @@ function TrendsFeed() {
   const [sortMode] = useState<any>("newest");
   const [danceTrend, setDanceTrend] = useState<UiTrend | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+
+  useEffect(() => {
+    const handler = setTimeout(() => {
+      setDebouncedSearch(searchQuery.trim());
+    }, 250);
+    return () => clearTimeout(handler);
+  }, [searchQuery]);
+
   const [showFilterDrawer, setShowFilterDrawer] = useState(false);
   const [now, setNow] = useState<number>(() => Date.now());
   const prevCountRef = useRef<number>(0);
@@ -340,6 +349,16 @@ function TrendsFeed() {
     placeholderData: (prev) => prev,
   });
 
+  const {
+    data: serverSearchResults,
+    isLoading: isSearchLoading,
+  } = useQuery({
+    queryKey: ["global-trend-search", debouncedSearch],
+    queryFn: () => searchTrendsGlobal(debouncedSearch),
+    enabled: debouncedSearch.length >= 2,
+    staleTime: 60_000,
+  });
+
   // Deduplication logic: ensure same audio_id appears only in highest-priority tab
   // Priority: rising > emerging > resurging > peaked > expired
   const deduplicatedTrends = useMemo(() => {
@@ -552,16 +571,35 @@ function TrendsFeed() {
       });
     }
 
-    const q = searchQuery.toLowerCase();
-    const filtered = list.filter(
+    const q = searchQuery.toLowerCase().trim();
+
+    // 1. In-memory match across ALL trends (bypassing lifecycle & language locks for explicit searches)
+    const localMatches = (allTrends ?? []).filter(
       (t) =>
         (t.song ?? "").toLowerCase().includes(q) ||
         (t.artist ?? "").toLowerCase().includes(q) ||
         (t.contentType ?? "").toLowerCase().includes(q) ||
-        (t.whyThisWorks ?? "").toLowerCase().includes(q)
+        (t.whyThisWorks ?? "").toLowerCase().includes(q) ||
+        (t.audioId && t.audioId.includes(q))
     );
 
-    return filtered.sort((a, b) => {
+    // 2. Combine with server search results from the full database archive
+    const combinedMap = new Map<string, UiTrend>();
+    localMatches.forEach((t) => {
+      const key = (t.audioId && t.audioId !== "null") ? t.audioId : String(t.id);
+      combinedMap.set(key, t);
+    });
+
+    (serverSearchResults ?? []).forEach((t) => {
+      const key = (t.audioId && t.audioId !== "null") ? t.audioId : String(t.id);
+      if (!combinedMap.has(key)) {
+        combinedMap.set(key, t);
+      }
+    });
+
+    const combinedList = Array.from(combinedMap.values());
+
+    return combinedList.sort((a, b) => {
       const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
       const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
       if (timeB !== timeA) return timeB - timeA;
@@ -570,7 +608,7 @@ function TrendsFeed() {
       ...t,
       hoursLeft: Math.max(0, Math.ceil((t.expiresAt - now) / 3600_000)),
     }));
-  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, now]);
+  }, [allTrends, targetedData, showTargetedOnly, filters, searchQuery, serverSearchResults, now]);
 
   // Chunked pagination: initial 10 cards, load 10 more on user action (no artificial limits)
   const [visibleCount, setVisibleCount] = useState<number>(10);
@@ -659,18 +697,22 @@ function TrendsFeed() {
         {/* Top Control Bar: Search Input + Modern Filter Action Button */}
         <div className="flex items-center gap-2 mb-2.5">
           <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            {isSearchLoading ? (
+              <Loader2 className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-primary animate-spin" />
+            ) : (
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            )}
             <input
               id="search-query"
               name="searchQuery"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search song, artist, or vibe..."
+              placeholder="Search entire trend archive (song, artist, vibe)..."
               className="w-full rounded-xl bg-muted/60 py-2.5 pl-9 pr-9 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-1 focus:ring-primary/50 transition-all"
             />
             {searchQuery && (
               <button onClick={() => setSearchQuery("")} className="absolute right-3 top-1/2 -translate-y-1/2">
-                <X className="h-4 w-4 text-muted-foreground" />
+                <X className="h-4 w-4 text-muted-foreground hover:text-foreground transition-colors" />
               </button>
             )}
           </div>

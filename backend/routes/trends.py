@@ -355,6 +355,47 @@ def get_unified_feed(
         logger.error(f"Error fetching unified feed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+@router.get("/api/trends/search")
+@limiter.limit("60/minute")
+def search_trends_global(
+    request: Request,
+    q: str = "",
+    limit: int = 50,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Global audio/song search across the entire database archive.
+    Matches audio_title, audio_artist, or audio_id regardless of lifecycle stage or window expiration.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    clean_q = (q or "").strip()
+    if not clean_q or len(clean_q) < 2:
+        return JSONResponse(content={"trends": []})
+        
+    try:
+        safe_q = clean_q.replace("%", "").replace(",", " ").strip()
+        limit_val = min(max(1, limit), 100)
+        
+        if safe_q.isdigit() and len(safe_q) > 6:
+            query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("audio_id", safe_q).limit(limit_val)
+        else:
+            query = supabase.table("trends").select(SLIM_FEED_COLUMNS).or_(
+                f"audio_title.ilike.%{safe_q}%,audio_artist.ilike.%{safe_q}%"
+            ).order("first_detected_at", desc=True).limit(limit_val)
+            
+        res = execute_supabase_get(query)
+        raw_trends = res.data or []
+        trends = _normalize_trends_slim(raw_trends)
+        
+        return JSONResponse(
+            content={"trends": trends, "total": len(trends), "query": clean_q},
+            headers={"Cache-Control": "public, max-age=60, s-maxage=120", "X-Cache": "MISS"}
+        )
+    except Exception as e:
+        logger.error(f"Error in global trend search: {e}", exc_info=True)
+        return JSONResponse(content={"trends": [], "error": str(e)}, status_code=500)
+
 @router.get("/api/search/ask")
 @limiter.limit("20/hour")
 def search_ask(

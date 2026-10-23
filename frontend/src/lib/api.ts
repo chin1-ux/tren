@@ -798,6 +798,19 @@ export async function fetchResurgingTrends(language?: string, niche?: string, la
   }
 }
 
+export async function searchTrendsGlobal(query: string, limit: number = 50): Promise<UiTrend[]> {
+  const clean = (query || "").trim();
+  if (!clean || clean.length < 2) return [];
+  try {
+    const params = new URLSearchParams({ q: clean, limit: String(limit) });
+    const data = await http<{ trends: ApiTrend[] }>(`/api/trends/search?${params.toString()}`);
+    return (data.trends || []).map(adaptTrend);
+  } catch (e: any) {
+    console.warn("Global search failed:", e);
+    return [];
+  }
+}
+
 export async function fetchLastDetectedTimes(): Promise<Record<string, string | null>> {
   try {
     return await http<Record<string, string | null>>("/api/trends/last-detected");
