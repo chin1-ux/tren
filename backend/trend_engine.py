@@ -722,26 +722,33 @@ class TrendEngine:
             # audio_backfill_status is NULL for the majority of valid reels (those whose audio
             # was present at scrape time and never needed backfilling). Using neq("audio_backfill_status",
             # "unrecoverable") would silently drop all of them. The correct intent is SQL's
-            # IS DISTINCT FROM — include rows where status is NULL or any non-unrecoverable value.
-            # Implemented via PostgREST or_ filter: (status.is.null,status.neq.unrecoverable)
+            # Lean column projection & in-memory filter to prevent PostgREST statement timeout (57014)
             time_threshold_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
             time_threshold_6h = (datetime.now(timezone.utc) - timedelta(hours=6)).isoformat()
 
+            REEL_DETECT_COLUMNS = (
+                "id, reel_id, audio_title, audio_artist, audio_id, velocity_score, created_at, scraped_at, "
+                "posted_at, is_original_audio, audio_use_count, owner_username, owner_follower_count, "
+                "view_count, like_count, comment_count, caption, hashtags, source_hashtag_pool, "
+                "creator_country, content_tone, is_creator_outlier, is_cross_cultural, trend_origin, "
+                "audio_backfill_status"
+            )
+
             reels = []
             offset = 0
-            _PAGE_SIZE = 1000
+            _PAGE_SIZE = 300
             while True:
                 reels_res = self.supabase.table("reels") \
-                    .select("*") \
+                    .select(REEL_DETECT_COLUMNS) \
                     .gt("velocity_score", 0.3) \
                     .gte("created_at", time_threshold_48h) \
-                    .or_("audio_backfill_status.is.null,audio_backfill_status.neq.unrecoverable") \
                     .order("created_at", desc=True) \
                     .range(offset, offset + _PAGE_SIZE - 1) \
                     .execute()
-                data = reels_res.data or []
-                reels.extend(data)
-                if len(data) < _PAGE_SIZE:
+                page_data = reels_res.data or []
+                valid_page = [r for r in page_data if (r.get("audio_backfill_status") or "") != "unrecoverable"]
+                reels.extend(valid_page)
+                if len(page_data) < _PAGE_SIZE:
                     break
                 offset += _PAGE_SIZE
             logging.info(f"Loaded {len(reels)} reels for evaluation")
@@ -803,7 +810,7 @@ class TrendEngine:
                 )
 
                 max_use_cnt = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
-                artist_followers = max((r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
+                artist_followers = max((r.get("owner_follower_count") or r.get("ownerFollowersCount") or 0 for r in group_reels), default=0)
                 max_views = max((r.get("view_count") or 0 for r in group_reels), default=0)
 
                 ratio = (max_views / max(artist_followers, 100)) if artist_followers > 0 else 0.0
@@ -898,7 +905,11 @@ class TrendEngine:
                 avg_velocity = sum(velocities) / len(velocities) if velocities else 0.0
                 max_velocity = max(velocities) if velocities else 0.0
 
-                all_reels_for_audio_res = self.supabase.table("reels").select("*").eq("audio_id", representative_audio_id).gte("created_at", time_threshold_48h).execute()
+                all_reels_for_audio_res = self.supabase.table("reels") \
+                    .select("id, reel_id, audio_id, velocity_score, audio_use_count, view_count, like_count, posted_at, created_at, scraped_at, owner_username") \
+                    .eq("audio_id", representative_audio_id) \
+                    .gte("created_at", time_threshold_48h) \
+                    .execute()
                 all_reels = all_reels_for_audio_res.data
                 high_velocity_reels = [r for r in all_reels if (r.get("velocity_score") or 0.0) > 0.3]
                 
