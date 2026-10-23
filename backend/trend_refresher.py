@@ -211,14 +211,9 @@ class TrendRefresher:
                     if self._refresh_audio_use_count(trend):
                         local_summary["audio_use_count_refreshed"] += 1
 
-                # Refresh official Instagram audio page count every other run (rate limit safe)
-                audio_id = trend.get("audio_id")
-                if not dry_run and audio_id and current_status in ["emerging", "rising"]:
-                    refresh_result = self._refresh_audio_page_count(trend_id, audio_id)
-                    if refresh_result == "THROTTLED":
-                        local_summary["throttled"] += 1
-                    elif refresh_result is True:
-                        local_summary["audio_page_count_refreshed"] += 1
+                # Note: Official Instagram audio page counts are now harvested with cookies
+                # by the authenticated Human-Mimic Harvester in cron_job.py / instagram_scraper_browser.py.
+                # Unauthenticated raw requests here are bypassed to prevent 429 blocks and useless sleep delays.
 
                 # Refresh peaking score for active trends
                 if not dry_run and current_status in ["emerging", "rising"]:
@@ -263,9 +258,10 @@ class TrendRefresher:
                 stored_reel_count = trend.get("reel_count") or 0
                 total_reels_count = max(live_reels_count, stored_reel_count)
 
-                # Unqualify orphan/single-reel tracks with 0 usage count only after 24h age gate
+                # Unqualify orphan/single-reel tracks with 0 usage count only after 72h age gate
+                # (gives scraper sampling and audio page harvester 3 days to acquire adoption evidence)
                 clean_use_cnt = int(trend.get("audio_use_count") or 0)
-                if clean_use_cnt == 0 and total_reels_count <= 1 and age_hours > 24.0:
+                if clean_use_cnt == 0 and total_reels_count <= 1 and age_hours > 72.0:
                     if outage_guard:
                         logger.info(f"outage_guard_active: Skipping unqualify demotion for '{audio_title}' (id={trend_id}).")
                     else:
@@ -312,11 +308,14 @@ class TrendRefresher:
                 elif new_reels_count > 0:
                     new_window = min(48, window_hours + 12)
                     logger.info(f"[EXTENDED] '{audio_title}' window extended to {new_window}h due to {new_reels_count} new reels.")
+                elif age_hours < 168.0:
+                    # Protect new trends (first 7 days) from premature expiration due to scraper sampling gaps
+                    new_window = max(24, window_hours - 1)
                 elif clean_use_cnt >= 50000 or total_reels_count >= 2:
-                    # Protect active/popular tracks from zeroing out on scraper sampling misses
+                    # Protect active/popular tracks with established adoption
                     new_window = max(24, window_hours - 1)
                 else:
-                    new_window = max(0, window_hours - 2)
+                    new_window = max(0, window_hours - 1)
 
                 # 14-day ceiling for peaked trends (force to expired)
                 if not outage_guard and current_status == "peaked" and age_hours >= (14 * 24.0):
@@ -343,11 +342,9 @@ class TrendRefresher:
                     local_summary["expired"] += 1
                     return local_summary
 
-                # Fallback velocity floor: Protect active tracks from zeroing out on scraper sampling misses or outages
-                if outage_guard:
-                    velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
-                else:
-                    velocity_for_check = live_velocity if live_velocity > 0 else max(current_velocity * 0.85, 500.0 if clean_use_cnt >= 10000 else 0.0)
+                # Hold measured velocity steady if scraper did not sample this artist in the last 24h.
+                # Never artificially decay velocity via synthetic multipliers (e.g. * 0.85) which causes false peaking.
+                velocity_for_check = live_velocity if live_velocity > 0 else current_velocity
                 self._refresh_opportunity_score(trend, confidence=trend.get("confidence"), window_hours_remaining=new_window)
 
                 # Peaked/Expired recovery MUST pass the Resurgence Gate
@@ -583,55 +580,11 @@ class TrendRefresher:
 
     def _refresh_audio_page_count(self, trend_id: int, audio_id: str) -> bool:
         """
-        Fetches the official reel count from the Instagram Audio page for this audio_id.
-        Uses a lightweight requests-based fetch (no browser needed for meta tags).
-        Updates trends.audio_use_count if the scraped value is higher than stored.
-        Returns True if an update was written.
+        Bypassed: Audio page reel counts are now harvested with valid session cookies
+        by the authenticated Human-Mimic Camoufox Harvester in instagram_scraper_browser.py.
+        Unauthenticated requests here are no-oped to prevent 429 rate-limiting.
         """
-        import re as _re
-        import requests as _requests
-        import time
-        import random
-        try:
-            # Random sleep to avoid simultaneous connection rate limits
-            time.sleep(random.uniform(1.0, 3.0))
-            
-            url = f"https://www.instagram.com/reels/audio/{audio_id}/"
-            headers = {
-                "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1",
-                "Accept-Language": "en-US,en;q=0.9",
-            }
-            resp = _requests.get(url, headers=headers, timeout=10)
-            if resp.status_code != 200:
-                logger.warning(f"Audio page fetch failed for {audio_id}: HTTP {resp.status_code}")
-                return False
-
-            text = resp.text
-            # Extract count from text like "1.2M reels" / "45.2K reels" / "520 reels"
-            match = _re.search(r'([\d,.]+)([KkMmBb]?)\s*(?:reels|Reels)', text)
-            if not match:
-                if 'Please wait a few minutes before you try again' in text or 'login' in text.lower():
-                    logger.warning(f"Audio page fetch throttled/login-walled for {audio_id}")
-                    return "THROTTLED"
-                logger.debug(f"No reel count found on audio page for {audio_id}")
-                return False
-
-            raw, suffix = match.group(1).replace(',', ''), match.group(2).upper()
-            multiplier = {'K': 1_000, 'M': 1_000_000, 'B': 1_000_000_000}.get(suffix, 1)
-            live_count = int(float(raw) * multiplier)
-
-            # Read current value before updating
-            res = self._retry_supabase_call(lambda: self.supabase.table("trends").select("audio_use_count").eq("id", trend_id).limit(1).execute())
-            stored = (res.data or [{}])[0].get("audio_use_count") or 0
-
-            if live_count > stored:
-                self._retry_supabase_call(lambda: self.supabase.table("trends").update({"audio_use_count": live_count}).eq("id", trend_id).execute())
-                logger.info(f"[AUDIO_PAGE] trend_id={trend_id} audio_id={audio_id}: {stored} -> {live_count}")
-                return True
-            return False
-        except Exception as e:
-            logger.warning(f"_refresh_audio_page_count failed for trend_id={trend_id}: {e}")
-            return False
+        return False
 
     def _refresh_audio_use_count(self, trend: dict) -> bool:
         """
