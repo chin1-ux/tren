@@ -105,23 +105,31 @@ class InstagramScraper:
         self._last_scrape_result = "not started"
         self._last_scrape_stats = {}
         
-        # Dynamically create cookies.json from INSTAGRAM_COOKIES_B64 env var if missing
+        # Dynamically load active cookies from Supabase scraper_sessions or INSTAGRAM_COOKIES_B64
         cookies_path = os.path.join(script_dir, "cookies.json")
-        if not os.path.exists(cookies_path):
-            cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
-            if cookies_b64:
-                import base64
-                try:
-                    decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
-                    # Validate JSON
-                    json.loads(decoded)
-                    with open(cookies_path, "w", encoding="utf-8") as f:
-                        f.write(decoded)
-                    logger.info("Successfully reconstructed cookies.json from INSTAGRAM_COOKIES_B64 environment variable.")
-                except Exception as b64_err:
-                    logger.error(f"Failed to decode or write cookies from INSTAGRAM_COOKIES_B64: {b64_err}")
-            else:
-                logger.warning("cookies.json not found and INSTAGRAM_COOKIES_B64 environment variable is empty.")
+        try:
+            from cookie_sliding_manager import load_active_session_cookies
+            active_cookies = load_active_session_cookies()
+            if active_cookies:
+                with open(cookies_path, "w", encoding="utf-8") as f:
+                    json.dump(active_cookies, f, indent=2)
+                logger.info(f"Loaded {len(active_cookies)} cookies into cookies.json from dynamic session manager.")
+        except Exception as sm_err:
+            logger.warning(f"Session sliding manager load failed, falling back to static env/file: {sm_err}")
+            if not os.path.exists(cookies_path):
+                cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+                if cookies_b64:
+                    import base64
+                    try:
+                        decoded = base64.b64decode(cookies_b64.strip()).decode("utf-8")
+                        json.loads(decoded)
+                        with open(cookies_path, "w", encoding="utf-8") as f:
+                            f.write(decoded)
+                        logger.info("Successfully reconstructed cookies.json from INSTAGRAM_COOKIES_B64 environment variable.")
+                    except Exception as b64_err:
+                        logger.error(f"Failed to decode or write cookies from INSTAGRAM_COOKIES_B64: {b64_err}")
+                else:
+                    logger.warning("cookies.json not found and INSTAGRAM_COOKIES_B64 environment variable is empty.")
 
         
         self.supabase_url = os.getenv("SUPABASE_URL")
@@ -1269,6 +1277,15 @@ class InstagramScraper:
                 except Exception:
                     pass
             if ctx:
+                # In-Session Cookie Sliding: capture rotated cookies if items were successfully extracted
+                if items:
+                    try:
+                        refreshed = await ctx.cookies()
+                        if refreshed:
+                            from cookie_sliding_manager import save_slid_cookies
+                            save_slid_cookies(refreshed, reels_scraped=len(items), run_id=os.getenv("GITHUB_RUN_ID", "local"))
+                    except Exception as slide_err:
+                        logger.warning(f"[COOKIE_SLIDING] Failed to slide cookies: {slide_err}")
                 try:
                     await ctx.close()
                 except Exception:
