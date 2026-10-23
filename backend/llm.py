@@ -23,8 +23,8 @@ socket.getaddrinfo = _ipv4_only
 # gemini-3.5-flash-lite — fast, high availability free tier
 # gemini-3.5-flash — high capacity flash
 _GEMINI_FALLBACK_MODELS = [
-    "gemini-flash-latest",
     "gemini-flash-lite-latest",
+    "gemini-flash-latest",
     "gemini-2.5-flash",
 ]
 
