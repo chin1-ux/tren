@@ -14,7 +14,7 @@ import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
-import { TrendPreviewModal } from "./TrendPreviewModal";
+
 import { TrendProofSection } from "./TrendProofSection";
 import { formatApiDateIst, formatRelativeTime, formatShortDate } from "@/lib/time";
 
@@ -314,7 +314,7 @@ function buildAudioUrl(audioId?: string | null, audioName?: string): string {
 export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNiche, selectedNiches, isTargeted: propIsTargeted, showStatusBadge }: Props) {
   const navigate = useNavigate();
   const [isExpanded, setIsExpanded] = useState(false);
-  const [showPreviewModal, setShowPreviewModal] = useState(false);
+
   const [showReels, setShowReels] = useState(false);
   const [copied, setCopied] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
@@ -777,18 +777,10 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
         )}
       </div>
 
-      {/* Expand hint + Preview button */}
+      {/* Expand hint */}
       <div className="flex items-center justify-between text-[11px] text-muted-foreground/80 border-t border-border/50 pt-2">
         <span>Tap to {isExpanded ? "collapse" : "see strategy & actions"}</span>
         <div className="flex items-center gap-2">
-          {/* Quick preview — opens modal without expanding card (Fix #4) */}
-          <button
-            onClick={(e) => { e.stopPropagation(); setShowPreviewModal(true); }}
-            className="flex items-center gap-1 text-[10px] font-bold text-primary/70 hover:text-primary transition-colors"
-            title="Quick preview — see reels using this audio"
-          >
-            <Eye className="h-3 w-3" /> Preview
-          </button>
           {isExpanded ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </div>
       </div>
@@ -1063,11 +1055,6 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       <TrendProofSection 
         trendId={trend.id} 
         isPeaking={!!(trend.peakingScore && trend.peakingScore >= 70)}
-      />
-      <TrendPreviewModal
-        trend={trend}
-        isOpen={showPreviewModal}
-        onClose={() => setShowPreviewModal(false)}
       />
     </article>
   );
