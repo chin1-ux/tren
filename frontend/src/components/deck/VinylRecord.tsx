@@ -433,6 +433,7 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
           {(() => {
             const why = (trend.why_this_works || '').trim();
             const used = (trend.used_for_note || trend.used_for || '').trim();
+            const concept = (trend.ideal_content_description || '').trim();
 
             const isCanned = (s: string) => {
               if (!s || s.length < 10) return true;
@@ -449,14 +450,23 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
                 lower.includes('sentiments about life') ||
                 lower.includes('evokes positive emotions') ||
                 lower.includes('popular choice for content creators') ||
-                lower.includes('cultural and emotional climate')
+                lower.includes('cultural and emotional climate') ||
+                lower.includes('strong algorithmic audio momentum') ||
+                lower.includes('short creator clips that match') ||
+                lower.includes('film a high-retention') ||
+                lower.includes('post aesthetic clips or photos') ||
+                lower.includes('do not use this track expecting') ||
+                lower.includes('insufficient reel evidence') ||
+                lower.includes('sampled reels show completely discordant themes') ||
+                lower.includes('no indexed reel evidence')
               );
             };
 
             const genuineWhy = !isCanned(why) ? why : null;
             const genuineUsed = !isCanned(used) ? used : null;
-            // Prioritize concrete creator use case over theoretical why_this_works
-            const display = genuineUsed || genuineWhy;
+            const genuineConcept = !isCanned(concept) ? concept : null;
+            // Prioritize concrete creator concept or use case over theoretical why_this_works
+            const display = genuineConcept || genuineUsed || genuineWhy;
             if (!display) return null;
 
             return (

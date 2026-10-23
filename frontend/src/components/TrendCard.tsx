@@ -249,58 +249,6 @@ function SaturationBar({
   );
 }
 
-/** Trial Reel Advisor Badge */
-function TrialReelBadge({
-  globalPct,
-  indiaPct,
-  hoursLeft,
-}: {
-  globalPct: number;
-  indiaPct: number;
-  hoursLeft: number;
-}) {
-  if (globalPct > 75) {
-    if (indiaPct < 20) {
-      return (
-        <span
-          title="Saturated globally but India window barely open"
-          className="inline-flex items-center gap-1 rounded-full bg-amber-500/15 border border-amber-500/35 px-2.5 py-0.5 text-[10px] font-bold text-amber-500 dark:text-amber-400 cursor-help"
-        >
-          🚀 Post now for India
-        </span>
-      );
-    }
-    return (
-      <span
-        title="Trend has peaked globally — use caution"
-        className="inline-flex items-center gap-1 rounded-full bg-red-500/15 border border-red-500/30 px-2.5 py-0.5 text-[10px] font-bold text-red-400 cursor-help"
-      >
-        ⚠️ Saturated globally
-      </span>
-    );
-  }
-  if (globalPct >= 35 && indiaPct < 30) {
-    return (
-      <span
-        title="Global peak but India window still open"
-        className="inline-flex items-center gap-1 rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2.5 py-0.5 text-[10px] font-bold text-emerald-300 cursor-help"
-      >
-        🚀 Post now for India
-      </span>
-    );
-  }
-  if (globalPct < 35 && hoursLeft > 8) {
-    return (
-      <span
-        title="Trend is early — test with non-followers before posting broadly"
-        className="inline-flex items-center gap-1 rounded-full bg-blue-500/15 border border-blue-500/30 px-2.5 py-0.5 text-[10px] font-bold text-blue-300 cursor-help"
-      >
-        🧪 Try as Trial Reel first
-      </span>
-    );
-  }
-  return null;
-}
 
 /** Audio deep-link builder */
 function buildAudioUrl(audioId?: string | null, audioName?: string): string {
@@ -858,15 +806,6 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
                   </div>
                 );
               })()}
-
-              {/* Trial reel badge row */}
-              <div className="flex items-center gap-2 flex-wrap">
-                <TrialReelBadge
-                  globalPct={globalPct}
-                  indiaPct={indiaPct}
-                  hoursLeft={trend.hoursLeft}
-                />
-              </div>
             </div>
 
             {/* ── 5. Hook Brief section (Groq-extracted) ── */}
@@ -903,16 +842,19 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
             )}
 
             {/* Content Concept */}
-            <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
-              <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
-              <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
-                {trend.idealContentDescription 
-                  ? trend.idealContentDescription 
-                  : (trend.llmClassificationStatus === "completed"
-                    ? "No content concept available."
-                    : "Analyzing creator reels for a tailored strategy...")}
-              </p>
-            </div>
+            {(() => {
+              const cleanConcept = getCleanAnalysis(trend.idealContentDescription);
+              return (
+                <div className="rounded-xl border border-border/40 bg-white/[0.02] px-3 py-2">
+                  <p className="text-[10px] font-bold text-secondary uppercase tracking-wider">💡 Content Concept</p>
+                  <p className="text-xs text-muted-foreground mt-1 leading-relaxed italic">
+                    {cleanConcept
+                      ? cleanConcept
+                      : "Analyzing creator reels for a tailored strategy..."}
+                  </p>
+                </div>
+              );
+            })()}
 
 
 

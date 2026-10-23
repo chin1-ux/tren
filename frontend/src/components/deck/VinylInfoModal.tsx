@@ -147,12 +147,23 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
       l.includes('sentiments about life') ||
       l.includes('evokes positive emotions') ||
       l.includes('popular choice for content creators') ||
-      l.includes('cultural and emotional climate')
+      l.includes('cultural and emotional climate') ||
+      l.includes('strong algorithmic audio momentum') ||
+      l.includes('short creator clips that match') ||
+      l.includes('film a high-retention') ||
+      l.includes('post aesthetic clips or photos') ||
+      l.includes('do not use this track expecting') ||
+      l.includes('insufficient reel evidence') ||
+      l.includes('sampled reels show completely discordant themes') ||
+      l.includes('no indexed reel evidence')
     );
   };
 
-  const isWhyGenuine = !isCannedText(trend.why_this_works);
-  const isUsedForGenuine = !isCannedText(trend.used_for_note || trend.used_for);
+  const cleanWhy = !isCannedText(trend.why_this_works) ? trend.why_this_works?.trim() : null;
+  const cleanConcept = !isCannedText(trend.ideal_content_description) ? trend.ideal_content_description?.trim() : null;
+  const cleanUsed = !isCannedText(trend.used_for_note || trend.used_for) ? (trend.used_for_note || trend.used_for)?.trim() : null;
+  const cleanHookBrief = trend.hook_brief?.trim() || null;
+  const hasCreatorIntel = Boolean(cleanConcept || cleanWhy || cleanUsed || cleanHookBrief);
 
   const [isResolvingAudio, setIsResolvingAudio] = useState(false);
   const [videoFailedIds, setVideoFailedIds] = useState<Set<number | string>>(new Set());
@@ -805,8 +816,8 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   </div>
                 )}
 
-                {/* Unified High-Confidence Creator Intelligence (Zero Contradictions) */}
-                {(isUsedForGenuine || isWhyGenuine) && (
+                {/* Unified High-Confidence Creator Intelligence (Data Parity with Feed) */}
+                {hasCreatorIntel && (
                   <div
                     style={{
                       background: '#FFF0EE',
@@ -815,7 +826,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       padding: '10px 12px',
                       display: 'flex',
                       flexDirection: 'column',
-                      gap: 4,
+                      gap: 6,
                     }}
                   >
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
@@ -851,33 +862,46 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       )}
                     </div>
 
-                    {/* Primary concrete creator use-case format */}
-                    <p
-                      style={{
-                        fontSize: 11.5,
-                        color: '#0E0E10',
-                        lineHeight: 1.4,
-                        margin: 0,
-                        fontFamily: 'Inter, sans-serif',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {trend.used_for_note || trend.used_for || trend.why_this_works}
-                    </p>
+                    {/* Content Concept */}
+                    {cleanConcept && (
+                      <div>
+                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#FF4D3D', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
+                          💡 Content Concept
+                        </p>
+                        <p style={{ fontSize: 11.5, color: '#0E0E10', lineHeight: 1.4, margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                          {cleanConcept}
+                        </p>
+                      </div>
+                    )}
 
-                    {/* Secondary editing/hook tip if genuine and non-redundant */}
-                    {isWhyGenuine && isUsedForGenuine && trend.why_this_works !== (trend.used_for_note || trend.used_for) && (
-                      <p
-                        style={{
-                          fontSize: 10.5,
-                          color: '#555562',
-                          lineHeight: 1.35,
-                          margin: 0,
-                          fontFamily: 'Inter, sans-serif',
-                          fontStyle: 'italic',
-                        }}
-                      >
-                        💡 {trend.why_this_works}
+                    {/* Hook (first 3 seconds) */}
+                    {cleanWhy && cleanWhy !== cleanConcept && (
+                      <div style={{ marginTop: cleanConcept ? 2 : 0 }}>
+                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6B6B78', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
+                          🪝 Hook (first 3 seconds)
+                        </p>
+                        <p style={{ fontSize: 11, color: '#33333F', lineHeight: 1.35, margin: 0, fontFamily: 'Inter, sans-serif', fontStyle: 'italic' }}>
+                          {cleanWhy}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Hook Brief */}
+                    {cleanHookBrief && (
+                      <div style={{ marginTop: 2 }}>
+                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6B6B78', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
+                          🎬 Hook Brief
+                        </p>
+                        <p style={{ fontSize: 11, color: '#33333F', lineHeight: 1.35, margin: 0, fontFamily: 'Inter, sans-serif' }}>
+                          {cleanHookBrief}
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Fallback to clean used_for if neither concept nor why exists */}
+                    {!cleanConcept && !cleanWhy && cleanUsed && (
+                      <p style={{ fontSize: 11.5, color: '#0E0E10', lineHeight: 1.4, margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
+                        {cleanUsed}
                       </p>
                     )}
                   </div>

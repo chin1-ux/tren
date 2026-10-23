@@ -369,12 +369,19 @@ export interface UiTrend {
 export function getCleanAnalysis(text?: string | null): string | null {
   if (!text) return null;
   const trimmed = text.trim();
+  const lower = trimmed.toLowerCase();
   if (
     (trimmed.startsWith("The track ") && trimmed.includes("is currently driving high engagement")) ||
     (trimmed.startsWith("Adapt the visual style of ") && trimmed.includes("to your niche")) ||
     trimmed === "Automated fallback classification." ||
     trimmed === "Not enough data yet for a tailored strategy." ||
-    trimmed.toLowerCase().includes("fallback classification")
+    lower.includes("fallback classification") ||
+    lower.includes("strong algorithmic audio momentum") ||
+    lower.includes("short creator clips that match") ||
+    lower.includes("post aesthetic clips or photos") ||
+    lower.includes("insufficient reel evidence") ||
+    lower.includes("no indexed reel evidence") ||
+    lower.includes("sampled reels show completely discordant themes")
   ) {
     return null;
   }

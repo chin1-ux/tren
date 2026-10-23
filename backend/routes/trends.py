@@ -184,11 +184,21 @@ def _clean_analysis_text(text: Optional[str]) -> Optional[str]:
     if not text:
         return None
     t_lower = text.lower()
-    if (
-        "currently driving high engagement" in t_lower
-        or "adapt the visual style of" in t_lower
-        or "automated fallback classification" in t_lower
-    ):
+    canned_phrases = [
+        "currently driving high engagement",
+        "adapt the visual style of",
+        "automated fallback classification",
+        "creators consistently use this sound",
+        "strong algorithmic audio momentum",
+        "short creator clips that match",
+        "film a high-retention",
+        "post aesthetic clips or photos",
+        "do not use this track expecting",
+        "insufficient reel evidence",
+        "sampled reels show completely discordant themes",
+        "no indexed reel evidence",
+    ]
+    if any(phrase in t_lower for phrase in canned_phrases):
         return None
     return text
 
@@ -200,6 +210,7 @@ def _normalize_trends_slim(trends: list) -> list:
         if isinstance(t, dict):
             t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
             t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
+            t["ideal_content_description"] = _clean_analysis_text(t.get("ideal_content_description"))
     try:
         from audio_title_normalize import normalize_audio_title
         clean_trends = []

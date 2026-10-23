@@ -22,6 +22,9 @@ export interface DeckTrend {
   used_for?: string | null;
   used_for_note?: string | null;
   why_this_works?: string | null;
+  ideal_content_description?: string | null;
+  hook_brief?: string | null;
+  optimal_post_hour_ist?: number | null;
   score?: number;
   is_top_5?: boolean;
   is_exploration?: boolean;

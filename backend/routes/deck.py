@@ -66,7 +66,7 @@ STAGE_LABEL_MAP = {
 DECK_SELECT_COLS = (
     "id,audio_id,audio_title,audio_artist,status,first_detected_at,last_seen_at,"
     "reel_count,audio_use_count,language_final,language,trend_origin,"
-    "niche_tag,semantic_niches,used_for_note,why_this_works,"
+    "niche_tag,semantic_niches,used_for_note,why_this_works,ideal_content_description,hook_brief,optimal_post_hour_ist,"
     "window_hours_remaining,is_voiceover,is_seed_data"
 )
 
@@ -258,6 +258,7 @@ def get_deck_trends(
 
             used_for = (r.get("used_for_note") or "").strip()
             why_this_works = (r.get("why_this_works") or "").strip()
+            ideal_desc = (r.get("ideal_content_description") or "").strip()
 
             # Filter out canned automated fallback classification strings & synthetic templates
             canned_needles = [
@@ -284,12 +285,18 @@ def get_deck_trends(
                 "insufficient reel data",
                 "no indexed reel evidence",
                 "sampled reels show completely discordant themes",
+                "strong algorithmic audio momentum",
+                "short creator clips that match",
+                "post aesthetic clips or photos matching",
+                "do not use this track expecting",
             ]
             for needle in canned_needles:
                 if needle in why_this_works.lower():
                     why_this_works = ""
                 if needle in used_for.lower():
                     used_for = ""
+                if needle in ideal_desc.lower():
+                    ideal_desc = ""
 
             items.append({
                 "id": r["id"],
@@ -309,6 +316,9 @@ def get_deck_trends(
                 "niche": _resolve_niche(r),
                 "used_for": used_for if used_for else None,
                 "why_this_works": why_this_works if why_this_works else None,
+                "ideal_content_description": ideal_desc if ideal_desc else None,
+                "hook_brief": r.get("hook_brief") or None,
+                "optimal_post_hour_ist": r.get("optimal_post_hour_ist"),
             })
 
         payload = {
