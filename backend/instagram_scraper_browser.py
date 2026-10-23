@@ -143,222 +143,76 @@ class InstagramScraper:
         self._camoufox_page = None      # Active page for scraping
         
         self.hashtag_groups = {
-            # ── INDIA AUDIO / SONG TRENDS ──────────────────────────────────────────
-            # DB-validated: real creators use these when posting to trending Bollywood audio
-            # Research: top signals for song-driven reel discovery in India
-            "INDIA_AUDIO": [
-                "bollywoodreels", "bollywoodsongs", "bollywoodmusic", "bollywooddance",
-                "hindisongs", "hindisong", "hindimusic", "trendingsong", "trendingsongs",
-                "viralsong", "newsong", "musicreels", "instamusic",
-                "reelitfeelit", "reelsindia", "viralreels", "trendingreels",
-                "reelkarofeelkaro", "filmyreels", "bollywoodvibes"
-            ],
-            # ── INDIA TRENDING (general discovery — DB: reelkarofeelkaro #24, viralreels #34)
             "INDIA_TRENDING": [
-                "trendingindia", "exploreindia", "reelkarofeelkaro",
-                "indianreels", "viralvideo", "indiatiktok",
-                "reelsinstagram", "trendingnow", "desivibes"
+                "indiansong", "reelkarofeelkaro", "trendingindia", "exploreindia"
             ],
-            # ── INDIA VERNACULAR (DB-validated: punjabisongs #23, telugureels #11, etc.)
             "INDIA_VERNACULAR": [
-                "telugureels", "tamilreels", "kannadareels", "marathireels",
-                "punjabisongs", "hindireels", "malayalamreels",
-                "telugusongs", "tamilsongs", "punjabireels",
-                "bhojpurigaane", "gujaratireels"
+                "telugureels", "kannadareels", "marathireels", "punjabisongs",
+                "hindireels", "tamilreels", "malayalamreels",
+                "keralagram", "chennaimemes"
             ],
-            # ── DANCE (DB: dancechallenge #16, dancecover #16, choreography #15, dancereels #8)
-            # Audio drives dance — highest audio-signal category confirmed by DB
-            "DANCE": [
-                "dancereels", "dancechallenge", "dancetrend", "choreography",
-                "danceindia", "indiandance", "dancevideo", "dancecover",
-                "bollywooddance", "bollywoodchoreography",
-                "hiphop", "hiphopdance", "streetdance",
-                "latindance", "kpopchoreography", "danceviral",
-                "reelsdance", "dancelife"
-            ],
-            # ── FASHION (grwm / ootd = creators always use trending audio) ─────────
-            "FASHION": [
-                "fashionreels", "indianfashion", "ootdindia", "desifashion",
-                "grwm", "getreadywithme", "outfitoftheday", "ootd",
-                "fashiontrends", "streetstyle", "aestheticreels",
-                "fashionbloggerindia", "ethnicwear", "sareelove",
-                "desicontent", "desiswag"
-            ],
-            # ── BEAUTY (lip-sync capital — most audio reuse per post) ─────────────
-            "BEAUTY": [
-                "beautyreels", "makeuptutorial", "glowup", "skincareroutine",
-                "indianmakeup", "desibeauty", "makeupvideos", "makeuplooks",
-                "nykaa", "skincareindia", "beautyhacks", "makeuptransformation",
-                "bridalmakeup", "desiwedding", "makeuptransition"
-            ],
-            # ── COMEDY (DB: funnyreels, trending audio memes) ─────────────────────
-            "COMEDY": [
-                "desicomedy", "comedyreels", "indiancomedy", "funnyreels",
-                "relatablereels", "funnyvideo", "comedyvideo", "desimemes",
-                "memesindia", "funnyshorts", "trending_comedy"
-            ],
-            # ── FITNESS (workout music = strong audio signal, gymphonk crossover) ──
             "FITNESS": [
-                "fitnessreels", "gymreels", "workoutmotivation", "gymmotivation",
-                "fitindia", "indianfitness", "gymlife", "bodybuildingindia",
-                "yoga", "yogaindia", "desiworkout", "workoutvideo",
-                "gymphonk", "gymedits"
+                "fitnessreels", "gymindia", "workoutmotivation", "desiworkout",
+                "fitindia", "indianfitness", "gymreels", "fitnessjourney",
+                "bodybuildingindia", "yoga", "yogaindia"
             ],
-            # ── FOOD ──────────────────────────────────────────────────────────────
             "FOOD": [
                 "foodreels", "indianstreetfood", "desifood", "foodbloggerindia",
-                "mumbaifoodie", "delhifoodie", "indianrecipes", "streetfoodindia",
-                "homecooking", "foodporn", "biryani", "paneer"
+                "mumbaifoodie", "delhifoodie", "homecooking", "indianrecipes",
+                "foodporn", "streetfoodindia", "paneer", "biryani"
             ],
-            # ── TRAVEL ────────────────────────────────────────────────────────────
+            "COMEDY": [
+                "desicomedy", "comedyreels", "indiancomedy", "funnyreels",
+                "relatablereels"
+            ],
+            "DANCE": [
+                "dancechallenge", "choreography", "dancereels", "danceindia",
+                "dancevideo"
+            ],
+            "FASHION": [
+                "fashionreels", "indianfashion", "streetstyleindia", "ootdindia",
+                "ethnicwear", "sareelove", "kurtistyle", "fashionbloggerindia",
+                "grwm", "desifashion"
+            ],
             "TRAVEL": [
-                "travelreels", "incredibleindia", "travelindia", "wanderlust",
-                "goadiaries", "keralatourism", "rajasthantourism",
-                "solotravel", "indiapictures", "travelvlog"
+                "travelreels", "incredibleindia", "travelindia", "himalayas",
+                "goadiaries", "keralatourism", "rajasthantourism", "wanderlust",
+                "solotravel", "indiapictures"
             ],
-            # ── MOTIVATION ────────────────────────────────────────────────────────
+            "BEAUTY": [
+                "beautyreels", "indianmakeup", "skincareroutine", "desiwedding",
+                "bridalmakeup", "makeuptutorial", "glowup", "nykaa",
+                "skincareindia", "desibeauty"
+            ],
+            "TECH": [
+                "techreels", "techindia", "gadgets", "coding", "developer",
+                "python", "programmer", "softwareengineer", "techreview",
+                "artificialintelligence", "machinelearning"
+            ],
             "MOTIVATION": [
                 "motivationreels", "successmindset", "hustle", "entrepreneurindia",
-                "startupindia", "growthmindset", "dailymotivation",
-                "selfimprovement", "mindset", "leadership"
+                "startupindia", "businessindia", "motivationalquotes",
+                "growthmindset", "leadership", "dailyquotes"
             ],
-            # ── SPORTS ────────────────────────────────────────────────────────────
+            "CURRENT_AFFAIRS": [
+                "currentaffairs", "newsindia", "geopolitics", "upsc", "indiaexplained",
+                "indiannews", "politicsindia", "breakingnews", "stockmarketindia",
+                "financeindia", "economy"
+            ],
             "SPORTS": [
-                "cricketindia", "ipl", "viratkohli", "msdhoni",
-                "footballindia", "badminton", "indiancricket",
-                "sportsreels", "neerajchopra", "kabaddi"
+                "sportsreels", "cricketindia", "ipl", "viratkohli", "msdhoni",
+                "footballindia", "badminton", "kabaddi", "neerajchopra",
+                "indiancricket"
             ],
-            # ── GLOBAL_DISCOVERY ─────────────────────────────────────────────────
-            # DB-validated: reggaeton #10, kpop #10, funkbrasil #9, passinho #5, afrobeats #5
-            # Research: tags real creators put on their posts (not curator aggregators)
             "GLOBAL_DISCOVERY": [
-                # Core: real creators tag their audio-driven posts with these
-                "viralaudio", "trendingsound", "viralmusic", "reelsaudio",
-                "trendingaudio", "viralsong", "speedupsongs", "remixreels",
-                # Dance/challenge (audio is the reason these get posted)
-                "dancechallenge", "dancetrend", "tiktokdance", "choreography",
-                # Brazilian Phonk & Funk — DB confirmed: funkbrasil #9, passinho #5
-                "phonk", "brazilianphonk", "funkbrasil", "phonkmusic",
-                "speedupphonk", "driftphonk", "darkphonk",
-                "passinho", "funkmtg", "montagem",
-                # Amapiano (huge in 2025-26, crossover with afrobeats)
-                "amapiano", "amapianovibes", "amapianodance",
-                # Afrobeats — DB confirmed: afrobeats #5, naijamusic growing
-                "afrobeats", "afrobeatsreels", "amapiano", "afrodance", "naijamusic",
-                # K-Pop — DB confirmed: kpop #10
-                "kpop", "kpopdance", "kpopedit", "kpopchoreography",
-                # Latin/Spanish — DB confirmed: reggaeton #10
-                "reggaeton", "latinmusic", "spanishmusic", "perreo",
-                # Hip-hop / R&B / Pop
-                "hiphop", "hiphopreels", "rnbmusic", "popmusic"
-            ],
-
-            # ── HARYANA (top content-producing state — zero coverage before this) ──────
-            # Research: Haryanvi music drives attitude, gym, and dance reels pan-India;
-            # Sapna Choudhary tracks recycled heavily for dance challenges
-            "INDIA_HARYANA": [
-                "haryanvisong", "haryanvireels", "haryanvidance", "haryanvimusic",
-                "haryanvivibes", "haryanvibeat", "sapnachoudhary",
-                "badmaash", "desiattitude", "jatlife", "jatswag", "rjaat"
-            ],
-
-            # ── UP + BHOJPURI (massive Tier-2/3 creator economy) ─────────────────────
-            # Research: UP creators dominate comedy, slice-of-life, and Bhojpuri folk reels;
-            # bhojpurireels intentionally excluded per Chinmay's instruction (Oct 15 2026)
-            "INDIA_UP_BHOJPURI": [
-                "bhojpurisongs", "bhojpuridance", "bhojpuriviral",
-                "bhojpuribeats", "bhojpurigaane", "bhojpurifilm",
-                "upreel", "bhojpuriworld"
-            ],
-
-            # ── MARATHI / MAHARASHTRA ─────────────────────────────────────────────────
-            # Research: Lavani, Dhol-Tasha, Sanju Rathod tracks dominate Maharashtra reels;
-            # marathimulgi + traditional attire reels pull massive engagement
-            "INDIA_MARATHI": [
-                "marathisongs", "marathiviral", "marathimulgi",
-                "marathidance", "lavani", "maharashtrian",
-                "mumbaikars", "punediaries", "Maharashtra"
-            ],
-
-            # ── BENGALI (3rd most-spoken Indian language — zero coverage before this) ─
-            # Research: Kolkata/West Bengal + Bangladesh diaspora create massive reel volumes
-            "INDIA_BENGALI": [
-                "bengalireels", "bengalisong", "banglamusic", "kolkatareels",
-                "bengalidance", "bengaliviral", "tollywood_bengali"
-            ],
-
-            # ── RAJASTHANI / INDIAN FOLK ─────────────────────────────────────────────
-            # Research: Folk-fusion reels trend heavily during festive seasons;
-            # rural/semi-urban creator explosion driving folk audio discovery
-            "INDIA_FOLK": [
-                "rajasthanireels", "rajasthanisongs", "rajasthanifolk",
-                "folkmusic", "folksong", "indianfolk", "rajput",
-                "assamesereels", "bihu"
-            ],
-
-            # ── INDIA AESTHETIC AUDIO ─────────────────────────────────────────────────
-            # Research: Slowed+reverb Hindi and lo-fi Bollywood = dominant aesthetic-reel
-            # audio category; creators doing photo dumps, night drives, couple reels
-            "INDIA_AESTHETIC_AUDIO": [
-                "slowedreverb", "slowedsong", "lofi_hindi", "hindilofisong",
-                "aesthetic_hindi", "moodysong", "bollywoodlofi",
-                "sadreels", "feelingsong", "aashiqi"
-            ],
-
-            # ── WEDDING / FESTIVE AUDIO ───────────────────────────────────────────────
-            # Research: Wedding choreography and Navratri/Garba reels spike seasonally
-            # and consistently drive audio discovery for dance categories
-            "INDIA_WEDDING_FESTIVAL": [
-                "weddingchoreography", "sangeetdance", "garbavibes",
-                "navratrispecial", "weddingsong", "baraat",
-                "diwali_vibes", "holireels", "festivalreels"
-            ],
-
-            # ── SHAYARI / STATUS VIDEO FORMAT ─────────────────────────────────────────
-            # Research: WhatsApp-status-format reels and shayari audio are India-specific
-            # discovery vectors that drive audio use counts significantly
-            "INDIA_STATUS_SHAYARI": [
-                "statusvideo", "whatsappstatus", "shayarireels",
-                "poetryreels", "motivational_shayari", "dardebayan"
-            ],
-
-            # ── INDIA ARTISTS ─────────────────────────────────────────────────────────
-            # Research: These artists are India's "Tyla equivalents" — each drives
-            # a disproportionate share of trending reel audio across categories.
-            # Karan Aujla = #1 pan-India audio wave driver (Ed Sheeran collab, record views).
-            # Anirudh Ravichander = primary engine for Tamil + pan-India dance/gym audio.
-            # AP Dhillon + Diljit = dominant Punjabi aesthetic & lifestyle audio.
-            "INDIA_ARTISTS": [
-                "karanaujla", "apdhillon", "diljitdosanjh",
-                "anirudhravichander", "gurrandhawa", "yoyohoneysingh",
-                "badshah", "arijitsingh", "pritam",
-                "thamanS", "devisriprasad", "sidsriram"
-            ],
-
-            # ── GLOBAL ARTISTS ────────────────────────────────────────────────────────
-            # Research: These artists drive disproportionate reel-audio waves globally,
-            # the way Tyla anchors afrobeats/amapiano discovery.
-            # Tyla (SA): CHANEL + amapiano wave — fashion, GRWM, aesthetic lifestyle.
-            # Bad Bunny (PR): reggaeton global export — beach, party, dance challenge.
-            # Drake (CA): NOKIA + rap flexes — gym, car, lifestyle edits.
-            # Sabrina Carpenter: pop hooks — OOTD, GRWM, transitions.
-            # Anitta (BR): Brazil crossover — biggest Latin-Brazilian female driver.
-            # Rosalia (ES): Spanish/Latin artistic edits — fashion & dance hybrid.
-            # Burna Boy (NG): afrobeats + crossover — same Tyla-tier for Afrobeats.
-            # Stray Kids + NewJeans: K-pop challenge + aesthetic audio wave.
-            "GLOBAL_ARTISTS": [
-                "tyla", "tylamusic",
-                "badbunny", "badbunnymusic",
-                "drake", "drakemusic",
-                "sabrinacarpenter",
-                "anitta", "anitta_official",
-                "rosalia", "rosaliamusic",
-                "burnaboy",
-                "straykids", "newjeans",
-                "bts", "blackpink",
-                "theweeknd", "weeknd",
-                "sza", "szamusic",
-                "dojacat", "icespice"
+                # 1. Creator Audio, Speed-Up & Template Incubators (High audio density, 0 bot spam)
+                "trendingsound", "reelsaudio", "viralaudio", "speedupsongs", "capcuttemplate", "audiosforedits",
+                # 2. Viral Sub-Culture Launchpads (Where global breakout hits originate)
+                "brazilianphonk", "funkmtg", "phonk", "reggaeton", "afrobeats", "amapiano", "kpopdance",
+                # 3. Global Dance & Challenge Hubs
+                "dancechallenge", "gloomyvibes", "streetstyle", "remixreels", "dancetrend", "passinho",
+                # 4. Regional & Niche Sound Hubs
+                "latinmusic", "latinreels", "spanishmusic", "afrobeatsreels", "kpop", "speedupphonk", "funkbrasil"
             ]
         }
 
@@ -393,9 +247,6 @@ class InstagramScraper:
             for tag in self.hashtag_groups.get(pool_name, []):
                 if tag.lower() not in self._hashtag_pool_lookup:
                     self._hashtag_pool_lookup[tag.lower()] = pool_name
-
-        self.login_wall_detected = False
-        self.login_wall_targets = []
 
     def _source_hashtag_pool_for_hashtags(self, hashtags: list[str], scraped_tag: str | None = None) -> str | None:
         if scraped_tag:
@@ -524,111 +375,43 @@ class InstagramScraper:
                 "feed": None
             }
 
-            candidate_root_keys = [
-                "fetch__XDTUserDict",
-                "xdt_api__v1__feed__user_timeline_graphql_connection",
-                "xdt_api__v1__feed__timeline__connection",
-                "xdt_api__v1__clips__user__connection_v2",
-                "user",
-            ]
-            candidate_feed_keys = [
-                "clips_connection",
-                "edge_felix_video_timeline",
-                "edge_owner_to_timeline_media",
-                "profile_grid",
-                "edges",
-                "items",
-            ]
-
             async def handle_response(response):
                 url = response.url
-                status = response.status
                 if "api/v1/users/web_profile_info" in url:
                     try:
                         captured_data["profile"] = await response.json()
-                        user_keys = list(captured_data["profile"].get("data", {}).get("user", {}).keys())
-                        logger.info(f"[GHA DIAG SCHEMA web_profile_info] @{username} status={status} user_keys={user_keys}")
-                    except Exception as json_err:
-                        logger.warning(f"[GHA DIAG ERR] web_profile_info json parse error @{username}: {json_err}")
+                    except Exception:
+                        pass
                 elif "graphql/query" in url:
                     try:
                         res_json = await response.json()
-                        data_dict = res_json.get("data", {}) if isinstance(res_json, dict) else {}
-                        
-                        user_dict = None
-                        for rk in candidate_root_keys:
-                            if rk in data_dict:
-                                user_dict = data_dict[rk]
-                                break
-                        
-                        if user_dict and not captured_data.get("profile"):
-                            feed_container = None
-                            for fk in candidate_feed_keys:
-                                if fk in user_dict:
-                                    feed_container = user_dict[fk]
-                                    break
-                            
-                            # If user_dict itself contains edges directly
-                            if not feed_container and ("edges" in user_dict or "items" in user_dict):
-                                feed_container = user_dict
-
-                            if feed_container:
-                                captured_data["profile"] = {
-                                    "data": {
-                                        "user": {
-                                            "username": username,
-                                            "clips_connection": feed_container,
-                                            "edge_felix_video_timeline": feed_container,
-                                            "edge_owner_to_timeline_media": feed_container
-                                        }
-                                    }
-                                }
-                                logger.info(f"[GHA DIAG MATCH] Captured GraphQL profile payload for @{username}")
-                            else:
-                                logger.warning(f"Unrecognized GraphQL feed schema for @{username}: user_keys={list(user_dict.keys()) if isinstance(user_dict, dict) else []}")
-                    except Exception as json_err:
-                        logger.warning(f"[GHA DIAG ERR] graphql json parse error @{username}: {json_err}")
+                        if "xdt_api__v1__clips__user__connection_v2" in str(res_json):
+                            captured_data["feed"] = res_json
+                    except Exception:
+                        pass
 
             page = await ctx.new_page()
             page.on("response", handle_response)
 
-            main_url = f"https://www.instagram.com/{username}/"
-            logger.info(f"Navigating Camoufox to main profile page: {main_url}...")
+            url = f"https://www.instagram.com/{username}/reels/"
+            logger.info(f"Navigating Camoufox to profile reels page: {url}...")
             try:
-                resp = await page.goto(main_url, wait_until="domcontentloaded", timeout=20000)
-                status_main = resp.status if resp else 0
-                title_main = await page.title()
-                logger.info(f"[GHA DIAG PAGE] @{username} main_url status={status_main} final_url={page.url} title='{title_main}'")
-                await page.wait_for_timeout(3000)
-                await page.evaluate("window.scrollTo(0, 1500);")
-                await page.wait_for_timeout(3000)
+                await page.goto(url, wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(6000)
             except Exception as e:
-                logger.warning(f"Navigation issue for @{username} main profile page: {e}")
+                logger.warning(f"Navigation issue for @{username} profile reels: {e}")
 
-            if not captured_data.get("profile"):
-                reels_url = f"https://www.instagram.com/{username}/reels/"
-                logger.info(f"Profile payload not captured on main page for @{username} — attempting reels fallback: {reels_url}...")
+            if not captured_data["profile"]:
+                logger.warning(f"XHR profile not captured for @{username} — trying direct API endpoint inside page context...")
                 try:
-                    resp_fb = await page.goto(reels_url, wait_until="domcontentloaded", timeout=20000)
-                    status_fb = resp_fb.status if resp_fb else 0
-                    title_fb = await page.title()
-                    logger.info(f"[GHA DIAG PAGE] @{username} reels_fallback status={status_fb} final_url={page.url} title='{title_fb}'")
-                    await page.wait_for_timeout(3000)
-                    await page.evaluate("window.scrollTo(0, 1500);")
-                    await page.wait_for_timeout(3000)
+                    direct_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
+                    await page.goto(direct_url, wait_until="domcontentloaded", timeout=15000)
+                    body_text = await page.inner_text("body")
+                    if body_text.startswith("for (;;);"):
+                        body_text = body_text[9:]
+                    captured_data["profile"] = json.loads(body_text)
                 except Exception as e:
-                    logger.warning(f"Navigation issue for @{username} reels fallback: {e}")
-
-            if not captured_data.get("profile"):
-                final_title = await page.title()
-                logger.warning(f"[GHA DIAG SUMMARY FAILED] @{username} failed to capture profile payload. Final URL: {page.url} | Title: '{final_title}'")
-                if page and ("/accounts/login" in page.url or "/challenge/" in page.url):
-                    self.login_wall_detected = True
-                    target_name = f"@{username}"
-                    if target_name not in self.login_wall_targets:
-                        self.login_wall_targets.append(target_name)
-            else:
-                logger.info(f"[GHA DIAG SUMMARY SUCCESS] @{username} profile payload successfully captured!")
+                    logger.error(f"Direct API fetch in page context failed for @{username}: {e}")
 
             return captured_data
 
@@ -682,63 +465,43 @@ class InstagramScraper:
                 if not user_data:
                     continue
 
-                candidate_feed_keys = [
-                    "clips_connection",
-                    "edge_felix_video_timeline",
-                    "edge_owner_to_timeline_media",
-                    "profile_grid",
-                    "edges",
-                    "items",
-                ]
-                all_edges = []
-                for fk in candidate_feed_keys:
-                    val = user_data.get(fk)
-                    if isinstance(val, list):
-                        all_edges.extend(val)
-                    elif isinstance(val, dict):
-                        sub = val.get("edges") or val.get("items") or []
-                        if isinstance(sub, list):
-                            all_edges.extend(sub)
-
-                if not all_edges:
-                    logger.warning(f"Watchlist unwrapper: no media edges extracted for @{username} from keys={list(user_data.keys() if isinstance(user_data, dict) else [])}")
+                reels_edges = user_data.get("edge_felix_video_timeline", {}).get("edges", [])
+                posts_edges = user_data.get("edge_owner_to_timeline_media", {}).get("edges", [])
 
                 seen = set()
-                for edge in all_edges:
-                    node = edge.get("media") or edge.get("node") or edge
-                    nid = node.get("code") or node.get("shortcode") or node.get("id") or node.get("pk")
+                for edge in reels_edges + posts_edges:
+                    node = edge.get("node", {})
+                    nid = node.get("id") or node.get("shortcode")
                     if not nid or nid in seen:
                         continue
                     seen.add(nid)
 
-                    caption_val = (node.get("caption") or {}).get("text") if isinstance(node.get("caption"), dict) else ""
-                    if not caption_val:
-                        caps = node.get("edge_media_to_caption", {}).get("edges", [])
-                        caption_val = caps[0].get("node", {}).get("text", "") if caps else ""
+                    caps = node.get("edge_media_to_caption", {}).get("edges", [])
+                    caption = caps[0].get("node", {}).get("text", "") if caps else ""
 
                     clips = node.get("clips_metadata", {}) or {}
                     audio_info = clips.get("audio_ranking_info", {}) or clips.get("music_info", {}) or {}
-                    music_c = (clips.get("music_info") or {}).get("music_asset_info", {}) or {}
+                    music_c = clips.get("music_info", {}).get("music_asset_info", {}) or {}
 
                     audio_title = music_c.get("title") or audio_info.get("audio_title") or node.get("title") or "Original Audio"
                     audio_artist = music_c.get("display_artist") or audio_info.get("display_artist") or ""
                     audio_id = str(music_c.get("audio_cluster_id") or music_c.get("id") or audio_info.get("audio_asset_id") or "")
 
-                    view_count = node.get("play_count") or node.get("video_view_count") or node.get("view_count") or 0
-                    like_count = node.get("like_count") or node.get("edge_media_preview_like", {}).get("count") or 0
-                    comment_count = node.get("comment_count") or node.get("edge_media_to_comment", {}).get("count") or 0
+                    view_count = node.get("video_view_count") or node.get("play_count") or 0
+                    like_count = node.get("edge_media_preview_like", {}).get("count") or node.get("like_count") or 0
+                    comment_count = node.get("edge_media_to_comment", {}).get("count") or 0
 
                     extracted_reels.append({
                         "reel_id": str(nid),
                         "owner_username": username,
-                        "caption": caption_val,
+                        "caption": caption,
                         "audio_title": audio_title,
                         "audio_artist": audio_artist,
                         "audio_id": audio_id or None,
                         "view_count": view_count,
                         "like_count": like_count,
                         "comment_count": comment_count,
-                        "shortcode": node.get("shortcode") or node.get("code") or str(nid),
+                        "shortcode": node.get("shortcode"),
                     })
             except Exception as e:
                 logger.warning(f"Error checking creator @{username} in watchlist: {e}")
@@ -993,7 +756,7 @@ class InstagramScraper:
                 # Pass audio_id so _extract_audio_use_count can query audio_official_counts
                 use_cnt = self._extract_audio_use_count(media, audio_id=str(audio_id))
                 is_orig = True
-                if use_cnt is not None and use_cnt >= 50:
+                if use_cnt >= 50:
                     is_orig = False
                 return str(audio_id), audio_title, audio_artist, is_orig
         except Exception as e:
@@ -2047,18 +1810,12 @@ Return ONLY valid JSON, no markdown, no explanation:
             elif scrape_mode == "global":
                 priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
             elif scrape_mode == "india":
-                # India mode: audio-first selection
-                # INDIA_AUDIO is the highest-signal group for bollywood/hindi trending audio
-                # DANCE is DB-confirmed top audio category (dancechallenge #16, choreography #15)
-                # VERNACULAR keeps regional audio signals (punjabisongs #23 in DB)
-                # Max ~20 tags total to stay within 15-min SCRAPER_GLOBAL_TIMEOUT
                 priority_pool = (
-                    self.hashtag_groups.get("INDIA_AUDIO", [])[:6]
-                    + self.hashtag_groups.get("INDIA_TRENDING", [])[:4]
-                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:4]
-                    + self.hashtag_groups.get("DANCE", [])[:3]
-                    + self.hashtag_groups.get("BEAUTY", [])[:2]
-                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:3]
+                    self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
+                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
+                    + self.hashtag_groups.get("DANCE", [])[:2]
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:4]
                 )
             else:
                 # 50/50 Mixed Mode (Default): Equal balance between India trends & Global sounds
