@@ -3,6 +3,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, EmailStr
 from typing import List, Optional
 import os, json, time, logging, traceback
+from datetime import datetime, timezone, timedelta
 from api_globals import *
 from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key, _resolve_user
 from schemas import *
@@ -13,6 +14,118 @@ _TRENDS_FEED_CACHE: dict = {}
 _EMERGING_TRENDS_CACHE: dict = {}
 _RESURGING_TRENDS_CACHE: dict = {}
 _EXPIRED_TRENDS_CACHE: dict = {}
+_DATA_FRESHNESS_CACHE: dict = {"time": 0, "data": None}
+
+def _get_data_freshness() -> dict:
+    """
+    Computes per-source last_success_at (instagram, spotify) derived from cron_runs/reels.
+    Returns overall last_updated, is_stale (>12h), and breakdown by source.
+    Cached for 60s to avoid unnecessary DB load.
+    """
+    now_ts = time.time()
+    if _DATA_FRESHNESS_CACHE.get("data") and (now_ts - _DATA_FRESHNESS_CACHE.get("time", 0) < 60):
+        return _DATA_FRESHNESS_CACHE["data"]
+
+    now_dt = datetime.now(timezone.utc)
+    res_data = {
+        "last_updated": None,
+        "is_stale": False,
+        "staleness_threshold_hours": 12.0,
+        "sources": {
+            "instagram": {"last_success_at": None, "age_hours": None, "is_stale": False},
+            "spotify": {"last_success_at": None, "age_hours": None, "is_stale": False},
+        }
+    }
+
+    if not supabase:
+        return res_data
+
+    try:
+        # 1. Instagram: Check latest reels scraped_at, or latest cron_runs with reels_scraped > 0
+        ig_dt = None
+        try:
+            r_reels = supabase.table("reels").select("scraped_at").order("scraped_at", desc=True).limit(1).execute()
+            if r_reels.data and r_reels.data[0].get("scraped_at"):
+                val = r_reels.data[0]["scraped_at"].replace("Z", "+00:00")
+                ig_dt = datetime.fromisoformat(val)
+                if ig_dt.tzinfo is None:
+                    ig_dt = ig_dt.replace(tzinfo=timezone.utc)
+        except Exception as e_ig1:
+            logger.warning(f"Error querying reels for IG freshness: {e_ig1}")
+
+        try:
+            r_cron = supabase.table("cron_runs") \
+                .select("completed_at, run_at, created_at, reels_scraped, new_reels_count") \
+                .or_("reels_scraped.gt.0,new_reels_count.gt.0") \
+                .order("created_at", desc=True) \
+                .limit(1) \
+                .execute()
+            if r_cron.data and r_cron.data[0]:
+                c_item = r_cron.data[0]
+                c_val = c_item.get("completed_at") or c_item.get("run_at") or c_item.get("created_at")
+                if c_val:
+                    c_dt = datetime.fromisoformat(c_val.replace("Z", "+00:00"))
+                    if c_dt.tzinfo is None:
+                        c_dt = c_dt.replace(tzinfo=timezone.utc)
+                    if ig_dt is None or c_dt > ig_dt:
+                        ig_dt = c_dt
+        except Exception as e_ig2:
+            logger.warning(f"Error querying cron_runs for IG freshness: {e_ig2}")
+
+        if ig_dt:
+            ig_age = max(0.0, (now_dt - ig_dt).total_seconds() / 3600.0)
+            res_data["sources"]["instagram"]["last_success_at"] = ig_dt.isoformat()
+            res_data["sources"]["instagram"]["age_hours"] = round(ig_age, 2)
+            res_data["sources"]["instagram"]["is_stale"] = (ig_age > 12.0)
+
+        # 2. Spotify: Check spotify_feed_cache or content_trends
+        sp_dt = None
+        try:
+            r_sp = supabase.table("spotify_feed_cache").select("created_at, trend_created_at").order("created_at", desc=True).limit(1).execute()
+            if r_sp.data and r_sp.data[0]:
+                sp_val = r_sp.data[0].get("created_at") or r_sp.data[0].get("trend_created_at")
+                if sp_val:
+                    sp_dt = datetime.fromisoformat(sp_val.replace("Z", "+00:00"))
+                    if sp_dt.tzinfo is None:
+                        sp_dt = sp_dt.replace(tzinfo=timezone.utc)
+        except Exception as e_sp:
+            logger.warning(f"Error querying spotify_feed_cache for Spotify freshness: {e_sp}")
+
+        if not sp_dt:
+            try:
+                r_ct = supabase.table("content_trends").select("created_at").eq("trend_type", "audio").order("created_at", desc=True).limit(1).execute()
+                if r_ct.data and r_ct.data[0].get("created_at"):
+                    sp_dt = datetime.fromisoformat(r_ct.data[0]["created_at"].replace("Z", "+00:00"))
+                    if sp_dt.tzinfo is None:
+                        sp_dt = sp_dt.replace(tzinfo=timezone.utc)
+            except Exception as e_ct:
+                logger.warning(f"Error querying content_trends for Spotify freshness: {e_ct}")
+
+        if sp_dt:
+            sp_age = max(0.0, (now_dt - sp_dt).total_seconds() / 3600.0)
+            res_data["sources"]["spotify"]["last_success_at"] = sp_dt.isoformat()
+            res_data["sources"]["spotify"]["age_hours"] = round(sp_age, 2)
+            res_data["sources"]["spotify"]["is_stale"] = (sp_age > 12.0)
+
+        # Overall freshness: derived from newest successful ingest timestamp
+        newest_dt = max([d for d in (ig_dt, sp_dt) if d is not None], default=None)
+        if newest_dt:
+            overall_age = max(0.0, (now_dt - newest_dt).total_seconds() / 3600.0)
+            res_data["last_updated"] = newest_dt.isoformat()
+            res_data["age_hours"] = round(overall_age, 2)
+            res_data["is_stale"] = (overall_age > 12.0)
+            # If IG specifically is older than 12h, mark as stale
+            if ig_dt and ((now_dt - ig_dt).total_seconds() / 3600.0 > 12.0):
+                res_data["is_stale"] = True
+        else:
+            res_data["is_stale"] = True
+
+        _DATA_FRESHNESS_CACHE["time"] = now_ts
+        _DATA_FRESHNESS_CACHE["data"] = res_data
+    except Exception as e:
+        logger.error(f"Error computing data freshness: {e}", exc_info=True)
+
+    return res_data
 
 def _apply_languages_filter(q, language: Optional[str] = None, languages: Optional[str] = None):
     lang_list = []
@@ -53,6 +166,334 @@ FEED_CARD_COLUMNS = (
     "peaking_score,saturation_penalty,llm_classification_status,composite_score"
 )
 
+SLIM_FEED_COLUMNS = (
+    "id,audio_title,audio_artist,audio_id,audio_use_count,status,velocity_avg,"
+    "opportunity_score,saturation_score,india_saturation_pct,global_saturation_pct,"
+    "saturation_penalty,creator_fit_score,hook_retention_score,window_hours_remaining,"
+    "first_detected_at,created_at,status_changed_at,why_this_works,used_for,used_for_note,"
+    "niche_tag,semantic_niches,language,language_final,trend_classification,velocity_pattern,"
+    "optimal_post_hour_ist,is_dance,is_voiceover,is_seed_data,is_regional_crossover,crossover_message,"
+    "display_title,commercial_song_alias,has_creator_outlier,reel_count,content_type,composite_score,"
+    "ideal_content_description,llm_classification_status,hook_brief,adaptation_briefs"
+)
+
+_FEED_UNIFIED_CACHE: dict = {}
+_ASK_SEARCH_CACHE: dict = {}
+
+def _clean_analysis_text(text: Optional[str]) -> Optional[str]:
+    if not text:
+        return None
+    t_lower = text.lower()
+    canned_phrases = [
+        "currently driving high engagement",
+        "adapt the visual style of",
+        "automated fallback classification",
+        "creators consistently use this sound",
+        "strong algorithmic audio momentum",
+        "short creator clips that match",
+        "film a high-retention",
+        "post aesthetic clips or photos",
+        "do not use this track expecting",
+        "insufficient reel evidence",
+        "sampled reels show completely discordant themes",
+        "no indexed reel evidence",
+    ]
+    if any(phrase in t_lower for phrase in canned_phrases):
+        return None
+    return text
+
+def _normalize_trends_slim(trends: list) -> list:
+    """Fast slim normalization: sanitizes title, artist, language, niches without DB reel fetches."""
+    if not trends:
+        return trends
+    for t in trends:
+        if isinstance(t, dict):
+            t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
+            t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
+            t["ideal_content_description"] = _clean_analysis_text(t.get("ideal_content_description"))
+    try:
+        from audio_title_normalize import normalize_audio_title
+        clean_trends = []
+        for t in trends:
+            st = (t.get("status") or "").lower()
+            title = (t.get("audio_title") or "").lower()
+            if st in ("unqualified", "disqualified") or "speech plan" in title or "speechplan" in title:
+                continue
+
+            raw_title = t.get("audio_title") or t.get("song") or ""
+            norm_title = normalize_audio_title(raw_title)
+            norm_artist = raw_artist
+            t["audio_title"] = norm_title
+            t["audio_artist"] = norm_artist
+            t["song"] = norm_title
+            t["artist"] = norm_artist
+            if not t.get("content_type"):
+                t["content_type"] = "viral"
+
+            # Server-side template nulling (Order 93 D.c)
+            t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
+            t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
+
+            lang_final = (t.get("language_final") or "").strip().lower()
+            if lang_final and lang_final not in ("unknown", "other", ""):
+                t["language"] = lang_final
+                t["detected_language"] = lang_final
+
+            # Enrich niche tag from why_this_works / used_for / used_for_note if not present
+            context_blob = f"{t.get('why_this_works') or ''} {t.get('used_for_note') or ''} {t.get('used_for') or ''}".lower()
+            if context_blob.strip():
+                matched_niches = []
+                for n_key, keywords in NICHE_CONTEXT_MAP.items():
+                    if any(kw in context_blob for kw in keywords):
+                        matched_niches.append(n_key)
+                if matched_niches:
+                    existing_semantic = set(t.get("semantic_niches") or [])
+                    existing_semantic.discard("general")
+                    existing_semantic.update(matched_niches)
+                    t["semantic_niches"] = sorted(list(existing_semantic))
+                    if not t.get("niche_tag") or t.get("niche_tag") == "general":
+                        t["niche_tag"] = matched_niches[0]
+
+            clean_trends.append(t)
+
+        freshness = _get_data_freshness()
+        for t in clean_trends:
+            t["last_updated"] = freshness.get("last_updated")
+            t["is_stale"] = freshness.get("is_stale", False)
+
+        return clean_trends
+    except Exception as e:
+        logger.warning(f"Error in slim normalization: {e}")
+        return trends
+
+@router.get("/api/feed")
+@limiter.limit("60/minute")
+def get_unified_feed(
+    request: Request,
+    page: int = 1,
+    limit: int = 200,
+    language: Optional[str] = None,
+    languages: Optional[str] = None,
+    niche: Optional[str] = None,
+    status: Optional[str] = None,
+    sort: Optional[str] = "newest",
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Order 77 Item 5: Unified, fast, cached feed endpoint.
+    Returns slim trends per page, no reel arrays, edge-cache headers.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    try:
+        now_ts = time.time()
+        page = max(1, page)
+        limit = min(1000, max(1, limit))
+        
+        lang_key = languages or language or "all"
+        niche_key = niche or "all"
+        status_key = status or "all"
+        cache_key = f"feed:{lang_key}:{niche_key}:{status_key}:{sort}:p{page}:l{limit}"
+        
+        if cache_key in _FEED_UNIFIED_CACHE:
+            entry = _FEED_UNIFIED_CACHE[cache_key]
+            if now_ts - entry.get("time", 0) < 60:
+                headers = {
+                    "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+                    "X-Cache": "HIT-MEM",
+                }
+                return JSONResponse(content=entry["data"], headers=headers)
+                
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS, count="exact").eq("is_voiceover", False).eq("is_seed_data", False).gt("window_hours_remaining", 0)
+        
+        if status and status != "all":
+            q = q.eq("status", status)
+        else:
+            q = q.in_("status", ["emerging", "rising", "resurging", "peaked"])
+            
+        q = _apply_languages_filter(q, language, languages)
+        
+        if niche and niche != "all":
+            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            
+        if sort == "velocity":
+            q = q.order("velocity_avg", desc=True)
+        elif sort == "opportunity":
+            q = q.order("opportunity_score", desc=True)
+        else:
+            q = q.order("first_detected_at", desc=True)
+            
+        offset = (page - 1) * limit
+        q = q.range(offset, offset + limit - 1)
+        
+        res = execute_supabase_get(q)
+        raw_trends = res.data or []
+        total_count = res.count or len(raw_trends)
+        
+        trends = _normalize_trends_slim(raw_trends)
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
+        
+        payload = {
+            "trends": trends,
+            "total": total_count,
+            "page": page,
+            "limit": limit,
+            "has_more": (offset + len(trends)) < total_count
+        }
+        
+        _FEED_UNIFIED_CACHE[cache_key] = {"time": now_ts, "data": payload}
+        if len(_FEED_UNIFIED_CACHE) > 200:
+            oldest_k = min(_FEED_UNIFIED_CACHE.keys(), key=lambda k: _FEED_UNIFIED_CACHE[k]["time"])
+            _FEED_UNIFIED_CACHE.pop(oldest_k, None)
+            
+        headers = {
+            "Cache-Control": "public, max-age=60, s-maxage=300, stale-while-revalidate=600",
+            "X-Cache": "MISS",
+        }
+        return JSONResponse(content=payload, headers=headers)
+    except Exception as e:
+        logger.error(f"Error fetching unified feed: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/api/search/ask")
+@limiter.limit("20/hour")
+def search_ask(
+    request: Request,
+    q: str = "",
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Order 77 Item 7: Natural language search that answers creator questions.
+    Uses Groq/Gemini via call_llm with SQL fallback, 24h cache, 20/hr rate limit.
+    """
+    clean_q = (q or "").strip()
+    if not clean_q:
+        return JSONResponse({"direct_answer": "Please ask a question about what audio you want.", "results": []})
+        
+    cache_key = clean_q.lower()
+    now_ts = time.time()
+    if cache_key in _ASK_SEARCH_CACHE:
+        entry = _ASK_SEARCH_CACHE[cache_key]
+        if now_ts - entry.get("time", 0) < 86400:
+            return JSONResponse(
+                content=entry["data"],
+                headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "HIT-MEM"}
+            )
+            
+    try:
+        from llm import call_llm
+        system_prompt = (
+            "You are Trendrop's creator trend search assistant. A creator asks a question or describes what audio/sound "
+            "they are looking for on Instagram Reels.\n"
+            "Analyze the query and return a valid JSON object with:\n"
+            "{\n"
+            '  "intent": "<short summary of creator search intent>",\n'
+            '  "direct_answer": "<1-2 sentence direct, actionable advice or answer for the creator>",\n'
+            '  "filters": {\n'
+            '    "niche": "<niche if applicable: fitness, food, comedy, fashion, business, travel, beauty, devotional, tech, dance, narrative_edit, romance_relationship, or null>",\n'
+            '    "language": "<language code if specified: hi, pa, ta, te, ml, kn, bn, mr, en, es, pt, ko, or null>",\n'
+            '    "min_velocity": null,\n'
+            '    "max_saturation": null,\n'
+            '    "sort_by": "<newest | velocity | opportunity>",\n'
+            '    "keywords": ["<keyword1>", "<keyword2>"]\n'
+            "  }\n"
+            "}\n"
+            "Only output JSON. Do not include markdown or explanations outside the JSON."
+        )
+        try:
+            parsed = call_llm(system_prompt, f"Creator query: {clean_q}")
+        except Exception as e:
+            logger.warning(f"Ask-it LLM error, falling back to SQL: {e}")
+            parsed = {
+                "intent": "Keyword search",
+                "direct_answer": f"Searching active trends matching '{clean_q}'.",
+                "filters": {"keywords": clean_q.split(), "sort_by": "velocity"}
+            }
+            
+        intent = parsed.get("intent", "Search")
+        direct_answer = parsed.get("direct_answer", "")
+        filters = parsed.get("filters", {})
+        is_gibberish = parsed.get("is_gibberish", False) or any(
+            g in clean_q.lower() for g in ["asdf", "qwer", "zxcv", "jkl;", "lksd", "qwerty"]
+        )
+        
+        if is_gibberish:
+            result_payload = {
+                "intent": "Unrecognized or gibberish search",
+                "direct_answer": f"No trends found matching '{clean_q}'. Try searching for a specific niche (e.g. 'gym motivation'), language, or song title.",
+                "results": []
+            }
+            _ASK_SEARCH_CACHE[cache_key] = {"time": now_ts, "data": result_payload}
+            return JSONResponse(
+                content=result_payload,
+                headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "MISS"}
+            )
+        
+        query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
+        
+        lang = filters.get("language")
+        if lang:
+            query = query.or_(f"language_final.eq.{lang},language.eq.{lang}")
+            
+        niche = filters.get("niche")
+        if niche:
+            query = query.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            
+        keywords = [k for k in (filters.get("keywords") or []) if len(k) > 2 and k.lower() not in ("audio", "trend", "song", "sound", "reels")]
+        if not lang and not niche and keywords:
+            kw = keywords[0]
+            query = query.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%,audio_artist.ilike.%{kw}%")
+            
+        sort_by = filters.get("sort_by")
+        if sort_by == "velocity":
+            query = query.order("velocity_avg", desc=True)
+        elif sort_by == "opportunity":
+            query = query.order("opportunity_score", desc=True)
+        else:
+            query = query.order("first_detected_at", desc=True)
+            
+        query = query.limit(5)
+        res = execute_supabase_get(query)
+        data = res.data or []
+        
+        # If strict intersection of filters was empty, relax filters gracefully so creator gets relevant trends
+        if len(data) == 0 and not is_gibberish:
+            fallback_q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
+            if lang and niche:
+                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang},niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            elif lang:
+                fallback_q = fallback_q.or_(f"language_final.eq.{lang},language.eq.{lang}")
+            elif niche:
+                fallback_q = fallback_q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            elif keywords:
+                kw = keywords[0]
+                fallback_q = fallback_q.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%")
+            fallback_q = fallback_q.order("velocity_avg", desc=True).limit(5)
+            fb_res = execute_supabase_get(fallback_q)
+            data = fb_res.data or []
+            
+        trends = _normalize_trends_slim(data)
+        if len(trends) == 0 and not direct_answer:
+            direct_answer = f"No active trends found matching '{clean_q}'. Try broadening your search or choosing a niche tag."
+            
+        result_payload = {
+            "intent": intent,
+            "direct_answer": direct_answer,
+            "results": trends
+        }
+        _ASK_SEARCH_CACHE[cache_key] = {"time": now_ts, "data": result_payload}
+        if len(_ASK_SEARCH_CACHE) > 500:
+            oldest_k = min(_ASK_SEARCH_CACHE.keys(), key=lambda k: _ASK_SEARCH_CACHE[k]["time"])
+            _ASK_SEARCH_CACHE.pop(oldest_k, None)
+            
+        return JSONResponse(
+            content=result_payload,
+            headers={"Cache-Control": "public, max-age=3600, s-maxage=86400", "X-Cache": "MISS"}
+        )
+    except Exception as e:
+        logger.error(f"Error in search_ask: {e}", exc_info=True)
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 @router.get("/api/trends")
 @router.get("/api/trends/rising")
 @limiter.limit("60/minute")
@@ -62,22 +503,28 @@ def get_trends(
     languages: Optional[str] = None,
     sort: Optional[str] = "newest",
     niche: Optional[str] = None,
+    limit: Optional[int] = 200,
+    page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
-    Fetch RISING trends from Supabase.
-    Optional filters: ?language=hi & ?languages=hi,pa,en & sort=velocity|time_left|newest & niche=fitness
+    Fetch RISING trends from Supabase (Slim & Paginated).
+    Defaults to limit=200, max=1000.
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
         now_ts = time.time()
-        # Load user configuration for personalization
+        limit_val = min(max(1, limit or 200), 1000)
+        page_val = max(1, page or 1)
+        start_idx = (page_val - 1) * limit_val
+        end_idx = start_idx + limit_val - 1
+
         user_niche = "all"
         user_lang = "all"
         user_plan = "free"
-        
-        # Airtight guest bypass guard: Must be valid email containing @ and not default guest
+        is_personalized = False
+
         if current_user and isinstance(current_user, str) and "@" in current_user and current_user != "guest@trendrop.app":
             try:
                 user_plan = PlanEnforcement.get_user_plan(current_user)
@@ -93,60 +540,42 @@ def get_trends(
 
                 if prefs.get("niches") and len(prefs["niches"]) > 0:
                     user_niche = prefs["niches"][0]
+                    is_personalized = True
                 pref_langs = prefs.get("preferred_languages") or prefs.get("languages")
                 if not languages and not language and pref_langs and len(pref_langs) > 0:
                     languages = ",".join(pref_langs)
+                    is_personalized = True
             except Exception as e:
                 logger.warning(f"Error querying user profile/preferences for personalization: {e}")
 
         lang_key = languages or language or "all"
         niche_key = niche or "all"
-        cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_plan}"
+        cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_plan}:{limit_val}:{page_val}"
 
         # Check in-memory feed cache (60s TTL)
         if cache_key in _TRENDS_FEED_CACHE:
             entry = _TRENDS_FEED_CACHE[cache_key]
             if now_ts - entry.get("time", 0) < 60:
+                cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
                 headers = {
-                    "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                    "Cache-Control": cache_ctrl,
                     "X-Cache": "HIT-MEM",
                     "X-Skipped-Local-Fallback": "true",
                 }
                 return JSONResponse(content=entry["data"], headers=headers)
 
-        # Try fetching from Redis cache first
-        if standard_queue and standard_queue.connection:
-            try:
-                cached_data = standard_queue.connection.get(cache_key)
-                parsed_cache = json.loads(cached_data) if cached_data else None
-                if parsed_cache and len(parsed_cache) > 0:
-                    logger.info(f"Serving trends from cache for key: {cache_key}")
-                    _TRENDS_FEED_CACHE[cache_key] = {"time": now_ts, "data": parsed_cache}
-                    headers = {
-                        "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
-                        "X-Cache": "HIT-REDIS",
-                        "X-Skipped-Local-Fallback": "true",
-                    }
-                    return JSONResponse(content=parsed_cache, headers=headers)
-            except Exception as e:
-                logger.error(f"Redis fetch error: {e}")
-
-        # Get delay hours from module-level cached tiers
         delay_hours = get_cached_tier_delay(user_plan)
 
         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
-        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "rising").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
 
-        # 7-day retention gate for Rising tab (prevents ancient trends from clogging feed)
-        rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
+        rising_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         q = q.gte("created_at", rising_cutoff)
-
         q = _apply_languages_filter(q, language, languages)
 
         if niche and niche != "all":
             q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
 
-        # Server-side gating data delay filter: Only apply if user is on free plan and we have sufficient trends
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()
             q_delayed = q.lte("created_at", time_cutoff)
@@ -159,35 +588,28 @@ def get_trends(
         elif sort == "velocity":
             q = q.order("velocity_avg", desc=True)
         else:
-            # Default: newest audio detected by Trendrop pipeline on top
             q = q.order("first_detected_at", desc=True)
 
-        q = q.limit(100)
+        q = q.range(start_idx, end_idx)
         skipped_local_fallback = True
         res = execute_supabase_get(q)
-        trends = _normalize_trends(res.data or [])
+        trends = _normalize_trends_slim(res.data or [])
 
-        # Fallback: If delay_hours or strict rising filter returns 0 trends (e.g. fresh breakout trends detected <24h ago),
-        # fallback to querying active (rising + emerging) trends so free/guest users never see an empty rail.
+        # Fallback if rising is empty
         if not trends:
             skipped_local_fallback = False
-            q_fb = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
+            q_fb = supabase.table("trends").select(SLIM_FEED_COLUMNS).in_("status", ["rising", "emerging"]).eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM).gt("window_hours_remaining", 0)
             q_fb = _apply_languages_filter(q_fb, language, languages)
-            q_fb = q_fb.limit(100)
+            q_fb = q_fb.range(start_idx, end_idx)
             res_fb = execute_supabase_get(q_fb)
-            trends = _normalize_trends(res_fb.data or [])
+            trends = _normalize_trends_slim(res_fb.data or [])
 
-
-        # --- 70/30 Distribution: Indian/regional first, English/global after ---
-        # Prioritise local trends but keep global variety.
-        # Only applied when no specific language filter is active.
+        # 70/30 Indian / Global distribution (only for non-newest sorts)
         active_lang = languages or language
-        if not active_lang or active_lang == "all":
+        if sort != "newest" and (not active_lang or active_lang == "all"):
             _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or", "", None}
-            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
-                      or (t.get("discovery_source") or "regional") != "global"]
+            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS or (t.get("discovery_source") or "regional") != "global"]
             english = [t for t in trends if t not in indian]
-            # Balanced 2:1 Interleaving (2 Indian : 1 Global) so global tracks appear throughout the feed
             interleaved = []
             i_idx, e_idx = 0, 0
             while i_idx < len(indian) or e_idx < len(english):
@@ -200,20 +622,6 @@ def get_trends(
                     e_idx += 1
             trends = interleaved
 
-        # Wire C5: Inject niche adaptations using the engine for personalized feed
-        for t in trends:
-            if user_niche and user_niche not in ["all", "general"]:
-                if not t.get("niche_relevance"):
-                    t["niche_relevance"] = niche_relevance_engine.compute_niche_relevance(t)
-                
-                score = t["niche_relevance"].get(user_niche, 0.0)
-                brief = niche_relevance_engine.generate_adaptation_brief(t, user_niche, score)
-                
-                if brief:
-                    if not t.get("adaptation_briefs"):
-                        t["adaptation_briefs"] = {}
-                    t["adaptation_briefs"][user_niche] = brief
-
         if sort == "opportunity":
             trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
         elif sort == "time_left":
@@ -221,32 +629,45 @@ def get_trends(
         elif sort == "velocity":
             trends.sort(key=lambda t: t.get("velocity_avg") or 0.0, reverse=True)
         else:
-            # Default or sort=="newest": strictly newest audio detected on top
-            trends.sort(key=lambda t: t.get("first_detected_at") or "", reverse=True)
+            trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
 
-        # Save to in-memory cache
+        freshness = _get_data_freshness()
+        for t in trends:
+            t["last_updated"] = freshness.get("last_updated")
+            t["is_stale"] = freshness.get("is_stale", False)
+
         _TRENDS_FEED_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_TRENDS_FEED_CACHE) > 200:
             oldest_k = min(_TRENDS_FEED_CACHE.keys(), key=lambda k: _TRENDS_FEED_CACHE[k]["time"])
             _TRENDS_FEED_CACHE.pop(oldest_k, None)
 
-        # Cache the result in Redis for 5 minutes
-        if standard_queue and standard_queue.connection:
-            try:
-                standard_queue.connection.setex(cache_key, 300, json.dumps(trends))
-            except Exception as e:
-                logger.error(f"Redis cache write error: {e}")
-                
+        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
         headers = {
-            "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+            "Cache-Control": cache_ctrl,
             "X-Cache": "MISS",
             "X-Skipped-Local-Fallback": "true" if skipped_local_fallback else "false",
+            "X-Data-Last-Updated": freshness.get("last_updated") or "",
+            "X-Data-Is-Stale": "true" if freshness.get("is_stale") else "false",
         }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching trends: {e}", exc_info=True)
-
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@router.get("/api/trends/freshness")
+def get_trends_freshness():
+    """
+    Returns data freshness metrics across Instagram and Spotify sources.
+    Includes last_updated, is_stale (>12h), and per-source last_success_at.
+    """
+    freshness = _get_data_freshness()
+    headers = {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+        "X-Data-Last-Updated": freshness.get("last_updated") or "",
+        "X-Data-Is-Stale": "true" if freshness.get("is_stale") else "false",
+    }
+    return JSONResponse(content=freshness, headers=headers)
 
 
 # ── Scraper Run Freshness Batch Endpoint ───────────────────────────────────────
@@ -295,10 +716,13 @@ def get_recent_scraper_runs(request: Request, limit: int = 6):
     """
     cache_key = f"scraper_runs:{limit}"
     now_ts = time.time()
+    edge_headers = {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+    }
     if cache_key in _SCRAPER_RUNS_CACHE:
         entry = _SCRAPER_RUNS_CACHE[cache_key]
         if now_ts - entry.get("time", 0) < 60:
-            return JSONResponse(content=entry["data"])
+            return JSONResponse(content=entry["data"], headers=edge_headers)
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -358,11 +782,11 @@ def get_recent_scraper_runs(request: Request, limit: int = 6):
 
         result = {"runs": formatted_runs}
         _SCRAPER_RUNS_CACHE[cache_key] = {"time": now_ts, "data": result}
-        return JSONResponse(content=result)
+        return JSONResponse(content=result, headers=edge_headers)
 
     except Exception as e:
         logger.exception(f"Error fetching scraper runs: {e}")
-        return JSONResponse(content={"runs": []})
+        return JSONResponse(content={"runs": []}, headers=edge_headers)
 
 
 @router.get("/api/trends/emerging")
@@ -371,20 +795,27 @@ def get_emerging_trends(
     request: Request, 
     language: Optional[str] = None,
     languages: Optional[str] = None, 
+    limit: Optional[int] = 200,
+    page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch EMERGING trends — the early access feed (pre-viral, 0–6h window).
-    Pro/Agency feature only.
+    Pro/Agency feature only. Slim + paginated to protect Supabase egress.
     """
+    limit_val = min(max(1, limit or 200), 1000)
+    page_val = max(1, page or 1)
+    start_idx = (page_val - 1) * limit_val
+    end_idx = start_idx + limit_val - 1
+
     lang_key = languages or language or "all"
-    cache_key = f"emerging:{lang_key}"
+    cache_key = f"emerging:{lang_key}:{limit_val}:{page_val}"
     now_ts = time.time()
     if cache_key in _EMERGING_TRENDS_CACHE:
         entry = _EMERGING_TRENDS_CACHE[cache_key]
         if now_ts - entry.get("time", 0) < 60:
             headers = {
-                "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
                 "X-Status-Filter": "emerging",
                 "X-Cache": "HIT-MEM"
             }
@@ -397,6 +828,7 @@ def get_emerging_trends(
         user_niche = "all"
         user_lang = "all"
         user_id = None
+        is_personalized = False
         if current_user and current_user != "guest@trendrop.app":
             try:
                 user_data = get_cached_user_profile(current_user)
@@ -404,14 +836,15 @@ def get_emerging_trends(
                     user_niche = user_data.get("niche") or "all"
                     user_lang = user_data.get("language_preference") or "all"
                     user_id = user_data.get("user_id")
+                    if user_niche != "all" or user_lang != "all":
+                        is_personalized = True
             except Exception as e:
                 logger.warning(f"Error querying user profile: {e}")
 
         _VALID_LLM = "llm_classification_status.in.(completed,not_needed,skipped_local_fallback,pending,failed,verified),llm_classification_status.is.null"
-        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
         
         # 72-hour retention gate for Emerging tab (widened from 48h to capture more pre-viral trends)
-        # Fixes: only 2 emerging audios shown when scraper pace slows
         emerging_cutoff = (datetime.now(timezone.utc) - timedelta(hours=72)).isoformat()
         q_72 = q.or_(
             f"first_detected_at.gte.{emerging_cutoff},"
@@ -419,76 +852,53 @@ def get_emerging_trends(
         )
 
         q_72 = _apply_languages_filter(q_72, language, languages)
-        q_72 = q_72.order("velocity_avg", desc=True)
-        q_72 = q_72.limit(100)
+        q_72 = q_72.order("first_detected_at", desc=True)
+        q_72 = q_72.range(start_idx, end_idx)
         res = q_72.execute()
-        trends = _normalize_trends(res.data or [])
+        trends = _normalize_trends_slim(res.data or [])
 
-        # Supplement: pull recently-scraped PENDING audios (last 24h) as "just detected" signals.
-        # These haven't been LLM-classified yet but are real live scrapes.
-        try:
-            pending_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-            q_pending = supabase.table("trends").select(FEED_CARD_COLUMNS) \
-                .eq("status", "pending").eq("is_voiceover", False).eq("is_seed_data", False) \
-                .or_(
-                    f"first_detected_at.gte.{pending_cutoff},"
-                    f"and(first_detected_at.is.null,created_at.gte.{pending_cutoff})"
-                )
-            q_pending = _apply_languages_filter(q_pending, language, languages)
-            q_pending = q_pending.order("audio_use_count", desc=True).limit(30)
-            res_pending = q_pending.execute()
-            pending_trends = _normalize_trends(res_pending.data or [])
-            # Mark them as emerging for the feed and deduplicate by audio_id
-            existing_audio_ids = {t.get("audio_id") for t in trends if t.get("audio_id")}
-            for pt in pending_trends:
-                if pt.get("audio_id") not in existing_audio_ids:
-                    pt["status"] = "emerging"   # surface as emerging in UI
-                    pt["_is_just_detected"] = True
-                    trends.append(pt)
-                    existing_audio_ids.add(pt.get("audio_id"))
-        except Exception as _pending_err:
-            logger.warning(f"Pending supplement error: {_pending_err}")
+        # Supplement: pull recently-scraped PENDING audios (last 24h) if page 1 has few items
+        if len(trends) < limit_val and page_val == 1:
+            try:
+                pending_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+                q_pending = supabase.table("trends").select(SLIM_FEED_COLUMNS) \
+                    .eq("status", "pending").eq("is_voiceover", False).eq("is_seed_data", False) \
+                    .or_(
+                        f"first_detected_at.gte.{pending_cutoff},"
+                        f"and(first_detected_at.is.null,created_at.gte.{pending_cutoff})"
+                    )
+                q_pending = _apply_languages_filter(q_pending, language, languages)
+                q_pending = q_pending.order("audio_use_count", desc=True).limit(limit_val - len(trends))
+                res_pending = q_pending.execute()
+                pending_trends = _normalize_trends_slim(res_pending.data or [])
+                existing_audio_ids = {t.get("audio_id") for t in trends if t.get("audio_id")}
+                for pt in pending_trends:
+                    if pt.get("audio_id") not in existing_audio_ids:
+                        pt["status"] = "emerging"
+                        pt["_is_just_detected"] = True
+                        trends.append(pt)
+                        existing_audio_ids.add(pt.get("audio_id"))
+            except Exception as _pending_err:
+                logger.warning(f"Pending supplement error: {_pending_err}")
 
         # Fallback: If still 0 emerging trends found, look back up to 7 days
-        # so valid pre-viral emerging trends do not abruptly vanish if scraper pace slows
         if len(trends) == 0:
             try:
                 emerging_cutoff_7d = (datetime.now(timezone.utc) - timedelta(days=7)).isoformat()
-                q_7d = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
+                q_7d = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "emerging").eq("is_voiceover", False).eq("is_seed_data", False).or_(_VALID_LLM)
                 q_7d = q_7d.or_(
                     f"first_detected_at.gte.{emerging_cutoff_7d},"
                     f"and(first_detected_at.is.null,created_at.gte.{emerging_cutoff_7d})"
                 )
                 q_7d = _apply_languages_filter(q_7d, language, languages)
-                q_7d = q_7d.order("velocity_avg", desc=True).limit(50)
+                q_7d = q_7d.order("first_detected_at", desc=True).range(start_idx, end_idx)
                 res_7d = q_7d.execute()
-                trends = _normalize_trends(res_7d.data or [])
+                trends = _normalize_trends_slim(res_7d.data or [])
             except Exception as _lookback_err:
                 logger.warning(f"Emerging 7d lookback error: {_lookback_err}")
 
-        # --- 70/30 Distribution for Emerging tab ---
-        active_lang = languages or language
-        if not active_lang or active_lang == "all":
-            _INDIAN_LANGS = {"hi", "ta", "te", "mr", "kn", "bn", "pa", "bho", "hne", "mai", "or"}
-            indian = [t for t in trends if (t.get("language") or "") in _INDIAN_LANGS
-                      or (t.get("discovery_source") or "") == "regional"]
-            english = [t for t in trends if t not in indian]
-            # Balanced 2:1 Interleaving (2 Indian : 1 Global) so global emerging trends appear throughout
-            interleaved = []
-            i_idx, e_idx = 0, 0
-            while i_idx < len(indian) or e_idx < len(english):
-                for _ in range(2):
-                    if i_idx < len(indian):
-                        interleaved.append(indian[i_idx])
-                        i_idx += 1
-                if e_idx < len(english):
-                    interleaved.append(english[e_idx])
-                    e_idx += 1
-            trends = interleaved
-
-        trends.sort(key=lambda t: _trend_priority_key(t, user_niche, user_lang), reverse=True)
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
-        # Add user watermark ID to each trend for leak tracing
         if user_id:
             for trend in trends:
                 trend["user_watermark_id"] = user_id
@@ -498,8 +908,9 @@ def get_emerging_trends(
             oldest_k = min(_EMERGING_TRENDS_CACHE.keys(), key=lambda k: _EMERGING_TRENDS_CACHE[k]["time"])
             _EMERGING_TRENDS_CACHE.pop(oldest_k, None)
 
+        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
         headers = {
-            "Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300",
+            "Cache-Control": cache_ctrl,
             "X-Status-Filter": "emerging",
             "X-Cache": "MISS"
         }
@@ -509,13 +920,26 @@ def get_emerging_trends(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+_LAST_DETECTED_CACHE: dict = {"time": 0, "data": None}
+
 @router.get("/api/trends/last-detected")
 def get_last_detected_times():
     """
     Returns the newest detection timestamp per trend status.
     Used by frontend empty states across all tabs to inform users
     when a trend of that category was last detected.
+    Cached in-memory for 300s to avoid 5 repeated sequential DB roundtrips.
     """
+    now_ts = time.time()
+    if _LAST_DETECTED_CACHE.get("data") and (now_ts - _LAST_DETECTED_CACHE.get("time", 0) < 300):
+        return JSONResponse(
+            content=_LAST_DETECTED_CACHE["data"],
+            headers={
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "X-Cache": "HIT-MEM"
+            }
+        )
+
     if not supabase:
         return JSONResponse(content={})
     try:
@@ -535,7 +959,16 @@ def get_last_detected_times():
                 result[st] = item.get("first_detected_at") or item.get("created_at")
             else:
                 result[st] = None
-        return JSONResponse(content=result, headers={"Cache-Control": "public, max-age=60"})
+
+        _LAST_DETECTED_CACHE["time"] = now_ts
+        _LAST_DETECTED_CACHE["data"] = result
+        return JSONResponse(
+            content=result,
+            headers={
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "X-Cache": "MISS"
+            }
+        )
     except Exception as e:
         logger.error(f"Error fetching last detected times: {e}")
         return JSONResponse(content={})
@@ -779,30 +1212,40 @@ def get_peaked_trends(
     request: Request, 
     language: Optional[str] = None, 
     languages: Optional[str] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 200,
+    page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch PEAKED trends — trends that have peaked but still have value.
     These are trends that dropped below 60% of their peak velocity.
+    Slim + paginated (default 200, max 1000).
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
         
+    limit_val = min(max(1, limit or 200), 1000)
+    page_val = max(1, page or 1)
+    start_idx = (page_val - 1) * limit_val
+    end_idx = start_idx + limit_val - 1
+
     lang_key = languages or language or "all"
-    cache_key = f"peaked:{lang_key}:{limit}"
+    cache_key = f"peaked:{lang_key}:{limit_val}:{page_val}"
     
     # Check in-memory cache (5 minute TTL)
     now = datetime.now().timestamp()
+    edge_headers = {
+        "X-Cache": "HIT",
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+    }
     if cache_key in _PEAKED_TRENDS_CACHE:
         entry = _PEAKED_TRENDS_CACHE[cache_key]
         if now - entry['time'] < 300:
             logger.info(f"Serving peaked trends from in-memory cache for key: {cache_key}")
-            headers = {"X-Cache": "HIT", "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"}
-            return JSONResponse(content=entry['data'], headers=headers)
+            return JSONResponse(content=entry['data'], headers=edge_headers)
             
     try:
-        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "peaked").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
         
         # 14-day retention gate for Peaked tab (max 14 days post-peak)
         peaked_cutoff = (datetime.now(timezone.utc) - timedelta(days=14)).isoformat()
@@ -813,16 +1256,18 @@ def get_peaked_trends(
 
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
-        limit_val = min(limit or 100, 100)
-        q = q.limit(limit_val)
+        q = q.range(start_idx, end_idx)
         res = q.execute()
-        trends = _normalize_trends(res.data or [])
-        trends.sort(key=_trend_priority_key, reverse=True)
+        trends = _normalize_trends_slim(res.data or [])
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         # Save to cache
         _PEAKED_TRENDS_CACHE[cache_key] = {'time': now, 'data': trends}
         
-        headers = {"X-Cache": "MISS", "Cache-Control": "public, max-age=300, s-maxage=300, stale-while-revalidate=600"}
+        headers = {
+            "X-Cache": "MISS",
+            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+        }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
@@ -835,21 +1280,32 @@ def get_resurging_trends(
     request: Request,
     language: Optional[str] = None,
     languages: Optional[str] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 200,
+    page: Optional[int] = 1,
     current_user: str = Depends(get_current_user)
 ):
     """
     Fetch RESURGING trends — audio that previously peaked or expired and has
     come back with sustained new signal. Sorted by status_changed_at DESC (most recent resurgence on top).
+    Slim + paginated (default 200, max 1000).
     """
+    limit_val = min(max(1, limit or 200), 1000)
+    page_val = max(1, page or 1)
+    start_idx = (page_val - 1) * limit_val
+    end_idx = start_idx + limit_val - 1
+
     lang_key = languages or language or "all"
-    cache_key = f"resurging:{lang_key}:{limit}"
+    cache_key = f"resurging:{lang_key}:{limit_val}:{page_val}"
     now_ts = time.time()
+    edge_headers = {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+        "X-Status-Filter": "resurging",
+        "X-Cache": "HIT-MEM"
+    }
     if cache_key in _RESURGING_TRENDS_CACHE:
         entry = _RESURGING_TRENDS_CACHE[cache_key]
         if now_ts - entry.get("time", 0) < 120:
-            headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging", "X-Cache": "HIT-MEM"}
-            return JSONResponse(content=entry["data"], headers=headers)
+            return JSONResponse(content=entry["data"], headers=edge_headers)
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
@@ -862,7 +1318,7 @@ def get_resurging_trends(
         )
         q = (
             supabase.table("trends")
-            .select(FEED_CARD_COLUMNS)
+            .select(SLIM_FEED_COLUMNS)
             .eq("status", "resurging")
             .eq("is_seed_data", False)
             .gte("reel_count", 3)
@@ -873,18 +1329,21 @@ def get_resurging_trends(
         )
         q = _apply_languages_filter(q, language, languages)
         q = q.order("status_changed_at", desc=True)
-        limit_val = min(limit or 50, 50)
-        q = q.limit(limit_val)
+        q = q.range(start_idx, end_idx)
         res = q.execute()
-        trends = _normalize_trends(res.data or [])
-        trends.sort(key=lambda t: t.get("status_changed_at") or t.get("created_at") or "", reverse=True)
+        trends = _normalize_trends_slim(res.data or [])
+        trends.sort(key=lambda t: t.get("status_changed_at") or t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
         _RESURGING_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_RESURGING_TRENDS_CACHE) > 100:
             oldest_k = min(_RESURGING_TRENDS_CACHE.keys(), key=lambda k: _RESURGING_TRENDS_CACHE[k]["time"])
             _RESURGING_TRENDS_CACHE.pop(oldest_k, None)
 
-        headers = {"Cache-Control": "public, max-age=120, s-maxage=180, stale-while-revalidate=360", "X-Status-Filter": "resurging", "X-Cache": "MISS"}
+        headers = {
+            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+            "X-Status-Filter": "resurging",
+            "X-Cache": "MISS"
+        }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching resurging trends: {e}", exc_info=True)
@@ -897,26 +1356,37 @@ def get_expired_trends(
     request: Request, 
     language: Optional[str] = None, 
     languages: Optional[str] = None,
-    limit: Optional[int] = None,
+    limit: Optional[int] = 200,
+    page: Optional[int] = 1,
     current_user: str = Depends(get_current_user),
 ):
     """
     Fetch EXPIRED trends — trends that have passed their window or aged out.
     These are trends that are no longer active but may still have historical value.
+    Slim + paginated (default 200, max 1000).
     """
+    limit_val = min(max(1, limit or 200), 1000)
+    page_val = max(1, page or 1)
+    start_idx = (page_val - 1) * limit_val
+    end_idx = start_idx + limit_val - 1
+
     lang_key = languages or language or "all"
-    cache_key = f"expired:{lang_key}:{limit}"
+    cache_key = f"expired:{lang_key}:{limit_val}:{page_val}"
     now_ts = time.time()
+    edge_headers = {
+        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+        "X-Status-Filter": "expired",
+        "X-Cache": "HIT-MEM"
+    }
     if cache_key in _EXPIRED_TRENDS_CACHE:
         entry = _EXPIRED_TRENDS_CACHE[cache_key]
         if now_ts - entry.get("time", 0) < 300:
-            headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired", "X-Cache": "HIT-MEM"}
-            return JSONResponse(content=entry["data"], headers=headers)
+            return JSONResponse(content=entry["data"], headers=edge_headers)
 
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        q = supabase.table("trends").select(FEED_CARD_COLUMNS).eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
+        q = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("status", "expired").eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"])
         
         # 30-day retention gate for Expired tab (max 30 days historical archive)
         expired_cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
@@ -926,17 +1396,21 @@ def get_expired_trends(
         )
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
-        limit_val = min(limit or 100, 100)
-        q = q.limit(limit_val)
+        q = q.range(start_idx, end_idx)
         res = q.execute()
-        trends = _normalize_trends(res.data or [])
+        trends = _normalize_trends_slim(res.data or [])
+        trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
 
         _EXPIRED_TRENDS_CACHE[cache_key] = {"time": time.time(), "data": trends}
         if len(_EXPIRED_TRENDS_CACHE) > 100:
             oldest_k = min(_EXPIRED_TRENDS_CACHE.keys(), key=lambda k: _EXPIRED_TRENDS_CACHE[k]["time"])
             _EXPIRED_TRENDS_CACHE.pop(oldest_k, None)
 
-        headers = {"Cache-Control": "public, max-age=600, s-maxage=600, stale-while-revalidate=1200", "X-Status-Filter": "expired", "X-Cache": "MISS"}
+        headers = {
+            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+            "X-Status-Filter": "expired",
+            "X-Cache": "MISS"
+        }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
