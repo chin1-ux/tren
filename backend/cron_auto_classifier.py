@@ -29,6 +29,7 @@ from supabase import create_client
 from artist_language_map import get_artist_language
 from llm import call_gemini_only
 from reel_pattern_engine import analyze_trend_reels
+from audio_page_harvester import harvest_audio_reels
 
 logger = logging.getLogger("cron_auto_classifier")
 
@@ -301,6 +302,13 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
         artist = t.get("audio_artist") or ""
 
         try:
+            # Human-mimic audio page harvest if audio_id is present
+            if aid:
+                try:
+                    harvest_audio_reels(audio_id=str(aid), supabase_client=sb, max_reels=30)
+                except Exception as harvest_err:
+                    logger.warning(f"Audio harvest error for {aid} (non-fatal): {harvest_err}")
+
             pattern_res = analyze_trend_reels(
                 audio_id=aid,
                 audio_title=title,
@@ -309,12 +317,21 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
                 max_reels=40
             )
 
-            sb.table("trends").update({
+            update_payload = {
                 "used_for": pattern_res.get("used_for") or "other",
                 "used_for_note": pattern_res.get("used_for_note") or "",
                 "why_this_works": pattern_res.get("why_this_works") or "",
-                "used_for_classified_at": now_iso
-            }).eq("id", tid).execute()
+                "used_for_classified_at": now_iso,
+                "llm_classification_status": "completed"
+            }
+
+            brief = pattern_res.get("actionable_creator_brief")
+            if brief and "No established" not in brief:
+                update_payload["ideal_content_description"] = brief
+            elif not t.get("ideal_content_description"):
+                update_payload["ideal_content_description"] = f"Film a high-retention reel matching the pacing and vibe of '{title}' by {artist}."
+
+            sb.table("trends").update(update_payload).eq("id", tid).execute()
             used_for_updated_cnt += 1
         except Exception as e:
             logger.warning(f"Failed to analyze reel patterns for trend ID {tid}: {e}")
