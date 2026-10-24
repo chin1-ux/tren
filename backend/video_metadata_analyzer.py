@@ -69,8 +69,23 @@ class VideoMetadataAnalyzer:
             
             width = int(stream.get('width', 0))
             height = int(stream.get('height', 0))
-            duration = float(format_info.get('duration', 0))
-            frame_rate = eval(stream.get('r_frame_rate', '30/1'))
+            # Safely parse frame rate without eval() to eliminate code execution risk
+            raw_fps = stream.get('r_frame_rate', '30/1')
+            frame_rate = 30.0
+            if isinstance(raw_fps, (int, float)):
+                frame_rate = float(raw_fps)
+            elif isinstance(raw_fps, str) and '/' in raw_fps:
+                parts = raw_fps.split('/', 1)
+                try:
+                    num, den = float(parts[0]), float(parts[1])
+                    frame_rate = num / den if den != 0 else 30.0
+                except (ValueError, ZeroDivisionError):
+                    frame_rate = 30.0
+            else:
+                try:
+                    frame_rate = float(raw_fps)
+                except (ValueError, TypeError):
+                    frame_rate = 30.0
             codec = stream.get('codec_name', 'unknown')
             bitrate = int(format_info.get('bit_rate', 0))
             size = int(format_info.get('size', 0))

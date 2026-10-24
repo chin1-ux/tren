@@ -1484,20 +1484,36 @@ async def get_niche_trends_endpoint(
 
 # ── Phase 3: Video Analysis Endpoints ─────────────────────────────────────
 
-def _download_video_to_temp(video_url: str) -> str:
-    """Download a video from URL to a temp file. Returns the temp file path."""
-    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+import ipaddress, socket
+from urllib.parse import urlparse
+
+MAX_VIDEO_DOWNLOAD_BYTES = 50 * 1024 * 1024  # 50 MB ceiling to prevent disk exhaustion DoS
+
+def _validate_safe_url(url: str) -> None:
+    """Validate video URL to prevent SSRF against loopback, private networks, and cloud metadata endpoints."""
+    if not url or not isinstance(url, str):
+        raise HTTPException(status_code=400, detail="Invalid video URL.")
+    parsed = urlparse(url.strip())
+    if parsed.scheme.lower() != "https":
+        raise HTTPException(status_code=400, detail="Only secure HTTPS video URLs are permitted.")
+    hostname = parsed.hostname
+    if not hostname:
+        raise HTTPException(status_code=400, detail="Invalid video URL host.")
+
+    # Block common local host aliases
+    if hostname.lower() in ("localhost", "127.0.0.1", "::1", "0.0.0.0"):
+        raise HTTPException(status_code=400, detail="Access to internal hosts is prohibited.")
+
+    # Resolve IP and block private / loopback / link-local addresses
     try:
-        resp = requests.get(video_url, timeout=30, stream=True)
-        resp.raise_for_status()
-        for chunk in resp.iter_content(chunk_size=8192):
-            tmp.write(chunk)
-        tmp.close()
-        return tmp.name
-    except Exception as e:
-        tmp.close()
-        os.unlink(tmp.name)
-        raise HTTPException(status_code=400, detail=f"Failed to download video from URL: {e}")
+        resolved_ips = socket.getaddrinfo(hostname, None)
+        for family, _, _, _, sockaddr in resolved_ips:
+            ip_str = sockaddr[0]
+            ip_obj = ipaddress.ip_address(ip_str)
+            if ip_obj.is_private or ip_obj.is_loopback or ip_obj.is_link_local or ip_obj.is_reserved:
+                raise HTTPException(status_code=400, detail="Access to internal or restricted IP ranges is prohibited.")
+    except socket.gaierror:
+        raise HTTPException(status_code=400, detail="Failed to resolve host for video URL.")
 
 def _cleanup_temp(path: str):
     """Remove a temp file, ignoring errors."""
@@ -1506,6 +1522,38 @@ def _cleanup_temp(path: str):
             os.unlink(path)
     except Exception:
         pass
+
+def _download_video_to_temp(video_url: str) -> str:
+    """Download a video from URL to a temp file safely with SSRF protection and max size limit."""
+    _validate_safe_url(video_url)
+
+    tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".mp4")
+    try:
+        resp = requests.get(video_url, timeout=20, stream=True, allow_redirects=False)
+        resp.raise_for_status()
+
+        # Check declared content-length header if provided
+        cl = resp.headers.get("Content-Length")
+        if cl and cl.isdigit() and int(cl) > MAX_VIDEO_DOWNLOAD_BYTES:
+            raise HTTPException(status_code=400, detail="Video file exceeds maximum allowed size (50MB).")
+
+        downloaded = 0
+        for chunk in resp.iter_content(chunk_size=16384):
+            if chunk:
+                downloaded += len(chunk)
+                if downloaded > MAX_VIDEO_DOWNLOAD_BYTES:
+                    raise HTTPException(status_code=400, detail="Video file exceeds maximum allowed size (50MB).")
+                tmp.write(chunk)
+        tmp.close()
+        return tmp.name
+    except HTTPException:
+        tmp.close()
+        _cleanup_temp(tmp.name)
+        raise
+    except Exception as e:
+        tmp.close()
+        _cleanup_temp(tmp.name)
+        raise HTTPException(status_code=400, detail=f"Failed to download video from URL: {e}")
 
 
 
