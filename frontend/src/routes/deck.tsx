@@ -106,6 +106,7 @@ function DeckScreen() {
   const [lastSwipedCard, setLastSwipedCard] = useState<DeckTrend | null>(null);
   const [batchCount, setBatchCount] = useState<number>(1);
   const [isDealingMore, setIsDealingMore] = useState<boolean>(false);
+  const [isRefreshing, setIsRefreshing] = useState<boolean>(false);
 
   // Sheet dialogs
   const [selectedVinyl, setSelectedVinyl] = useState<DeckTrend | null>(null);
@@ -265,21 +266,12 @@ function DeckScreen() {
       const pool: DeckTrend[] = data.trends || [];
       setRawPool(pool);
 
-      // Rank the 15-card deck using latest swipes
-      setDeck((prevDeck) => {
-        if (isSilent && prevDeck.length > 0) {
-          const freshRanked = rankDeck(pool, swipes, 15);
-          const currentSwipedIds = new Set(swipes.map((s) => s.trend_id));
-          const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
-          const stillValid = prevDeck.filter(
-            (c) => !currentSwipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id))
-          );
-          return stillValid.length > 0 ? stillValid : freshRanked;
-        }
+      // On silent background polling: only update pool in memory, do NOT wipe or disrupt the active vinyl card
+      if (!isSilent) {
         const ranked = rankDeck(pool, swipes, 15);
+        setDeck(ranked);
         setCurrentIndex(0);
-        return ranked;
-      });
+      }
     } catch (err: any) {
       console.error('Failed to load deck:', err);
       if (!isSilent) {
@@ -289,6 +281,51 @@ function DeckScreen() {
       if (!isSilent) {
         setLoading(false);
       }
+    }
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes]);
+
+  // Refresh deck from start & sync latest trends (resets passed cards so creator can see them again from start)
+  const handleRefreshDeckFromStart = useCallback(async () => {
+    setIsRefreshing(true);
+    try {
+      // 1. Keep saved audios ('use'), clear passed ('skip') so creator can see them again
+      const keptSwipes = swipes.filter((s) => s.action === 'use');
+      setSwipes(keptSwipes);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('trendrop_local_swipes', JSON.stringify(keptSwipes));
+      }
+
+      // 2. Fetch fresh trends with cache-busting timestamp
+      const params = new URLSearchParams({
+        mode,
+        limit: '120',
+        _t: Date.now().toString(),
+      });
+      if (selectedLanguages.length > 0) {
+        params.append('langs', selectedLanguages.join(','));
+      }
+      if (selectedNiches.length > 0) {
+        params.append('niches', selectedNiches.join(','));
+      }
+      if (includeExpiredDeck || selectedNiches.length > 0) {
+        params.append('include_expired', 'true');
+      }
+
+      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const pool: DeckTrend[] = data.trends || [];
+      setRawPool(pool);
+
+      // 3. Re-rank from the beginning (index 0) with newly fetched trends prioritizing first
+      const freshRanked = rankDeck(pool, keptSwipes, 15);
+      setDeck(freshRanked);
+      setCurrentIndex(0);
+      setBatchCount(1);
+    } catch (err: any) {
+      console.error('Failed to refresh deck:', err);
+    } finally {
+      setIsRefreshing(false);
     }
   }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes]);
 
@@ -582,9 +619,18 @@ function DeckScreen() {
             )}
           </div>
 
-          {/* Right: Progress */}
+          {/* Right: Refresh & Progress */}
           {activeTab === 'deck' && (
             <div className="flex items-center gap-2">
+              <button
+                onClick={handleRefreshDeckFromStart}
+                disabled={isRefreshing}
+                title="Restart deck from start & sync latest trends (resets passed cards)"
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 bg-background border border-[#FF4D3D]/30 text-[#FF4D3D] hover:bg-[#FF4D3D]/10 shadow-xs cursor-pointer"
+              >
+                <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
+                <span>Refresh</span>
+              </button>
               <span
                 className="text-xs font-mono font-medium px-2.5 py-1 rounded-full"
                 style={{ background: 'rgba(255,77,61,0.08)', color: '#FF4D3D', border: '1px solid rgba(255,77,61,0.15)' }}

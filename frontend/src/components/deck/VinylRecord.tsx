@@ -157,8 +157,12 @@ export function VinylRecord({ trend, isFront = true, stackIndex = 0, onSwipe, on
       isDraggingRef.current = false;
     }, 80);
 
-    if (oy < -100 || vy < -400) { onSwipe('use');  return; }
-    if (oy >  100 || vy >  400) { onSwipe('skip'); return; }
+    // Only trigger action on intentional drags with physical distance (never on quick taps/clicks)
+    const isIntentionalUp = (oy < -60 && vy < -300) || oy < -110;
+    const isIntentionalDown = (oy > 60 && vy > 300) || oy > 110;
+
+    if (isIntentionalUp) { onSwipe('use'); return; }
+    if (isIntentionalDown) { onSwipe('skip'); return; }
 
     // Snap back
     animate(y, 0, { type: 'spring', stiffness: 420, damping: 32 });
