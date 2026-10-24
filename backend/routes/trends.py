@@ -622,11 +622,11 @@ def get_trends(
         niche_key = niche or "all"
         cache_key = f"trends:{lang_key}:{sort}:{niche_key}:{user_plan}:{limit_val}:{page_val}"
 
-        # Check in-memory feed cache (60s TTL)
+        # Check in-memory feed cache (30s TTL)
         if cache_key in _TRENDS_FEED_CACHE:
             entry = _TRENDS_FEED_CACHE[cache_key]
-            if now_ts - entry.get("time", 0) < 60:
-                cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+            if now_ts - entry.get("time", 0) < 30:
+                cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400"
                 headers = {
                     "Cache-Control": cache_ctrl,
                     "X-Cache": "HIT-MEM",
@@ -711,7 +711,7 @@ def get_trends(
             oldest_k = min(_TRENDS_FEED_CACHE.keys(), key=lambda k: _TRENDS_FEED_CACHE[k]["time"])
             _TRENDS_FEED_CACHE.pop(oldest_k, None)
 
-        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400"
         headers = {
             "Cache-Control": cache_ctrl,
             "X-Cache": "MISS",
@@ -883,9 +883,9 @@ def get_emerging_trends(
     now_ts = time.time()
     if cache_key in _EMERGING_TRENDS_CACHE:
         entry = _EMERGING_TRENDS_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 60:
+        if now_ts - entry.get("time", 0) < 30:
             headers = {
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
                 "X-Status-Filter": "emerging",
                 "X-Cache": "HIT-MEM"
             }
@@ -978,7 +978,7 @@ def get_emerging_trends(
             oldest_k = min(_EMERGING_TRENDS_CACHE.keys(), key=lambda k: _EMERGING_TRENDS_CACHE[k]["time"])
             _EMERGING_TRENDS_CACHE.pop(oldest_k, None)
 
-        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+        cache_ctrl = "private, no-cache" if is_personalized else "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400"
         headers = {
             "Cache-Control": cache_ctrl,
             "X-Status-Filter": "emerging",
@@ -1302,15 +1302,15 @@ def get_peaked_trends(
     lang_key = languages or language or "all"
     cache_key = f"peaked:{lang_key}:{limit_val}:{page_val}"
     
-    # Check in-memory cache (5 minute TTL)
+    # Check in-memory cache (30s TTL)
     now = datetime.now().timestamp()
     edge_headers = {
         "X-Cache": "HIT",
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400"
     }
     if cache_key in _PEAKED_TRENDS_CACHE:
         entry = _PEAKED_TRENDS_CACHE[cache_key]
-        if now - entry['time'] < 300:
+        if now - entry['time'] < 30:
             logger.info(f"Serving peaked trends from in-memory cache for key: {cache_key}")
             return JSONResponse(content=entry['data'], headers=edge_headers)
             
@@ -1336,7 +1336,7 @@ def get_peaked_trends(
         
         headers = {
             "X-Cache": "MISS",
-            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400"
+            "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400"
         }
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
@@ -1368,13 +1368,13 @@ def get_resurging_trends(
     cache_key = f"resurging:{lang_key}:{limit_val}:{page_val}"
     now_ts = time.time()
     edge_headers = {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
         "X-Status-Filter": "resurging",
         "X-Cache": "HIT-MEM"
     }
     if cache_key in _RESURGING_TRENDS_CACHE:
         entry = _RESURGING_TRENDS_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 120:
+        if now_ts - entry.get("time", 0) < 30:
             return JSONResponse(content=entry["data"], headers=edge_headers)
 
     if not supabase:
@@ -1410,7 +1410,7 @@ def get_resurging_trends(
             _RESURGING_TRENDS_CACHE.pop(oldest_k, None)
 
         headers = {
-            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+            "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
             "X-Status-Filter": "resurging",
             "X-Cache": "MISS"
         }
@@ -1444,13 +1444,13 @@ def get_expired_trends(
     cache_key = f"expired:{lang_key}:{limit_val}:{page_val}"
     now_ts = time.time()
     edge_headers = {
-        "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+        "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
         "X-Status-Filter": "expired",
         "X-Cache": "HIT-MEM"
     }
     if cache_key in _EXPIRED_TRENDS_CACHE:
         entry = _EXPIRED_TRENDS_CACHE[cache_key]
-        if now_ts - entry.get("time", 0) < 300:
+        if now_ts - entry.get("time", 0) < 30:
             return JSONResponse(content=entry["data"], headers=edge_headers)
 
     if not supabase:
@@ -1477,7 +1477,7 @@ def get_expired_trends(
             _EXPIRED_TRENDS_CACHE.pop(oldest_k, None)
 
         headers = {
-            "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+            "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
             "X-Status-Filter": "expired",
             "X-Cache": "MISS"
         }

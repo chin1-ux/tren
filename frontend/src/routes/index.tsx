@@ -287,9 +287,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends", filters.language, sortMode, activeLanguages],
     queryFn: () => fetchTrends(filters.language, sortMode, undefined, activeLanguages),
-    staleTime: 15 * 60_000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -301,9 +301,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-emerging", filters.language, activeLanguages],
     queryFn: () => fetchEmergingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 15 * 60_000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -315,9 +315,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-peaked", filters.language, activeLanguages],
     queryFn: () => fetchPeakedTrends(filters.language, undefined, activeLanguages),
-    staleTime: 30 * 60_000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+    refetchInterval: 120_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -329,9 +329,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-expired", filters.language, activeLanguages],
     queryFn: () => fetchExpiredTrends(filters.language, undefined, activeLanguages),
-    staleTime: 60 * 60_000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 60_000,
+    refetchInterval: 180_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -343,9 +343,9 @@ function TrendsFeed() {
   } = useQuery({
     queryKey: ["trends-resurging", filters.language, activeLanguages],
     queryFn: () => fetchResurgingTrends(filters.language, undefined, activeLanguages),
-    staleTime: 15 * 60_000,
-    refetchInterval: false,
-    refetchOnWindowFocus: false,
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    refetchOnWindowFocus: true,
     placeholderData: (prev) => prev,
   });
 
@@ -458,9 +458,19 @@ function TrendsFeed() {
     });
 
     return aligned.sort((a, b) => {
-      const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-      const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+      // 1. Prioritize active statuses (emerging, rising, resurging) over completed ones (peaked, expired)
+      const orderA = STATUS_ORDER[(a.status || "rising").toLowerCase()] ?? 2;
+      const orderB = STATUS_ORDER[(b.status || "rising").toLowerCase()] ?? 2;
+      const isAActive = orderA <= 2;
+      const isBActive = orderB <= 2;
+      if (isAActive !== isBActive) return isAActive ? -1 : 1;
+
+      // 2. Strict Newest-to-Oldest by actual creation / detection timestamp
+      const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : 0);
+      const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : 0);
       if (timeB !== timeA) return timeB - timeA;
+
+      // 3. Newest in DB on top (highest ID first)
       return Number(b.id) - Number(a.id);
     });
   }, [deduplicatedTrends]);
@@ -590,8 +600,14 @@ function TrendsFeed() {
     if (!searchQuery.trim()) {
       // Ensure strict sorting newest to oldest
       return [...list].sort((a, b) => {
-        const timeA = a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : (a.createdAt ? new Date(a.createdAt).getTime() : 0);
-        const timeB = b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : (b.createdAt ? new Date(b.createdAt).getTime() : 0);
+        const orderA = STATUS_ORDER[(a.status || "rising").toLowerCase()] ?? 2;
+        const orderB = STATUS_ORDER[(b.status || "rising").toLowerCase()] ?? 2;
+        const isAActive = orderA <= 2;
+        const isBActive = orderB <= 2;
+        if (isAActive !== isBActive) return isAActive ? -1 : 1;
+
+        const timeA = a.createdAt ? new Date(a.createdAt).getTime() : (a.firstDetectedAt ? new Date(a.firstDetectedAt).getTime() : 0);
+        const timeB = b.createdAt ? new Date(b.createdAt).getTime() : (b.firstDetectedAt ? new Date(b.firstDetectedAt).getTime() : 0);
         if (timeB !== timeA) return timeB - timeA;
         return Number(b.id) - Number(a.id);
       });

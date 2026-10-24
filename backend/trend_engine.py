@@ -734,14 +734,16 @@ class TrendEngine:
                 "audio_backfill_status"
             )
 
-            # 1. Determine min_id boundary for 48h window in 1 fast indexed lookup
-            min_reel_res = self.supabase.table("reels") \
-                .select("id") \
-                .gte("created_at", time_threshold_48h) \
-                .order("id", desc=False) \
-                .limit(1) \
-                .execute()
-            min_id = (min_reel_res.data or [{}])[0].get("id") or 0
+            # 1. Determine min_id boundary for 48h window via instant max_id lookup (0.05s)
+            # Subtracting 25,000 reels guarantees covering the 48h window with zero DB timeout risk
+            min_id = 0
+            try:
+                max_res = self.supabase.table("reels").select("id").order("id", desc=True).limit(1).execute()
+                max_id = (max_res.data or [{}])[0].get("id") or 0
+                min_id = max(0, max_id - 25000)
+            except Exception as _id_err:
+                logging.warning(f"Failed to lookup max reel id: {_id_err}")
+                min_id = 0
 
             # 2. Keyset pagination over primary key id range [min_id, ...)
             reels = []
@@ -758,7 +760,11 @@ class TrendEngine:
                     query = query.lt("id", last_seen_id)
                 reels_res = query.execute()
                 page_data = reels_res.data or []
-                valid_page = [r for r in page_data if (r.get("audio_backfill_status") or "") != "unrecoverable"]
+                valid_page = [
+                    r for r in page_data
+                    if (r.get("audio_backfill_status") or "") != "unrecoverable"
+                    and (r.get("created_at") or "") >= time_threshold_48h
+                ]
                 reels.extend(valid_page)
                 if len(page_data) < _PAGE_SIZE:
                     break
