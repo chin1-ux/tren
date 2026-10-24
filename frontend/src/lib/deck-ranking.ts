@@ -39,6 +39,8 @@ export interface UserSwipe {
   niche?: string | null;
   language?: string | null;
   artist?: string | null;
+  audio_id?: string | null;
+  audio_title?: string | null;
 }
 
 export interface AffinityProfile {
@@ -199,9 +201,22 @@ export function rankDeck(
   deckSize: number = 15,
   nowMs: number = Date.now()
 ): DeckTrend[] {
-  // 1. Exclude already swiped audios
-  const swipedIds = new Set(swipes.map(s => s.trend_id));
-  const unswiped = candidates.filter(c => !swipedIds.has(c.id));
+  // 1. Exclude already swiped audios by trend_id, audio_id, or normalized title+artist
+  const swipedTrendIds = new Set(swipes.map(s => s.trend_id).filter(Boolean));
+  const swipedAudioIds = new Set(swipes.map(s => s.audio_id).filter(Boolean));
+  const swipedKeys = new Set(
+    swipes
+      .map(s => `${(s.audio_title || '').toLowerCase().trim()}|${(s.artist || '').toLowerCase().trim()}`)
+      .filter(k => k !== '|')
+  );
+
+  const unswiped = candidates.filter(c => {
+    if (swipedTrendIds.has(c.id)) return false;
+    if (c.audio_id && swipedAudioIds.has(c.audio_id)) return false;
+    const key = `${(c.audio_title || '').toLowerCase().trim()}|${(c.audio_artist || '').toLowerCase().trim()}`;
+    if (key !== '|' && swipedKeys.has(key)) return false;
+    return true;
+  });
 
   if (unswiped.length === 0) {
     return [];
@@ -223,12 +238,21 @@ export function rankDeck(
     };
   });
 
-  // Sort descending: strictly NEWEST to OLDEST by discovery date (first_detected_at)
+  // Sort descending: strictly NEWEST to OLDEST (discovery date / creation date, fallback to id desc)
   scored.sort((a, b) => {
-    const timeA = a.first_detected_at ? new Date(a.first_detected_at).getTime() : 0;
-    const timeB = b.first_detected_at ? new Date(b.first_detected_at).getTime() : 0;
+    const timeA = Math.max(
+      a.first_detected_at ? new Date(a.first_detected_at).getTime() : 0,
+      (a as any).created_at ? new Date((a as any).created_at).getTime() : 0
+    );
+    const timeB = Math.max(
+      b.first_detected_at ? new Date(b.first_detected_at).getTime() : 0,
+      (b as any).created_at ? new Date((b as any).created_at).getTime() : 0
+    );
     if (timeB !== timeA) {
       return timeB - timeA;
+    }
+    if ((b.id || 0) !== (a.id || 0)) {
+      return (b.id || 0) - (a.id || 0);
     }
     return (b.score || 0) - (a.score || 0);
   });

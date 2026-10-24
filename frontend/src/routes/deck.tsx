@@ -89,8 +89,18 @@ function DeckScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // Swipes history & queue
-  const [swipes, setSwipes] = useState<UserSwipe[]>([]);
+  // Swipes history & queue - Synchronously rehydrate from localStorage so first render excludes swiped cards
+  const [swipes, setSwipes] = useState<UserSwipe[]>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const local = JSON.parse(localStorage.getItem('trendrop_local_swipes') || '[]');
+        if (Array.isArray(local) && local.length > 0) return local;
+      } catch {
+        return [];
+      }
+    }
+    return [];
+  });
   const swipeQueueRef = useRef<Array<{ trend_id: number; action: 'use' | 'skip'; reason?: string }>>([]);
   const [savedAudios, setSavedAudios] = useState<DeckTrend[]>([]);
   const [lastSwipedCard, setLastSwipedCard] = useState<DeckTrend | null>(null);
@@ -195,7 +205,7 @@ function DeckScreen() {
     };
   }, [flushSwipeQueue]);
 
-  // Load swipes from server if logged in, else localStorage (cap 500)
+  // Load swipes from server if logged in, merge with local
   useEffect(() => {
     const loadSwipes = async () => {
       let loaded: UserSwipe[] = [];
@@ -214,59 +224,95 @@ function DeckScreen() {
         }
       }
 
-      if (loaded.length === 0 && typeof window !== 'undefined') {
-        try {
-          loaded = JSON.parse(localStorage.getItem('trendrop_local_swipes') || '[]');
-        } catch {
-          loaded = [];
+      setSwipes((prev) => {
+        const combined = [...loaded, ...prev];
+        const unique = Array.from(new Map(combined.map((s) => [s.trend_id, s])).values()).slice(0, 500);
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem('trendrop_local_swipes', JSON.stringify(unique));
+          } catch {}
         }
-      }
-
-      setSwipes(loaded);
+        return unique;
+      });
     };
     loadSwipes();
   }, []);
 
-  // Fetch deck pool once per session per C5
-  useEffect(() => {
-    const fetchDeckPool = async () => {
+  // Fetch deck pool with auto-update and silent background polling
+  const fetchDeckPool = useCallback(async (isSilent = false) => {
+    if (!isSilent) {
       setLoading(true);
       setError(null);
-      try {
-        const params = new URLSearchParams({
-          mode,
-          limit: '120',
-        });
-        if (selectedLanguages.length > 0) {
-          params.append('langs', selectedLanguages.join(','));
-        }
-        if (selectedNiches.length > 0) {
-          params.append('niches', selectedNiches.join(','));
-        }
-        if (includeExpiredDeck || selectedNiches.length > 0) {
-          params.append('include_expired', 'true');
-        }
+    }
+    try {
+      const params = new URLSearchParams({
+        mode,
+        limit: '120',
+      });
+      if (selectedLanguages.length > 0) {
+        params.append('langs', selectedLanguages.join(','));
+      }
+      if (selectedNiches.length > 0) {
+        params.append('niches', selectedNiches.join(','));
+      }
+      if (includeExpiredDeck || selectedNiches.length > 0) {
+        params.append('include_expired', 'true');
+      }
 
-        const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
-        if (!res.ok) throw new Error(`HTTP ${res.status}`);
-        const data = await res.json();
-        const pool: DeckTrend[] = data.trends || [];
-        setRawPool(pool);
+      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      const pool: DeckTrend[] = data.trends || [];
+      setRawPool(pool);
 
-        // Rank the 15-card deck
+      // Rank the 15-card deck using latest swipes
+      setDeck((prevDeck) => {
+        if (isSilent && prevDeck.length > 0) {
+          const freshRanked = rankDeck(pool, swipes, 15);
+          const currentSwipedIds = new Set(swipes.map((s) => s.trend_id));
+          const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
+          const stillValid = prevDeck.filter(
+            (c) => !currentSwipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id))
+          );
+          return stillValid.length > 0 ? stillValid : freshRanked;
+        }
         const ranked = rankDeck(pool, swipes, 15);
-        setDeck(ranked);
         setCurrentIndex(0);
-      } catch (err: any) {
-        console.error('Failed to load deck:', err);
+        return ranked;
+      });
+    } catch (err: any) {
+      console.error('Failed to load deck:', err);
+      if (!isSilent) {
         setError('Failed to load trending audio cards.');
-      } finally {
+      }
+    } finally {
+      if (!isSilent) {
         setLoading(false);
       }
+    }
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes]);
+
+  // Initial fetch on mount & filter changes
+  useEffect(() => {
+    fetchDeckPool(false);
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck]);
+
+  // Continuous auto-polling every 60s & window focus to instantly reflect new ingestions
+  useEffect(() => {
+    const timer = setInterval(() => {
+      fetchDeckPool(true);
+    }, 60_000);
+
+    const onFocus = () => {
+      fetchDeckPool(true);
     };
 
-    fetchDeckPool();
-  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck]);
+    window.addEventListener('focus', onFocus);
+    return () => {
+      clearInterval(timer);
+      window.removeEventListener('focus', onFocus);
+    };
+  }, [fetchDeckPool]);
 
   // Rehydrate savedAudios from rawPool matching 'use' swipes
   useEffect(() => {
@@ -296,6 +342,8 @@ function DeckScreen() {
         niche: currentCard.niche,
         language: currentCard.language,
         artist: currentCard.audio_artist,
+        audio_id: currentCard.audio_id,
+        audio_title: currentCard.audio_title,
       };
 
       // Add to in-memory swipes
@@ -391,7 +439,8 @@ function DeckScreen() {
   // Unswiped count remaining in rawPool
   const remainingCandidatesCount = useMemo(() => {
     const swipedIds = new Set(swipes.map((s) => s.trend_id));
-    return rawPool.filter((c) => !swipedIds.has(c.id)).length;
+    const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
+    return rawPool.filter((c) => !swipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id))).length;
   }, [rawPool, swipes]);
 
   // Deal Next 15 Candidates with continuous batching
@@ -400,7 +449,8 @@ function DeckScreen() {
     try {
       let poolToUse = rawPool;
       const swipedIds = new Set(swipes.map((s) => s.trend_id));
-      let unswiped = poolToUse.filter((c) => !swipedIds.has(c.id));
+      const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
+      let unswiped = poolToUse.filter((c) => !swipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id)));
 
       // If pool is running low (< 5), fetch an expanded pool from backend
       if (unswiped.length < 5) {

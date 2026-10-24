@@ -137,9 +137,9 @@ def get_deck_trends(
     is_auth = bool(authorization and authorization.strip().startswith("Bearer "))
     if not is_auth and cache_key in _DECK_CACHE:
         entry = _DECK_CACHE[cache_key]
-        if now_ts - entry["time"] < 300:
+        if now_ts - entry["time"] < 30:
             headers = {
-                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "Cache-Control": "public, s-maxage=15, stale-while-revalidate=45, stale-if-error=86400",
                 "X-Cache": "HIT"
             }
             return JSONResponse(content=entry["data"], headers=headers)
@@ -154,7 +154,7 @@ def get_deck_trends(
         if has_filters:
             query = query.in_("status", ["emerging", "rising", "resurging", "peaked", "expired"])
         else:
-            query = query.in_("status", ["emerging", "rising"]).gt("window_hours_remaining", 0)
+            query = query.in_("status", ["emerging", "rising", "resurging"])
 
         # Parse requested language and niche filters if supplied
         selected_langs = set([l.strip().lower() for l in langs.split(",") if l.strip() and l.strip().lower() != "all"]) if langs else None
@@ -168,7 +168,7 @@ def get_deck_trends(
             lang_clauses = [f"language_final.eq.{l},language.eq.{l}" for l in selected_langs]
             query = query.or_(",".join(lang_clauses))
 
-        query = query.order("first_detected_at", desc=True).limit(300)
+        query = query.order("id", desc=True).limit(300)
 
         res = query.execute()
         rows = res.data or []
@@ -234,9 +234,12 @@ def get_deck_trends(
             )
             deduped.append(best)
 
-        # Sort deduped strictly by first_detected_at descending (newest to oldest)
+        # Sort deduped strictly newest to oldest (by discovery/created timestamp, and id descending)
         deduped.sort(
-            key=lambda x: str(x.get("first_detected_at") or ""),
+            key=lambda x: (
+                max(str(x.get("first_detected_at") or ""), str(x.get("created_at") or "")),
+                x.get("id") or 0
+            ),
             reverse=True
         )
 
