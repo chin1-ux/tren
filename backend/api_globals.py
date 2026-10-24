@@ -496,8 +496,11 @@ def _resolve_user(authorization: Optional[str]) -> Optional[str]:
     if not token:
         return None
 
-    if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
-        return "demo_user"
+    allow_test_tokens = os.getenv("ALLOW_TEST_TOKENS", "").lower() in ("1", "true")
+    is_prod = os.getenv("VERCEL_ENV") == "production" or os.getenv("ENVIRONMENT") == "production"
+    if allow_test_tokens and not is_prod:
+        if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
+            return "demo_user"
 
     now_ts = time.time()
     if token in _RESOLVE_USER_CACHE:
@@ -648,9 +651,10 @@ async def db_telemetry_middleware(request: Request, call_next):
             logger.info(
                 f"[DB_STATS] route={request.url.path} supabase_calls={stats['calls']} supabase_bytes={stats['bytes']} by_table={stats['by_table']}"
             )
-        response.headers["x-supabase-calls"] = str(stats["calls"])
-        response.headers["x-supabase-bytes"] = str(stats["bytes"])
-        response.headers["x-supabase-by-table"] = json.dumps(stats["by_table"])
+        if os.getenv("DEBUG_DB_TELEMETRY", "").lower() in ("1", "true"):
+            response.headers["x-supabase-calls"] = str(stats["calls"])
+            response.headers["x-supabase-bytes"] = str(stats["bytes"])
+            response.headers["x-supabase-by-table"] = json.dumps(stats["by_table"])
         return response
     finally:
         _db_telemetry_ctx.reset(token)

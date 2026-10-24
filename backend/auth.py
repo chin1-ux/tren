@@ -69,9 +69,12 @@ def get_current_user(request: Request = None, authorization: str = Header(None))
     if not token:
         return "guest@trendrop.app"
 
-    # Fast bypass for demo/test tokens
-    if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
-        return "demo@trendrop.app"
+    # Demo/test token bypass (strictly disabled in production)
+    allow_test_tokens = os.getenv("ALLOW_TEST_TOKENS", "").lower() in ("1", "true")
+    is_prod = os.getenv("VERCEL_ENV") == "production" or os.getenv("ENVIRONMENT") == "production"
+    if allow_test_tokens and not is_prod:
+        if token in ("demo_guest_token", "demo_token_123", "demo_pro_token"):
+            return "demo@trendrop.app"
 
     now_ts = time.time()
     if token in _AUTH_TOKEN_CACHE:
