@@ -81,6 +81,15 @@ class SeoCaptionRequest(BaseModel):
     platform: Optional[str] = "instagram"
 
 
+class ReelCaptionGeneratorRequest(BaseModel):
+    trend_id: Optional[int] = None
+    audio_title: Optional[str] = None
+    audio_artist: Optional[str] = None
+    user_description: str
+    niche: Optional[str] = None
+    vibe: Optional[str] = "aesthetic"
+
+
 class CalendarRequest(BaseModel):
     user_email: Optional[str] = None
     niche: str

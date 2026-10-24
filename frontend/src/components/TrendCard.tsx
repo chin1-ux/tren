@@ -1,7 +1,7 @@
 import { useNavigate } from "@tanstack/react-router";
 import {
   Flame, Video, ChevronDown, ChevronUp,
-  Copy, CheckCheck, Zap, TrendingUp,
+  Copy, CheckCheck, Zap, TrendingUp, Sparkles,
   Bookmark, BookmarkCheck, HelpCircle,
   ExternalLink, Eye, Heart, MessageCircle, Share2, Music2
 } from "lucide-react";
@@ -17,6 +17,7 @@ import { AnimatePresence, motion } from "framer-motion";
 import { TrendCardVideo } from "./TrendCardVideo";
 
 import { TrendProofSection } from "./TrendProofSection";
+import { ReelCaptionModal } from "./ReelCaptionModal";
 import { formatApiDateIst, formatRelativeTime, formatShortDate } from "@/lib/time";
 
 interface Props {
@@ -266,6 +267,7 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
 
   const [showReels, setShowReels] = useState(false);
   const [copied, setCopied] = useState(false);
+  const [isCaptionModalOpen, setIsCaptionModalOpen] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [targetLoading, setTargetLoading] = useState(false);
   const cardRef = useRef<HTMLElement>(null);
@@ -872,13 +874,18 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
               </div>
             </div>
 
-            {/* Copy caption */}
+            {/* Reel caption & reach tags generator */}
             <button
-              onClick={copyCaption}
-              className="flex w-full items-center justify-between rounded-xl border border-border bg-white/[0.02] px-3 py-2 text-xs text-muted-foreground hover:border-primary/40 hover:text-foreground transition-all"
+              onClick={(e) => {
+                e.stopPropagation();
+                setIsCaptionModalOpen(true);
+              }}
+              className="flex w-full items-center justify-between rounded-xl border border-primary/25 bg-primary/10 px-3 py-2 text-xs text-primary font-medium hover:bg-primary/15 hover:border-primary/45 transition-all shadow-xs"
             >
-              <span>📋 Copy caption + hashtags</span>
-              {copied ? <CheckCheck className="h-3.5 w-3.5 text-emerald-400" /> : <Copy className="h-3.5 w-3.5" />}
+              <span className="flex items-center gap-1.5">
+                <Sparkles className="h-3.5 w-3.5" /> Generate Reel Caption & Reach Tags
+              </span>
+              <span className="text-[10px] font-bold uppercase tracking-wider opacity-80">AI Studio →</span>
             </button>
 
             {/* ── Trending Reels using this sound (audio deep-link replaces post link) ── */}
@@ -999,6 +1006,11 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
       <TrendProofSection 
         trendId={trend.id} 
         isPeaking={!!(trend.peakingScore && trend.peakingScore >= 70)}
+      />
+      <ReelCaptionModal
+        isOpen={isCaptionModalOpen}
+        onClose={() => setIsCaptionModalOpen(false)}
+        trend={trend}
       />
     </article>
   );

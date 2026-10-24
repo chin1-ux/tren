@@ -17,6 +17,7 @@ import { useEffectivePlan } from '@/lib/plan';
 import { getGoldenHourExpiryMeta } from "@/components/TrendCard";
 import { useAudioStore, primeAudio } from "@/store/useAudioStore";
 import { resolveAudioTrack } from "@/lib/audio-resolver";
+import { ReelCaptionModal } from "@/components/ReelCaptionModal";
 
 export const Route = createFileRoute("/trend/$id")({
   head: () => ({
@@ -33,6 +34,7 @@ function TrendDetailPage() {
   const { id } = Route.useParams();
   const navigate = useNavigate();
   const [copiedCaption, setCopiedCaption] = useState<number | null>(null);
+  const [isCaptionModalOpen, setIsCaptionModalOpen] = useState(false);
   const [copiedHashtags, setCopiedHashtags] = useState(false);
   const [selectedVibe, setSelectedVibe] = useState(0);
   const userPlan = useEffectivePlan();
@@ -478,9 +480,19 @@ function TrendDetailPage() {
         onUpgrade={() => window.location.href = '/pricing'}
       >
         <div className="glass-card p-5 space-y-4">
-          <h2 className="font-display text-lg font-bold flex items-center gap-2">
-            <Zap className="h-5 w-5 text-primary" /> Caption Kit
-          </h2>
+          <div className="flex items-center justify-between">
+            <h2 className="font-display text-lg font-bold flex items-center gap-2">
+              <Zap className="h-5 w-5 text-primary" /> Caption Kit
+            </h2>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setIsCaptionModalOpen(true)}
+              className="text-xs font-semibold gap-1.5 border-primary/30 text-primary hover:bg-primary/10"
+            >
+              <Sparkles className="h-3.5 w-3.5" /> AI Custom Generator
+            </Button>
+          </div>
 
           {captionLoading ? (
             <div className="space-y-3">
@@ -727,6 +739,12 @@ function TrendDetailPage() {
           🎤 Generate My Reel For This Trend
         </Button>
       )}
+
+      <ReelCaptionModal
+        isOpen={isCaptionModalOpen}
+        onClose={() => setIsCaptionModalOpen(false)}
+        trend={trend}
+      />
     </div>
   );
 }

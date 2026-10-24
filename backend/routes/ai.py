@@ -430,6 +430,148 @@ def generate_seo_caption(request: Request, req: SeoCaptionRequest, current_user_
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+def _clean_hashtag(word: str) -> str:
+    cleaned = re.sub(r"[^a-zA-Z0-9]", "", word)
+    return f"#{cleaned.lower()}" if cleaned else ""
+
+
+def _generate_reel_caption_fallback(
+    audio_title: Optional[str],
+    audio_artist: Optional[str],
+    user_description: str,
+    niche: Optional[str],
+    vibe: Optional[str]
+) -> dict:
+    clean_desc = (user_description or "").strip()
+    clean_audio = (audio_title or "").strip()
+    clean_artist = (audio_artist or "").strip()
+    vibe_mode = (vibe or "aesthetic").lower()
+
+    if "relatable" in vibe_mode or "pov" in clean_desc.lower():
+        hook = "Tell me I'm not the only one who does this 😭"
+        body = f"{clean_desc}\n\nWhen the audio matches the reality a little too accurately."
+        cta = "Drop a '💀' if you've been there 👇"
+    elif "humor" in vibe_mode or "funny" in vibe_mode:
+        hook = "Was not expecting it to turn out like this..."
+        body = f"{clean_desc}\n\nNo regrets whatsoever."
+        cta = "Send this to someone who needs to see it 😭"
+    elif "high-energy" in vibe_mode or "hype" in vibe_mode:
+        hook = "Leveling up every single day. No days off."
+        body = f"{clean_desc}\n\nThe energy with this sound is unmatched."
+        cta = "Save this for your next session ⚡"
+    else:  # aesthetic
+        hook = "proof that this vibe is undefeated ✨"
+        body = f"{clean_desc}\n\nhad to let the audio do the talking."
+        cta = "Rate this look from 1-10 👇"
+
+    caption = f"{hook}\n\n{body}\n\n{cta}"
+
+    words = re.findall(r"[a-zA-Z0-9]+", clean_desc)
+    stop_words = {"the", "and", "with", "this", "that", "for", "out", "her", "his", "reel", "video", "wearing", "doing", "make", "made"}
+    content_tags = [_clean_hashtag(w) for w in words if len(w) >= 3 and w.lower() not in stop_words]
+    content_tags = [t for t in content_tags if t]
+
+    hashtags = []
+    if clean_audio:
+        t = _clean_hashtag(clean_audio)
+        if t: hashtags.append(t)
+    if clean_artist:
+        t = _clean_hashtag(clean_artist)
+        if t: hashtags.append(t)
+
+    for ct in content_tags[:6]:
+        if ct not in hashtags:
+            hashtags.append(ct)
+
+    niche_lower = (niche or "lifestyle").lower()
+    presets = {
+        "fashion": ["#ootdnight", "#styleinspo", "#fitcheck", "#grwmaesthetic", "#streetwearfits"],
+        "fitness": ["#workoutmotivation", "#gymroutine", "#fitgoals", "#bodybuilding", "#consistency"],
+        "food": ["#foodlover", "#recipevideo", "#foodblogger", "#streetfood", "#homerecipes"],
+        "dance": ["#dancetrend", "#choreography", "#dancecover", "#reelsdance", "#movement"],
+        "travel": ["#travelinspo", "#hiddenplaces", "#wanderlust", "#cityvibes", "#exploreworld"],
+        "beauty": ["#makeupaesthetic", "#skincareroutine", "#glowupvibes", "#beautyhacks", "#grwmbeauty"],
+    }
+    for pt in presets.get(niche_lower, ["#aestheticvibes", "#reelsinspo", "#contentcreator", "#visualdiary"]):
+        if pt not in hashtags:
+            hashtags.append(pt)
+
+    final_tags = hashtags[:16]
+    tags_line = " ".join(final_tags)
+    full_post_text = f"{caption}\n\n.\n.\n{tags_line}"
+
+    return {
+        "hook": hook,
+        "body": body,
+        "call_to_action": cta,
+        "caption": caption,
+        "hashtags": final_tags,
+        "full_post_text": full_post_text,
+        "is_fallback": True
+    }
+
+
+@router.post("/api/ai/reel-caption")
+@limiter.limit("15/minute")
+def generate_reel_caption(
+    request: Request,
+    req: ReelCaptionGeneratorRequest,
+    authorization: Optional[str] = Header(None)
+):
+    """
+    Generate an authentic, high-converting Instagram Reel caption and targeted reach hashtags
+    based on the creator's specific description of what they are doing/wearing in their reel.
+    """
+    try:
+        from llm import call_llm
+        system_prompt = (
+            "You are an elite Instagram growth copywriter and viral algorithm specialist. "
+            "Write authentic, creator-native Instagram Reel captions and high-viewability SEO hashtags. "
+            "NEVER produce robotic corporate summaries like 'A video of a dance cover targeting relatable content'."
+        )
+        user_prompt = f"""
+A creator is posting an Instagram Reel with the trending audio: "{req.audio_title or 'Trending Sound'}" by "{req.audio_artist or 'Original Artist'}".
+Creator niche: {req.niche or 'general'}. Desired vibe: {req.vibe or 'aesthetic'}.
+
+The creator describes what they specifically made / wore / did in the reel:
+"{req.user_description}"
+
+Generate a high-converting, human-sounding Instagram caption and targeted hashtags:
+1. "hook": A punchy opening 1-line hook (under 12 words) that stops viewers from scrolling past.
+2. "body": 1-2 authentic, relatable lines matching their described scene/outfit/mood.
+3. "call_to_action": A natural question or save/share prompt that drives comments (e.g. "Rate this fit 1-10 👇", "Save this for your next leg day", "Which look is your favorite?").
+4. "caption": Combined hook + body + call_to_action with clean spacing.
+5. "hashtags": Array of 14-18 HIGH-REACH, targeted hashtags. DO NOT include generic spam like #trending #reels #viral. Instead, combine audio-specific tags, specific outfit/content tags from their description, and active niche discovery tags.
+6. "full_post_text": The complete caption followed by 2 clean line breaks and the hashtags block, ready to 1-tap copy paste.
+
+Return ONLY a valid JSON object matching this schema:
+{{
+  "hook": "string",
+  "body": "string",
+  "call_to_action": "string",
+  "caption": "string",
+  "hashtags": ["#tag1", "#tag2", ...],
+  "full_post_text": "string"
+}}
+"""
+        res = call_llm(system_prompt, user_prompt, response_mime_type="application/json", timeout=20)
+        if isinstance(res, dict) and res.get("caption") and res.get("hashtags"):
+            if not res.get("full_post_text"):
+                tags_str = " ".join(res["hashtags"]) if isinstance(res["hashtags"], list) else str(res["hashtags"])
+                res["full_post_text"] = f"{res['caption']}\n\n.\n.\n{tags_str}"
+            return res
+    except Exception as e:
+        logger.warning(f"LLM reel caption generation failed or timed out: {e}")
+
+    return _generate_reel_caption_fallback(
+        audio_title=req.audio_title,
+        audio_artist=req.audio_artist,
+        user_description=req.user_description,
+        niche=req.niche,
+        vibe=req.vibe
+    )
+
+
 @router.get("/api/daily-ideas")
 @limiter.limit("3/minute")
 def get_daily_ideas(request: Request, current_user_email: str = Depends(require_credits(CREDIT_COSTS['ai_generation']))):

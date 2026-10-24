@@ -1931,6 +1931,33 @@ export async function submitTrendUrl(url: string): Promise<{ status: string; mes
   });
 }
 
+export interface ReelCaptionRequest {
+  trend_id?: number | string;
+  audio_title?: string;
+  audio_artist?: string;
+  user_description: string;
+  niche?: string;
+  vibe?: string;
+}
+
+export interface ReelCaptionResponse {
+  hook: string;
+  body: string;
+  call_to_action: string;
+  caption: string;
+  hashtags: string[];
+  full_post_text: string;
+  is_fallback?: boolean;
+}
+
+export async function generateReelCaption(req: ReelCaptionRequest): Promise<ReelCaptionResponse> {
+  return http<ReelCaptionResponse>("/api/ai/reel-caption", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(req),
+  });
+}
+
 
 
 
