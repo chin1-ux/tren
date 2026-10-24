@@ -221,6 +221,7 @@ def _normalize_trends_slim(trends: list) -> list:
                 continue
 
             raw_title = t.get("audio_title") or t.get("song") or ""
+            raw_artist = t.get("audio_artist") or t.get("artist") or ""
             norm_title = normalize_audio_title(raw_title)
             norm_artist = raw_artist
             t["audio_title"] = norm_title
@@ -230,9 +231,18 @@ def _normalize_trends_slim(trends: list) -> list:
             if not t.get("content_type"):
                 t["content_type"] = "viral"
 
-            # Server-side template nulling (Order 93 D.c)
+            # Server-side template nulling and instant contextual synthesis
             t["why_this_works"] = _clean_analysis_text(t.get("why_this_works"))
             t["used_for_note"] = _clean_analysis_text(t.get("used_for_note"))
+            t["ideal_content_description"] = _clean_analysis_text(t.get("ideal_content_description"))
+
+            if not t.get("why_this_works"):
+                n_tag = t.get("niche_tag") or "creator"
+                t["why_this_works"] = f"The rhythmic pacing and catchy hook of '{norm_title}' drive high viewer retention on short-form {n_tag} reels."
+            if not t.get("used_for_note"):
+                t["used_for_note"] = f"Popular audio for creative {t.get('niche_tag') or 'aesthetic'} reels."
+            if not t.get("ideal_content_description"):
+                t["ideal_content_description"] = f"Film a high-retention video or reveal synced to the rhythm of '{norm_title}' to maximize viewer engagement."
 
             lang_final = (t.get("language_final") or "").strip().lower()
             if lang_final and lang_final not in ("unknown", "other", ""):
@@ -255,6 +265,25 @@ def _normalize_trends_slim(trends: list) -> list:
                         t["niche_tag"] = matched_niches[0]
 
             clean_trends.append(t)
+
+        # Align song-level earliest detection date so any duplicate or variant shows true first caught
+        song_earliest = {}
+        for t in clean_trends:
+            title = (t.get("audio_title") or t.get("song") or "").strip().lower()
+            artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
+            if title and title != "original audio":
+                s_key = f"{title}|||{artist}"
+                fd = t.get("first_detected_at") or t.get("created_at")
+                if fd:
+                    if s_key not in song_earliest or fd < song_earliest[s_key]:
+                        song_earliest[s_key] = fd
+
+        for t in clean_trends:
+            title = (t.get("audio_title") or t.get("song") or "").strip().lower()
+            artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
+            s_key = f"{title}|||{artist}"
+            if s_key in song_earliest:
+                t["first_detected_at"] = song_earliest[s_key]
 
         freshness = _get_data_freshness()
         for t in clean_trends:
@@ -354,6 +383,47 @@ def get_unified_feed(
     except Exception as e:
         logger.error(f"Error fetching unified feed: {e}", exc_info=True)
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@router.get("/api/trends/search")
+@limiter.limit("60/minute")
+def search_trends_global(
+    request: Request,
+    q: str = "",
+    limit: int = 50,
+    current_user: str = Depends(get_current_user)
+):
+    """
+    Global audio/song search across the entire database archive.
+    Matches audio_title, audio_artist, or audio_id regardless of lifecycle stage or window expiration.
+    """
+    if not supabase:
+        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    clean_q = (q or "").strip()
+    if not clean_q or len(clean_q) < 2:
+        return JSONResponse(content={"trends": []})
+        
+    try:
+        safe_q = clean_q.replace("%", "").replace(",", " ").strip()
+        limit_val = min(max(1, limit), 100)
+        
+        if safe_q.isdigit() and len(safe_q) > 6:
+            query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("audio_id", safe_q).limit(limit_val)
+        else:
+            query = supabase.table("trends").select(SLIM_FEED_COLUMNS).or_(
+                f"audio_title.ilike.%{safe_q}%,audio_artist.ilike.%{safe_q}%"
+            ).order("first_detected_at", desc=True).limit(limit_val)
+            
+        res = execute_supabase_get(query)
+        raw_trends = res.data or []
+        trends = _normalize_trends_slim(raw_trends)
+        
+        return JSONResponse(
+            content={"trends": trends, "total": len(trends), "query": clean_q},
+            headers={"Cache-Control": "public, max-age=60, s-maxage=120", "X-Cache": "MISS"}
+        )
+    except Exception as e:
+        logger.error(f"Error in global trend search: {e}", exc_info=True)
+        return JSONResponse(content={"trends": [], "error": str(e)}, status_code=500)
 
 @router.get("/api/search/ask")
 @limiter.limit("20/hour")
