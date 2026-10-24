@@ -946,13 +946,7 @@ function TrendsFeed() {
           }}
         />
 
-        {deduplicatedTrends.emerging.length > 0 && (
-          <div className="rounded-xl border border-[#ff006e]/30 bg-[rgba(255,0,110,0.05)] p-3 flex items-center justify-between">
-            <p className="text-xs text-[#ff006e] font-semibold">
-              ⚡ <strong>{deduplicatedTrends.emerging.length} Early Trend{deduplicatedTrends.emerging.length > 1 ? "s" : ""}</strong> detected — prioritized first. First-mover advantage active!
-            </p>
-          </div>
-        )}
+
 
         {isError && (
           <div className="space-y-2">
