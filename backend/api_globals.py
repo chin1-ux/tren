@@ -73,6 +73,15 @@ except ImportError:
     print("Redis rate limiter not available, falling back to in-memory slowapi")
 
 
+def sanitize_postgrest_value(val: Optional[str]) -> str:
+    """Sanitize user input before interpolating into PostgREST filter expressions (.or_())."""
+    if not val or not isinstance(val, str):
+        return ""
+    # Strip characters that alter PostgREST query grammar: commas, parens, quotes, brackets, braces, colons
+    cleaned = re.sub(r'[,()"\\[\]{}:]', '', val).strip()
+    return cleaned[:100]
+
+
 def _get_client_ip(request: Request) -> str:
     """Extract client IP, preferring X-Forwarded-For on Vercel."""
     forwarded = request.headers.get("x-forwarded-for")

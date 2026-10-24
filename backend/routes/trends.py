@@ -343,7 +343,9 @@ def get_unified_feed(
         q = _apply_languages_filter(q, language, languages)
         
         if niche and niche != "all":
-            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            clean_niche = sanitize_postgrest_value(niche)
+            if clean_niche:
+                q = q.or_(f"niche_tag.eq.{clean_niche},semantic_niches.cs.{{{clean_niche}}}")
             
         if sort == "velocity":
             q = q.order("velocity_avg", desc=True)
@@ -501,15 +503,16 @@ def search_ask(
         
         query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("is_seed_data", False).eq("is_voiceover", False).gt("window_hours_remaining", 0)
         
-        lang = filters.get("language")
+        lang = sanitize_postgrest_value(filters.get("language"))
         if lang:
             query = query.or_(f"language_final.eq.{lang},language.eq.{lang}")
             
-        niche = filters.get("niche")
+        niche = sanitize_postgrest_value(filters.get("niche"))
         if niche:
             query = query.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
             
-        keywords = [k for k in (filters.get("keywords") or []) if len(k) > 2 and k.lower() not in ("audio", "trend", "song", "sound", "reels")]
+        keywords = [sanitize_postgrest_value(k) for k in (filters.get("keywords") or []) if len(k) > 2 and k.lower() not in ("audio", "trend", "song", "sound", "reels")]
+        keywords = [k for k in keywords if k]
         if not lang and not niche and keywords:
             kw = keywords[0]
             query = query.or_(f"audio_title.ilike.%{kw}%,why_this_works.ilike.%{kw}%,audio_artist.ilike.%{kw}%")
@@ -644,7 +647,9 @@ def get_trends(
         q = _apply_languages_filter(q, language, languages)
 
         if niche and niche != "all":
-            q = q.or_(f"niche_tag.eq.{niche},semantic_niches.cs.{{{niche}}}")
+            clean_niche = sanitize_postgrest_value(niche)
+            if clean_niche:
+                q = q.or_(f"niche_tag.eq.{clean_niche},semantic_niches.cs.{{{clean_niche}}}")
 
         if delay_hours > 0:
             time_cutoff = (datetime.now(timezone.utc) - timedelta(hours=delay_hours)).isoformat()

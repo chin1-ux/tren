@@ -1,4 +1,4 @@
-import sys, os
+import sys, os, secrets
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from api_globals import *
@@ -50,7 +50,8 @@ async def trigger_cron_job(request: Request, background_tasks: BackgroundTasks):
         raise HTTPException(status_code=500, detail="Cron not configured")
 
     auth_header = request.headers.get("Authorization")
-    if not auth_header or auth_header != f"Bearer {cron_secret}":
+    expected_header = f"Bearer {cron_secret}"
+    if not auth_header or not secrets.compare_digest(auth_header, expected_header):
         raise HTTPException(status_code=401, detail="Unauthorized")
         
     if is_vercel:

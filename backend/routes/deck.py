@@ -19,11 +19,13 @@ from fastapi import APIRouter, HTTPException, Header, Query, Request, Depends
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel, Field
 
+import re
 from api_globals import (
     supabase,
     limiter,
     _resolve_user,
-    require_auth
+    require_auth,
+    sanitize_postgrest_value
 )
 
 try:
@@ -524,8 +526,8 @@ def get_reel_thumbnail_image(reel_id: str):
     Caches in memory with 24-hour public client cache headers.
     """
     clean_id = (reel_id or "").strip()
-    if not clean_id or len(clean_id) < 3:
-        raise HTTPException(status_code=400, detail="Invalid reel_id")
+    if not clean_id or not re.match(r"^[a-zA-Z0-9_-]{3,40}$", clean_id):
+        raise HTTPException(status_code=400, detail="Invalid reel_id format")
 
     if clean_id in _THUMBNAIL_CACHE:
         return Response(
@@ -628,16 +630,19 @@ def get_explore_trends(
             pass
 
         if language and language.lower() != "all":
-            l_clean = language.lower().strip()
-            q = q.or_(f"language_final.eq.{l_clean},language.eq.{l_clean}")
+            l_clean = sanitize_postgrest_value(language).lower()
+            if l_clean:
+                q = q.or_(f"language_final.eq.{l_clean},language.eq.{l_clean}")
 
         if niche and niche.lower() != "all":
-            n_clean = niche.lower().strip()
-            q = q.or_(f"semantic_niches.cs.{{{n_clean}}},niche_tag.eq.{n_clean}")
+            n_clean = sanitize_postgrest_value(niche).lower()
+            if n_clean:
+                q = q.or_(f"semantic_niches.cs.{{{n_clean}}},niche_tag.eq.{n_clean}")
 
         if search and search.strip():
-            s_term = search.strip()
-            q = q.or_(f"audio_title.ilike.%{s_term}%,audio_artist.ilike.%{s_term}%")
+            s_term = sanitize_postgrest_value(search)
+            if s_term:
+                q = q.or_(f"audio_title.ilike.%{s_term}%,audio_artist.ilike.%{s_term}%")
 
         if cursor:
             q = q.lt("id", cursor)
