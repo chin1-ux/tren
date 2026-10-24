@@ -734,24 +734,36 @@ class TrendEngine:
                 "audio_backfill_status"
             )
 
+            # 1. Determine min_id boundary for 48h window in 1 fast indexed lookup
+            min_reel_res = self.supabase.table("reels") \
+                .select("id") \
+                .gte("created_at", time_threshold_48h) \
+                .order("id", desc=False) \
+                .limit(1) \
+                .execute()
+            min_id = (min_reel_res.data or [{}])[0].get("id") or 0
+
+            # 2. Keyset pagination over primary key id range [min_id, ...)
             reels = []
-            offset = 0
-            _PAGE_SIZE = 300
+            last_seen_id = None
+            _PAGE_SIZE = 500
             while True:
-                reels_res = self.supabase.table("reels") \
+                query = self.supabase.table("reels") \
                     .select(REEL_DETECT_COLUMNS) \
+                    .gte("id", min_id) \
                     .gt("velocity_score", 0.3) \
-                    .gte("created_at", time_threshold_48h) \
-                    .order("created_at", desc=True) \
-                    .range(offset, offset + _PAGE_SIZE - 1) \
-                    .execute()
+                    .order("id", desc=True) \
+                    .limit(_PAGE_SIZE)
+                if last_seen_id is not None:
+                    query = query.lt("id", last_seen_id)
+                reels_res = query.execute()
                 page_data = reels_res.data or []
                 valid_page = [r for r in page_data if (r.get("audio_backfill_status") or "") != "unrecoverable"]
                 reels.extend(valid_page)
                 if len(page_data) < _PAGE_SIZE:
                     break
-                offset += _PAGE_SIZE
-            logging.info(f"Loaded {len(reels)} reels for evaluation")
+                last_seen_id = page_data[-1]["id"]
+            logging.info(f"Loaded {len(reels)} reels for evaluation (min_id={min_id})")
 
             # STEP 2: Group by audio
             audio_groups = {}
@@ -1204,7 +1216,7 @@ class TrendEngine:
             for idx, trend in enumerate(confirmed):
                 if idx > 0:
                     # 12s stagger: at 800 TPM/call and 2 keys, this gives token buckets more reset time
-                    stagger_delay = float(os.getenv("TREND_CLASSIFICATION_STAGGER_DELAY", "12.0"))
+                    stagger_delay = float(os.getenv("TREND_CLASSIFICATION_STAGGER_DELAY", "1.0"))
                     logging.info(f"Rate limiting: sleeping {stagger_delay}s before next Groq classification...")
                     time.sleep(stagger_delay)
                 success = classify_single_trend(trend)
