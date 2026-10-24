@@ -1827,8 +1827,100 @@ export async function toggleTrendTarget(trendId: string | number, action: "targe
 }
 
 export async function fetchTargetedTrends(): Promise<UiTrend[]> {
-  const data = await http<ApiTrend[]>("/api/trends/targeted");
-  return data.map(adaptTrend);
+  let serverTrends: UiTrend[] = [];
+  try {
+    const data = await http<ApiTrend[]>("/api/trends/targeted");
+    serverTrends = (data || []).map(adaptTrend);
+  } catch {
+    serverTrends = [];
+  }
+
+  // Merge locally targeted/picked audios so guests and instant Deck saves appear immediately
+  if (typeof window !== "undefined") {
+    try {
+      const existingIds = new Set(serverTrends.map((t) => String(t.id)));
+
+      // 1. From saved targets
+      const rawTargets = localStorage.getItem("trendrop_saved_targets");
+      if (rawTargets) {
+        const localTargets: any[] = JSON.parse(rawTargets);
+        if (Array.isArray(localTargets)) {
+          for (const lt of localTargets) {
+            const idStr = String(lt.id);
+            if (!existingIds.has(idStr)) {
+              serverTrends.push({
+                id: idStr,
+                song: lt.audio_title || lt.song || "Trending Audio",
+                artist: lt.audio_artist || lt.artist || "Original Audio",
+                audioId: lt.audio_id || lt.audioId || null,
+                status: (lt.status || "emerging").toLowerCase(),
+                niche: lt.niche || null,
+                language: lt.language || "en",
+                creatorCount: lt.creator_count || lt.creatorCount || 0,
+                reelCount: lt.reel_count || lt.reelCount || 0,
+                audioUseCount: lt.audio_use_count || lt.audioUseCount || 0,
+                used_for: lt.used_for || null,
+                used_for_note: lt.used_for_note || null,
+                why_this_works: lt.why_this_works || null,
+                ideal_content_description: lt.ideal_content_description || null,
+                firstDetectedAt: lt.first_detected_at || lt.firstDetectedAt || null,
+                lastSeenAt: lt.last_seen_at || lt.lastSeenAt || null,
+                saturationScore: lt.saturationScore || 0,
+                opportunityScore: lt.opportunityScore || lt.score || 0,
+                contentType: "Reel Audio",
+                windowHoursRemaining: 48,
+                velocityAvg: 0,
+              } as UiTrend);
+              existingIds.add(idStr);
+            }
+          }
+        }
+      }
+
+      // 2. From local 'use' swipes
+      const rawSwipes = localStorage.getItem("trendrop_local_swipes");
+      if (rawSwipes) {
+        const localSwipes: any[] = JSON.parse(rawSwipes);
+        if (Array.isArray(localSwipes)) {
+          for (const ls of localSwipes) {
+            if (ls.action === "use") {
+              const idStr = String(ls.trend_id);
+              if (!existingIds.has(idStr)) {
+                serverTrends.push({
+                  id: idStr,
+                  song: ls.audio_title || "Trending Audio",
+                  artist: ls.artist || "Original Audio",
+                  audioId: ls.audio_id || null,
+                  status: "emerging",
+                  niche: ls.niche || null,
+                  language: ls.language || "en",
+                  creatorCount: 0,
+                  reelCount: 0,
+                  audioUseCount: 0,
+                  used_for: null,
+                  used_for_note: null,
+                  why_this_works: null,
+                  ideal_content_description: null,
+                  firstDetectedAt: ls.updated_at || null,
+                  lastSeenAt: ls.updated_at || null,
+                  saturationScore: 0,
+                  opportunityScore: 0,
+                  contentType: "Reel Audio",
+                  windowHoursRemaining: 48,
+                  velocityAvg: 0,
+                } as UiTrend);
+                existingIds.add(idStr);
+              }
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Could not merge local targeted trends:", e);
+    }
+  }
+
+  return serverTrends;
 }
 
 export async function submitTrendUrl(url: string): Promise<{ status: string; message: string; reel_id?: string; audio_title?: string; bonus_credits?: number }> {

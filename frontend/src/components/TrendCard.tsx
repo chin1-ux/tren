@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { useState, useRef, useCallback, useEffect, memo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { fetchTrendReels, toggleTrendTarget, getCleanAnalysis } from "@/lib/api";
+import { saveAudioToWorkspace, removeAudioFromWorkspace } from "@/lib/workspace-storage";
 import { FEATURES } from "@/lib/features";
 import { toast } from "sonner";
 import { AnimatePresence, motion } from "framer-motion";
@@ -291,15 +292,14 @@ export const TrendCard = memo(function TrendCard({ trend, onDanceTap, selectedNi
     setTargetLoading(true);
     const action = isTargeted ? "untarget" : "target";
     try {
-      const res = await toggleTrendTarget(trend.id, action);
-      if (res.success) {
-        queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
-        if (action === "target") {
-          toast.success("Trend added to Workspace 🎯");
-        } else {
-          toast.success("Removed from Workspace");
-        }
+      if (action === "target") {
+        await saveAudioToWorkspace(trend);
+        toast.success("Trend added to Workspace 🎯");
+      } else {
+        await removeAudioFromWorkspace(trend.id);
+        toast.success("Removed from Workspace");
       }
+      queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
     } catch (err: any) {
       toast.error(err.message || "Failed to update target");
     } finally {

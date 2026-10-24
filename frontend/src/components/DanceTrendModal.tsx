@@ -4,6 +4,7 @@ import { Copy, X, Check, Film, Sparkles, Target, ExternalLink, Play, Calendar } 
 import type { UiTrend } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { toggleTrendTarget, fetchTargetedTrends } from "@/lib/api";
+import { saveAudioToWorkspace, removeAudioFromWorkspace } from "@/lib/workspace-storage";
 import { toast } from "sonner";
 
 interface Props {
@@ -43,16 +44,16 @@ export function DanceTrendModal({ trend, onClose }: Props) {
     setLoadingTarget(true);
     const newAction = isTargeted ? "untarget" : "target";
     try {
-      const res = await toggleTrendTarget(trend.id, newAction);
-      if (res.success) {
-        setTargetCount(res.saturation_count);
-        queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
-        if (newAction === "target") {
-          toast.success("Trend targeted! Added to your workspace 🎯");
-        } else {
-          toast.success("Trend removed from targeted list");
-        }
+      if (newAction === "target") {
+        await saveAudioToWorkspace(trend);
+        setTargetCount((prev) => prev + 1);
+        toast.success("Trend targeted! Added to your workspace 🎯");
+      } else {
+        await removeAudioFromWorkspace(trend.id);
+        setTargetCount((prev) => Math.max(0, prev - 1));
+        toast.success("Trend removed from targeted list");
       }
+      queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
     } catch (err: any) {
       toast.error(err.message || "Failed to update target status");
     } finally {

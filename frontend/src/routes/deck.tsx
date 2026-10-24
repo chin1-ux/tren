@@ -26,8 +26,10 @@ import { VinylBackground }    from '@/components/deck/VinylBackground';
 import { DeckPicks }          from '@/components/deck/DeckPicks';
 import { DeckOnboarding }     from '@/components/deck/DeckOnboarding';
 import { MilestoneRecapCard } from '@/components/deck/MilestoneRecapCard';
-import { API_URL, getAuthToken } from '@/lib/api';
+import { API_URL, getAuthToken, fetchTargetedTrends } from '@/lib/api';
 import { useAuth } from '@/contexts/AuthContext';
+import { useQueryClient } from '@tanstack/react-query';
+import { saveAudioToWorkspace, removeAudioFromWorkspace, getLocalTargeted, toDeckTrend } from '@/lib/workspace-storage';
 import { RouteErrorBoundary } from '@/components/RouteErrorBoundary';
 
 
@@ -44,6 +46,7 @@ export const Route = createFileRoute('/deck')({
 
 function DeckScreen() {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
   const auth = useAuth?.() || { user: null, loginWithGoogle: async () => {} };
 
   // Current active tab: 'deck' | 'picks'
@@ -102,7 +105,7 @@ function DeckScreen() {
     return [];
   });
   const swipeQueueRef = useRef<Array<{ trend_id: number; action: 'use' | 'skip'; reason?: string }>>([]);
-  const [savedAudios, setSavedAudios] = useState<DeckTrend[]>([]);
+  const [savedAudios, setSavedAudios] = useState<DeckTrend[]>(() => getLocalTargeted());
   const [lastSwipedCard, setLastSwipedCard] = useState<DeckTrend | null>(null);
   const [batchCount, setBatchCount] = useState<number>(1);
   const [isDealingMore, setIsDealingMore] = useState<boolean>(false);
@@ -364,6 +367,57 @@ function DeckScreen() {
     }
   }, [rawPool, swipes]);
 
+  // Synchronize savedAudios with unified creator workspace (Targeted on Feed & Picks on Deck)
+  useEffect(() => {
+    let isMounted = true;
+    fetchTargetedTrends()
+      .then((targeted) => {
+        if (!isMounted || !Array.isArray(targeted) || targeted.length === 0) return;
+        const converted = targeted.map(toDeckTrend);
+        setSavedAudios((prev) => {
+          const existingIds = new Set(prev.map((p) => p.id));
+          const toAdd = converted.filter((c) => !existingIds.has(c.id));
+          if (toAdd.length === 0) return prev;
+          return [...prev, ...toAdd];
+        });
+        // Also register targeted audios into swipes with action 'use'
+        setSwipes((prev) => {
+          const swipedIds = new Set(prev.map((s) => s.trend_id));
+          const newSwipes = converted
+            .filter((c) => !swipedIds.has(c.id))
+            .map((c) => ({
+              trend_id: c.id,
+              action: 'use' as const,
+              updated_at: new Date().toISOString(),
+              niche: c.niche,
+              language: c.language,
+              artist: c.audio_artist,
+              audio_id: c.audio_id,
+              audio_title: c.audio_title,
+            }));
+          if (newSwipes.length === 0) return prev;
+          return [...prev, ...newSwipes];
+        });
+      })
+      .catch(() => {});
+
+    // Listen to cross-component workspace updates (e.g. when targeted on Feed)
+    const onWorkspaceUpdate = () => {
+      fetchTargetedTrends()
+        .then((targeted) => {
+          if (!isMounted || !Array.isArray(targeted)) return;
+          setSavedAudios(targeted.map(toDeckTrend));
+        })
+        .catch(() => {});
+    };
+    window.addEventListener('trendrop:workspace_updated', onWorkspaceUpdate);
+
+    return () => {
+      isMounted = false;
+      window.removeEventListener('trendrop:workspace_updated', onWorkspaceUpdate);
+    };
+  }, []);
+
   // Handle Swipe (Use / Skip)
   const handleSwipe = useCallback(
     (action: 'use' | 'skip', reason?: string) => {
@@ -416,9 +470,11 @@ function DeckScreen() {
         }
       }
 
-      // If 'use', add to saved audios
+      // If 'use', add to saved audios & unified workspace (Targeted)
       if (action === 'use') {
+        saveAudioToWorkspace(currentCard);
         setSavedAudios((prev) => [currentCard, ...prev.filter((c) => c.id !== currentCard.id)]);
+        queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
 
         // Gentle Google sign-in prompt for guest if not logged in
         if (!auth.user && !getAuthToken()) {
@@ -803,7 +859,10 @@ function DeckScreen() {
             savedAudios={savedAudios}
             swipes={swipes}
             onRemove={(id) => {
+              removeAudioFromWorkspace(id);
               setSavedAudios((prev) => prev.filter((a) => a.id !== id));
+              setSwipes((prev) => prev.filter((s) => s.trend_id !== id));
+              queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
             }}
             onResetTaste={() => {
               setSwipes([]);

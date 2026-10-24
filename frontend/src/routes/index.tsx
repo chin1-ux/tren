@@ -1,6 +1,6 @@
 import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
 import { fetchTrends, fetchEmergingTrends, fetchPeakedTrends, fetchExpiredTrends, fetchResurgingTrends, fetchTargetedTrends, fetchLastDetectedTimes, searchTrendsGlobal, type UiTrend } from "@/lib/api";
 import { TrendCard } from "@/components/TrendCard";
@@ -259,13 +259,25 @@ function TrendsFeed() {
     return () => clearInterval(id);
   }, []);
 
+  const queryClient = useQueryClient();
+
+  useEffect(() => {
+    const onWorkspaceUpdate = () => {
+      queryClient.invalidateQueries({ queryKey: ["trends-targeted"] });
+    };
+    window.addEventListener("trendrop:workspace_updated", onWorkspaceUpdate);
+    return () => {
+      window.removeEventListener("trendrop:workspace_updated", onWorkspaceUpdate);
+    };
+  }, [queryClient]);
+
   const {
     data: targetedData,
     isLoading: targetedLoading,
   } = useQuery({
     queryKey: ["trends-targeted"],
     queryFn: () => fetchTargetedTrends(),
-    staleTime: 10 * 60_000,
+    staleTime: 30_000,
     refetchInterval: false,
     placeholderData: (prev) => prev,
   });
