@@ -3,6 +3,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   ExternalLink,
+  Calendar,
+  RefreshCw,
+  Layers,
+  Sparkles,
+  Globe,
   Film,
   Flame,
   Loader2,
@@ -10,9 +15,9 @@ import {
   ChevronDown,
   Check,
   Eye,
-  Zap,
   Play,
   Pause,
+  Volume2,
 } from 'lucide-react';
 import { type DeckTrend } from '@/lib/deck-ranking';
 import { useAudioStore } from '@/store/useAudioStore';
@@ -80,150 +85,36 @@ const STAGE_COLORS: Record<string, string> = {
   expired: '#94A3B8',
 };
 
-// Synthesize the unwritten creator pattern formula
-function extractEmergentPattern(trend: DeckTrend) {
-  const why = (trend.why_this_works || '').toLowerCase();
-  const concept = (trend.ideal_content_description || '').toLowerCase();
-  const niche = (trend.niche || '').toLowerCase();
-
-  if (
-    why.includes('meme') ||
-    why.includes('shakal') ||
-    why.includes('ew') ||
-    why.includes('quote') ||
-    why.includes('funny') ||
-    why.includes('relatable') ||
-    concept.includes('meme') ||
-    niche.includes('comedy')
-  ) {
-    return {
-      name: "The 'Prove Them Wrong' Quotation Meme",
-      type: 'Meme Hook + Transformation',
-      steps: [
-        {
-          title: 'The Hook (0.0s – 1.8s)',
-          desc: "Text overlay quoting a doubter: 🗣️ 'You don't look like...' or 'Ew shakal dekhi hai apni?'",
-          badge: 'HOOK',
-          badgeBg: CORAL_FLAME,
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'The Pivot (1.8s – 2.4s)',
-          desc: '0.5s cut to a thinking monkey or blank stare reaction meme right as music suspends.',
-          badge: 'MEME PAUSE',
-          badgeBg: '#FF9800',
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'The Payoff (2.4s+)',
-          desc: 'Beat drop cuts to your high-contrast transformation (fitness, glow-up, outfit flex).',
-          badge: 'BEAT DROP',
-          badgeBg: ELECTRIC_LIME,
-          badgeFg: '#0E0E10',
-        },
-      ],
-    };
-  }
-
-  if (
-    why.includes('transition') ||
-    why.includes('outfit') ||
-    why.includes('fashion') ||
-    niche.includes('fashion')
-  ) {
-    return {
-      name: 'The Snap / Spin Kinetic Transition',
-      type: 'Fashion & Style Reveal',
-      steps: [
-        {
-          title: 'The Hook (0.0s – 1.5s)',
-          desc: 'Casual home attire, hands reaching forward towards lens or tapping the screen.',
-          badge: 'CASUAL START',
-          badgeBg: CORAL_FLAME,
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'The Snap Cut (1.5s – 2.0s)',
-          desc: 'Motion blur snap, jump, or heel click exactly on the snare drum beat.',
-          badge: 'KINETIC CUT',
-          badgeBg: '#FF9800',
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'The Reveal (2.0s+)',
-          desc: 'Cinematic color grade showing full styled outfit, slow-mo spin or confidence walk.',
-          badge: 'GLAM PAYOFF',
-          badgeBg: ELECTRIC_LIME,
-          badgeFg: '#0E0E10',
-        },
-      ],
-    };
-  }
-
-  if (
-    why.includes('vlog') ||
-    why.includes('aesthetic') ||
-    why.includes('travel') ||
-    why.includes('montage') ||
-    niche.includes('travel')
-  ) {
-    return {
-      name: 'The High-Aesthetic 0.5s Micro-Montage',
-      type: 'Atmospheric Storytelling',
-      steps: [
-        {
-          title: 'The Opening Anchor (0.0s – 1.2s)',
-          desc: 'Eye-level wide cinematic landscape or steam rising from coffee. Clear mood setting.',
-          badge: 'ATMOSPHERE',
-          badgeBg: CORAL_FLAME,
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'Rapid Rhythm Pulse (1.2s – 4.0s)',
-          desc: 'Series of 0.4s to 0.6s kinetic b-roll cuts synchronized precisely to the audio pulse.',
-          badge: 'BEAT PULSE',
-          badgeBg: '#FF9800',
-          badgeFg: '#FFFFFF',
-        },
-        {
-          title: 'Memorable Climax (4.0s+)',
-          desc: 'Final lingering shot with reflective caption or quote inviting comments.',
-          badge: 'EMOTIONAL HOOK',
-          badgeBg: ELECTRIC_LIME,
-          badgeFg: '#0E0E10',
-        },
-      ],
-    };
-  }
-
-  return {
-    name: 'The High-Retention Sync Pattern',
-    type: 'Rhythmic Audio Sync',
-    steps: [
-      {
-        title: 'The Hook (0.0s – 2.0s)',
-        desc: trend.hook_brief || 'Bold statement or question in first 2 seconds to stop the scroll.',
-        badge: 'HOOK',
-        badgeBg: CORAL_FLAME,
-        badgeFg: '#FFFFFF',
-      },
-      {
-        title: 'The Build (2.0s – 3.5s)',
-        desc: '2 to 3 fast kinetic cuts (0.5s each) building visual tension with the audio.',
-        badge: 'RHYTHM BUILD',
-        badgeBg: '#FF9800',
-        badgeFg: '#FFFFFF',
-      },
-      {
-        title: 'The Payoff (3.5s+)',
-        desc: trend.ideal_content_description || 'Clear payoff, punchline, or aesthetic reveal.',
-        badge: 'PAYOFF',
-        badgeBg: ELECTRIC_LIME,
-        badgeFg: '#0E0E10',
-      },
-    ],
-  };
-}
+// Check if string is a canned automated fallback string
+const isCannedText = (s?: string | null) => {
+  if (!s || s.trim().length < 8) return true;
+  const l = s.toLowerCase();
+  return (
+    l.includes('currently driving high engagement') ||
+    l.includes('automated fallback') ||
+    l.includes('sporadic') ||
+    l.includes('creators consistently use this sound') ||
+    l.includes('fast-paced visual storytelling') ||
+    l.includes('adapt the visual style') ||
+    l.includes('popular audio for creator other reels') ||
+    l.includes('popular in general creator reels') ||
+    l.includes('resonates with') ||
+    l.includes('positive content during these times') ||
+    l.includes('emotional state') ||
+    l.includes('sentiments about life') ||
+    l.includes('evokes positive emotions') ||
+    l.includes('popular choice for content creators') ||
+    l.includes('cultural and emotional climate') ||
+    l.includes('strong algorithmic audio momentum') ||
+    l.includes('short creator clips that match') ||
+    l.includes('film a high-retention') ||
+    l.includes('post aesthetic clips or photos') ||
+    l.includes('do not use this track expecting') ||
+    l.includes('insufficient reel evidence') ||
+    l.includes('sampled reels show completely discordant themes') ||
+    l.includes('no indexed reel evidence')
+  );
+};
 
 export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModalProps) {
   if (!trend) return null;
@@ -246,11 +137,11 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
 
   const [rawReels, setRawReels] = useState<DeckReel[]>([]);
   const [activeReelIdx, setActiveReelIdx] = useState(0);
-  const [mobileTab, setMobileTab] = useState<'blueprint' | 'reels'>('reels');
+  const [mobileTab, setMobileTab] = useState<'intel' | 'reels'>('reels');
   const [isResolvingAudio, setIsResolvingAudio] = useState(false);
   const [isLoadingReels, setIsLoadingReels] = useState(true);
 
-  // Fetch real top reels directly from backend for this trend's audio
+  // Fetch real top reels directly from backend for this trend's audio page
   useEffect(() => {
     if (!trend?.id) return;
     setIsLoadingReels(true);
@@ -264,7 +155,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
       .finally(() => setIsLoadingReels(false));
   }, [trend?.id]);
 
-  // Prefetch audio preview immediately upon opening modal
+  // Prefetch audio preview track immediately
   useEffect(() => {
     if (!trend?.audio_title) return;
     resolveAudioTrack({
@@ -315,7 +206,17 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
     }
   };
 
-  const pattern = extractEmergentPattern(trend);
+  // Real Database Creator Intelligence (Preserve 100% original fields)
+  const cleanWhy = !isCannedText(trend.why_this_works) ? trend.why_this_works?.trim() : null;
+  const cleanConcept = !isCannedText(trend.ideal_content_description)
+    ? trend.ideal_content_description?.trim()
+    : null;
+  const cleanUsed = !isCannedText(trend.used_for_note || trend.used_for)
+    ? (trend.used_for_note || trend.used_for)?.trim()
+    : null;
+  const cleanHookBrief = trend.hook_brief?.trim() || null;
+  const hasCreatorIntel = Boolean(cleanConcept || cleanWhy || cleanUsed || cleanHookBrief);
+
   const currentReel = rawReels[activeReelIdx] || null;
 
   return (
@@ -348,7 +249,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
             inset: 0,
             pointerEvents: 'none',
             background:
-              'radial-gradient(circle at 20% 25%, rgba(255, 77, 61, 0.15) 0%, transparent 45%), radial-gradient(circle at 85% 75%, rgba(199, 242, 58, 0.18) 0%, transparent 45%)',
+              'radial-gradient(circle at 20% 25%, rgba(255, 77, 61, 0.12) 0%, transparent 45%), radial-gradient(circle at 85% 75%, rgba(199, 242, 58, 0.15) 0%, transparent 45%)',
             zIndex: 0,
           }}
         />
@@ -367,15 +268,15 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           }}
         >
           {/* ============================================================== */}
-          {/* LEFT COLUMN: VINYL + AUDIO INTEL + EMERGENT PATTERN BLUEPRINT   */}
+          {/* LEFT COLUMN: VINYL + AUDIO INTEL + REAL CREATOR INTELLIGENCE   */}
           {/* ============================================================== */}
           <div
             className={`w-full md:w-1/2 flex flex-col overflow-y-auto border-b md:border-b-0 md:border-r border-[#FF4D3D]/12 bg-[#FFFFFF] ${
-              mobileTab === 'blueprint' ? 'flex' : 'hidden md:flex'
+              mobileTab === 'intel' ? 'flex' : 'hidden md:flex'
             }`}
             style={{ maxHeight: '92vh' }}
           >
-            {/* Top Bar with Brand Logo, Stage Badge, Reel Count & Mobile Switcher */}
+            {/* Top Bar with Brand Logo, Stage Badge & Mobile Switcher */}
             <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-gradient-to-r from-[#FFFFFF] via-[#FFFDFB] to-[#FFF7F5]">
               <div className="flex items-center gap-2">
                 <TrenddropIcon size={26} variant="coral" />
@@ -403,14 +304,14 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               {/* Mobile Tabs Switcher */}
               <div className="flex md:hidden items-center bg-[#FAF7F2] p-1 rounded-full border border-[#FF4D3D]/20">
                 <button
-                  onClick={() => setMobileTab('blueprint')}
+                  onClick={() => setMobileTab('intel')}
                   className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all ${
-                    mobileTab === 'blueprint'
+                    mobileTab === 'intel'
                       ? 'bg-[#FF4D3D] text-white shadow-sm'
                       : 'text-[#6B6B78] hover:text-[#0E0E10]'
                   }`}
                 >
-                  Blueprint
+                  Intel
                 </button>
                 <button
                   onClick={() => setMobileTab('reels')}
@@ -440,10 +341,10 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
             </div>
 
             {/* Left Content Scroll Area */}
-            <div className="p-5 space-y-4 overflow-y-auto flex-1 bg-[#FFFFFF]">
-              {/* Vinyl Player Header (Warm Ivory + Radiant Brand Colors) */}
+            <div className="p-5 space-y-3.5 overflow-y-auto flex-1 bg-[#FFFFFF]">
+              {/* Designer Mini Vinyl Header */}
               <div className="flex items-center gap-4 bg-[#FAF7F2] p-4 rounded-2xl border border-[#FF4D3D]/15 shadow-xs">
-                {/* Designer Vinyl with Coral Rim & Lime Center Label */}
+                {/* Vinyl Record with Coral Rim and Lime Center Label */}
                 <div
                   onClick={handleAudioToggle}
                   className={`relative w-16 h-16 shrink-0 rounded-full cursor-pointer flex items-center justify-center ${
@@ -462,7 +363,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   <div className="absolute inset-1.5 rounded-full border border-white/10 pointer-events-none" />
                   <div className="absolute inset-3 rounded-full border border-white/10 pointer-events-none" />
 
-                  {/* Brand Lime Center Label */}
+                  {/* Brand Lime Center Label with Audio Play / Pause */}
                   <div className="w-7 h-7 rounded-full bg-[#C7F23A] border-2 border-[#FFFFFF] flex items-center justify-center text-[#0E0E10] shadow-sm">
                     {isResolvingAudio ? (
                       <Loader2 size={11} className="animate-spin text-[#0E0E10]" />
@@ -495,77 +396,125 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                 </div>
               </div>
 
-              {/* ⚡ Emergent Creator Pattern Blueprint (Warm Ivory + Brand Coral + Lime) */}
-              <div className="bg-[#FFF9F8] p-4 rounded-2xl border border-[#FF4D3D]/20 shadow-xs space-y-3">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#FF4D3D] text-white flex items-center justify-center shadow-xs">
-                      <Zap size={13} fill="white" />
-                    </div>
-                    <span className="text-xs font-black uppercase tracking-wider text-[#0E0E10]">
-                      Emergent Creator Blueprint
-                    </span>
+              {/* 4-Fact Telemetry Cells (Parity with Original Card) */}
+              <div className="grid grid-cols-2 gap-2 text-xs">
+                <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#FF4D3D]/10 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[#9A9AA8]">
+                    <Calendar size={11} className="text-[#FF4D3D]" />
+                    <span>First Caught</span>
                   </div>
-                  <span className="text-[10px] font-extrabold text-[#FF4D3D] bg-[#FFF0EE] border border-[#FF4D3D]/30 px-2 py-0.5 rounded-md">
-                    {pattern.type}
+                  <span className="text-[11px] font-extrabold text-[#0E0E10] truncate">
+                    {firstCaught}
                   </span>
                 </div>
 
-                <div className="text-xs font-bold text-[#0E0E10]">
-                  {pattern.name}
+                <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#FF4D3D]/10 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[#9A9AA8]">
+                    <RefreshCw size={11} className="text-[#FF4D3D]" />
+                    <span>Last Verified</span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-[#0E0E10] truncate">
+                    {lastCaught}
+                  </span>
                 </div>
 
-                {/* 3 Step Formula */}
-                <div className="space-y-2 pt-1">
-                  {pattern.steps.map((s, idx) => (
-                    <div
-                      key={idx}
-                      className="bg-[#FFFFFF] p-3 rounded-xl border border-[#FF4D3D]/10 shadow-xs flex items-start gap-3"
-                    >
-                      <div
-                        className="w-5 h-5 rounded-full text-[10px] font-black shrink-0 flex items-center justify-center mt-0.5 shadow-xs"
-                        style={{ background: s.badgeBg, color: s.badgeFg }}
-                      >
-                        {idx + 1}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-extrabold text-[#0E0E10]">
-                            {s.title}
-                          </span>
-                          <span
-                            className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded"
-                            style={{ background: `${s.badgeBg}20`, color: s.badgeBg === ELECTRIC_LIME ? '#203000' : s.badgeBg }}
-                          >
-                            {s.badge}
-                          </span>
-                        </div>
-                        <p className="text-[11px] text-[#4A4A55] mt-0.5 leading-relaxed font-normal">
-                          {s.desc}
-                        </p>
-                      </div>
+                <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#FF4D3D]/10 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[#9A9AA8]">
+                    <Layers size={11} className="text-[#FF4D3D]" />
+                    <span>Instagram Uses</span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-[#0E0E10]">
+                    {formatCount(trend.audio_use_count || 1000)} reels
+                  </span>
+                </div>
+
+                <div className="bg-[#FAF7F2] p-2.5 rounded-xl border border-[#FF4D3D]/10 flex flex-col gap-1">
+                  <div className="flex items-center gap-1.5 text-[9px] font-bold uppercase tracking-wider text-[#9A9AA8]">
+                    <Flame size={11} className="text-[#FF4D3D]" />
+                    <span>Opportunity</span>
+                  </div>
+                  <span className="text-[11px] font-extrabold text-[#FF4D3D]">
+                    {Math.round(trend.opportunity_score || 85)} / 100
+                  </span>
+                </div>
+              </div>
+
+              {/* Real Database Creator Intelligence (Content Concept + Why This Works + Hook) */}
+              {hasCreatorIntel ? (
+                <div className="bg-[#FFF8F7] p-4 rounded-2xl border border-[#FF4D3D]/20 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-[#FF4D3D]/10 pb-2">
+                    <div className="flex items-center gap-2">
+                      <Sparkles size={14} className="text-[#FF4D3D]" />
+                      <span className="text-xs font-black uppercase tracking-wider text-[#FF4D3D]">
+                        Creator Intelligence
+                      </span>
                     </div>
-                  ))}
-                </div>
-              </div>
+                    {trend.niche && (
+                      <span className="text-[10px] font-extrabold text-[#203000] bg-[#C7F23A] px-2 py-0.5 rounded-md border border-[#B5E025]">
+                        #{trend.niche}
+                      </span>
+                    )}
+                  </div>
 
-              {/* Viral Intelligence & Timeline */}
-              <div className="bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#FF4D3D]/12 space-y-2 text-xs">
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#FF4D3D] flex items-center gap-1.5">
-                  <Flame size={12} className="text-[#FF4D3D]" />
-                  <span>Viral Intelligence</span>
+                  {/* 💡 Content Concept */}
+                  {cleanConcept && (
+                    <div className="space-y-1">
+                      <p className="text-[10px] font-extrabold text-[#FF4D3D] uppercase tracking-wider flex items-center gap-1">
+                        <span>💡 Content Concept</span>
+                      </p>
+                      <p className="text-xs text-[#0E0E10] font-semibold leading-relaxed">
+                        {cleanConcept}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 🪝 Hook (First 3 Seconds) / Why This Works */}
+                  {cleanWhy && cleanWhy !== cleanConcept && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-[10px] font-extrabold text-[#6B6B78] uppercase tracking-wider flex items-center gap-1">
+                        <span>🪝 Hook (First 3 Seconds)</span>
+                      </p>
+                      <p className="text-xs text-[#2C2C35] font-medium leading-relaxed italic bg-white/60 p-2.5 rounded-xl border border-[#FF4D3D]/10">
+                        "{cleanWhy}"
+                      </p>
+                    </div>
+                  )}
+
+                  {/* 🎬 Hook Brief */}
+                  {cleanHookBrief && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-[10px] font-extrabold text-[#6B6B78] uppercase tracking-wider flex items-center gap-1">
+                        <span>🎬 Hook Brief</span>
+                      </p>
+                      <p className="text-xs text-[#4A4A55] font-normal leading-relaxed">
+                        {cleanHookBrief}
+                      </p>
+                    </div>
+                  )}
+
+                  {/* ⚡ Used For (Fallback if no concept or why exists) */}
+                  {!cleanConcept && !cleanWhy && cleanUsed && (
+                    <div className="space-y-1 pt-1">
+                      <p className="text-[10px] font-extrabold text-[#FF4D3D] uppercase tracking-wider">
+                        ⚡ How Creators Use This Sound
+                      </p>
+                      <p className="text-xs text-[#0E0E10] font-semibold leading-relaxed">
+                        {cleanUsed}
+                      </p>
+                    </div>
+                  )}
                 </div>
-                <p className="text-xs text-[#2C2C35] leading-relaxed font-medium">
-                  {trend.why_this_works ||
-                    `High algorithmic velocity sound trending across Indian social feeds with ${formatCount(
-                      trend.audio_use_count || 1000
-                    )} creator reels.`}
-                </p>
-                <div className="flex items-center justify-between pt-2 border-t border-[#FF4D3D]/10 text-[10px] text-[#6B6B78]">
-                  <span>First caught: <strong>{firstCaught}</strong></span>
-                  <span>Last verified: <strong>{lastCaught}</strong></span>
+              ) : (
+                <div className="bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#FF4D3D]/12 space-y-1.5 text-xs">
+                  <div className="text-[10px] font-black uppercase tracking-wider text-[#FF4D3D]">
+                    Viral Trajectory
+                  </div>
+                  <p className="text-xs text-[#2C2C35] leading-relaxed font-medium">
+                    High algorithmic velocity audio currently pacing across Indian social feeds with{' '}
+                    {formatCount(trend.audio_use_count || 1000)} active creator reels.
+                  </p>
                 </div>
-              </div>
+              )}
 
               {/* Action Buttons */}
               <div className="pt-2 space-y-2">
@@ -607,7 +556,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           </div>
 
           {/* ============================================================== */}
-          {/* RIGHT COLUMN: IN-APP REEL SCROLLER (LIGHT LOGO PALETTE)         */}
+          {/* RIGHT COLUMN: IN-APP REEL SCROLLER (THE REELS DISPLAY PART)     */}
           {/* ============================================================== */}
           <div
             className={`w-full md:w-1/2 flex flex-col bg-[#FAF7F2] ${
@@ -667,8 +616,12 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               {isLoadingReels ? (
                 <div className="flex flex-col items-center justify-center gap-3 text-[#6B6B78] py-12">
                   <Loader2 size={24} className="animate-spin text-[#FF4D3D]" />
-                  <span className="text-xs font-semibold text-[#0E0E10]">Loading top reels from audio page...</span>
-                  <span className="text-[11px] text-[#6B6B78]">Extracting highest engagement benchmark reels</span>
+                  <span className="text-xs font-semibold text-[#0E0E10]">
+                    Loading top reels from audio page...
+                  </span>
+                  <span className="text-[11px] text-[#6B6B78]">
+                    Extracting highest engagement benchmark reels
+                  </span>
                 </div>
               ) : currentReel ? (
                 <div className="w-full max-w-[340px] flex flex-col items-center gap-3">
@@ -769,7 +722,6 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                             alt={`Reel ${idx + 1}`}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              // graceful fallback
                               (e.target as HTMLElement).style.display = 'none';
                             }}
                           />
@@ -788,7 +740,8 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   </div>
                   <p className="text-sm font-bold text-[#0E0E10]">Early Viral Audio</p>
                   <p className="text-xs text-[#6B6B78] max-w-xs">
-                    Top reels for this sound are being indexed directly from Instagram. Tap below to view on Instagram!
+                    Top reels for this sound are being indexed directly from Instagram. Tap below to
+                    view on Instagram!
                   </p>
                   <a
                     href={instagramUrl}
