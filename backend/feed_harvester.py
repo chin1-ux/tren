@@ -132,12 +132,23 @@ def extract_reels_from_graphql_payload(data: dict) -> list[dict]:
 
 async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
     """Scroll through Instagram Reels feed and harvest intercepted items."""
-    cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-    if not os.path.exists(cookies_path):
-        raise FileNotFoundError(f"cookies.json not found at {cookies_path}")
+    cookies_raw = []
+    cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+    if cookies_b64:
+        import base64
+        try:
+            cookies_raw = json.loads(base64.b64decode(cookies_b64).decode("utf-8"))
+        except Exception:
+            pass
+    if not cookies_raw:
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+        if os.path.exists(cookies_path):
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                cookies_raw = json.load(f)
 
-    with open(cookies_path, "r", encoding="utf-8") as f:
-        cookies_raw = json.load(f)
+    if not cookies_raw:
+        logger.warning("No Instagram cookies found (INSTAGRAM_COOKIES_B64 or cookies.json). Skipping feed harvest.")
+        return []
 
     formatted_cookies = [
         {
