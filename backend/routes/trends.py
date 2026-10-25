@@ -217,7 +217,12 @@ def _normalize_trends_slim(trends: list) -> list:
         for t in trends:
             st = (t.get("status") or "").lower()
             title = (t.get("audio_title") or "").lower()
+            rc = t.get("reel_count") or 0
+            uc = t.get("audio_use_count") or 0
             if st in ("unqualified", "disqualified") or "speech plan" in title or "speechplan" in title:
+                continue
+            # Quality Gate: Exclude single-user personal audio clips with no creator replication
+            if "original audio" in title and rc <= 1 and uc <= 1:
                 continue
 
             raw_title = t.get("audio_title") or t.get("song") or ""

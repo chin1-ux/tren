@@ -166,7 +166,8 @@ async def extract_audio_page_metadata(p, audio_id: str, cookies: list) -> dict:
         # 3. Top grid thumbnail view >= 50,000
         max_view = max([parse_compact_count(v) or 0 for v in grid_views], default=0)
         reels_int = result.get("reels_count_int") or 0
-        if is_trending_badge or reels_int >= 1000 or max_view >= 50000:
+        # A trend requires replication: a single 1-reel post is a personal clip, not an audio trend.
+        if is_trending_badge or reels_int >= 1000 or (max_view >= 50000 and reels_int > 1):
             result["is_viral"] = True
 
         # Extract top reel shortcodes directly from the audio page grid

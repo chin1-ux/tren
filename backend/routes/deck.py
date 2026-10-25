@@ -212,6 +212,13 @@ def get_deck_trends(
                 if not (row_niches & selected_niches):
                     continue
 
+            # Quality Gate: Exclude single-user personal audio clips with no creator replication
+            norm_t = (r.get("audio_title") or "").strip().lower()
+            reel_cnt = r.get("reel_count") or 0
+            use_cnt = r.get("audio_use_count") or 0
+            if "original audio" in norm_t and reel_cnt <= 1 and use_cnt <= 1:
+                continue
+
             filtered.append(r)
 
         # Deduplicate: one card per normalized title+artist, keeping highest creator/reel count
