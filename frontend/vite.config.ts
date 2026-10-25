@@ -68,7 +68,7 @@ export default defineConfig({
           name: "Trendrop",
           short_name: "Trendrop",
           description: "Drop the trend before anyone else",
-          start_url: "/",
+          start_url: "/deck",
           display: "standalone",
           background_color: "#0a0a0f",
           theme_color: "#E63946",

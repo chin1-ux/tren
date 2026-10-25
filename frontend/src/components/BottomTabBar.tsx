@@ -27,7 +27,7 @@ export function BottomTabBar() {
   };
 
   const allTabs = [
-    { to: "/", label: "Trends", Icon: Flame },
+    { to: "/deck", label: "Deck", Icon: Flame },
     { to: "/dashboard", label: "Dashboard", Icon: LayoutDashboard },
     { to: "/studio", label: "Studio", Icon: Wrench },
     ...(FEATURES.GENERATE_ENABLED ? [{ to: "/generate", label: "Generate", Icon: Sparkles }] : []),
@@ -43,7 +43,7 @@ export function BottomTabBar() {
     FEATURES.IDEAS_ENABLED,
     FEATURES.MARKETPLACE_ENABLED,
     FEATURES.DEALS_ENABLED
-  ].filter(Boolean).length + 4; // Base 4 (Trends, Dashboard, Studio, Settings/Login)
+  ].filter(Boolean).length + 4; // Base 4 (Deck, Dashboard, Studio, Settings/Login)
 
   const gridColsClass = {
     3: "grid-cols-3",
@@ -57,8 +57,8 @@ export function BottomTabBar() {
     <nav aria-label="Main navigation" className="fixed bottom-0 left-1/2 z-50 w-full max-w-lg lg:max-w-2xl xl:max-w-4xl -translate-x-1/2 border-t border-border bg-surface/95 backdrop-blur-lg">
       <ul className={`grid relative ${gridColsClass}`}>
         {tabs.map(({ to, label, Icon }) => {
-          const isActive = to === "/"
-            ? currentPath === "/"
+          const isActive = to === "/deck"
+            ? (currentPath === "/deck" || currentPath === "/" || currentPath.startsWith("/deck"))
             : currentPath.startsWith(to);
           
           return (
@@ -67,9 +67,9 @@ export function BottomTabBar() {
                 to={to}
                 preload={false}
                 onClick={(e) => {
-                  if (to === "/" && currentPath !== "/") {
+                  if (to === "/deck" && currentPath !== "/deck") {
                     e.preventDefault();
-                    navigate({ to: "/" });
+                    navigate({ to: "/deck" });
                   }
                 }}
                 className={`relative flex w-full flex-col items-center justify-center gap-0.5 py-3 text-[10px] sm:text-[11px] font-medium transition-colors text-center ${

@@ -1,4 +1,4 @@
-import { createFileRoute, useNavigate, Link } from "@tanstack/react-router";
+import { createFileRoute, useNavigate, Link, redirect } from "@tanstack/react-router";
 import { useEffect, useMemo, useState, useRef, useCallback, useTransition } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Search, X, SlidersHorizontal, Target, Flame, Sparkles, RotateCcw, ChevronUp, ChevronDown, Loader2 } from "lucide-react";
@@ -32,6 +32,11 @@ export const Route = createFileRoute("/")({
       { name: "description", content: "Know what's trending before your competitor even opens Instagram. India-focused AI trend detection." },
     ],
   }),
+  beforeLoad: ({ search }: any) => {
+    if (search?.tab !== "feed" && search?.view !== "feed") {
+      throw redirect({ to: "/deck" });
+    }
+  },
   component: TrendsFeed,
   errorComponent: RouteErrorBoundary,
 });
@@ -107,17 +112,18 @@ function matchesNiches(t: UiTrend, niches: string[]): boolean {
 
 type SortMode = "velocity" | "time_left" | "newest";
 
-const DECK_LIVE = false; // Going live = one constant I flip later
+const DECK_LIVE = true;
 
 function TrendsFeed() {
   const navigate = useNavigate();
 
-  // Opt-in redirect ONLY if explicit ?deck=1 query param is provided
+  // Whenever the app opens at "/", default to the Deck tab unless explicit feed view is requested (?tab=feed or ?view=feed)
   useEffect(() => {
     if (typeof window !== "undefined") {
       const params = new URLSearchParams(window.location.search);
-      if (params.get("deck") === "1") {
-        navigate({ to: "/deck" });
+      const isFeedRequested = params.get("tab") === "feed" || params.get("view") === "feed";
+      if (!isFeedRequested) {
+        navigate({ to: "/deck", replace: true });
       }
     }
   }, [navigate]);

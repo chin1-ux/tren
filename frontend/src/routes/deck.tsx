@@ -13,6 +13,7 @@ import {
   ChevronDown,
   Sparkles,
   RefreshCw,
+  HelpCircle,
 } from 'lucide-react';
 
 import {
@@ -130,12 +131,12 @@ function DeckScreen() {
     return 1;
   });
 
-  // Onboarding check
+  // Onboarding & Walkthrough check — opens automatically for first-time deck viewers
   useEffect(() => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('deck_beta');
-      const onboarded = localStorage.getItem('trendrop_deck_onboarded');
-      if (!onboarded) {
+      const seenWalkthrough = localStorage.getItem('trendrop_deck_walkthrough_v1');
+      if (!seenWalkthrough) {
         setIsOnboardingOpen(true);
       }
     }
@@ -644,6 +645,20 @@ function DeckScreen() {
 
             <button
               onClick={() => setIsOnboardingOpen(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 border"
+              style={{
+                background: 'rgba(255,77,61,0.08)',
+                border: '1px solid rgba(255,77,61,0.22)',
+                color: '#FF4D3D',
+              }}
+              title="Deck Walkthrough & Guide"
+            >
+              <HelpCircle className="w-3.5 h-3.5" />
+              <span>Guide</span>
+            </button>
+
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
               className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95"
               style={{
                 background: 'rgba(255,77,61,0.08)',
@@ -714,7 +729,7 @@ function DeckScreen() {
             <span>Deck</span>
           </button>
           <button
-            onClick={() => navigate({ to: '/' })}
+            onClick={() => navigate({ to: '/', search: { tab: 'feed' } as any })}
             className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
             style={{ color: '#9A9AA8' }}
           >
@@ -783,7 +798,7 @@ function DeckScreen() {
               remainingCandidatesCount={remainingCandidatesCount}
               onDealMore={handleDealMore}
               onViewPicks={() => setActiveTab('picks')}
-              onGoToFeed={() => navigate({ to: '/' })}
+              onGoToFeed={() => navigate({ to: '/', search: { tab: 'feed' } as any })}
               onReshufflePassed={handleReshufflePassed}
               onSelectTrend={(t) => setSelectedVinyl(t)}
               isLoadingMore={isDealingMore}
