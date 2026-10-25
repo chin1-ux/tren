@@ -471,6 +471,23 @@ def run_full_pipeline(stages: list = None):
         ])
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
+    else:
+        india_tags = ",".join([
+            # ── CORE HIGH-VELOCITY INDIAN AUDIO SIGNALS ────────────────────────────────
+            "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
+            "viralaudio", "viralsong", "reelsaudio", "explorepage",
+            # ── VERNACULAR & REGIONAL DISCOVERY ─────────────────────────────────────────
+            "punjabisongs", "punjabireels", "hindireels", "hindisongs",
+            "telugureels", "tamilreels", "marathireels", "kannadareels", "malayalamreels",
+            "bhojpurisongs", "bhojpurireels", "haryanvisongs",
+            # ── CREATOR / MEME / EDIT FORMATS ──────────────────────────────────────────
+            "desicomedy", "relatablereels", "funnyreels", "danceindia", "choreography",
+            "capcutindia", "transitionreels", "lipsyncindia",
+            # ── NICHE HUBS (High retention) ───────────────────────────────────────────
+            "indianfashion", "streetstyleindia", "indianstreetfood", "desifood", "gymindia"
+        ])
+        os.environ["SCRAPER_HASHTAGS"] = india_tags
+        logging.info(f"Set expanded SCRAPER_HASHTAGS for India mode: {len(india_tags.split(','))} tags")
 
     # 0. Schema Validation
     if _stage("schema"):

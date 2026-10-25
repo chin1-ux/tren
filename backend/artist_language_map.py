@@ -28,6 +28,14 @@ ARTIST_LANGUAGE_MAP = {
     "Jasmeen Akhtar": "pa",
     "Billa Sonipat Ala": "pa",
     "Gabbar Sangrur": "pa",
+    "Babbu Maan": "pa",
+    "AP Dhillon": "pa",
+    "Shubh": "pa",
+    "Guru Randhawa": "pa",
+    "Harrdy Sandhu": "pa",
+    "Jaani": "pa",
+    "Jass Manak": "pa",
+    "Sukhbir": "pa",
 
     # --- Tamil (ta) ---
     "Sai Abhyankkar": "ta",
@@ -79,6 +87,16 @@ ARTIST_LANGUAGE_MAP = {
     "Mithun Bairagi": "hi",
     "Mohit Chauhan": "hi",
     "Lucky Ali": "hi",
+    "Sanjay Leela Bhansali": "hi",
+    "Aditya Narayan": "hi",
+    "A.R. Rahman": "hi",
+    "Sunidhi Chauhan": "hi",
+    "Vishal Dadlani": "hi",
+    "Shekhar Ravjiani": "hi",
+    "King": "hi",
+    "Divine": "hi",
+    "Seedhe Maut": "hi",
+    "MC Stan": "hi",
     "Arjan Dhillon": "pa",
     "Ankita Bhattacharyya": "bn",
     "Sooraj Santhosh": "ml",
@@ -143,7 +161,8 @@ ARTIST_LANGUAGE_MAP = {
     "Adele": "en",
     "Rihanna": "en",
     "Beyoncé": "en",
-    "Sia": "en"
+    "Sia": "en",
+    "Doja Cat": "en"
 }
 
 def get_artist_language(artist: str) -> str | None:

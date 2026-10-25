@@ -48,6 +48,7 @@ if not os.getenv('SUPABASE_URL'):
     load_dotenv()
 
 from supabase import create_client
+from artist_language_map import get_artist_language
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger("companion_promoter")
@@ -56,20 +57,25 @@ logger = logging.getLogger("companion_promoter")
 def parse_compact_count(text: str) -> int | None:
     if not text:
         return None
-    match = re.search(r"([\d\.,]+)\s*([KkMmTtBb]?)", text.strip())
+    # Support K, M, B, T as well as Indian Lakhs (L / Lakh / Lakhs) and Crores (Cr / Crore / Crores)
+    match = re.search(r"([\d\.,]+)\s*([KkMmTtBbLl]|cr|crore|lakh|lakhs)?", text.strip(), re.IGNORECASE)
     if not match:
         return None
     num_str, unit = match.groups()
     try:
         val = float(num_str.replace(",", ""))
-        unit = unit.upper()
-        if unit in ("K", "T"):
+        unit_str = (unit or "").upper().strip()
+        if unit_str in ("K", "T"):
             val *= 1_000
-        elif unit == "M":
+        elif unit_str in ("L", "LAKH", "LAKHS"):
+            val *= 100_000
+        elif unit_str in ("CR", "CRORE", "CRORES"):
+            val *= 10_000_000
+        elif unit_str == "M":
             val *= 1_000_000
-        elif unit == "B":
+        elif unit_str == "B":
             val *= 1_000_000_000
-        return int(val)
+        return int(round(val))
     except Exception:
         return None
 
@@ -113,21 +119,25 @@ async def extract_audio_page_metadata(p, audio_id: str, cookies: list) -> dict:
         lines = [l.strip() for l in text.splitlines() if l.strip()]
 
         audio_idx = -1
-        for idx, l in enumerate(lines[:10]):
+        is_trending_badge = False
+        for idx, l in enumerate(lines[:15]):
             if l.lower() == "audio":
                 audio_idx = idx
-                break
+            if "trending" in l.lower() or "↗" in l:
+                is_trending_badge = True
+
+        result["is_trending_badge"] = is_trending_badge
 
         if audio_idx != -1 and len(lines) > audio_idx + 2:
             result["title"] = lines[audio_idx + 1]
             result["artist"] = lines[audio_idx + 2]
             for l in lines[audio_idx + 1: audio_idx + 8]:
-                if any(w in l.lower() for w in ("reel", "publicaç", "vídeo", "video")):
+                if any(w in l.lower() for w in ("reel", "publicaç", "vídeo", "video", "posts")):
                     result["raw_reels_count"] = l
                     result["reels_count_int"] = parse_compact_count(l)
                     break
         else:
-            reels_match = re.search(r"([\d\.,]+\s*[KkMmTtBb]?)\s*(reels|publicações|vídeos)", text, re.IGNORECASE)
+            reels_match = re.search(r"([\d\.,]+\s*([KkMmTtBbLl]|cr|crore|lakh|lakhs)?)\s*(reels|publicações|vídeos|videos|posts)", text, re.IGNORECASE)
             if reels_match:
                 result["raw_reels_count"] = reels_match.group(0).strip()
                 result["reels_count_int"] = parse_compact_count(reels_match.group(1))
@@ -150,12 +160,16 @@ async def extract_audio_page_metadata(p, audio_id: str, cookies: list) -> dict:
                     break
         result["top_views"] = grid_views
 
-        # Qualification check: >= 1,000 reels OR thumbnail >= 50,000 views
+        # Qualification check:
+        # 1. Instagram native '↗ Trending' badge -> Instant qualification!
+        # 2. Total reels count >= 1,000 (including Lakh/Crore)
+        # 3. Top grid thumbnail view >= 50,000
         max_view = max([parse_compact_count(v) or 0 for v in grid_views], default=0)
-        if (result["reels_count_int"] and result["reels_count_int"] >= 1000) or max_view >= 50000:
+        reels_int = result.get("reels_count_int") or 0
+        if is_trending_badge or reels_int >= 1000 or max_view >= 50000:
             result["is_viral"] = True
 
-        result["success"] = result["title"] is not None or result["reels_count_int"] is not None
+        result["success"] = result["title"] is not None or result["reels_count_int"] is not None or is_trending_badge
     except Exception as e:
         logger.warning(f"Error checking audio_id {audio_id}: {e}")
     finally:
@@ -167,7 +181,7 @@ async def extract_audio_page_metadata(p, audio_id: str, cookies: list) -> dict:
 def find_candidate_unpromoted_audios(sb, limit=10) -> list[dict]:
     """Find recent audios in `reels` that have no entry in `trends`."""
     logger.info("Scanning `reels` table for recently sighted audios...")
-    res = sb.table('reels').select('audio_id, audio_title, audio_artist, scraped_at').not_.is_('audio_id', 'null').order('scraped_at', desc=True).limit(100).execute()
+    res = sb.table('reels').select('audio_id, audio_title, audio_artist, scraped_at').not_.is_('audio_id', 'null').order('scraped_at', desc=True).limit(300).execute()
     
     seen_audios = {}
     for r in res.data:
@@ -198,23 +212,48 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
     now_iso = datetime.now(timezone.utc).isoformat()
     reel_count = meta.get("reels_count_int") or 1000
     
+    artist = meta.get("artist") or ""
+    title = meta.get("title") or meta.get("audio_name") or ""
+    
+    # 1. Zero-leak dynamic language resolution
+    detected_lang = get_artist_language(artist)
+    if not detected_lang:
+        detected_lang = get_artist_language(title)
+        
+    if not detected_lang:
+        combined_text = f"{title} {artist}".lower()
+        if any(w in combined_text for w in ("jhadi", "dhishqyaun", "ishq", "pyaar", "dil", "nach", "bhangra", "tere", "mera", "saanu", "tujh", "dhol", "desi", "kudi", "jatt")):
+            if any(w in combined_text for w in ("saanu", "bhangra", "jhadi", "jatt", "pind", "kudi")):
+                detected_lang = "pa"
+            else:
+                detected_lang = "hi"
+        else:
+            detected_lang = "hi"  # Default for Indian viral feed captures
+
+    # 2. Dynamic why_this_works & status reason
+    is_trending_badge = meta.get("is_trending_badge", False)
+    if is_trending_badge:
+        why_this_works = f"Official Instagram ↗ Trending sound with {reel_count:,} active reels. High algorithmic distribution across creator reels."
+    else:
+        why_this_works = f"Verified viral audio with {reel_count:,} active reels on Instagram and high velocity across trending feeds."
+
     trend_payload = {
-        "audio_title": meta.get("title") or meta.get("audio_name") or "Trending Sound",
-        "audio_artist": meta.get("artist") or "Viral Sound",
+        "audio_title": title or "Trending Sound",
+        "audio_artist": artist or "Viral Sound",
         "audio_id": str(meta["audio_id"]),
         "audio_use_count": reel_count,
         "reel_count": min(reel_count, 100),  # Trendrop internal display clamp
         "status": "emerging",
         "trend_type": "sound",
         "platform": "instagram",
-        "confidence": 0.88,
-        "opportunity_score": 85.0,
-        "niche_fit_score": 75.0,
+        "confidence": 0.92 if is_trending_badge else 0.88,
+        "opportunity_score": 90.0 if is_trending_badge else 85.0,
+        "niche_fit_score": 80.0,
         "semantic_niches": ["Music", "Dance", "Viral"],
         "niche_tag": "viral",
-        "language": "pt",
-        "language_final": "pt",
-        "why_this_works": f"Verified viral audio with {reel_count:,} active reels on Instagram.",
+        "language": detected_lang,
+        "language_final": detected_lang,
+        "why_this_works": why_this_works,
         "status_reason": {
             "previous_status": None,
             "new_status": "emerging",
@@ -222,6 +261,7 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
             "trigger_source": "companion_audio_promoter",
             "decision_metrics": {
                 "official_reels_count": reel_count,
+                "is_trending_badge": is_trending_badge,
                 "sample_grid_views": meta.get("top_views", [])[:4],
             }
         },
@@ -231,10 +271,10 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
     }
 
     if dry_run:
-        logger.info(f"[DRY-RUN] Would promote '{trend_payload['audio_title']}' ({meta['audio_id']}) with {reel_count:,} reels to `trends`.")
+        logger.info(f"[DRY-RUN] Would promote '{trend_payload['audio_title']}' ({meta['audio_id']}) [Lang: {detected_lang}, TrendingBadge: {is_trending_badge}] with {reel_count:,} reels to `trends`.")
         return {"action": "dry_run", "payload": trend_payload}
 
-    logger.info(f"[PROMOTING] Inserting '{trend_payload['audio_title']}' into `trends`...")
+    logger.info(f"[PROMOTING] Inserting '{trend_payload['audio_title']}' [Lang: {detected_lang}] into `trends`...")
     insert_res = sb.table('trends').insert(trend_payload).execute()
     new_id = insert_res.data[0]['id'] if insert_res.data else None
     logger.info(f"-> SUCCESS: Promoted to `trends` table with ID: {new_id}!")
@@ -246,9 +286,19 @@ async def run_promoter(dry_run=True, target_audio_id=None):
     key = os.getenv('SUPABASE_SERVICE_ROLE_KEY') or os.getenv('SUPABASE_KEY')
     sb = create_client(url, key)
 
-    cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-    with open(cookies_path, "r", encoding="utf-8") as f:
-        cookies_raw = json.load(f)
+    cookies_raw = []
+    cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+    if cookies_b64:
+        import base64
+        try:
+            cookies_raw = json.loads(base64.b64decode(cookies_b64).decode("utf-8"))
+        except Exception:
+            pass
+    if not cookies_raw:
+        cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+        if os.path.exists(cookies_path):
+            with open(cookies_path, "r", encoding="utf-8") as f:
+                cookies_raw = json.load(f)
 
     formatted_cookies = [
         {
