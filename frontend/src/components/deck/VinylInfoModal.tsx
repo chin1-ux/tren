@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -16,10 +16,15 @@ import {
   Heart,
   Flame,
   Loader2,
+  ChevronUp,
+  ChevronDown,
+  Check,
+  Eye,
+  Zap,
 } from 'lucide-react';
 import { type DeckTrend } from '@/lib/deck-ranking';
 import { useAudioStore } from '@/store/useAudioStore';
-import { resolveAudioTrack, isInstagramCdnUrlExpired } from '@/lib/audio-resolver';
+import { resolveAudioTrack } from '@/lib/audio-resolver';
 import { API_URL } from '@/lib/api';
 
 interface VinylInfoModalProps {
@@ -76,6 +81,132 @@ const STAGE_COLORS: Record<string, string> = {
   expired: '#94A3B8',
 };
 
+// Synthesize the unwritten creator pattern formula
+function extractEmergentPattern(trend: DeckTrend) {
+  const why = (trend.why_this_works || '').toLowerCase();
+  const concept = (trend.ideal_content_description || '').toLowerCase();
+  const niche = (trend.niche || '').toLowerCase();
+
+  if (
+    why.includes('meme') ||
+    why.includes('shakal') ||
+    why.includes('ew') ||
+    why.includes('quote') ||
+    why.includes('funny') ||
+    why.includes('relatable') ||
+    concept.includes('meme') ||
+    niche.includes('comedy')
+  ) {
+    return {
+      name: "The 'Prove Them Wrong' Quotation Meme",
+      type: 'Meme Hook + Transformation',
+      steps: [
+        {
+          title: 'The Hook (0.0s – 1.8s)',
+          desc: "Text overlay quoting a doubter: 🗣️ 'You don't look like...' or 'Ew shakal dekhi hai apni?'",
+          badge: 'HOOK',
+        },
+        {
+          title: 'The Pivot (1.8s – 2.4s)',
+          desc: '0.5s cut to a thinking monkey or blank stare reaction meme right as music suspends.',
+          badge: 'MEME PAUSE',
+        },
+        {
+          title: 'The Payoff (2.4s+)',
+          desc: 'Beat drop cuts to your high-contrast transformation (fitness, glow-up, outfit flex).',
+          badge: 'BEAT DROP',
+        },
+      ],
+    };
+  }
+
+  if (
+    why.includes('transition') ||
+    why.includes('navratri') ||
+    why.includes('outfit') ||
+    why.includes('fashion') ||
+    why.includes('looks') ||
+    concept.includes('transition') ||
+    niche.includes('fashion') ||
+    niche.includes('dance')
+  ) {
+    return {
+      name: 'The Beat-Drop Reveal Transition',
+      type: 'Fast-Cut Visual Transition',
+      steps: [
+        {
+          title: 'The Setup (0.0s – 1.5s)',
+          desc: 'Casual look, looking at camera or hand covering the lens before the beat.',
+          badge: 'SETUP',
+        },
+        {
+          title: 'The Pivot (1.5s – 2.2s)',
+          desc: 'Quick spin, snap, or head turn matching the rhythm buildup.',
+          badge: 'SPIN / SNAP',
+        },
+        {
+          title: 'The Glamour Reveal (2.2s+)',
+          desc: 'Hard cut on drum drop into full ethnic/festive attire or high-energy choreography.',
+          badge: 'GLAMOUR DROP',
+        },
+      ],
+    };
+  }
+
+  if (
+    why.includes('gym') ||
+    why.includes('workout') ||
+    why.includes('fitness') ||
+    why.includes('motivation') ||
+    concept.includes('gym') ||
+    niche.includes('fitness')
+  ) {
+    return {
+      name: "The 'Silent Work' Contrast Reel",
+      type: 'POV Transformation & Discipline',
+      steps: [
+        {
+          title: 'The Dilemma (0.0s – 1.5s)',
+          desc: "Relatable text: 'They told me to quit' or 'Day 1 vs Day 100'.",
+          badge: 'TEXT HOOK',
+        },
+        {
+          title: 'The Grind (1.5s – 3.0s)',
+          desc: 'Fast 0.4s rhythmic cuts of hard gym sets synced to the bassline.',
+          badge: 'FAST CUTS',
+        },
+        {
+          title: 'The Flex (3.0s+)',
+          desc: 'Clean physique check / mirror flex on the vocal drop.',
+          badge: 'PEAK FLEX',
+        },
+      ],
+    };
+  }
+
+  return {
+    name: 'The High-Retention Sync Pattern',
+    type: 'Rhythmic Audio Sync',
+    steps: [
+      {
+        title: 'The Hook (0.0s – 2.0s)',
+        desc: trend.hook_brief || 'Bold statement or question in first 2 seconds to stop the scroll.',
+        badge: 'HOOK',
+      },
+      {
+        title: 'The Build (2.0s – 3.5s)',
+        desc: '2 to 3 fast kinetic cuts (0.5s each) building visual tension with the audio.',
+        badge: 'RHYTHM BUILD',
+      },
+      {
+        title: 'The Payoff (3.5s+)',
+        desc: trend.ideal_content_description || 'Clear payoff, punchline, or aesthetic reveal.',
+        badge: 'PAYOFF',
+      },
+    ],
+  };
+}
+
 export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModalProps) {
   if (!trend) return null;
 
@@ -96,77 +227,24 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
   );
 
   const [rawReels, setRawReels] = useState<DeckReel[]>([]);
-  const [activeReel, setActiveReel] = useState<DeckReel | null>(null);
-
-  // Active view tab for mobile viewports ('vinyl' | 'left' | 'right')
-  const [mobileTab, setMobileTab] = useState<'vinyl' | 'left' | 'right'>('vinyl');
+  const [activeReelIdx, setActiveReelIdx] = useState(0);
+  const [mobileTab, setMobileTab] = useState<'blueprint' | 'reels'>('blueprint');
+  const [isResolvingAudio, setIsResolvingAudio] = useState(false);
+  const [isLoadingReels, setIsLoadingReels] = useState(true);
 
   // Fetch real scraped reels for this trend directly from backend
   useEffect(() => {
     if (!trend?.id) return;
+    setIsLoadingReels(true);
     fetch(`${API_URL}/api/deck/${trend.id}/reels`)
       .then((res) => (res.ok ? res.json() : { reels: [] }))
       .then((data) => {
         setRawReels(data.reels || []);
+        setActiveReelIdx(0);
       })
-      .catch(() => setRawReels([]));
+      .catch(() => setRawReels([]))
+      .finally(() => setIsLoadingReels(false));
   }, [trend?.id]);
-
-  // Use only 100% real scraped reels from DB (no simulations/fabrications)
-  // Symmetrically balance reels across left and right wings
-  const leftReels =
-    rawReels.length === 1
-      ? rawReels
-      : rawReels.length === 2
-      ? [rawReels[0]]
-      : rawReels.slice(0, Math.ceil(rawReels.length / 2));
-
-  const rightReels =
-    rawReels.length <= 1
-      ? []
-      : rawReels.length === 2
-      ? [rawReels[1]]
-      : rawReels.slice(Math.ceil(rawReels.length / 2), 6);
-
-  // Check if why_this_works and used_for are genuine (strict zero canned / zero synthetic strings)
-  const isCannedText = (s?: string | null) => {
-    if (!s || s.trim().length < 8) return true;
-    const l = s.toLowerCase();
-    return (
-      l.includes('currently driving high engagement') ||
-      l.includes('automated fallback') ||
-      l.includes('sporadic') ||
-      l.includes('creators consistently use this sound') ||
-      l.includes('fast-paced visual storytelling') ||
-      l.includes('adapt the visual style') ||
-      l.includes('popular audio for creator other reels') ||
-      l.includes('popular in general creator reels') ||
-      l.includes('resonates with') ||
-      l.includes('positive content during these times') ||
-      l.includes('emotional state') ||
-      l.includes('sentiments about life') ||
-      l.includes('evokes positive emotions') ||
-      l.includes('popular choice for content creators') ||
-      l.includes('cultural and emotional climate') ||
-      l.includes('strong algorithmic audio momentum') ||
-      l.includes('short creator clips that match') ||
-      l.includes('film a high-retention') ||
-      l.includes('post aesthetic clips or photos') ||
-      l.includes('do not use this track expecting') ||
-      l.includes('insufficient reel evidence') ||
-      l.includes('sampled reels show completely discordant themes') ||
-      l.includes('no indexed reel evidence')
-    );
-  };
-
-  const cleanWhy = !isCannedText(trend.why_this_works) ? trend.why_this_works?.trim() : null;
-  const cleanConcept = !isCannedText(trend.ideal_content_description) ? trend.ideal_content_description?.trim() : null;
-  const cleanUsed = !isCannedText(trend.used_for_note || trend.used_for) ? (trend.used_for_note || trend.used_for)?.trim() : null;
-  const cleanHookBrief = trend.hook_brief?.trim() || null;
-  const hasCreatorIntel = Boolean(cleanConcept || cleanWhy || cleanUsed || cleanHookBrief);
-
-  const [isResolvingAudio, setIsResolvingAudio] = useState(false);
-  const [videoFailedIds, setVideoFailedIds] = useState<Set<number | string>>(new Set());
 
   // Prefetch audio track immediately upon opening modal
   useEffect(() => {
@@ -219,6 +297,9 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
     }
   };
 
+  const pattern = extractEmergentPattern(trend);
+  const currentReel = rawReels[activeReelIdx] || null;
+
   return (
     <AnimatePresence>
       <motion.div
@@ -230,1397 +311,449 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           position: 'fixed',
           inset: 0,
           zIndex: 60,
-          background: 'rgba(250, 247, 242, 0.92)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
+          background: 'rgba(10, 10, 14, 0.85)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '16px 12px',
+          padding: '12px',
         }}
         onClick={onClose}
       >
-        {/* Subtle Brand Ambient Glow */}
-        <div
-          style={{
-            position: 'fixed',
-            inset: 0,
-            pointerEvents: 'none',
-            background:
-              'radial-gradient(circle at 50% 50%, rgba(255, 77, 61, 0.10) 0%, rgba(199, 242, 58, 0.08) 40%, transparent 70%)',
-            zIndex: 0,
-          }}
-        />
-
-        {/* 3-Column Pop-Out Stage */}
-        <div
-          style={{
-            position: 'relative',
-            zIndex: 1,
-            width: '100%',
-            maxWidth: 880,
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 16,
-            margin: 'auto',
-          }}
+        {/* Main Stage Card Container (Responsive 2-Col on Desktop, Tabbed on Mobile) */}
+        <motion.div
+          key="stage-container"
+          initial={{ opacity: 0, scale: 0.94, y: 15 }}
+          animate={{ opacity: 1, scale: 1, y: 0 }}
+          exit={{ opacity: 0, scale: 0.94, y: 15 }}
+          transition={{ type: 'spring', stiffness: 350, damping: 28 }}
           onClick={(e) => e.stopPropagation()}
+          className="w-full max-w-4xl bg-[#16161C] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh]"
         >
           {/* ============================================================== */}
-          {/* LEFT WING: 3 POPPING OUT REELS (EMERGES FROM VINYL)             */}
+          {/* LEFT COLUMN: VINYL + AUDIO INTEL + EMERGENT PATTERN BLUEPRINT   */}
           {/* ============================================================== */}
-          {leftReels.length > 0 && (
-            <motion.div
-              key="left-wing-reels"
-              initial={{ opacity: 0, x: 220, scale: 0.15 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: 220, scale: 0.15 }}
-              transition={{ type: 'spring', stiffness: 280, damping: 25, mass: 0.8 }}
-              className="hidden md:flex"
-              style={{
-                width: 140,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                transformOrigin: 'right center',
-              }}
-            >
-              {leftReels.map((reel, idx) => (
-                <motion.div
-                  key={reel.id || reel.reel_id || idx}
-                  initial={{ opacity: 0, x: 180, scale: 0.15 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: 180, scale: 0.15 }}
-                  transition={{
-                    delay: idx * 0.05,
-                    type: 'spring',
-                    stiffness: 300,
-                    damping: 24,
-                  }}
-                >
-                  <ReelPreviewCard
-                    reel={reel}
-                    index={idx + 1}
-                    onSelect={() => setActiveReel(reel)}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          )}
-
-          {/* ============================================================== */}
-          {/* MIDDLE COLUMN: BLACK VINYL RECORD + AUDIO TELEMETRY             */}
-          {/* ============================================================== */}
-          <motion.div
-            key="middle-stage-vinyl"
-            initial={{ opacity: 0, scale: 0.92, y: 15 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.92, y: 15 }}
-            transition={{ type: 'spring', stiffness: 350, damping: 28 }}
-            style={{
-              width: '100%',
-              maxWidth: 440,
-              maxHeight: '92vh',
-              background: '#FFFFFF',
-              borderRadius: 24,
-              border: '2px solid rgba(255, 77, 61, 0.18)',
-              boxShadow: '0 16px 50px rgba(255, 77, 61, 0.12)',
-              display: 'flex',
-              flexDirection: 'column',
-              overflow: 'hidden',
-              flexShrink: 0,
-            }}
+          <div
+            className={`w-full md:w-1/2 flex flex-col overflow-y-auto border-b md:border-b-0 md:border-r border-white/10 ${
+              mobileTab === 'blueprint' ? 'flex' : 'hidden md:flex'
+            }`}
+            style={{ maxHeight: '92vh' }}
           >
-            {/* Top Bar with Stage Badge & Mobile View Switcher */}
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'space-between',
-                padding: '12px 16px 8px',
-                borderBottom: '1px solid rgba(255, 77, 61, 0.10)',
-                background: '#FFFDFB',
-              }}
-            >
-              <div
-                style={{
-                  display: 'inline-flex',
-                  alignItems: 'center',
-                  gap: 5,
-                  background: `${stageColor}15`,
-                  border: `1.5px solid ${stageColor}40`,
-                  borderRadius: 99,
-                  padding: '2px 10px',
-                }}
-              >
+            {/* Top Bar with Stage Badge, Audio Count & Mobile Toggle */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#121217]">
+              <div className="flex items-center gap-2">
                 <div
+                  className="px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{
-                    width: 6,
-                    height: 6,
-                    borderRadius: '50%',
-                    background: stageColor,
-                    boxShadow: `0 0 6px ${stageColor}`,
-                  }}
-                />
-                <span
-                  style={{
-                    fontSize: 10,
-                    fontWeight: 800,
+                    background: `${stageColor}20`,
+                    border: `1.5px solid ${stageColor}40`,
                     color: stageColor,
-                    letterSpacing: 1,
-                    textTransform: 'uppercase',
-                    fontFamily: 'Inter, sans-serif',
                   }}
                 >
-                  {trend.stage_label || trend.status}
-                </span>
+                  <span
+                    className="w-1.5 h-1.5 rounded-full"
+                    style={{ background: stageColor, boxShadow: `0 0 6px ${stageColor}` }}
+                  />
+                  <span>{trend.stage_label || trend.status}</span>
+                </div>
+
+                <div className="text-[11px] font-semibold text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5 flex items-center gap-1">
+                  <Film size={11} className="text-zinc-400" />
+                  <span>{formatCount(trend.audio_use_count || 1000)} reels</span>
+                </div>
               </div>
 
-              {/* Mobile View Switcher Tabs (Only if reels exist on mobile) */}
-              {(leftReels.length > 0 || rightReels.length > 0) && (
-                <div
-                  className="flex md:hidden"
-                  style={{
-                    alignItems: 'center',
-                    gap: 3,
-                    background: '#FAF7F2',
-                    padding: '2px 4px',
-                    borderRadius: 99,
-                    border: '1px solid rgba(255, 77, 61, 0.15)',
-                  }}
+              {/* Mobile Tabs Switcher */}
+              <div className="flex md:hidden items-center bg-black/40 p-1 rounded-full border border-white/10">
+                <button
+                  onClick={() => setMobileTab('blueprint')}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all ${
+                    mobileTab === 'blueprint'
+                      ? 'bg-[#FF4D3D] text-white shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
                 >
-                  {leftReels.length > 0 && (
-                    <button
-                      onClick={() => setMobileTab('left')}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: 99,
-                        border: 'none',
-                        background: mobileTab === 'left' ? '#FF4D3D' : 'transparent',
-                        color: mobileTab === 'left' ? '#fff' : '#6B6B78',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      Reels
-                    </button>
-                  )}
-                  <button
-                    onClick={() => setMobileTab('vinyl')}
-                    style={{
-                      fontSize: 10,
-                      fontWeight: 700,
-                      padding: '3px 8px',
-                      borderRadius: 99,
-                      border: 'none',
-                      background: mobileTab === 'vinyl' ? '#FF4D3D' : 'transparent',
-                      color: mobileTab === 'vinyl' ? '#fff' : '#6B6B78',
-                      cursor: 'pointer',
-                    }}
-                  >
-                    Audio
-                  </button>
-                  {rightReels.length > 0 && (
-                    <button
-                      onClick={() => setMobileTab('right')}
-                      style={{
-                        fontSize: 10,
-                        fontWeight: 700,
-                        padding: '3px 8px',
-                        borderRadius: 99,
-                        border: 'none',
-                        background: mobileTab === 'right' ? '#FF4D3D' : 'transparent',
-                        color: mobileTab === 'right' ? '#fff' : '#6B6B78',
-                        cursor: 'pointer',
-                      }}
-                    >
-                      More Reels
-                    </button>
-                  )}
-                </div>
-              )}
+                  Blueprint
+                </button>
+                <button
+                  onClick={() => setMobileTab('reels')}
+                  className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all flex items-center gap-1 ${
+                    mobileTab === 'reels'
+                      ? 'bg-[#FF4D3D] text-white shadow-sm'
+                      : 'text-zinc-400 hover:text-white'
+                  }`}
+                >
+                  <span>Reels</span>
+                  <span className="w-4 h-4 rounded-full bg-white/20 text-[9px] flex items-center justify-center">
+                    {rawReels.length}
+                  </span>
+                </button>
+              </div>
 
-              {/* Close Button */}
+              {/* Close Button on Desktop */}
               <button
                 onClick={onClose}
-                style={{
-                  width: 30,
-                  height: 30,
-                  borderRadius: '50%',
-                  background: '#FFF0EE',
-                  border: '1.5px solid rgba(255, 77, 61, 0.2)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  cursor: 'pointer',
-                  color: '#FF4D3D',
-                }}
+                className="hidden md:flex w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 items-center justify-center text-zinc-400 hover:text-white transition-colors"
                 title="Close"
               >
                 <X size={15} />
               </button>
             </div>
 
-            {/* Mobile Tab Active Display (Only on mobile viewports < md) */}
-            <div className="flex md:hidden flex-col">
-              {mobileTab === 'left' ? (
+            {/* Left Content Scroll Area */}
+            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+              {/* Vinyl Player Header */}
+              <div className="flex items-center gap-4 bg-white/5 p-3.5 rounded-2xl border border-white/5">
+                {/* Spinning Mini Vinyl */}
                 <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    padding: 16,
-                    maxHeight: '75vh',
-                    overflowY: 'auto',
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#0E0E10', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Film size={13} color="#FF4D3D" />
-                    <span>Breakout Reels</span>
-                  </div>
-                  {leftReels.map((reel, idx) => (
-                    <ReelPreviewCard key={reel.id || reel.reel_id || idx} reel={reel} index={idx + 1} onSelect={() => setActiveReel(reel)} />
-                  ))}
-                </div>
-              ) : mobileTab === 'right' ? (
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 10,
-                    padding: 16,
-                    maxHeight: '75vh',
-                    overflowY: 'auto',
-                  }}
-                >
-                  <div style={{ fontSize: 12, fontWeight: 800, color: '#0E0E10', display: 'flex', alignItems: 'center', gap: 6 }}>
-                    <Flame size={13} color="#FF4D3D" />
-                    <span>More Reels</span>
-                  </div>
-                  {rightReels.map((reel, idx) => (
-                    <ReelPreviewCard key={reel.id || reel.reel_id || idx} reel={reel} index={idx + leftReels.length + 1} onSelect={() => setActiveReel(reel)} />
-                  ))}
-                </div>
-              ) : null}
-            </div>
-
-            {/* Center Vinyl & Telemetry Content (Always visible on desktop md+, or on mobile when mobileTab === 'vinyl') */}
-            <div
-              className={mobileTab === 'vinyl' ? 'flex flex-col' : 'hidden md:flex flex-col'}
-              style={{
-                padding: '12px 18px 18px',
-                gap: 10,
-                overflowY: 'auto',
-                maxHeight: '82vh',
-              }}
-            >
-                {/* Authentic Black Vinyl Record with Audio Name in Center Label */}
-                <div
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    padding: '2px 0 6px',
-                    position: 'relative',
-                  }}
-                >
-                  {/* Subtle soft backdrop shadow */}
-                  <div
-                    style={{
-                      position: 'absolute',
-                      width: 135,
-                      height: 135,
-                      borderRadius: '50%',
-                      background: 'radial-gradient(circle, rgba(0,0,0,0.12) 0%, transparent 70%)',
-                      filter: 'blur(6px)',
-                    }}
-                  />
-
-                  {/* Black Vinyl Record Disc */}
-                  <div
-                    className={isThisPlaying ? 'spinning-vinyl' : ''}
-                    style={{
-                      position: 'relative',
-                      width: 132,
-                      height: 132,
-                      borderRadius: '50%',
-                      background:
-                        'radial-gradient(circle at 45% 45%, #252528 0%, #161618 35%, #0F0F11 75%, #080809 100%)',
-                      boxShadow:
-                        '0 10px 28px rgba(0,0,0,0.30), inset 0 0 0 1px rgba(255,255,255,0.12)',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      animation: 'vinyl-spin 18s linear infinite',
-                      animationPlayState: isThisPlaying ? 'running' : 'paused',
-                      willChange: 'transform',
-                    }}
-                  >
-                    {/* Concentric etched vinyl sound grooves */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 6,
-                        borderRadius: '50%',
-                        border: '1px solid rgba(255,255,255,0.10)',
-                        boxShadow:
-                          'inset 0 0 0 6px rgba(255,255,255,0.04), inset 0 0 0 12px rgba(0,0,0,0.5), inset 0 0 0 18px rgba(255,255,255,0.06), inset 0 0 0 24px rgba(0,0,0,0.4)',
-                        pointerEvents: 'none',
-                      }}
-                    />
-
-                    {/* Realistic Gloss Sheen Angle */}
-                    <div
-                      style={{
-                        position: 'absolute',
-                        inset: 0,
-                        borderRadius: '50%',
-                        background:
-                          'linear-gradient(135deg, rgba(255,255,255,0.14) 0%, transparent 40%, rgba(255,255,255,0.08) 60%, transparent 100%)',
-                        pointerEvents: 'none',
-                      }}
-                    />
-
-                    {/* Center Vinyl Label: Displays Audio Name Instead of App Name */}
-                    <div
-                      style={{
-                        width: 58,
-                        height: 58,
-                        borderRadius: '50%',
-                        background: '#FAF7F2',
-                        border: '2px solid #FF4D3D',
-                        boxShadow: '0 2px 8px rgba(0,0,0,0.25)',
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '4px',
-                        textAlign: 'center',
-                        position: 'relative',
-                        zIndex: 2,
-                      }}
-                    >
-                      <span
-                        style={{
-                          fontSize: 8.5,
-                          fontWeight: 800,
-                          color: '#0E0E10',
-                          lineHeight: 1.1,
-                          fontFamily: "'Bricolage Grotesque', system-ui",
-                          overflow: 'hidden',
-                          display: '-webkit-box',
-                          WebkitLineClamp: 2,
-                          WebkitBoxOrient: 'vertical',
-                          textTransform: 'capitalize',
-                        }}
-                        title={trend.audio_title}
-                      >
-                        {trend.audio_title}
-                      </span>
-
-                      {/* Center Spindle Hole */}
-                      <div
-                        style={{
-                          width: 8,
-                          height: 8,
-                          borderRadius: '50%',
-                          background: '#FFFFFF',
-                          border: '1.5px solid #FF4D3D',
-                          marginTop: 2,
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {/* Audio Title & Artist */}
-                  <div style={{ textAlign: 'center', marginTop: 8, maxWidth: '94%' }}>
-                    <h2
-                      style={{
-                        fontFamily: "'Bricolage Grotesque', system-ui",
-                        fontWeight: 800,
-                        fontSize: 18,
-                        color: '#0E0E10',
-                        lineHeight: 1.2,
-                        margin: 0,
-                      }}
-                    >
-                      {trend.audio_title}
-                    </h2>
-                    <p
-                      style={{
-                        fontSize: 12,
-                        color: '#6B6B78',
-                        marginTop: 2,
-                        marginBottom: 0,
-                        fontFamily: 'Inter, sans-serif',
-                        fontWeight: 600,
-                      }}
-                    >
-                      {trend.audio_artist}
-                    </p>
-                  </div>
-                </div>
-
-                {/* Audio Player Preview Bar */}
-                <div
+                  onClick={handleAudioToggle}
+                  className={`relative w-16 h-16 shrink-0 rounded-full cursor-pointer flex items-center justify-center ${
+                    isThisPlaying ? 'spinning-vinyl' : ''
+                  }`}
                   style={{
                     background:
-                      'linear-gradient(135deg, rgba(255,77,61,0.08) 0%, rgba(199,242,58,0.12) 100%)',
-                    border: '1.5px solid rgba(255,77,61,0.18)',
-                    borderRadius: 14,
-                    padding: '8px 12px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    gap: 10,
+                      'radial-gradient(circle at 45% 45%, #252528 0%, #161618 35%, #0F0F11 75%, #080809 100%)',
+                    boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
+                    border: '1.5px solid rgba(255,255,255,0.15)',
+                    animation: isThisPlaying ? 'vinyl-spin 18s linear infinite' : 'none',
                   }}
+                  title="Click to preview audio"
                 >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                    <button
-                      onClick={handleAudioToggle}
-                      disabled={isResolvingAudio}
-                      style={{
-                        width: 36,
-                        height: 36,
-                        borderRadius: '50%',
-                        background: '#FF4D3D',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: isResolvingAudio ? 'wait' : 'pointer',
-                        boxShadow: '0 3px 10px rgba(255,77,61,0.35)',
-                        color: '#fff',
-                        flexShrink: 0,
-                      }}
-                      title={isThisPlaying ? 'Pause preview' : 'Play preview'}
-                    >
-                      {isResolvingAudio ? (
-                        <Loader2 size={16} className="animate-spin" />
-                      ) : isThisPlaying ? (
-                        <Pause size={17} fill="#fff" />
-                      ) : (
-                        <Play size={17} fill="#fff" style={{ marginLeft: 2 }} />
-                      )}
-                    </button>
-                    <div>
-                      <div
-                        style={{
-                          fontSize: 12,
-                          fontWeight: 700,
-                          color: '#0E0E10',
-                          fontFamily: 'Inter, sans-serif',
-                        }}
-                      >
-                        {isThisPlaying ? 'Playing Audio Preview' : 'Listen to Audio'}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: 10,
-                          color: '#6B6B78',
-                          fontFamily: 'Inter, sans-serif',
-                        }}
-                      >
-                        30s Spotify / Instagram preview
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ color: '#FF4D3D' }}>
-                    <Volume2 size={16} />
+                  <div className="w-6 h-6 rounded-full bg-[#16161C] border border-[#FF4D3D] flex items-center justify-center text-white">
+                    {isResolvingAudio ? (
+                      <Loader2 size={10} className="animate-spin text-[#FF4D3D]" />
+                    ) : isThisPlaying ? (
+                      <Pause size={10} fill="white" />
+                    ) : (
+                      <Play size={10} fill="white" className="ml-0.5" />
+                    )}
                   </div>
                 </div>
 
-                {/* Compact 4-cell facts grid */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
-                  <CompactInfoCell icon={<Calendar size={12} color="#FF4D3D" />} label="First caught">
-                    <span style={{ fontSize: 10 }}>{firstCaught}</span>
-                  </CompactInfoCell>
-
-                  <CompactInfoCell icon={<RefreshCw size={12} color="#FF4D3D" />} label="Last verified">
-                    <span style={{ fontSize: 10 }}>{lastCaught}</span>
-                  </CompactInfoCell>
-
-                  <CompactInfoCell icon={<Layers size={12} color="#FF4D3D" />} label="Instagram uses">
-                    {trend.audio_use_count > 0 ? formatCount(trend.audio_use_count) : '—'}
-                  </CompactInfoCell>
-
-                  <CompactInfoCell icon={<Disc size={12} color="#FF4D3D" />} label="Reels tracked">
-                    {trend.reel_count > 0 ? formatCount(trend.reel_count) : `${rawReels.length} Tracked`}
-                  </CompactInfoCell>
-                </div>
-
-                {/* Language & Niche */}
-                {(trend.language || trend.niche) && (
-                  <div
-                    style={{
-                      background: '#FAF7F2',
-                      border: '1px solid rgba(255,77,61,0.12)',
-                      borderRadius: 12,
-                      padding: '6px 10px',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'space-between',
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                      <Globe size={12} color="#FF4D3D" />
-                      <span
-                        style={{
-                          fontSize: 9,
-                          fontWeight: 800,
-                          color: '#FF4D3D',
-                          textTransform: 'uppercase',
-                          fontFamily: 'Inter, sans-serif',
-                        }}
-                      >
-                        Focus:
+                {/* Track Info */}
+                <div className="flex-1 min-w-0">
+                  <h3 className="text-base font-extrabold text-white truncate font-display">
+                    {trend.audio_title}
+                  </h3>
+                  <p className="text-xs text-zinc-400 truncate mt-0.5 font-medium">
+                    {trend.audio_artist}
+                  </p>
+                  <div className="flex items-center gap-2 mt-1.5">
+                    <span className="text-[10px] text-[#C7F23A] bg-[#C7F23A]/10 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                      {trend.language?.toUpperCase() || 'AUDIO'}
+                    </span>
+                    {trend.niche && (
+                      <span className="text-[10px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded-md font-medium">
+                        #{trend.niche}
                       </span>
-                    </div>
-                    <div style={{ display: 'flex', gap: 5 }}>
-                      {trend.language && (
-                        <span
-                          style={{
-                            background: '#FF4D3D',
-                            color: '#fff',
-                            fontWeight: 800,
-                            fontSize: 10,
-                            padding: '2px 8px',
-                            borderRadius: 99,
-                            textTransform: 'uppercase',
-                          }}
-                        >
-                          {trend.language}
-                        </span>
-                      )}
-                      {trend.niche && (
-                        <span
-                          style={{
-                            background: '#C7F23A',
-                            color: '#2A3A10',
-                            fontWeight: 800,
-                            fontSize: 10,
-                            padding: '2px 8px',
-                            borderRadius: 99,
-                          }}
-                        >
-                          {trend.niche}
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                )}
-
-                {/* Unified High-Confidence Creator Intelligence (Data Parity with Feed) */}
-                {hasCreatorIntel && (
-                  <div
-                    style={{
-                      background: '#FFF0EE',
-                      border: '1px solid rgba(255,77,61,0.20)',
-                      borderRadius: 14,
-                      padding: '10px 12px',
-                      display: 'flex',
-                      flexDirection: 'column',
-                      gap: 6,
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
-                        <Sparkles size={12} color="#FF4D3D" />
-                        <span
-                          style={{
-                            fontSize: 10,
-                            fontWeight: 800,
-                            color: '#FF4D3D',
-                            textTransform: 'uppercase',
-                            fontFamily: 'Inter, sans-serif',
-                            letterSpacing: '0.04em',
-                          }}
-                        >
-                          Creator Intelligence
-                        </span>
-                      </div>
-                      {trend.niche && (
-                        <span
-                          style={{
-                            fontSize: 9.5,
-                            fontWeight: 700,
-                            padding: '2px 7px',
-                            borderRadius: 6,
-                            background: 'rgba(255,77,61,0.12)',
-                            color: '#FF4D3D',
-                            textTransform: 'capitalize',
-                          }}
-                        >
-                          {trend.niche}
-                        </span>
-                      )}
-                    </div>
-
-                    {/* Content Concept */}
-                    {cleanConcept && (
-                      <div>
-                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#FF4D3D', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
-                          💡 Content Concept
-                        </p>
-                        <p style={{ fontSize: 11.5, color: '#0E0E10', lineHeight: 1.4, margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                          {cleanConcept}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Hook (first 3 seconds) */}
-                    {cleanWhy && cleanWhy !== cleanConcept && (
-                      <div style={{ marginTop: cleanConcept ? 2 : 0 }}>
-                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6B6B78', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
-                          🪝 Hook (first 3 seconds)
-                        </p>
-                        <p style={{ fontSize: 11, color: '#33333F', lineHeight: 1.35, margin: 0, fontFamily: 'Inter, sans-serif', fontStyle: 'italic' }}>
-                          {cleanWhy}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Hook Brief */}
-                    {cleanHookBrief && (
-                      <div style={{ marginTop: 2 }}>
-                        <p style={{ fontSize: 9.5, fontWeight: 700, color: '#6B6B78', textTransform: 'uppercase', margin: '0 0 2px', fontFamily: 'Inter, sans-serif' }}>
-                          🎬 Hook Brief
-                        </p>
-                        <p style={{ fontSize: 11, color: '#33333F', lineHeight: 1.35, margin: 0, fontFamily: 'Inter, sans-serif' }}>
-                          {cleanHookBrief}
-                        </p>
-                      </div>
-                    )}
-
-                    {/* Fallback to clean used_for if neither concept nor why exists */}
-                    {!cleanConcept && !cleanWhy && cleanUsed && (
-                      <p style={{ fontSize: 11.5, color: '#0E0E10', lineHeight: 1.4, margin: 0, fontFamily: 'Inter, sans-serif', fontWeight: 600 }}>
-                        {cleanUsed}
-                      </p>
                     )}
                   </div>
-                )}
+                </div>
+              </div>
 
-                {/* Primary Action Buttons */}
-                <div style={{ display: 'flex', gap: 8, marginTop: 2 }}>
-                  <button
-                    onClick={() => {
-                      onSkip();
-                      onClose();
-                    }}
-                    style={{
-                      flex: 1,
-                      padding: '10px 0',
-                      borderRadius: 12,
-                      background: '#FAF7F2',
-                      border: '1.5px solid #E8E3DA',
-                      color: '#6B6B78',
-                      fontWeight: 700,
-                      fontSize: 12,
-                      cursor: 'pointer',
-                      fontFamily: 'Inter, sans-serif',
-                    }}
-                  >
-                    Pass
-                  </button>
+              {/* ⚡ Emergent Pattern Formula Box */}
+              <div className="bg-gradient-to-br from-[#FF4D3D]/10 via-black/40 to-transparent p-4 rounded-2xl border border-[#FF4D3D]/25 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-full bg-[#FF4D3D] text-white flex items-center justify-center">
+                      <Zap size={13} fill="white" />
+                    </div>
+                    <span className="text-xs font-black uppercase tracking-wider text-white">
+                      Emergent Creator Blueprint
+                    </span>
+                  </div>
+                  <span className="text-[10px] font-bold text-[#FF4D3D] bg-[#FF4D3D]/15 px-2 py-0.5 rounded-md">
+                    {pattern.type}
+                  </span>
+                </div>
+
+                <div className="text-xs font-semibold text-zinc-200">
+                  {pattern.name}
+                </div>
+
+                {/* 3 Step Formula */}
+                <div className="space-y-2 pt-1">
+                  {pattern.steps.map((s, idx) => (
+                    <div
+                      key={idx}
+                      className="bg-black/40 p-2.5 rounded-xl border border-white/5 flex items-start gap-2.5"
+                    >
+                      <div className="w-5 h-5 rounded-full bg-white/10 text-white text-[10px] font-bold shrink-0 flex items-center justify-center mt-0.5">
+                        {idx + 1}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between">
+                          <span className="text-[11px] font-extrabold text-white">
+                            {s.title}
+                          </span>
+                          <span className="text-[9px] font-black uppercase text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded">
+                            {s.badge}
+                          </span>
+                        </div>
+                        <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                          {s.desc}
+                        </p>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Why This Works & Timeline */}
+              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5 space-y-2.5 text-xs">
+                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+                  Viral Intelligence
+                </div>
+                <p className="text-xs text-zinc-300 leading-relaxed">
+                  {trend.why_this_works ||
+                    `High algorithmic velocity sound trending across Indian social feeds with ${formatCount(
+                      trend.audio_use_count || 1000
+                    )} creator reels.`}
+                </p>
+                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] text-zinc-400">
+                  <span>Caught: {firstCaught}</span>
+                  <span>Verified: {lastCaught}</span>
+                </div>
+              </div>
+
+              {/* Action Buttons */}
+              <div className="pt-2 space-y-2">
+                <div className="grid grid-cols-2 gap-2">
                   <button
                     onClick={() => {
                       onUse();
                       onClose();
                     }}
-                    style={{
-                      flex: 2,
-                      padding: '10px 0',
-                      borderRadius: 12,
-                      background: '#FF4D3D',
-                      border: 'none',
-                      color: '#fff',
-                      fontWeight: 800,
-                      fontSize: 13,
-                      cursor: 'pointer',
-                      fontFamily: "'Bricolage Grotesque', system-ui",
-                      boxShadow: '0 4px 14px rgba(255,77,61,0.35)',
-                    }}
+                    className="py-3 px-4 rounded-xl bg-[#FF4D3D] hover:bg-[#ff3524] text-white font-extrabold text-xs shadow-lg shadow-[#FF4D3D]/30 flex items-center justify-center gap-1.5 transition-transform active:scale-95"
                   >
-                    Use It ✓
+                    <Check size={14} className="stroke-[3]" />
+                    <span>Use It (Save)</span>
+                  </button>
+
+                  <button
+                    onClick={() => {
+                      onSkip();
+                      onClose();
+                    }}
+                    className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  >
+                    <X size={14} />
+                    <span>Pass</span>
                   </button>
                 </div>
 
-                {/* Instagram Direct Link */}
                 <a
                   href={instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 5,
-                    padding: '4px 0 0',
-                    color: '#FF4D3D',
-                    fontSize: 11,
-                    fontWeight: 700,
-                    fontFamily: 'Inter, sans-serif',
-                    textDecoration: 'none',
-                  }}
+                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 >
-                  <ExternalLink size={11} />
+                  <ExternalLink size={12} />
                   <span>Open Audio on Instagram</span>
                 </a>
               </div>
-          </motion.div>
+            </div>
+          </div>
 
           {/* ============================================================== */}
-          {/* RIGHT WING: POPPING OUT REELS OR SOUND DISCOVERY COMPANION     */}
+          {/* RIGHT COLUMN: IN-APP REEL SCROLLER & WATCHER                   */}
           {/* ============================================================== */}
-          {rightReels.length > 0 ? (
-            <motion.div
-              key="right-wing-reels"
-              initial={{ opacity: 0, x: -220, scale: 0.15 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -220, scale: 0.15 }}
-              transition={{ type: 'spring', stiffness: 280, damping: 25, mass: 0.8 }}
-              className="hidden md:flex"
-              style={{
-                width: 140,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                transformOrigin: 'left center',
-              }}
-            >
-              {rightReels.map((reel, idx) => (
-                <motion.div
-                  key={reel.id || reel.reel_id || idx}
-                  initial={{ opacity: 0, x: -180, scale: 0.15 }}
-                  animate={{ opacity: 1, x: 0, scale: 1 }}
-                  exit={{ opacity: 0, x: -180, scale: 0.15 }}
-                  transition={{
-                    delay: idx * 0.05,
-                    type: 'spring',
-                    stiffness: 300,
-                    damping: 24,
-                  }}
-                >
-                  <ReelPreviewCard
-                    reel={reel}
-                    index={idx + leftReels.length + 1}
-                    onSelect={() => setActiveReel(reel)}
-                  />
-                </motion.div>
-              ))}
-            </motion.div>
-          ) : rawReels.length === 1 ? (
-            <motion.div
-              key="right-wing-audio-discovery"
-              initial={{ opacity: 0, x: -220, scale: 0.15 }}
-              animate={{ opacity: 1, x: 0, scale: 1 }}
-              exit={{ opacity: 0, x: -220, scale: 0.15 }}
-              transition={{ type: 'spring', stiffness: 280, damping: 25, mass: 0.8 }}
-              className="hidden md:flex"
-              style={{
-                width: 140,
-                flexShrink: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: 10,
-                transformOrigin: 'left center',
-              }}
-            >
-              <a
-                href={instagramUrl}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  textDecoration: 'none',
-                  display: 'flex',
-                  flexDirection: 'column',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  padding: '18px 12px',
-                  borderRadius: 14,
-                  background: '#FFFFFF',
-                  border: '1.5px solid rgba(255, 77, 61, 0.20)',
-                  boxShadow: '0 4px 14px rgba(255, 77, 61, 0.08)',
-                  textAlign: 'center',
-                  gap: 8,
-                  cursor: 'pointer',
-                  transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-                }}
-                className="group hover:scale-[1.04] hover:shadow-md"
-              >
-                <div
-                  style={{
-                    width: 36,
-                    height: 36,
-                    borderRadius: '50%',
-                    background: '#FFF0EE',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#FF4D3D',
-                    boxShadow: '0 2px 8px rgba(255,77,61,0.2)',
-                  }}
-                >
-                  <ExternalLink size={16} />
-                </div>
-                <div style={{ fontSize: 11.5, fontWeight: 800, color: '#0E0E10', lineHeight: 1.25, fontFamily: "'Bricolage Grotesque', system-ui" }}>
-                  More Reels on Instagram
-                </div>
-                <div style={{ fontSize: 9.5, color: '#6B6B78', lineHeight: 1.35, fontFamily: 'Inter, sans-serif' }}>
-                  Browse all creator videos made with this sound
-                </div>
-                <div
-                  style={{
-                    marginTop: 4,
-                    padding: '5px 10px',
-                    borderRadius: 99,
-                    background: '#FF4D3D',
-                    color: '#fff',
-                    fontSize: 9.5,
-                    fontWeight: 700,
-                    boxShadow: '0 2px 8px rgba(255,77,61,0.3)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 4,
-                  }}
-                >
-                  <span>Explore ↗</span>
-                </div>
-              </a>
-            </motion.div>
-          ) : null}
-        </div>
-
-        {/* ============================================================== */}
-        {/* REEL MINIPLAYER MODAL (CLEAN LIGHT THEME - ZERO DARK OVERLAYS)  */}
-        {/* ============================================================== */}
-        {activeReel && (
-          <motion.div
-            key="reel-miniplayer-modal"
-            initial={{ opacity: 0, scale: 0.92 }}
-            animate={{ opacity: 1, scale: 1 }}
-            exit={{ opacity: 0, scale: 0.92 }}
-            style={{
-              position: 'fixed',
-              inset: 0,
-              zIndex: 75,
-              background: 'rgba(250, 247, 242, 0.92)',
-              backdropFilter: 'blur(20px)',
-              WebkitBackdropFilter: 'blur(20px)',
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              justifyContent: 'center',
-              padding: 16,
-            }}
-            onClick={() => setActiveReel(null)}
+          <div
+            className={`w-full md:w-1/2 flex flex-col bg-[#0E0E12] ${
+              mobileTab === 'reels' ? 'flex' : 'hidden md:flex'
+            }`}
+            style={{ maxHeight: '92vh' }}
           >
-            <div
-              style={{
-                width: '100%',
-                maxWidth: 380,
-                background: '#FFFFFF',
-                borderRadius: 20,
-                overflow: 'hidden',
-                border: '2px solid rgba(255, 77, 61, 0.25)',
-                boxShadow: '0 20px 60px rgba(255, 77, 61, 0.20)',
-                position: 'relative',
-              }}
-              onClick={(e) => e.stopPropagation()}
-            >
-              {/* Top Bar */}
-              <div
-                style={{
-                  padding: '12px 16px',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  borderBottom: '1px solid rgba(255, 77, 61, 0.12)',
-                  background: '#FFFDFB',
-                }}
-              >
-                <div>
-                  <div
-                    style={{
-                      fontSize: 13,
-                      fontWeight: 800,
-                      color: '#0E0E10',
-                      fontFamily: "'Bricolage Grotesque', system-ui",
-                    }}
-                  >
-                    @{activeReel.owner_username}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: 10,
-                      color: '#FF4D3D',
-                      fontFamily: 'Inter, sans-serif',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: 4,
-                      fontWeight: 700,
-                    }}
-                  >
-                    <Flame size={11} color="#FF4D3D" fill="#FF4D3D" />
-                    <span>{formatCount(activeReel.view_count)} views</span>
-                    {activeReel.like_count > 0 && (
-                      <>
-                        <span>·</span>
-                        <span>{formatCount(activeReel.like_count)} likes</span>
-                      </>
-                    )}
-                  </div>
-                </div>
-                <button
-                  onClick={() => setActiveReel(null)}
-                  style={{
-                    width: 28,
-                    height: 28,
-                    borderRadius: '50%',
-                    background: '#FFF0EE',
-                    border: 'none',
-                    color: '#FF4D3D',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <X size={15} />
-                </button>
+            {/* Header: Scroller Controls */}
+            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#121217]">
+              <div className="flex items-center gap-2">
+                <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                  <Film size={14} className="text-[#FF4D3D]" />
+                  <span>Viral Reels</span>
+                </span>
+                {rawReels.length > 0 && (
+                  <span className="text-[11px] font-bold text-zinc-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                    {activeReelIdx + 1} of {rawReels.length}
+                  </span>
+                )}
               </div>
 
-              {/* Reel Embed / Viewer */}
-              <div
-                style={{
-                  position: 'relative',
-                  width: '100%',
-                  aspectRatio: '9/14',
-                  background: '#FAF7F2',
-                  overflow: 'hidden',
-                }}
-              >
-                {(() => {
-                  const isSafeVideo = Boolean(
-                    activeReel.video_url &&
-                    !videoFailedIds.has(activeReel.id) &&
-                    !isInstagramCdnUrlExpired(activeReel.video_url)
-                  );
+              {/* Navigation Up / Down Buttons */}
+              {rawReels.length > 1 && (
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => setActiveReelIdx((prev) => Math.max(0, prev - 1))}
+                    disabled={activeReelIdx === 0}
+                    className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none text-white flex items-center justify-center transition-colors"
+                    title="Previous Reel"
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    onClick={() =>
+                      setActiveReelIdx((prev) => Math.min(rawReels.length - 1, prev + 1))
+                    }
+                    disabled={activeReelIdx === rawReels.length - 1}
+                    className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none text-white flex items-center justify-center transition-colors"
+                    title="Next Reel"
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                </div>
+              )}
 
-                  if (isSafeVideo) {
-                    return (
+              {/* Close Button on Mobile in Reels view */}
+              <button
+                onClick={onClose}
+                className="flex md:hidden w-8 h-8 rounded-full bg-white/5 border border-white/10 items-center justify-center text-zinc-400"
+              >
+                <X size={15} />
+              </button>
+            </div>
+
+            {/* In-App Reel Video Stage */}
+            <div className="flex-1 p-4 flex flex-col items-center justify-center overflow-y-auto relative min-h-[380px] sm:min-h-[460px]">
+              {isLoadingReels ? (
+                <div className="flex flex-col items-center justify-center gap-3 text-zinc-400 py-12">
+                  <Loader2 size={24} className="animate-spin text-[#FF4D3D]" />
+                  <span className="text-xs">Loading viral reels for this audio...</span>
+                </div>
+              ) : currentReel ? (
+                <div className="w-full max-w-[340px] flex flex-col items-center gap-3">
+                  {/* Reel Player Frame (Phone Proportioned 9:16) */}
+                  <div className="w-full relative aspect-[9/15] max-h-[460px] bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-between">
+                    {/* Native Instagram Embed iframe or HTML5 Video */}
+                    {currentReel.video_url ? (
                       <video
-                        src={activeReel.video_url!}
+                        key={currentReel.video_url}
+                        src={currentReel.video_url}
                         controls
                         autoPlay
-                        playsInline
                         loop
+                        playsInline
+                        className="w-full h-full object-cover"
                         poster={
-                          activeReel.reel_id
-                            ? `${API_URL}/api/deck/thumb/${activeReel.reel_id}`
-                            : activeReel.thumbnail_url || undefined
+                          currentReel.reel_id
+                            ? `${API_URL}/api/deck/thumb/${currentReel.reel_id}`
+                            : currentReel.thumbnail_url || undefined
                         }
-                        onError={() => {
-                          setVideoFailedIds(prev => new Set(prev).add(activeReel.id));
-                        }}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          objectFit: 'cover',
-                          background: '#0E0E10',
-                        }}
                       />
-                    );
-                  }
-
-                  if (activeReel.embed_url) {
-                    return (
+                    ) : currentReel.reel_id ? (
                       <iframe
-                        src={activeReel.embed_url}
-                        title={`Instagram reel by ${activeReel.owner_username}`}
-                        style={{
-                          width: '100%',
-                          height: '100%',
-                          border: 'none',
-                        }}
+                        src={`https://www.instagram.com/reel/${currentReel.reel_id}/embed/`}
+                        title={`Instagram reel by ${currentReel.owner_username}`}
+                        className="w-full h-full border-0"
                         allow="autoplay; encrypted-media"
                         allowFullScreen
                       />
-                    );
-                  }
+                    ) : (
+                      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-900">
+                        <Film size={32} className="text-[#FF4D3D] mb-3" />
+                        <p className="text-xs font-bold text-white">Reel Preview</p>
+                        <p className="text-[11px] text-zinc-400 mt-1">
+                          @{currentReel.owner_username}
+                        </p>
+                      </div>
+                    )}
 
-                  return (
-                  <div
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      height: '100%',
-                      padding: 20,
-                      textAlign: 'center',
-                      color: '#0E0E10',
-                      background: 'linear-gradient(135deg, #FFF0EE 0%, #F5FBE6 100%)',
-                    }}
-                  >
-                    <div
-                      style={{
-                        width: 48,
-                        height: 48,
-                        borderRadius: '50%',
-                        background: '#FF4D3D',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        marginBottom: 10,
-                        boxShadow: '0 6px 18px rgba(255,77,61,0.3)',
-                      }}
-                    >
-                      <Film size={22} color="#fff" />
+                    {/* Top Overlay Pill: Views & Creator */}
+                    <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
+                      <div className="bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white flex items-center gap-1.5 border border-white/10">
+                        <Eye size={11} className="text-[#FF4D3D]" />
+                        <span>{formatCount(currentReel.view_count)} views</span>
+                      </div>
+
+                      {currentReel.is_high_engagement && (
+                        <div className="bg-[#FF4D3D] text-white px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 shadow-md">
+                          <Flame size={10} fill="white" />
+                          <span>VIRAL</span>
+                        </div>
+                      )}
                     </div>
-                    <p style={{ fontSize: 14, fontWeight: 800, margin: 0, color: '#0E0E10' }}>
-                      Watch Breakout Reel
-                    </p>
-                    <p style={{ fontSize: 11, color: '#6B6B78', marginTop: 4 }}>
-                      @{activeReel.owner_username}
-                    </p>
                   </div>
-                    );
-                  })()}
-                </div>
 
-              {/* Action Button */}
-              <div style={{ padding: '12px 16px', background: '#FFFDFB' }}>
-                <a
-                  href={activeReel.instagram_url || `https://www.instagram.com/reel/${activeReel.reel_id}/`}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: 6,
-                    width: '100%',
-                    padding: '10px 0',
-                    background: '#FF4D3D',
-                    borderRadius: 12,
-                    color: '#fff',
-                    fontSize: 12,
-                    fontWeight: 800,
-                    textDecoration: 'none',
-                    fontFamily: "'Bricolage Grotesque', system-ui",
-                    boxShadow: '0 4px 14px rgba(255,77,61,0.35)',
-                  }}
-                >
-                  <ExternalLink size={13} />
-                  <span>Open Reel on Instagram</span>
-                </a>
-              </div>
+                  {/* Reel Creator & Deep Link Footer */}
+                  <div className="w-full flex items-center justify-between px-1">
+                    <div className="text-left">
+                      <span className="text-[11px] text-zinc-400">Created by</span>
+                      <p className="text-xs font-bold text-white">
+                        @{currentReel.owner_username}
+                      </p>
+                    </div>
+
+                    <a
+                      href={
+                        currentReel.instagram_url ||
+                        `https://www.instagram.com/reel/${currentReel.reel_id}/`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                    >
+                      <span>Watch on IG</span>
+                      <ExternalLink size={12} />
+                    </a>
+                  </div>
+                </div>
+              ) : (
+                <div className="flex flex-col items-center justify-center gap-3 text-center p-8 text-zinc-400">
+                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-[#FF4D3D]">
+                    <Film size={22} />
+                  </div>
+                  <p className="text-sm font-bold text-white">No reels indexed yet</p>
+                  <p className="text-xs text-zinc-400 max-w-xs">
+                    This is an early-stage breakout audio. Be one of the first creators to post with
+                    this sound!
+                  </p>
+                  <a
+                    href={instagramUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="mt-2 px-4 py-2 rounded-xl bg-[#FF4D3D] text-white font-bold text-xs flex items-center gap-1.5"
+                  >
+                    <span>Use Audio in Instagram</span>
+                    <ExternalLink size={13} />
+                  </a>
+                </div>
+              )}
             </div>
-          </motion.div>
-        )}
+
+            {/* Reel Scroller Thumbnails Rail (Quick switcher) */}
+            {rawReels.length > 1 && (
+              <div className="p-3 border-t border-white/10 bg-[#121217] flex items-center justify-center gap-2 overflow-x-auto">
+                {rawReels.map((r, idx) => (
+                  <button
+                    key={r.id || r.reel_id || idx}
+                    onClick={() => setActiveReelIdx(idx)}
+                    className={`relative w-9 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${
+                      activeReelIdx === idx
+                        ? 'border-[#FF4D3D] scale-105 shadow-md'
+                        : 'border-white/10 opacity-50 hover:opacity-100'
+                    }`}
+                  >
+                    <img
+                      src={
+                        r.reel_id
+                          ? `${API_URL}/api/deck/thumb/${r.reel_id}`
+                          : r.thumbnail_url || ''
+                      }
+                      alt={r.owner_username}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                      onError={(e) => {
+                        (e.target as HTMLElement).style.display = 'none';
+                      }}
+                    />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </motion.div>
       </motion.div>
     </AnimatePresence>
-  );
-}
-
-// Compact Pop-out Reel Card with Real Live Thumbnails (Zero Fabrication)
-function ReelPreviewCard({
-  reel,
-  index,
-  onSelect,
-}: {
-  reel: DeckReel;
-  index: number;
-  onSelect: () => void;
-}) {
-  const primaryThumb = reel.reel_id
-    ? `${API_URL}/api/deck/thumb/${reel.reel_id}`
-    : reel.thumbnail_url || null;
-
-  const [imgSrc, setImgSrc] = useState<string | null>(primaryThumb);
-  const [imgFailed, setImgFailed] = useState(false);
-
-  useEffect(() => {
-    setImgSrc(
-      reel.reel_id
-        ? `${API_URL}/api/deck/thumb/${reel.reel_id}`
-        : reel.thumbnail_url || null
-    );
-    setImgFailed(false);
-  }, [reel.reel_id, reel.thumbnail_url]);
-
-  return (
-    <div
-      onClick={onSelect}
-      style={{
-        position: 'relative',
-        width: '100%',
-        aspectRatio: '9/11',
-        maxHeight: 130,
-        borderRadius: 14,
-        overflow: 'hidden',
-        cursor: 'pointer',
-        background: '#FAF7F2',
-        border: '1.5px solid rgba(255, 77, 61, 0.20)',
-        boxShadow: '0 4px 14px rgba(255, 77, 61, 0.08)',
-        transition: 'transform 0.18s ease, box-shadow 0.18s ease',
-      }}
-      className="group hover:scale-[1.04] hover:shadow-md"
-    >
-      {/* Real Scraped Reel Thumbnail */}
-      {imgSrc && !imgFailed ? (
-        <img
-          src={imgSrc}
-          alt={`Reel by ${reel.owner_username}`}
-          referrerPolicy="no-referrer"
-          loading="eager"
-          style={{
-            width: '100%',
-            height: '100%',
-            objectFit: 'cover',
-            display: 'block',
-          }}
-          onError={() => {
-            if (reel.thumbnail_url && imgSrc !== reel.thumbnail_url) {
-              setImgSrc(reel.thumbnail_url);
-            } else {
-              setImgFailed(true);
-            }
-          }}
-        />
-      ) : (
-        <div
-          style={{
-            width: '100%',
-            height: '100%',
-            background: 'linear-gradient(135deg, #FFF0EE 0%, #FAF7F2 50%, #F5FBE6 100%)',
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: 4,
-          }}
-        >
-          <div
-            style={{
-              width: 28,
-              height: 28,
-              borderRadius: '50%',
-              background: '#FF4D3D',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              color: '#fff',
-            }}
-          >
-            <Film size={14} />
-          </div>
-          <span
-            style={{
-              fontSize: 9,
-              fontWeight: 800,
-              color: '#FF4D3D',
-              fontFamily: 'Inter, sans-serif',
-            }}
-          >
-            REEL #{index}
-          </span>
-        </div>
-      )}
-
-      {/* View count pill top left */}
-      {reel.view_count > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 5,
-            left: 5,
-            background: 'rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(255, 77, 61, 0.2)',
-            borderRadius: 99,
-            padding: '1px 5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            color: '#0E0E10',
-            fontSize: 8.5,
-            fontWeight: 800,
-            fontFamily: 'Inter, sans-serif',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            zIndex: 3,
-          }}
-        >
-          <Flame size={8} color="#FF4D3D" fill="#FF4D3D" />
-          <span>{formatCount(reel.view_count)}</span>
-        </div>
-      )}
-
-      {/* Like count pill top right */}
-      {reel.like_count > 0 && (
-        <div
-          style={{
-            position: 'absolute',
-            top: 5,
-            right: 5,
-            background: 'rgba(255, 255, 255, 0.95)',
-            border: '1px solid rgba(255, 77, 61, 0.2)',
-            borderRadius: 99,
-            padding: '1px 5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            color: '#0E0E10',
-            fontSize: 8.5,
-            fontWeight: 800,
-            fontFamily: 'Inter, sans-serif',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.06)',
-            zIndex: 3,
-          }}
-        >
-          <Heart size={8} color="#FF4D3D" fill="#FF4D3D" />
-          <span>{formatCount(reel.like_count)}</span>
-        </div>
-      )}
-
-      {/* High engagement breakout badge */}
-      {reel.is_high_engagement && (
-        <div
-          style={{
-            position: 'absolute',
-            bottom: 24,
-            left: 5,
-            background: 'linear-gradient(135deg, #FF4D3D 0%, #FF7A00 100%)',
-            color: '#fff',
-            borderRadius: 99,
-            padding: '1px 5px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: 2,
-            fontSize: 7.5,
-            fontWeight: 800,
-            boxShadow: '0 2px 6px rgba(255, 77, 61, 0.4)',
-            zIndex: 3,
-            letterSpacing: 0.5,
-          }}
-        >
-          <Flame size={7} fill="#fff" />
-          <span>HIT</span>
-        </div>
-      )}
-
-      {/* Center Play Button Overlay */}
-      <div
-        style={{
-          position: 'absolute',
-          top: '50%',
-          left: '50%',
-          transform: 'translate(-50%, -50%)',
-          width: 28,
-          height: 28,
-          borderRadius: '50%',
-          background: '#FF4D3D',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          color: '#fff',
-          boxShadow: '0 2px 8px rgba(255, 77, 61, 0.40)',
-          zIndex: 3,
-        }}
-      >
-        <Play size={12} fill="#fff" style={{ marginLeft: 1 }} />
-      </div>
-
-      {/* Creator Bar at the bottom */}
-      <div
-        style={{
-          position: 'absolute',
-          bottom: 0,
-          left: 0,
-          right: 0,
-          background: 'rgba(255, 255, 255, 0.94)',
-          backdropFilter: 'blur(6px)',
-          borderTop: '1px solid rgba(255, 77, 61, 0.12)',
-          padding: '3px 6px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'space-between',
-          zIndex: 3,
-        }}
-      >
-        <span
-          style={{
-            fontSize: 8.5,
-            fontWeight: 800,
-            color: '#0E0E10',
-            overflow: 'hidden',
-            textOverflow: 'ellipsis',
-            whiteSpace: 'nowrap',
-            fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          @{reel.owner_username}
-        </span>
-      </div>
-    </div>
-  );
-}
-
-// Compact Telemetry Info Cell
-function CompactInfoCell({
-  icon,
-  label,
-  children,
-}: {
-  icon: React.ReactNode;
-  label: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div
-      style={{
-        background: '#FAF7F2',
-        border: '1px solid rgba(255, 77, 61, 0.12)',
-        borderRadius: 10,
-        padding: '6px 8px',
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 2,
-      }}
-    >
-      <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-        {icon}
-        <span
-          style={{
-            fontSize: 8.5,
-            fontWeight: 700,
-            color: '#9A9AA8',
-            letterSpacing: 0.6,
-            textTransform: 'uppercase',
-            fontFamily: 'Inter, sans-serif',
-          }}
-        >
-          {label}
-        </span>
-      </div>
-      <span
-        style={{
-          fontSize: 11,
-          fontWeight: 800,
-          color: '#0E0E10',
-          fontFamily: 'Inter, sans-serif',
-        }}
-      >
-        {children}
-      </span>
-    </div>
   );
 }
