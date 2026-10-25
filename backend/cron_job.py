@@ -530,6 +530,25 @@ def run_full_pipeline(stages: list = None):
                 run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
                 logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
+    # 1b. Algorithmic Feed Harvester: stream from /reels/ to catch zero-hashtag viral trends
+    if _stage("scrape"):
+        try:
+            logging.info("Step 1b/5: Harvesting live algorithmic Reels stream (/reels/)...")
+            import asyncio
+            from feed_harvester import harvest_algorithmic_feed, save_harvested_reels
+            feed_reels = asyncio.run(harvest_algorithmic_feed(scroll_count=6))
+            sb_feed = _get_supabase()
+            feed_stats = save_harvested_reels(sb_feed, feed_reels, live=True)
+            new_feed_count = feed_stats.get("saved", 0)
+            new_reels_count += new_feed_count
+            reels_scraped += new_feed_count
+            logging.info(
+                f"Step 1b/5: Algorithmic Feed Harvesting complete: {len(feed_reels)} reels intercepted "
+                f"({new_feed_count} new saved live)."
+            )
+        except Exception as feed_err:
+            logging.warning(f"Step 1b/5 Algorithmic Feed Harvesting failed (non-fatal): {feed_err}")
+
     # 2. YouTube Data Fetcher
     if _stage("scrape"):
         try:
@@ -831,6 +850,17 @@ def run_full_pipeline(stages: list = None):
 
         except Exception as _cw_stage_err:
             logging.warning(f"Step 2d creator watchlist stage failed: {_cw_stage_err}", exc_info=True)
+
+    # 2e. Companion Audio Promoter: inspect newly-sighted audios in `reels` and auto-promote viral audios
+    if _stage("scrape") or _stage("detect"):
+        try:
+            logging.info("Step 2e/5: Running Companion Audio Promoter on newly sighted audios...")
+            import asyncio
+            from companion_audio_promoter import run_promoter
+            asyncio.run(run_promoter(dry_run=False))
+            logging.info("Step 2e/5: Companion Audio Promoter pass complete.")
+        except Exception as cap_err:
+            logging.warning(f"Step 2e/5 Companion Audio Promoter failed (non-fatal): {cap_err}")
 
     # 3. Trend Engine: detect new trends
     trend_ids = []
