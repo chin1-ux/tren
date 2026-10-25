@@ -1722,26 +1722,42 @@ def get_trend_timeline(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
+_TARGETED_TRENDS_CACHE: dict = {}
+
 @router.get("/api/trends/targeted")
 def get_targeted_trends(authorization: Optional[str] = Header(None)):
-    """Fetch all trends currently targeted by the authenticated user. Returns [] for guests."""
+    """Fetch all trends currently targeted by the authenticated user. Returns [] for guests or on error."""
     if not supabase:
-        raise HTTPException(status_code=500, detail="Supabase client not configured.")
+        return []
     try:
         user_id = _resolve_user(authorization)
         if not user_id:
             return []  # Guests see an empty workspace — no error
 
+        now_ts = time.time()
+        if user_id in _TARGETED_TRENDS_CACHE:
+            cached_data, cached_ts = _TARGETED_TRENDS_CACHE[user_id]
+            if now_ts - cached_ts < 15:
+                return cached_data
+
         actions_res = supabase.table("trend_actions").select("trend_id").eq("user_id", user_id).eq("action_type", "target").execute()
-        trend_ids = [a["trend_id"] for a in actions_res.data or []]
+        trend_ids = [
+            int(a["trend_id"])
+            for a in (actions_res.data or [])
+            if a.get("trend_id") is not None and str(a["trend_id"]).isdigit()
+        ]
         if not trend_ids:
+            _TARGETED_TRENDS_CACHE[user_id] = ([], now_ts)
             return []
 
-        trends_res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("id", trend_ids).execute()
-        return _normalize_trends(trends_res.data or [])
+        # Order 100: Use SLIM_FEED_COLUMNS and _normalize_trends_slim for fast execution and zero reel fetch timeouts
+        trends_res = supabase.table("trends").select(SLIM_FEED_COLUMNS).in_("id", trend_ids).execute()
+        normalized = _normalize_trends_slim(trends_res.data or [])
+        _TARGETED_TRENDS_CACHE[user_id] = (normalized, now_ts)
+        return normalized
     except Exception as e:
-        logger.error(f"Error fetching targeted trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        logger.warning(f"Error fetching targeted trends: {e}", exc_info=True)
+        return []
 
 
 @router.get("/api/trends/{trend_id}")
@@ -2118,6 +2134,7 @@ def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, aut
             count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
             sat_count = count_res.count or 0
             supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
+            _TARGETED_TRENDS_CACHE.pop(user_id, None)
             return {"success": True, "action": "target", "saturation_count": sat_count}
 
         elif req.action == "untarget":
@@ -2125,6 +2142,7 @@ def toggle_trend_target(request: Request, trend_id: int, req: TargetRequest, aut
             count_res = supabase.table("trend_actions").select("id", count="exact").eq("trend_id", trend_id).eq("action_type", "target").execute()
             sat_count = count_res.count or 0
             supabase.table("trends").update({"saturation_count": sat_count}).eq("id", trend_id).execute()
+            _TARGETED_TRENDS_CACHE.pop(user_id, None)
             return {"success": True, "action": "untarget", "saturation_count": sat_count}
         else:
             raise HTTPException(status_code=400, detail="Invalid action")
