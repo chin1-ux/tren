@@ -1,19 +1,9 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
   ExternalLink,
-  Calendar,
-  RefreshCw,
-  Disc,
-  Layers,
-  Sparkles,
-  Globe,
-  Play,
-  Pause,
-  Volume2,
   Film,
-  Heart,
   Flame,
   Loader2,
   ChevronUp,
@@ -21,11 +11,14 @@ import {
   Check,
   Eye,
   Zap,
+  Play,
+  Pause,
 } from 'lucide-react';
 import { type DeckTrend } from '@/lib/deck-ranking';
 import { useAudioStore } from '@/store/useAudioStore';
 import { resolveAudioTrack } from '@/lib/audio-resolver';
 import { API_URL } from '@/lib/api';
+import { TrenddropIcon } from '@/components/TrenddropLogo';
 
 interface VinylInfoModalProps {
   trend: DeckTrend | null;
@@ -75,7 +68,10 @@ function fmtDate(s: string | null | undefined): string {
   }
 }
 
-// Brand Logo Palette Colors
+// Brand Logo Palette Constants
+const CORAL_FLAME = '#FF4D3D';
+const ELECTRIC_LIME = '#C7F23A';
+
 const STAGE_COLORS: Record<string, string> = {
   rising: '#FF4D3D',
   emerging: '#0EA5E9',
@@ -108,16 +104,22 @@ function extractEmergentPattern(trend: DeckTrend) {
           title: 'The Hook (0.0s – 1.8s)',
           desc: "Text overlay quoting a doubter: 🗣️ 'You don't look like...' or 'Ew shakal dekhi hai apni?'",
           badge: 'HOOK',
+          badgeBg: CORAL_FLAME,
+          badgeFg: '#FFFFFF',
         },
         {
           title: 'The Pivot (1.8s – 2.4s)',
           desc: '0.5s cut to a thinking monkey or blank stare reaction meme right as music suspends.',
           badge: 'MEME PAUSE',
+          badgeBg: '#FF9800',
+          badgeFg: '#FFFFFF',
         },
         {
           title: 'The Payoff (2.4s+)',
           desc: 'Beat drop cuts to your high-contrast transformation (fitness, glow-up, outfit flex).',
           badge: 'BEAT DROP',
+          badgeBg: ELECTRIC_LIME,
+          badgeFg: '#0E0E10',
         },
       ],
     };
@@ -125,63 +127,70 @@ function extractEmergentPattern(trend: DeckTrend) {
 
   if (
     why.includes('transition') ||
-    why.includes('navratri') ||
     why.includes('outfit') ||
     why.includes('fashion') ||
-    why.includes('looks') ||
-    concept.includes('transition') ||
-    niche.includes('fashion') ||
-    niche.includes('dance')
+    niche.includes('fashion')
   ) {
     return {
-      name: 'The Beat-Drop Reveal Transition',
-      type: 'Fast-Cut Visual Transition',
+      name: 'The Snap / Spin Kinetic Transition',
+      type: 'Fashion & Style Reveal',
       steps: [
         {
-          title: 'The Setup (0.0s – 1.5s)',
-          desc: 'Casual look, looking at camera or hand covering the lens before the beat.',
-          badge: 'SETUP',
+          title: 'The Hook (0.0s – 1.5s)',
+          desc: 'Casual home attire, hands reaching forward towards lens or tapping the screen.',
+          badge: 'CASUAL START',
+          badgeBg: CORAL_FLAME,
+          badgeFg: '#FFFFFF',
         },
         {
-          title: 'The Pivot (1.5s – 2.2s)',
-          desc: 'Quick spin, snap, or head turn matching the rhythm buildup.',
-          badge: 'SPIN / SNAP',
+          title: 'The Snap Cut (1.5s – 2.0s)',
+          desc: 'Motion blur snap, jump, or heel click exactly on the snare drum beat.',
+          badge: 'KINETIC CUT',
+          badgeBg: '#FF9800',
+          badgeFg: '#FFFFFF',
         },
         {
-          title: 'The Glamour Reveal (2.2s+)',
-          desc: 'Hard cut on drum drop into full ethnic/festive attire or high-energy choreography.',
-          badge: 'GLAMOUR DROP',
+          title: 'The Reveal (2.0s+)',
+          desc: 'Cinematic color grade showing full styled outfit, slow-mo spin or confidence walk.',
+          badge: 'GLAM PAYOFF',
+          badgeBg: ELECTRIC_LIME,
+          badgeFg: '#0E0E10',
         },
       ],
     };
   }
 
   if (
-    why.includes('gym') ||
-    why.includes('workout') ||
-    why.includes('fitness') ||
-    why.includes('motivation') ||
-    concept.includes('gym') ||
-    niche.includes('fitness')
+    why.includes('vlog') ||
+    why.includes('aesthetic') ||
+    why.includes('travel') ||
+    why.includes('montage') ||
+    niche.includes('travel')
   ) {
     return {
-      name: "The 'Silent Work' Contrast Reel",
-      type: 'POV Transformation & Discipline',
+      name: 'The High-Aesthetic 0.5s Micro-Montage',
+      type: 'Atmospheric Storytelling',
       steps: [
         {
-          title: 'The Dilemma (0.0s – 1.5s)',
-          desc: "Relatable text: 'They told me to quit' or 'Day 1 vs Day 100'.",
-          badge: 'TEXT HOOK',
+          title: 'The Opening Anchor (0.0s – 1.2s)',
+          desc: 'Eye-level wide cinematic landscape or steam rising from coffee. Clear mood setting.',
+          badge: 'ATMOSPHERE',
+          badgeBg: CORAL_FLAME,
+          badgeFg: '#FFFFFF',
         },
         {
-          title: 'The Grind (1.5s – 3.0s)',
-          desc: 'Fast 0.4s rhythmic cuts of hard gym sets synced to the bassline.',
-          badge: 'FAST CUTS',
+          title: 'Rapid Rhythm Pulse (1.2s – 4.0s)',
+          desc: 'Series of 0.4s to 0.6s kinetic b-roll cuts synchronized precisely to the audio pulse.',
+          badge: 'BEAT PULSE',
+          badgeBg: '#FF9800',
+          badgeFg: '#FFFFFF',
         },
         {
-          title: 'The Flex (3.0s+)',
-          desc: 'Clean physique check / mirror flex on the vocal drop.',
-          badge: 'PEAK FLEX',
+          title: 'Memorable Climax (4.0s+)',
+          desc: 'Final lingering shot with reflective caption or quote inviting comments.',
+          badge: 'EMOTIONAL HOOK',
+          badgeBg: ELECTRIC_LIME,
+          badgeFg: '#0E0E10',
         },
       ],
     };
@@ -195,16 +204,22 @@ function extractEmergentPattern(trend: DeckTrend) {
         title: 'The Hook (0.0s – 2.0s)',
         desc: trend.hook_brief || 'Bold statement or question in first 2 seconds to stop the scroll.',
         badge: 'HOOK',
+        badgeBg: CORAL_FLAME,
+        badgeFg: '#FFFFFF',
       },
       {
         title: 'The Build (2.0s – 3.5s)',
         desc: '2 to 3 fast kinetic cuts (0.5s each) building visual tension with the audio.',
         badge: 'RHYTHM BUILD',
+        badgeBg: '#FF9800',
+        badgeFg: '#FFFFFF',
       },
       {
         title: 'The Payoff (3.5s+)',
         desc: trend.ideal_content_description || 'Clear payoff, punchline, or aesthetic reveal.',
         badge: 'PAYOFF',
+        badgeBg: ELECTRIC_LIME,
+        badgeFg: '#0E0E10',
       },
     ],
   };
@@ -214,7 +229,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
   if (!trend) return null;
 
   const stage = (trend.status || 'emerging').toLowerCase();
-  const stageColor = STAGE_COLORS[stage] || '#FF4D3D';
+  const stageColor = STAGE_COLORS[stage] || CORAL_FLAME;
   const instagramUrl = trend.audio_id
     ? `https://www.instagram.com/reels/audio/${trend.audio_id}/`
     : `https://www.instagram.com/explore/search/keyword/?q=${encodeURIComponent(
@@ -231,11 +246,11 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
 
   const [rawReels, setRawReels] = useState<DeckReel[]>([]);
   const [activeReelIdx, setActiveReelIdx] = useState(0);
-  const [mobileTab, setMobileTab] = useState<'blueprint' | 'reels'>('blueprint');
+  const [mobileTab, setMobileTab] = useState<'blueprint' | 'reels'>('reels');
   const [isResolvingAudio, setIsResolvingAudio] = useState(false);
   const [isLoadingReels, setIsLoadingReels] = useState(true);
 
-  // Fetch real scraped top reels for this trend directly from backend
+  // Fetch real top reels directly from backend for this trend's audio
   useEffect(() => {
     if (!trend?.id) return;
     setIsLoadingReels(true);
@@ -249,7 +264,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
       .finally(() => setIsLoadingReels(false));
   }, [trend?.id]);
 
-  // Prefetch audio track immediately upon opening modal
+  // Prefetch audio preview immediately upon opening modal
   useEffect(() => {
     if (!trend?.audio_title) return;
     resolveAudioTrack({
@@ -314,7 +329,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           position: 'fixed',
           inset: 0,
           zIndex: 60,
-          background: 'rgba(250, 247, 242, 0.88)',
+          background: 'rgba(250, 247, 242, 0.92)',
           backdropFilter: 'blur(24px)',
           WebkitBackdropFilter: 'blur(24px)',
           display: 'flex',
@@ -326,14 +341,14 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
         }}
         onClick={onClose}
       >
-        {/* Subtle Ambient Brand Glow (Coral #FF4D3D and Lime #C7F23A) */}
+        {/* Subtle Ambient Brand Halo Glow (Coral #FF4D3D and Lime #C7F23A) */}
         <div
           style={{
             position: 'fixed',
             inset: 0,
             pointerEvents: 'none',
             background:
-              'radial-gradient(circle at 25% 30%, rgba(255, 77, 61, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(199, 242, 58, 0.14) 0%, transparent 50%)',
+              'radial-gradient(circle at 20% 25%, rgba(255, 77, 61, 0.15) 0%, transparent 45%), radial-gradient(circle at 85% 75%, rgba(199, 242, 58, 0.18) 0%, transparent 45%)',
             zIndex: 0,
           }}
         />
@@ -341,14 +356,14 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
         {/* Main Stage Card Container (Native Logo Palette: #FFFFFF, #FAF7F2, #FF4D3D, #C7F23A) */}
         <motion.div
           key="stage-container"
-          initial={{ opacity: 0, scale: 0.94, y: 15 }}
+          initial={{ opacity: 0, scale: 0.95, y: 12 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.94, y: 15 }}
-          transition={{ type: 'spring', stiffness: 350, damping: 28 }}
+          exit={{ opacity: 0, scale: 0.95, y: 12 }}
+          transition={{ type: 'spring', stiffness: 360, damping: 28 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-4xl bg-[#FFFFFF] border-2 border-[#FF4D3D]/20 rounded-[28px] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh] relative z-10"
+          className="w-full max-w-4xl bg-[#FFFFFF] border-2 border-[#FF4D3D]/25 rounded-[32px] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh] relative z-10"
           style={{
-            boxShadow: '0 20px 60px rgba(255, 77, 61, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04)',
+            boxShadow: '0 24px 64px rgba(255, 77, 61, 0.14), 0 4px 16px rgba(0, 0, 0, 0.04)',
           }}
         >
           {/* ============================================================== */}
@@ -360,9 +375,10 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
             }`}
             style={{ maxHeight: '92vh' }}
           >
-            {/* Top Bar with Stage Badge, Audio Count & Mobile Toggle */}
-            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-[#FFFDFB]">
+            {/* Top Bar with Brand Logo, Stage Badge, Reel Count & Mobile Switcher */}
+            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-gradient-to-r from-[#FFFFFF] via-[#FFFDFB] to-[#FFF7F5]">
               <div className="flex items-center gap-2">
+                <TrenddropIcon size={26} variant="coral" />
                 <div
                   className="px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{
@@ -404,10 +420,12 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       : 'text-[#6B6B78] hover:text-[#0E0E10]'
                   }`}
                 >
-                  <span>Reels</span>
-                  <span className="w-4 h-4 rounded-full bg-[#FF4D3D]/15 text-[#FF4D3D] text-[9px] font-bold flex items-center justify-center">
-                    {rawReels.length}
-                  </span>
+                  <span>Top Reels</span>
+                  {rawReels.length > 0 && (
+                    <span className="w-4 h-4 rounded-full bg-[#FF4D3D]/15 text-[#FF4D3D] text-[9px] font-bold flex items-center justify-center">
+                      {rawReels.length}
+                    </span>
+                  )}
                 </button>
               </div>
 
@@ -423,9 +441,9 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
 
             {/* Left Content Scroll Area */}
             <div className="p-5 space-y-4 overflow-y-auto flex-1 bg-[#FFFFFF]">
-              {/* Vinyl Player Header */}
+              {/* Vinyl Player Header (Warm Ivory + Radiant Brand Colors) */}
               <div className="flex items-center gap-4 bg-[#FAF7F2] p-4 rounded-2xl border border-[#FF4D3D]/15 shadow-xs">
-                {/* Spinning Mini Vinyl */}
+                {/* Designer Vinyl with Coral Rim & Lime Center Label */}
                 <div
                   onClick={handleAudioToggle}
                   className={`relative w-16 h-16 shrink-0 rounded-full cursor-pointer flex items-center justify-center ${
@@ -433,20 +451,25 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   }`}
                   style={{
                     background:
-                      'radial-gradient(circle at 45% 45%, #252528 0%, #161618 35%, #0F0F11 75%, #080809 100%)',
-                    boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
-                    border: '2px solid rgba(255, 77, 61, 0.4)',
+                      'radial-gradient(circle at 45% 45%, #2A2524 0%, #1A1616 40%, #120E0E 75%, #0B0808 100%)',
+                    boxShadow: '0 6px 18px rgba(255, 77, 61, 0.25)',
+                    border: '2.5px solid #FF4D3D',
                     animation: isThisPlaying ? 'vinyl-spin 18s linear infinite' : 'none',
                   }}
                   title="Click to preview audio"
                 >
-                  <div className="w-7 h-7 rounded-full bg-[#FAF7F2] border-2 border-[#FF4D3D] flex items-center justify-center text-[#FF4D3D]">
+                  {/* Subtle Vinyl Grooves */}
+                  <div className="absolute inset-1.5 rounded-full border border-white/10 pointer-events-none" />
+                  <div className="absolute inset-3 rounded-full border border-white/10 pointer-events-none" />
+
+                  {/* Brand Lime Center Label */}
+                  <div className="w-7 h-7 rounded-full bg-[#C7F23A] border-2 border-[#FFFFFF] flex items-center justify-center text-[#0E0E10] shadow-sm">
                     {isResolvingAudio ? (
-                      <Loader2 size={11} className="animate-spin text-[#FF4D3D]" />
+                      <Loader2 size={11} className="animate-spin text-[#0E0E10]" />
                     ) : isThisPlaying ? (
-                      <Pause size={11} fill="#FF4D3D" />
+                      <Pause size={11} fill="#0E0E10" />
                     ) : (
-                      <Play size={11} fill="#FF4D3D" className="ml-0.5" />
+                      <Play size={11} fill="#0E0E10" className="ml-0.5" />
                     )}
                   </div>
                 </div>
@@ -460,7 +483,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                     {trend.audio_artist}
                   </p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-[#2E4000] bg-[#C7F23A] px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider shadow-xs">
+                    <span className="text-[10px] text-[#203000] bg-[#C7F23A] px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider shadow-xs border border-[#B5E025]">
                       {trend.language?.toUpperCase() || 'AUDIO'}
                     </span>
                     {trend.niche && (
@@ -472,7 +495,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                 </div>
               </div>
 
-              {/* ⚡ Emergent Pattern Formula Box (Warm Ivory + Brand Coral + Lime) */}
+              {/* ⚡ Emergent Creator Pattern Blueprint (Warm Ivory + Brand Coral + Lime) */}
               <div className="bg-[#FFF9F8] p-4 rounded-2xl border border-[#FF4D3D]/20 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
@@ -499,7 +522,10 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       key={idx}
                       className="bg-[#FFFFFF] p-3 rounded-xl border border-[#FF4D3D]/10 shadow-xs flex items-start gap-3"
                     >
-                      <div className="w-5 h-5 rounded-full bg-[#FF4D3D] text-white text-[10px] font-black shrink-0 flex items-center justify-center mt-0.5 shadow-xs">
+                      <div
+                        className="w-5 h-5 rounded-full text-[10px] font-black shrink-0 flex items-center justify-center mt-0.5 shadow-xs"
+                        style={{ background: s.badgeBg, color: s.badgeFg }}
+                      >
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
@@ -507,7 +533,10 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                           <span className="text-[11px] font-extrabold text-[#0E0E10]">
                             {s.title}
                           </span>
-                          <span className="text-[9px] font-black uppercase text-[#FF4D3D] bg-[#FFF0EE] px-1.5 py-0.5 rounded">
+                          <span
+                            className="text-[9px] font-black uppercase px-1.5 py-0.5 rounded"
+                            style={{ background: `${s.badgeBg}20`, color: s.badgeBg === ELECTRIC_LIME ? '#203000' : s.badgeBg }}
+                          >
                             {s.badge}
                           </span>
                         </div>
@@ -520,10 +549,11 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                 </div>
               </div>
 
-              {/* Why This Works & Timeline */}
+              {/* Viral Intelligence & Timeline */}
               <div className="bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#FF4D3D]/12 space-y-2 text-xs">
-                <div className="text-[10px] font-black uppercase tracking-wider text-[#FF4D3D]">
-                  Viral Intelligence
+                <div className="text-[10px] font-black uppercase tracking-wider text-[#FF4D3D] flex items-center gap-1.5">
+                  <Flame size={12} className="text-[#FF4D3D]" />
+                  <span>Viral Intelligence</span>
                 </div>
                 <p className="text-xs text-[#2C2C35] leading-relaxed font-medium">
                   {trend.why_this_works ||
@@ -545,7 +575,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       onUse();
                       onClose();
                     }}
-                    className="py-3 px-4 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white font-extrabold text-xs shadow-lg shadow-[#FF4D3D]/30 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
+                    className="py-3 px-4 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white font-extrabold text-xs shadow-lg shadow-[#FF4D3D]/25 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                   >
                     <Check size={14} className="stroke-[3]" />
                     <span>Use It (Save)</span>
@@ -577,7 +607,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           </div>
 
           {/* ============================================================== */}
-          {/* RIGHT COLUMN: IN-APP REEL SCROLLER & WATCHER                   */}
+          {/* RIGHT COLUMN: IN-APP REEL SCROLLER (LIGHT LOGO PALETTE)         */}
           {/* ============================================================== */}
           <div
             className={`w-full md:w-1/2 flex flex-col bg-[#FAF7F2] ${
@@ -586,7 +616,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
             style={{ maxHeight: '92vh' }}
           >
             {/* Header: Scroller Controls */}
-            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-[#FFFDFB]">
+            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-gradient-to-r from-[#FFFDFB] to-[#FFFFFF]">
               <div className="flex items-center gap-2">
                 <span className="text-xs font-black uppercase tracking-wider text-[#0E0E10] flex items-center gap-1.5">
                   <Film size={14} className="text-[#FF4D3D]" />
@@ -632,17 +662,18 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               </button>
             </div>
 
-            {/* In-App Reel Video Stage */}
+            {/* In-App Reel Video Stage (Light Ivory & Coral Silhouette) */}
             <div className="flex-1 p-4 flex flex-col items-center justify-center overflow-y-auto relative min-h-[380px] sm:min-h-[460px] bg-[#FAF7F2]">
               {isLoadingReels ? (
                 <div className="flex flex-col items-center justify-center gap-3 text-[#6B6B78] py-12">
                   <Loader2 size={24} className="animate-spin text-[#FF4D3D]" />
-                  <span className="text-xs font-medium">Loading top reels from audio page...</span>
+                  <span className="text-xs font-semibold text-[#0E0E10]">Loading top reels from audio page...</span>
+                  <span className="text-[11px] text-[#6B6B78]">Extracting highest engagement benchmark reels</span>
                 </div>
               ) : currentReel ? (
                 <div className="w-full max-w-[340px] flex flex-col items-center gap-3">
-                  {/* Reel Player Frame (Phone Proportioned 9:15) */}
-                  <div className="w-full relative aspect-[9/15] max-h-[460px] bg-[#0E0E10] rounded-2xl overflow-hidden border-2 border-[#0E0E10] shadow-xl flex flex-col justify-between">
+                  {/* Smartphone Styled Video Stage Frame */}
+                  <div className="w-full relative aspect-[9/15] max-h-[460px] bg-[#FFFFFF] rounded-[24px] overflow-hidden border-4 border-[#FFFFFF] shadow-2xl ring-2 ring-[#FF4D3D]/20 flex flex-col justify-between">
                     {/* Native Instagram Embed iframe or HTML5 Video */}
                     {currentReel.video_url ? (
                       <video
@@ -668,26 +699,26 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                         allowFullScreen
                       />
                     ) : (
-                      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-zinc-900">
+                      <div className="w-full h-full flex flex-col items-center justify-center p-6 text-center bg-[#FFF8F7]">
                         <Film size={32} className="text-[#FF4D3D] mb-3" />
-                        <p className="text-xs font-bold text-white">Reel Preview</p>
-                        <p className="text-[11px] text-zinc-400 mt-1">
+                        <p className="text-xs font-bold text-[#0E0E10]">Top Reel Preview</p>
+                        <p className="text-[11px] text-[#6B6B78] mt-1">
                           @{currentReel.owner_username}
                         </p>
                       </div>
                     )}
 
-                    {/* Top Overlay Pill: Views & Creator */}
+                    {/* Top Overlay Pill: Views & High Engagement Indicator */}
                     <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      <div className="bg-[#0E0E10]/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white flex items-center gap-1.5 border border-white/20">
+                      <div className="bg-white/95 backdrop-blur-md px-3 py-1 rounded-full text-[11px] font-bold text-[#0E0E10] flex items-center gap-1.5 border border-[#FF4D3D]/20 shadow-sm">
                         <Eye size={11} className="text-[#FF4D3D]" />
                         <span>{formatCount(currentReel.view_count)} views</span>
                       </div>
 
                       {currentReel.is_high_engagement && (
-                        <div className="bg-[#FF4D3D] text-white px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 shadow-md">
-                          <Flame size={10} fill="white" />
-                          <span>TOP REEL</span>
+                        <div className="bg-[#C7F23A] text-[#1E2E00] px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 border border-[#B5E025] shadow-sm">
+                          <Flame size={10} fill="#1E2E00" />
+                          <span>TOP BENCHMARK</span>
                         </div>
                       )}
                     </div>
@@ -709,66 +740,68 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-xs"
+                      className="px-3.5 py-1.5 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-xs"
                     >
                       <span>Watch on IG</span>
                       <ExternalLink size={12} />
                     </a>
                   </div>
+
+                  {/* Thumbnail Carousel for Fast Jumping Between Reels */}
+                  {rawReels.length > 1 && (
+                    <div className="w-full flex items-center gap-1.5 overflow-x-auto py-1 px-0.5 scrollbar-none">
+                      {rawReels.map((r, idx) => (
+                        <button
+                          key={r.id || idx}
+                          onClick={() => setActiveReelIdx(idx)}
+                          className={`relative shrink-0 w-11 h-14 rounded-lg overflow-hidden border-2 transition-all cursor-pointer ${
+                            activeReelIdx === idx
+                              ? 'border-[#FF4D3D] scale-105 shadow-md ring-1 ring-[#FF4D3D]'
+                              : 'border-white/80 opacity-60 hover:opacity-100'
+                          }`}
+                        >
+                          <img
+                            src={
+                              r.reel_id
+                                ? `${API_URL}/api/deck/thumb/${r.reel_id}`
+                                : r.thumbnail_url || '/icons/sound-placeholder.png'
+                            }
+                            alt={`Reel ${idx + 1}`}
+                            className="w-full h-full object-cover"
+                            onError={(e) => {
+                              // graceful fallback
+                              (e.target as HTMLElement).style.display = 'none';
+                            }}
+                          />
+                          <div className="absolute inset-x-0 bottom-0 bg-[#0E0E10]/80 text-[8px] font-black text-white text-center py-0.5">
+                            {formatCount(r.view_count)}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <div className="flex flex-col items-center justify-center gap-3 text-center p-8 text-[#6B6B78]">
                   <div className="w-12 h-12 rounded-full bg-[#FFF0EE] flex items-center justify-center text-[#FF4D3D]">
                     <Film size={22} />
                   </div>
-                  <p className="text-sm font-bold text-[#0E0E10]">Breakout audio just sighted</p>
+                  <p className="text-sm font-bold text-[#0E0E10]">Early Viral Audio</p>
                   <p className="text-xs text-[#6B6B78] max-w-xs">
-                    This sound is in its early virality window. Be one of the first creators to post with
-                    this sound!
+                    Top reels for this sound are being indexed directly from Instagram. Tap below to view on Instagram!
                   </p>
                   <a
                     href={instagramUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 px-4 py-2 rounded-xl bg-[#FF4D3D] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#FF4D3D]/30"
+                    className="mt-2 px-4 py-2 rounded-xl bg-[#FF4D3D] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#FF4D3D]/25"
                   >
-                    <span>Use Audio on Instagram</span>
+                    <span>Open Audio Page</span>
                     <ExternalLink size={13} />
                   </a>
                 </div>
               )}
             </div>
-
-            {/* Reel Scroller Thumbnails Rail (Quick switcher) */}
-            {rawReels.length > 1 && (
-              <div className="p-3 border-t border-[#FF4D3D]/10 bg-[#FFFDFB] flex items-center justify-center gap-2 overflow-x-auto">
-                {rawReels.map((r, idx) => (
-                  <button
-                    key={r.id || r.reel_id || idx}
-                    onClick={() => setActiveReelIdx(idx)}
-                    className={`relative w-9 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
-                      activeReelIdx === idx
-                        ? 'border-[#FF4D3D] scale-105 shadow-md'
-                        : 'border-[#FF4D3D]/20 opacity-60 hover:opacity-100'
-                    }`}
-                  >
-                    <img
-                      src={
-                        r.reel_id
-                          ? `${API_URL}/api/deck/thumb/${r.reel_id}`
-                          : r.thumbnail_url || ''
-                      }
-                      alt={r.owner_username}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                      onError={(e) => {
-                        (e.target as HTMLElement).style.display = 'none';
-                      }}
-                    />
-                  </button>
-                ))}
-              </div>
-            )}
           </div>
         </motion.div>
       </motion.div>
