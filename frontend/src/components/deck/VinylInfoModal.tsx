@@ -48,6 +48,8 @@ export interface DeckReel {
 }
 
 function formatCount(n: number): string {
+  if (n >= 10_000_000) return `${(n / 10_000_000).toFixed(1)}Cr`;
+  if (n >= 100_000) return `${(n / 100_000).toFixed(1)}L`;
   if (n >= 1_000_000) return `${(n / 1_000_000).toFixed(1)}M`;
   if (n >= 1_000) return `${Math.round(n / 1_000)}K`;
   return String(n);
@@ -73,10 +75,11 @@ function fmtDate(s: string | null | undefined): string {
   }
 }
 
+// Brand Logo Palette Colors
 const STAGE_COLORS: Record<string, string> = {
   rising: '#FF4D3D',
-  emerging: '#FF6B4A',
-  peaked: '#FF9F1C',
+  emerging: '#0EA5E9',
+  peaked: '#D97706',
   resurging: '#C7F23A',
   expired: '#94A3B8',
 };
@@ -232,7 +235,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
   const [isResolvingAudio, setIsResolvingAudio] = useState(false);
   const [isLoadingReels, setIsLoadingReels] = useState(true);
 
-  // Fetch real scraped reels for this trend directly from backend
+  // Fetch real scraped top reels for this trend directly from backend
   useEffect(() => {
     if (!trend?.id) return;
     setIsLoadingReels(true);
@@ -311,19 +314,31 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           position: 'fixed',
           inset: 0,
           zIndex: 60,
-          background: 'rgba(10, 10, 14, 0.85)',
-          backdropFilter: 'blur(20px)',
-          WebkitBackdropFilter: 'blur(20px)',
+          background: 'rgba(250, 247, 242, 0.88)',
+          backdropFilter: 'blur(24px)',
+          WebkitBackdropFilter: 'blur(24px)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
           overflowY: 'auto',
           overflowX: 'hidden',
-          padding: '12px',
+          padding: '16px 12px',
         }}
         onClick={onClose}
       >
-        {/* Main Stage Card Container (Responsive 2-Col on Desktop, Tabbed on Mobile) */}
+        {/* Subtle Ambient Brand Glow (Coral #FF4D3D and Lime #C7F23A) */}
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            pointerEvents: 'none',
+            background:
+              'radial-gradient(circle at 25% 30%, rgba(255, 77, 61, 0.12) 0%, transparent 50%), radial-gradient(circle at 80% 70%, rgba(199, 242, 58, 0.14) 0%, transparent 50%)',
+            zIndex: 0,
+          }}
+        />
+
+        {/* Main Stage Card Container (Native Logo Palette: #FFFFFF, #FAF7F2, #FF4D3D, #C7F23A) */}
         <motion.div
           key="stage-container"
           initial={{ opacity: 0, scale: 0.94, y: 15 }}
@@ -331,24 +346,27 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           exit={{ opacity: 0, scale: 0.94, y: 15 }}
           transition={{ type: 'spring', stiffness: 350, damping: 28 }}
           onClick={(e) => e.stopPropagation()}
-          className="w-full max-w-4xl bg-[#16161C] border border-white/10 rounded-3xl shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh]"
+          className="w-full max-w-4xl bg-[#FFFFFF] border-2 border-[#FF4D3D]/20 rounded-[28px] shadow-2xl overflow-hidden flex flex-col md:flex-row max-h-[92vh] relative z-10"
+          style={{
+            boxShadow: '0 20px 60px rgba(255, 77, 61, 0.12), 0 4px 16px rgba(0, 0, 0, 0.04)',
+          }}
         >
           {/* ============================================================== */}
           {/* LEFT COLUMN: VINYL + AUDIO INTEL + EMERGENT PATTERN BLUEPRINT   */}
           {/* ============================================================== */}
           <div
-            className={`w-full md:w-1/2 flex flex-col overflow-y-auto border-b md:border-b-0 md:border-r border-white/10 ${
+            className={`w-full md:w-1/2 flex flex-col overflow-y-auto border-b md:border-b-0 md:border-r border-[#FF4D3D]/12 bg-[#FFFFFF] ${
               mobileTab === 'blueprint' ? 'flex' : 'hidden md:flex'
             }`}
             style={{ maxHeight: '92vh' }}
           >
             {/* Top Bar with Stage Badge, Audio Count & Mobile Toggle */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#121217]">
+            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-[#FFFDFB]">
               <div className="flex items-center gap-2">
                 <div
                   className="px-2.5 py-1 rounded-full flex items-center gap-1.5 text-[10px] font-extrabold uppercase tracking-wider"
                   style={{
-                    background: `${stageColor}20`,
+                    background: `${stageColor}15`,
                     border: `1.5px solid ${stageColor}40`,
                     color: stageColor,
                   }}
@@ -360,20 +378,20 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   <span>{trend.stage_label || trend.status}</span>
                 </div>
 
-                <div className="text-[11px] font-semibold text-zinc-400 bg-white/5 px-2.5 py-1 rounded-full border border-white/5 flex items-center gap-1">
-                  <Film size={11} className="text-zinc-400" />
+                <div className="text-[11px] font-bold text-[#6B6B78] bg-[#FAF7F2] px-2.5 py-1 rounded-full border border-[#FF4D3D]/15 flex items-center gap-1.5">
+                  <Film size={11} className="text-[#FF4D3D]" />
                   <span>{formatCount(trend.audio_use_count || 1000)} reels</span>
                 </div>
               </div>
 
               {/* Mobile Tabs Switcher */}
-              <div className="flex md:hidden items-center bg-black/40 p-1 rounded-full border border-white/10">
+              <div className="flex md:hidden items-center bg-[#FAF7F2] p-1 rounded-full border border-[#FF4D3D]/20">
                 <button
                   onClick={() => setMobileTab('blueprint')}
                   className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all ${
                     mobileTab === 'blueprint'
                       ? 'bg-[#FF4D3D] text-white shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      : 'text-[#6B6B78] hover:text-[#0E0E10]'
                   }`}
                 >
                   Blueprint
@@ -383,11 +401,11 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   className={`text-[11px] font-bold px-3 py-1 rounded-full transition-all flex items-center gap-1 ${
                     mobileTab === 'reels'
                       ? 'bg-[#FF4D3D] text-white shadow-sm'
-                      : 'text-zinc-400 hover:text-white'
+                      : 'text-[#6B6B78] hover:text-[#0E0E10]'
                   }`}
                 >
                   <span>Reels</span>
-                  <span className="w-4 h-4 rounded-full bg-white/20 text-[9px] flex items-center justify-center">
+                  <span className="w-4 h-4 rounded-full bg-[#FF4D3D]/15 text-[#FF4D3D] text-[9px] font-bold flex items-center justify-center">
                     {rawReels.length}
                   </span>
                 </button>
@@ -396,7 +414,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               {/* Close Button on Desktop */}
               <button
                 onClick={onClose}
-                className="hidden md:flex w-8 h-8 rounded-full bg-white/5 hover:bg-white/10 border border-white/10 items-center justify-center text-zinc-400 hover:text-white transition-colors"
+                className="hidden md:flex w-8 h-8 rounded-full bg-[#FAF7F2] hover:bg-[#FFF0EE] border border-[#FF4D3D]/20 items-center justify-center text-[#FF4D3D] hover:scale-105 transition-all cursor-pointer"
                 title="Close"
               >
                 <X size={15} />
@@ -404,9 +422,9 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
             </div>
 
             {/* Left Content Scroll Area */}
-            <div className="p-5 space-y-5 overflow-y-auto flex-1">
+            <div className="p-5 space-y-4 overflow-y-auto flex-1 bg-[#FFFFFF]">
               {/* Vinyl Player Header */}
-              <div className="flex items-center gap-4 bg-white/5 p-3.5 rounded-2xl border border-white/5">
+              <div className="flex items-center gap-4 bg-[#FAF7F2] p-4 rounded-2xl border border-[#FF4D3D]/15 shadow-xs">
                 {/* Spinning Mini Vinyl */}
                 <div
                   onClick={handleAudioToggle}
@@ -416,37 +434,37 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   style={{
                     background:
                       'radial-gradient(circle at 45% 45%, #252528 0%, #161618 35%, #0F0F11 75%, #080809 100%)',
-                    boxShadow: '0 4px 14px rgba(0,0,0,0.5)',
-                    border: '1.5px solid rgba(255,255,255,0.15)',
+                    boxShadow: '0 6px 18px rgba(0,0,0,0.25)',
+                    border: '2px solid rgba(255, 77, 61, 0.4)',
                     animation: isThisPlaying ? 'vinyl-spin 18s linear infinite' : 'none',
                   }}
                   title="Click to preview audio"
                 >
-                  <div className="w-6 h-6 rounded-full bg-[#16161C] border border-[#FF4D3D] flex items-center justify-center text-white">
+                  <div className="w-7 h-7 rounded-full bg-[#FAF7F2] border-2 border-[#FF4D3D] flex items-center justify-center text-[#FF4D3D]">
                     {isResolvingAudio ? (
-                      <Loader2 size={10} className="animate-spin text-[#FF4D3D]" />
+                      <Loader2 size={11} className="animate-spin text-[#FF4D3D]" />
                     ) : isThisPlaying ? (
-                      <Pause size={10} fill="white" />
+                      <Pause size={11} fill="#FF4D3D" />
                     ) : (
-                      <Play size={10} fill="white" className="ml-0.5" />
+                      <Play size={11} fill="#FF4D3D" className="ml-0.5" />
                     )}
                   </div>
                 </div>
 
                 {/* Track Info */}
                 <div className="flex-1 min-w-0">
-                  <h3 className="text-base font-extrabold text-white truncate font-display">
+                  <h3 className="text-base font-extrabold text-[#0E0E10] truncate font-display">
                     {trend.audio_title}
                   </h3>
-                  <p className="text-xs text-zinc-400 truncate mt-0.5 font-medium">
+                  <p className="text-xs text-[#6B6B78] truncate mt-0.5 font-medium">
                     {trend.audio_artist}
                   </p>
                   <div className="flex items-center gap-2 mt-1.5">
-                    <span className="text-[10px] text-[#C7F23A] bg-[#C7F23A]/10 px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                    <span className="text-[10px] text-[#2E4000] bg-[#C7F23A] px-2 py-0.5 rounded-md font-extrabold uppercase tracking-wider shadow-xs">
                       {trend.language?.toUpperCase() || 'AUDIO'}
                     </span>
                     {trend.niche && (
-                      <span className="text-[10px] text-zinc-300 bg-white/5 px-2 py-0.5 rounded-md font-medium">
+                      <span className="text-[10px] text-[#6B6B78] bg-[#FFFFFF] px-2 py-0.5 rounded-md font-semibold border border-[#FF4D3D]/15">
                         #{trend.niche}
                       </span>
                     )}
@@ -454,23 +472,23 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                 </div>
               </div>
 
-              {/* ⚡ Emergent Pattern Formula Box */}
-              <div className="bg-gradient-to-br from-[#FF4D3D]/10 via-black/40 to-transparent p-4 rounded-2xl border border-[#FF4D3D]/25 space-y-3">
+              {/* ⚡ Emergent Pattern Formula Box (Warm Ivory + Brand Coral + Lime) */}
+              <div className="bg-[#FFF9F8] p-4 rounded-2xl border border-[#FF4D3D]/20 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-[#FF4D3D] text-white flex items-center justify-center">
+                    <div className="w-6 h-6 rounded-full bg-[#FF4D3D] text-white flex items-center justify-center shadow-xs">
                       <Zap size={13} fill="white" />
                     </div>
-                    <span className="text-xs font-black uppercase tracking-wider text-white">
+                    <span className="text-xs font-black uppercase tracking-wider text-[#0E0E10]">
                       Emergent Creator Blueprint
                     </span>
                   </div>
-                  <span className="text-[10px] font-bold text-[#FF4D3D] bg-[#FF4D3D]/15 px-2 py-0.5 rounded-md">
+                  <span className="text-[10px] font-extrabold text-[#FF4D3D] bg-[#FFF0EE] border border-[#FF4D3D]/30 px-2 py-0.5 rounded-md">
                     {pattern.type}
                   </span>
                 </div>
 
-                <div className="text-xs font-semibold text-zinc-200">
+                <div className="text-xs font-bold text-[#0E0E10]">
                   {pattern.name}
                 </div>
 
@@ -479,21 +497,21 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   {pattern.steps.map((s, idx) => (
                     <div
                       key={idx}
-                      className="bg-black/40 p-2.5 rounded-xl border border-white/5 flex items-start gap-2.5"
+                      className="bg-[#FFFFFF] p-3 rounded-xl border border-[#FF4D3D]/10 shadow-xs flex items-start gap-3"
                     >
-                      <div className="w-5 h-5 rounded-full bg-white/10 text-white text-[10px] font-bold shrink-0 flex items-center justify-center mt-0.5">
+                      <div className="w-5 h-5 rounded-full bg-[#FF4D3D] text-white text-[10px] font-black shrink-0 flex items-center justify-center mt-0.5 shadow-xs">
                         {idx + 1}
                       </div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between">
-                          <span className="text-[11px] font-extrabold text-white">
+                          <span className="text-[11px] font-extrabold text-[#0E0E10]">
                             {s.title}
                           </span>
-                          <span className="text-[9px] font-black uppercase text-zinc-400 bg-white/5 px-1.5 py-0.5 rounded">
+                          <span className="text-[9px] font-black uppercase text-[#FF4D3D] bg-[#FFF0EE] px-1.5 py-0.5 rounded">
                             {s.badge}
                           </span>
                         </div>
-                        <p className="text-[11px] text-zinc-300 mt-0.5 leading-relaxed">
+                        <p className="text-[11px] text-[#4A4A55] mt-0.5 leading-relaxed font-normal">
                           {s.desc}
                         </p>
                       </div>
@@ -503,19 +521,19 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               </div>
 
               {/* Why This Works & Timeline */}
-              <div className="bg-white/5 p-3.5 rounded-2xl border border-white/5 space-y-2.5 text-xs">
-                <div className="text-[10px] font-bold uppercase tracking-wider text-zinc-400">
+              <div className="bg-[#FAF7F2] p-3.5 rounded-2xl border border-[#FF4D3D]/12 space-y-2 text-xs">
+                <div className="text-[10px] font-black uppercase tracking-wider text-[#FF4D3D]">
                   Viral Intelligence
                 </div>
-                <p className="text-xs text-zinc-300 leading-relaxed">
+                <p className="text-xs text-[#2C2C35] leading-relaxed font-medium">
                   {trend.why_this_works ||
                     `High algorithmic velocity sound trending across Indian social feeds with ${formatCount(
                       trend.audio_use_count || 1000
                     )} creator reels.`}
                 </p>
-                <div className="flex items-center justify-between pt-2 border-t border-white/5 text-[10px] text-zinc-400">
-                  <span>Caught: {firstCaught}</span>
-                  <span>Verified: {lastCaught}</span>
+                <div className="flex items-center justify-between pt-2 border-t border-[#FF4D3D]/10 text-[10px] text-[#6B6B78]">
+                  <span>First caught: <strong>{firstCaught}</strong></span>
+                  <span>Last verified: <strong>{lastCaught}</strong></span>
                 </div>
               </div>
 
@@ -527,7 +545,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       onUse();
                       onClose();
                     }}
-                    className="py-3 px-4 rounded-xl bg-[#FF4D3D] hover:bg-[#ff3524] text-white font-extrabold text-xs shadow-lg shadow-[#FF4D3D]/30 flex items-center justify-center gap-1.5 transition-transform active:scale-95"
+                    className="py-3 px-4 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white font-extrabold text-xs shadow-lg shadow-[#FF4D3D]/30 flex items-center justify-center gap-1.5 transition-all active:scale-95 cursor-pointer"
                   >
                     <Check size={14} className="stroke-[3]" />
                     <span>Use It (Save)</span>
@@ -538,7 +556,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       onSkip();
                       onClose();
                     }}
-                    className="py-3 px-4 rounded-xl bg-white/10 hover:bg-white/15 text-zinc-300 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                    className="py-3 px-4 rounded-xl bg-[#FAF7F2] hover:bg-[#F0ECE4] text-[#6B6B78] hover:text-[#0E0E10] border border-[#FF4D3D]/15 font-bold text-xs flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
                   >
                     <X size={14} />
                     <span>Pass</span>
@@ -549,7 +567,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   href={instagramUrl}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="w-full py-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/10 text-zinc-300 hover:text-white font-semibold text-xs flex items-center justify-center gap-1.5 transition-colors"
+                  className="w-full py-2.5 rounded-xl bg-[#FAF7F2] hover:bg-[#FFF0EE] border border-[#FF4D3D]/25 text-[#FF4D3D] font-extrabold text-xs flex items-center justify-center gap-1.5 transition-colors"
                 >
                   <ExternalLink size={12} />
                   <span>Open Audio on Instagram</span>
@@ -562,20 +580,20 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
           {/* RIGHT COLUMN: IN-APP REEL SCROLLER & WATCHER                   */}
           {/* ============================================================== */}
           <div
-            className={`w-full md:w-1/2 flex flex-col bg-[#0E0E12] ${
+            className={`w-full md:w-1/2 flex flex-col bg-[#FAF7F2] ${
               mobileTab === 'reels' ? 'flex' : 'hidden md:flex'
             }`}
             style={{ maxHeight: '92vh' }}
           >
             {/* Header: Scroller Controls */}
-            <div className="flex items-center justify-between p-4 border-b border-white/10 bg-[#121217]">
+            <div className="flex items-center justify-between p-4 border-b border-[#FF4D3D]/10 bg-[#FFFDFB]">
               <div className="flex items-center gap-2">
-                <span className="text-xs font-black uppercase tracking-wider text-white flex items-center gap-1.5">
+                <span className="text-xs font-black uppercase tracking-wider text-[#0E0E10] flex items-center gap-1.5">
                   <Film size={14} className="text-[#FF4D3D]" />
-                  <span>Viral Reels</span>
+                  <span>Top Audio Page Reels</span>
                 </span>
                 {rawReels.length > 0 && (
-                  <span className="text-[11px] font-bold text-zinc-400 bg-white/5 px-2 py-0.5 rounded-full border border-white/5">
+                  <span className="text-[11px] font-bold text-[#FF4D3D] bg-[#FFF0EE] px-2.5 py-0.5 rounded-full border border-[#FF4D3D]/25">
                     {activeReelIdx + 1} of {rawReels.length}
                   </span>
                 )}
@@ -587,7 +605,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   <button
                     onClick={() => setActiveReelIdx((prev) => Math.max(0, prev - 1))}
                     disabled={activeReelIdx === 0}
-                    className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none text-white flex items-center justify-center transition-colors"
+                    className="w-7 h-7 rounded-full bg-[#FFFFFF] hover:bg-[#FFF0EE] border border-[#FF4D3D]/20 disabled:opacity-30 disabled:pointer-events-none text-[#0E0E10] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
                     title="Previous Reel"
                   >
                     <ChevronUp size={16} />
@@ -597,7 +615,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       setActiveReelIdx((prev) => Math.min(rawReels.length - 1, prev + 1))
                     }
                     disabled={activeReelIdx === rawReels.length - 1}
-                    className="w-7 h-7 rounded-full bg-white/5 hover:bg-white/10 disabled:opacity-20 disabled:pointer-events-none text-white flex items-center justify-center transition-colors"
+                    className="w-7 h-7 rounded-full bg-[#FFFFFF] hover:bg-[#FFF0EE] border border-[#FF4D3D]/20 disabled:opacity-30 disabled:pointer-events-none text-[#0E0E10] flex items-center justify-center transition-colors cursor-pointer shadow-xs"
                     title="Next Reel"
                   >
                     <ChevronDown size={16} />
@@ -608,23 +626,23 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
               {/* Close Button on Mobile in Reels view */}
               <button
                 onClick={onClose}
-                className="flex md:hidden w-8 h-8 rounded-full bg-white/5 border border-white/10 items-center justify-center text-zinc-400"
+                className="flex md:hidden w-8 h-8 rounded-full bg-[#FFFFFF] border border-[#FF4D3D]/20 items-center justify-center text-[#FF4D3D] cursor-pointer"
               >
                 <X size={15} />
               </button>
             </div>
 
             {/* In-App Reel Video Stage */}
-            <div className="flex-1 p-4 flex flex-col items-center justify-center overflow-y-auto relative min-h-[380px] sm:min-h-[460px]">
+            <div className="flex-1 p-4 flex flex-col items-center justify-center overflow-y-auto relative min-h-[380px] sm:min-h-[460px] bg-[#FAF7F2]">
               {isLoadingReels ? (
-                <div className="flex flex-col items-center justify-center gap-3 text-zinc-400 py-12">
+                <div className="flex flex-col items-center justify-center gap-3 text-[#6B6B78] py-12">
                   <Loader2 size={24} className="animate-spin text-[#FF4D3D]" />
-                  <span className="text-xs">Loading viral reels for this audio...</span>
+                  <span className="text-xs font-medium">Loading top reels from audio page...</span>
                 </div>
               ) : currentReel ? (
                 <div className="w-full max-w-[340px] flex flex-col items-center gap-3">
-                  {/* Reel Player Frame (Phone Proportioned 9:16) */}
-                  <div className="w-full relative aspect-[9/15] max-h-[460px] bg-black rounded-2xl overflow-hidden border border-white/10 shadow-2xl flex flex-col justify-between">
+                  {/* Reel Player Frame (Phone Proportioned 9:15) */}
+                  <div className="w-full relative aspect-[9/15] max-h-[460px] bg-[#0E0E10] rounded-2xl overflow-hidden border-2 border-[#0E0E10] shadow-xl flex flex-col justify-between">
                     {/* Native Instagram Embed iframe or HTML5 Video */}
                     {currentReel.video_url ? (
                       <video
@@ -661,15 +679,15 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
 
                     {/* Top Overlay Pill: Views & Creator */}
                     <div className="absolute top-3 left-3 right-3 flex items-center justify-between pointer-events-none">
-                      <div className="bg-black/70 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white flex items-center gap-1.5 border border-white/10">
+                      <div className="bg-[#0E0E10]/80 backdrop-blur-md px-2.5 py-1 rounded-full text-[11px] font-bold text-white flex items-center gap-1.5 border border-white/20">
                         <Eye size={11} className="text-[#FF4D3D]" />
                         <span>{formatCount(currentReel.view_count)} views</span>
                       </div>
 
                       {currentReel.is_high_engagement && (
-                        <div className="bg-[#FF4D3D] text-white px-2 py-0.5 rounded-full text-[10px] font-extrabold flex items-center gap-1 shadow-md">
+                        <div className="bg-[#FF4D3D] text-white px-2.5 py-0.5 rounded-full text-[10px] font-black flex items-center gap-1 shadow-md">
                           <Flame size={10} fill="white" />
-                          <span>VIRAL</span>
+                          <span>TOP REEL</span>
                         </div>
                       )}
                     </div>
@@ -678,8 +696,8 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   {/* Reel Creator & Deep Link Footer */}
                   <div className="w-full flex items-center justify-between px-1">
                     <div className="text-left">
-                      <span className="text-[11px] text-zinc-400">Created by</span>
-                      <p className="text-xs font-bold text-white">
+                      <span className="text-[11px] text-[#6B6B78] font-medium">Top creator</span>
+                      <p className="text-xs font-extrabold text-[#0E0E10]">
                         @{currentReel.owner_username}
                       </p>
                     </div>
@@ -691,7 +709,7 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                       }
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="px-3 py-1.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold flex items-center gap-1.5 transition-colors"
+                      className="px-3 py-1.5 rounded-xl bg-[#FF4D3D] hover:bg-[#e03d2d] text-white text-xs font-extrabold flex items-center gap-1.5 transition-colors shadow-xs"
                     >
                       <span>Watch on IG</span>
                       <ExternalLink size={12} />
@@ -699,22 +717,22 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
                   </div>
                 </div>
               ) : (
-                <div className="flex flex-col items-center justify-center gap-3 text-center p-8 text-zinc-400">
-                  <div className="w-12 h-12 rounded-full bg-white/5 flex items-center justify-center text-[#FF4D3D]">
+                <div className="flex flex-col items-center justify-center gap-3 text-center p-8 text-[#6B6B78]">
+                  <div className="w-12 h-12 rounded-full bg-[#FFF0EE] flex items-center justify-center text-[#FF4D3D]">
                     <Film size={22} />
                   </div>
-                  <p className="text-sm font-bold text-white">No reels indexed yet</p>
-                  <p className="text-xs text-zinc-400 max-w-xs">
-                    This is an early-stage breakout audio. Be one of the first creators to post with
+                  <p className="text-sm font-bold text-[#0E0E10]">Breakout audio just sighted</p>
+                  <p className="text-xs text-[#6B6B78] max-w-xs">
+                    This sound is in its early virality window. Be one of the first creators to post with
                     this sound!
                   </p>
                   <a
                     href={instagramUrl}
                     target="_blank"
                     rel="noopener noreferrer"
-                    className="mt-2 px-4 py-2 rounded-xl bg-[#FF4D3D] text-white font-bold text-xs flex items-center gap-1.5"
+                    className="mt-2 px-4 py-2 rounded-xl bg-[#FF4D3D] text-white font-bold text-xs flex items-center gap-1.5 shadow-md shadow-[#FF4D3D]/30"
                   >
-                    <span>Use Audio in Instagram</span>
+                    <span>Use Audio on Instagram</span>
                     <ExternalLink size={13} />
                   </a>
                 </div>
@@ -723,15 +741,15 @@ export function VinylInfoModal({ trend, onClose, onUse, onSkip }: VinylInfoModal
 
             {/* Reel Scroller Thumbnails Rail (Quick switcher) */}
             {rawReels.length > 1 && (
-              <div className="p-3 border-t border-white/10 bg-[#121217] flex items-center justify-center gap-2 overflow-x-auto">
+              <div className="p-3 border-t border-[#FF4D3D]/10 bg-[#FFFDFB] flex items-center justify-center gap-2 overflow-x-auto">
                 {rawReels.map((r, idx) => (
                   <button
                     key={r.id || r.reel_id || idx}
                     onClick={() => setActiveReelIdx(idx)}
-                    className={`relative w-9 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 ${
+                    className={`relative w-9 h-12 rounded-lg overflow-hidden border-2 transition-all shrink-0 cursor-pointer ${
                       activeReelIdx === idx
                         ? 'border-[#FF4D3D] scale-105 shadow-md'
-                        : 'border-white/10 opacity-50 hover:opacity-100'
+                        : 'border-[#FF4D3D]/20 opacity-60 hover:opacity-100'
                     }`}
                   >
                     <img

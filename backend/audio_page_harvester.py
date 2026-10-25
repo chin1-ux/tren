@@ -25,6 +25,7 @@ if backend_dir not in sys.path:
 import httpx
 from playwright.async_api import async_playwright
 from cookie_sliding_manager import load_active_session_cookies
+from companion_audio_promoter import parse_compact_count
 
 logger = logging.getLogger("audio_page_harvester")
 if not logger.handlers:
@@ -171,19 +172,9 @@ async def harvest_audio_reels_async(
     for item, cap_data in zip(shortcodes_found, caption_results):
         sc = item["shortcode"]
         v_text = item.get("views_text", "")
-        # Parse view count estimate (e.g. 69.3K -> 69300)
-        v_count = 0
-        if "k" in v_text.lower():
-            try:
-                v_count = int(float(v_text.lower().replace("k", "").strip()) * 1000)
-            except Exception:
-                v_count = 1000
-        elif "m" in v_text.lower():
-            try:
-                v_count = int(float(v_text.lower().replace("m", "").strip()) * 1000000)
-            except Exception:
-                v_count = 100000
-        elif v_text.replace(",", "").isdigit():
+        # Parse view count estimate supporting K, M, B, Lakhs, Crores
+        v_count = parse_compact_count(v_text) or 0
+        if not v_count and v_text.replace(",", "").isdigit():
             v_count = int(v_text.replace(",", ""))
 
         cap = cap_data.get("caption") if cap_data else ""
