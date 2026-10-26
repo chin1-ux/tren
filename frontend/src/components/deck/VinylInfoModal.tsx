@@ -1342,18 +1342,14 @@ function ReelPreviewCard({
   index: number;
   onSelect: () => void;
 }) {
-  const primaryThumb = reel.reel_id
-    ? `${API_URL}/api/deck/thumb/${reel.reel_id}`
-    : reel.thumbnail_url || null;
+  const primaryThumb = reel.thumbnail_url || (reel.reel_id ? `${API_URL}/api/deck/thumb/${reel.reel_id}` : null);
 
   const [imgSrc, setImgSrc] = useState<string | null>(primaryThumb);
   const [imgFailed, setImgFailed] = useState(false);
 
   useEffect(() => {
     setImgSrc(
-      reel.reel_id
-        ? `${API_URL}/api/deck/thumb/${reel.reel_id}`
-        : reel.thumbnail_url || null
+      reel.thumbnail_url || (reel.reel_id ? `${API_URL}/api/deck/thumb/${reel.reel_id}` : null)
     );
     setImgFailed(false);
   }, [reel.reel_id, reel.thumbnail_url]);

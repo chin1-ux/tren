@@ -444,7 +444,7 @@ def get_deck_trend_reels(trend_id: int):
             rid = r.get("reel_id")
             views = int(r.get("view_count") or 0)
             likes = int(r.get("like_count") or 0)
-            thumb = f"/api/deck/thumb/{rid}" if rid else r.get("thumbnail_url")
+            thumb = r.get("thumbnail_url") or (f"/api/deck/thumb/{rid}" if rid else None)
             video_url = r.get("video_url")
             # Only valid, unexpired MP4 CDN streams
             is_valid_mp4 = bool(video_url and (".mp4" in video_url or "cdninstagram" in video_url) and _is_safe_unexpired_video_url(video_url))
@@ -552,6 +552,24 @@ def get_reel_thumbnail_image(reel_id: str):
             headers={"Cache-Control": "public, max-age=86400, s-maxage=86400"}
         )
 
+    # 1. Try querying Supabase reels table for stored thumbnail_url
+    if supabase:
+        try:
+            r_res = supabase.table("reels").select("thumbnail_url").eq("reel_id", clean_id).limit(1).execute()
+            if r_res.data and r_res.data[0].get("thumbnail_url"):
+                cdn_url = r_res.data[0]["thumbnail_url"]
+                req = urllib.request.Request(cdn_url, headers={"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    data = resp.read()
+                    if len(data) > 500:
+                        if len(_THUMBNAIL_CACHE) > 1000:
+                            _THUMBNAIL_CACHE.pop(next(iter(_THUMBNAIL_CACHE)))
+                        _THUMBNAIL_CACHE[clean_id] = data
+                        return Response(content=data, media_type="image/jpeg", headers={"Cache-Control": "public, max-age=86400, s-maxage=86400"})
+        except Exception as e_cdn:
+            logger.debug(f"Direct CDN fetch for {clean_id} failed: {e_cdn}")
+
+    # 2. Try Instagram media endpoint
     url = f"https://www.instagram.com/p/{clean_id}/media/?size=m"
     try:
         req = urllib.request.Request(
@@ -575,7 +593,14 @@ def get_reel_thumbnail_image(reel_id: str):
     except Exception as e:
         logger.warning(f"Failed to fetch reel thumbnail for {clean_id}: {e}")
 
-    raise HTTPException(status_code=404, detail="Thumbnail not available")
+    # 3. Clean SVG placeholder fallback with status 200 rather than raising 404 to avoid network errors
+    fallback_svg = (
+        '<svg xmlns="http://www.w3.org/2000/svg" width="320" height="568" viewBox="0 0 320 568">'
+        '<rect width="320" height="568" fill="#1C1516"/>'
+        '<text x="50%" y="50%" fill="#FF4D3D" font-family="sans-serif" font-size="14" text-anchor="middle" dominant-baseline="middle">Instagram Reel</text>'
+        '</svg>'
+    ).encode("utf-8")
+    return Response(content=fallback_svg, media_type="image/svg+xml", headers={"Cache-Control": "public, max-age=3600"})
 
 
 @router.get("/api/trends/explore")

@@ -283,14 +283,7 @@ function DeckScreen() {
 
       // On silent background polling: only update pool in memory, do NOT wipe or disrupt the active vinyl card
       if (!isSilent) {
-        let ranked = rankDeck(pool, swipes, 15);
-        if (ranked.length === 0 && pool.length > 0) {
-          const kept = swipes.filter((s) => s.action === 'use');
-          ranked = rankDeck(pool, kept, 15);
-          if (ranked.length === 0) {
-            ranked = rankDeck(pool, [], 15);
-          }
-        }
+        const ranked = rankDeck(pool, [], 15);
         setDeck(ranked);
         setCurrentIndex(0);
       }
@@ -358,10 +351,7 @@ function DeckScreen() {
       setRawPool(pool);
 
       // 3. Re-rank from the beginning (index 0) with newly fetched trends prioritizing first
-      let freshRanked = rankDeck(pool, keptSwipes, 15);
-      if (freshRanked.length === 0 && pool.length > 0) {
-        freshRanked = rankDeck(pool, [], 15);
-      }
+      const freshRanked = rankDeck(pool, [], 15);
 
       const currentIds = new Set(deck.map((d) => d.id));
       const hasNewBreakouts = freshRanked.some((t) => !currentIds.has(t.id));

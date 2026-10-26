@@ -201,56 +201,11 @@ export function rankDeck(
   deckSize: number = 15,
   nowMs: number = Date.now()
 ): DeckTrend[] {
-  // 1. Exclude already swiped audios by trend_id, audio_id, or normalized title+artist
-  const swipedTrendIds = new Set(swipes.map(s => s.trend_id).filter(Boolean));
-  const swipedAudioIds = new Set(swipes.map(s => s.audio_id).filter(Boolean));
-  const swipedKeys = new Set(
-    swipes
-      .map(s => `${(s.audio_title || '').toLowerCase().trim()}|${(s.artist || '').toLowerCase().trim()}`)
-      .filter(k => k !== '|')
-  );
-
-  const unswiped = candidates.filter(c => {
-    if (swipedTrendIds.has(c.id)) return false;
-    if (c.audio_id && swipedAudioIds.has(c.audio_id)) return false;
-    const key = `${(c.audio_title || '').toLowerCase().trim()}|${(c.audio_artist || '').toLowerCase().trim()}`;
-    if (key !== '|' && swipedKeys.has(key)) return false;
-    return true;
-  });
-
-  // Ensure creator always gets a full deck of 15 cards without lockup or starvation
-  let poolForRanking: DeckTrend[] = [];
-  if (unswiped.length >= deckSize) {
-    poolForRanking = unswiped;
-  } else if (unswiped.length > 0) {
-    const seenIds = new Set(unswiped.map(c => c.id));
-    const backfill = candidates.filter(c => !seenIds.has(c.id));
-    poolForRanking = [...unswiped, ...backfill];
-  } else {
-    poolForRanking = candidates;
-  }
-
-  if (poolForRanking.length === 0) {
+  if (!candidates || candidates.length === 0) {
     return [];
   }
 
-  // 2. Build user taste profile
-  const profile = buildAffinityProfile(swipes, nowMs);
-
-  // 3. Score all candidates
-  const scored = poolForRanking.map(item => {
-    const base = calculateBaseScore(item, nowMs);
-    const affinity = calculateAffinity(item, profile);
-    const multiplier = calculatePersonalMultiplier(affinity);
-    const finalScore = base * multiplier;
-    return {
-      ...item,
-      score: finalScore,
-      _affinity: affinity
-    };
-  });
-
-  // Sort descending: active status first (emerging, rising, resurging > peaked > expired), identified songs boost, then strictly newest to oldest
+  // Active status priority strictly matching Feed tab
   const STATUS_ORDER: Record<string, number> = {
     emerging: 5,
     rising: 4,
@@ -259,20 +214,24 @@ export function rankDeck(
     expired: 1,
   };
 
-  scored.sort((a, b) => {
+  const pool = [...candidates];
+
+  pool.sort((a, b) => {
+    // 1. Lifecycle status priority (Emerging > Rising > Resurging > Peaked > Expired)
     const statusA = STATUS_ORDER[(a.status || 'rising').toLowerCase().trim()] ?? 3;
     const statusB = STATUS_ORDER[(b.status || 'rising').toLowerCase().trim()] ?? 3;
     if (statusA !== statusB) {
       return statusB - statusA;
     }
 
-    // Boost identified songs with real titles over generic "Original audio"
+    // 2. Identified song title boost (real songs ahead of generic "Original audio")
     const isNamedA = (a.audio_title || '').trim().toLowerCase() !== 'original audio' && (a.audio_title || '').trim().toLowerCase() !== 'unknown audio' ? 1 : 0;
     const isNamedB = (b.audio_title || '').trim().toLowerCase() !== 'original audio' && (b.audio_title || '').trim().toLowerCase() !== 'unknown audio' ? 1 : 0;
     if (isNamedA !== isNamedB) {
       return isNamedB - isNamedA;
     }
 
+    // 3. Newest discovery / creation date strictly first
     const timeA = Math.max(
       a.first_detected_at ? new Date(a.first_detected_at).getTime() : 0,
       (a as any).created_at ? new Date((a as any).created_at).getTime() : 0
@@ -284,99 +243,13 @@ export function rankDeck(
     if (timeB !== timeA) {
       return timeB - timeA;
     }
-    if ((b.id || 0) !== (a.id || 0)) {
-      return (b.id || 0) - (a.id || 0);
-    }
-    return (b.score || 0) - (a.score || 0);
+
+    // 4. ID descending (newest DB entry on top)
+    return (b.id || 0) - (a.id || 0);
   });
 
-  // Exploration partition: 20% of deckSize (e.g. 3 cards in a 15-card deck)
-  const exploreTargetCount = Math.floor(deckSize * 0.20);
-  const exploitedTargetCount = deckSize - exploreTargetCount;
-
-  // Split into high-affinity pool and exploration pool
-  const topAffinityThreshold = 0.52; // slightly above neutral cold-start
-  const exploitedPool = scored.filter(s => s._affinity >= topAffinityThreshold);
-  const explorationPool = scored.filter(s => s._affinity < topAffinityThreshold);
-
-  // Fallbacks if one pool is depleted
-  const primaryPool = exploitedPool.length >= exploitedTargetCount ? exploitedPool : scored;
-  const secondaryPool = explorationPool.length >= exploreTargetCount ? explorationPool : scored;
-
-  const result: DeckTrend[] = [];
-  const usedIds = new Set<number>();
-
-  const isCardDiverse = (card: DeckTrend, currentDeck: DeckTrend[]): boolean => {
-    // No same artist within 5 cards
-    const artist = (card.audio_artist || '').toLowerCase().trim();
-    if (artist) {
-      const recent5 = currentDeck.slice(-5);
-      for (const r of recent5) {
-        if ((r.audio_artist || '').toLowerCase().trim() === artist) {
-          return false;
-        }
-      }
-    }
-
-    // At most 3 consecutive cards of same language
-    const lang = (card.language || '').toLowerCase().trim();
-    if (lang && currentDeck.length >= 3) {
-      const recent3 = currentDeck.slice(-3);
-      const allSame = recent3.every(r => (r.language || '').toLowerCase().trim() === lang);
-      if (allSame) {
-        return false;
-      }
-    }
-
-    return true;
-  };
-
-  const pickFromPool = (pool: typeof scored, isExploration: boolean = false): boolean => {
-    for (const card of pool) {
-      if (usedIds.has(card.id)) continue;
-      if (isCardDiverse(card, result)) {
-        usedIds.add(card.id);
-        result.push({
-          ...card,
-          is_exploration: isExploration
-        });
-        return true;
-      }
-    }
-    // If strict diversity can't find a match, relax diversity to avoid starving
-    for (const card of pool) {
-      if (usedIds.has(card.id)) continue;
-      usedIds.add(card.id);
-      result.push({
-        ...card,
-        is_exploration: isExploration
-      });
-      return true;
-    }
-    return false;
-  };
-
-  // Interleave exploited and exploration cards
-  for (let i = 0; i < deckSize; i++) {
-    // Position 4, 9, 14 as exploration slots (20% share)
-    const isExploreSlot = (i % 5 === 4) && (exploreTargetCount > 0);
-    if (isExploreSlot && secondaryPool.length > 0) {
-      const picked = pickFromPool(secondaryPool, true);
-      if (!picked) {
-        pickFromPool(primaryPool, false);
-      }
-    } else {
-      const picked = pickFromPool(primaryPool, false);
-      if (!picked) {
-        pickFromPool(scored, false);
-      }
-    }
-    if (result.length >= deckSize) break;
-  }
-
-  // Mark the first 5 cards as "Top 5"
-  return result.slice(0, deckSize).map((card, idx) => ({
+  return pool.slice(0, deckSize).map((card, idx) => ({
     ...card,
-    is_top_5: idx < 5
+    is_top_5: idx < 5,
   }));
 }
