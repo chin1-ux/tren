@@ -94,6 +94,9 @@ function DeckScreen() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const currentVinyl = deck[currentIndex];
+  const isCaughtUp = currentIndex >= deck.length && !loading;
+
   // Swipes history & queue - Synchronously rehydrate from localStorage so first render excludes swiped cards
   const [swipes, setSwipes] = useState<UserSwipe[]>(() => {
     if (typeof window !== 'undefined') {
@@ -568,9 +571,6 @@ function DeckScreen() {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activeTab, isOnboardingOpen, selectedVinyl, deck, currentIndex, handleSwipe, handleUndo]);
-
-  const currentVinyl = deck[currentIndex];
-  const isCaughtUp = currentIndex >= deck.length && !loading;
 
   // Unswiped count remaining in rawPool
   const remainingCandidatesCount = useMemo(() => {
