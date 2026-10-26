@@ -299,10 +299,11 @@ function DeckScreen() {
         localStorage.setItem('trendrop_local_swipes', JSON.stringify(keptSwipes));
       }
 
-      // 2. Fetch fresh trends with cache-busting timestamp
+      // 2. Fetch fresh trends with cache-busting timestamp & fresh=true
       const params = new URLSearchParams({
         mode,
         limit: '120',
+        fresh: 'true',
         _t: Date.now().toString(),
       });
       if (selectedLanguages.length > 0) {
@@ -315,7 +316,12 @@ function DeckScreen() {
         params.append('include_expired', 'true');
       }
 
-      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
+        headers: {
+          'Cache-Control': 'no-cache',
+          'Pragma': 'no-cache',
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const pool: DeckTrend[] = data.trends || [];
@@ -614,7 +620,7 @@ function DeckScreen() {
 
   return (
     <div
-      className="flex flex-col w-full min-h-[calc(100dvh-5rem)] pb-20 font-sans select-none relative bg-background text-foreground"
+      className="flex flex-col w-full h-[calc(100dvh-4.5rem)] max-h-[calc(100dvh-4.5rem)] md:h-[100dvh] md:max-h-[100dvh] overflow-hidden font-sans select-none relative bg-background text-foreground"
     >
       {/* Animated background */}
       <VinylBackground />
@@ -805,9 +811,9 @@ function DeckScreen() {
             />
           ) : (
             // Vinyl stack + action buttons
-            <div className="w-full max-w-[390px] flex flex-col items-center h-full max-h-[660px]">
+            <div className="w-full max-w-[390px] flex flex-col items-center h-full justify-between py-1">
               {/* Single Vinyl Showcase (one at a time) */}
-              <div className="w-full flex-1 relative min-h-[360px] sm:min-h-[440px] max-h-[500px]">
+              <div className="w-full flex-1 min-h-0 relative flex items-center justify-center">
                 <AnimatePresence mode="wait">
                   {currentVinyl && (
                     <VinylRecord
@@ -823,22 +829,22 @@ function DeckScreen() {
               </div>
 
               {/* Action buttons — vertical swipe hint */}
-              <div className="w-full flex items-center justify-center gap-4 py-4 px-2">
+              <div className="w-full shrink-0 flex items-center justify-center gap-4 py-2 sm:py-3 px-2">
                 {/* Undo */}
                 <button
                   onClick={handleUndo}
                   disabled={currentIndex === 0}
-                  className="w-12 h-12 rounded-full flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
+                  className="w-11 h-11 sm:w-12 sm:h-12 rounded-full flex items-center justify-center disabled:opacity-30 disabled:pointer-events-none active:scale-90 transition-all"
                   style={{ background: 'rgba(0,0,0,0.06)', border: '1px solid rgba(0,0,0,0.08)', color: '#9A9AA8' }}
                   aria-label="Undo"
                 >
-                  <RotateCcw className="w-5 h-5" />
+                  <RotateCcw className="w-4 h-4 sm:w-5 sm:h-5" />
                 </button>
 
                 {/* Pass (down) */}
                 <button
                   onClick={() => handleSwipe('skip')}
-                  className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full flex items-center justify-center active:scale-90 transition-all"
+                  className="w-13 h-13 sm:w-16 sm:h-16 shrink-0 rounded-full flex items-center justify-center active:scale-90 transition-all"
                   style={{
                     background: 'rgba(255,77,61,0.08)',
                     border: '1.5px solid rgba(255,77,61,0.25)',
@@ -852,19 +858,19 @@ function DeckScreen() {
                 {/* Use It (up) */}
                 <button
                   onClick={() => handleSwipe('use')}
-                  className="w-14 h-14 sm:w-16 sm:h-16 shrink-0 rounded-full text-white flex items-center justify-center active:scale-90 transition-all"
+                  className="w-13 h-13 sm:w-16 sm:h-16 shrink-0 rounded-full text-white flex items-center justify-center active:scale-90 transition-all"
                   style={{
                     background: '#FF4D3D',
                     boxShadow: '0 6px 20px rgba(255,77,61,0.4)',
                   }}
                   aria-label="Use It (flick up)"
                 >
-                  <Check className="w-7 h-7 sm:w-8 sm:h-8 stroke-[3]" />
+                  <Check className="w-6 h-6 sm:w-8 sm:h-8 stroke-[3]" />
                 </button>
               </div>
 
               {/* Swipe hint label */}
-              <p className="text-[11px] pb-2" style={{ color: '#C7A09A', fontFamily: 'Inter, sans-serif' }}>
+              <p className="text-[10px] sm:text-[11px] shrink-0 pb-1" style={{ color: '#C7A09A', fontFamily: 'Inter, sans-serif' }}>
                 Flick up to use · Flick down to pass · Tap to open
               </p>
             </div>

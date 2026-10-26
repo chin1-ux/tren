@@ -119,6 +119,7 @@ def get_deck_trends(
     niches: Optional[str] = Query(None, description="Comma-separated niche list"),
     limit: int = Query(120, le=200),
     include_expired: Optional[bool] = Query(False, description="Whether to include expired audios in deck pool"),
+    fresh: Optional[bool] = Query(False, description="Bypass all caching and sync latest live data"),
     authorization: Optional[str] = Header(None)
 ):
     """
@@ -135,9 +136,11 @@ def get_deck_trends(
     cache_key = f"{mode_clean}:{langs or ''}:{niches or ''}:{has_filters}:{limit}"
     now_ts = time.time()
 
-    # Public caching: bypass if Authorization provided
+    # Public caching: bypass if Authorization provided or fresh sync requested
     is_auth = bool(authorization and authorization.strip().startswith("Bearer "))
-    if not is_auth and cache_key in _DECK_CACHE:
+    is_cache_bypassed = is_auth or fresh or request.headers.get("Cache-Control") == "no-cache"
+
+    if not is_cache_bypassed and cache_key in _DECK_CACHE:
         entry = _DECK_CACHE[cache_key]
         if now_ts - entry["time"] < 30:
             headers = {
@@ -339,14 +342,21 @@ def get_deck_trends(
             "trends": items
         }
 
-        # Cache public results
-        if not is_auth:
+        # Cache public results only when not fresh bypass
+        if not is_cache_bypassed:
             _DECK_CACHE[cache_key] = {"data": payload, "time": now_ts}
 
-        headers = {
-            "Cache-Control": "private, no-cache" if is_auth else "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
-            "X-Cache": "MISS"
-        }
+        if is_cache_bypassed:
+            headers = {
+                "Cache-Control": "no-cache, no-store, must-revalidate",
+                "Pragma": "no-cache",
+                "X-Cache": "BYPASS"
+            }
+        else:
+            headers = {
+                "Cache-Control": "public, s-maxage=300, stale-while-revalidate=600, stale-if-error=86400",
+                "X-Cache": "MISS"
+            }
         return JSONResponse(content=payload, headers=headers)
 
     except Exception as e:
@@ -422,13 +432,9 @@ def get_deck_trend_reels(trend_id: int):
             deduped_by_creator.append(r)
 
         # 5. Quality Filter (Anti-Trash Gate):
-        # If there are reels with >= 2,000 views, exclude zero/sub-500 view trash reels
-        high_quality = [r for r in deduped_by_creator if int(r.get("view_count") or 0) >= 2000]
-        if high_quality:
-            final_reels = high_quality[:6]
-        else:
-            # Fallback to best available if sound is brand-new / early
-            final_reels = deduped_by_creator[:6]
+        # Exclude zero-view empty placeholders if valid reels exist, keeping up to 6 top reels
+        valid_reels = [r for r in deduped_by_creator if int(r.get("view_count") or 0) > 0]
+        final_reels = (valid_reels if valid_reels else deduped_by_creator)[:6]
 
         items = []
         for r in final_reels:
