@@ -66,7 +66,7 @@ STAGE_LABEL_MAP = {
 
 # Slim columns to fetch from DB (total row size <= 350 bytes)
 DECK_SELECT_COLS = (
-    "id,audio_id,audio_title,audio_artist,status,first_detected_at,last_seen_at,"
+    "id,audio_id,audio_title,audio_artist,status,first_detected_at,last_seen_at,created_at,"
     "reel_count,audio_use_count,language_final,language,trend_origin,"
     "niche_tag,semantic_niches,used_for_note,why_this_works,ideal_content_description,hook_brief,optimal_post_hour_ist,"
     "window_hours_remaining,is_voiceover,is_seed_data"
@@ -246,9 +246,12 @@ def get_deck_trends(
             )
             deduped.append(best)
 
-        # Sort deduped strictly newest to oldest (by discovery/created timestamp, and id descending)
+        # Sort deduped strictly newest to oldest matching Feed lifecycle order
+        STATUS_PRIORITY = {"emerging": 5, "rising": 4, "resurging": 3, "peaked": 2, "expired": 1}
         deduped.sort(
             key=lambda x: (
+                STATUS_PRIORITY.get((x.get("status") or "").lower().strip(), 3),
+                1 if (x.get("audio_title") or "").strip().lower() not in ("original audio", "unknown song", "unknown audio", "") else 0,
                 max(str(x.get("first_detected_at") or ""), str(x.get("created_at") or "")),
                 x.get("id") or 0
             ),

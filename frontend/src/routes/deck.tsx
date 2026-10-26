@@ -247,7 +247,7 @@ function DeckScreen() {
     loadSwipes();
   }, []);
 
-  // Fetch deck pool with auto-update and silent background polling
+  // Fetch deck pool with auto-update and cache-busting
   const fetchDeckPool = useCallback(async (isSilent = false) => {
     if (!isSilent) {
       setLoading(true);
@@ -257,6 +257,8 @@ function DeckScreen() {
       const params = new URLSearchParams({
         mode,
         limit: '120',
+        fresh: 'true',
+        _t: Date.now().toString(),
       });
       if (selectedLanguages.length > 0) {
         params.append('langs', selectedLanguages.join(','));
@@ -268,7 +270,12 @@ function DeckScreen() {
         params.append('include_expired', 'true');
       }
 
-      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+      const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
+        headers: {
+          'Cache-Control': 'no-cache, no-store',
+          'Pragma': 'no-cache',
+        },
+      });
       if (!res.ok) throw new Error(`HTTP ${res.status}`);
       const data = await res.json();
       const pool: DeckTrend[] = data.trends || [];
@@ -311,7 +318,7 @@ function DeckScreen() {
     setLoading(true);
   }, []);
 
-  // Refresh deck from start & sync latest trends (resets passed cards so creator can see them again from start)
+  // Refresh deck from start & sync latest trends (places brand new breakout tracks at Card 1)
   const handleRefreshDeckFromStart = useCallback(async () => {
     setIsRefreshing(true);
     try {
@@ -341,7 +348,7 @@ function DeckScreen() {
 
       const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
         headers: {
-          'Cache-Control': 'no-cache',
+          'Cache-Control': 'no-cache, no-store',
           'Pragma': 'no-cache',
         },
       });
@@ -356,27 +363,31 @@ function DeckScreen() {
         freshRanked = rankDeck(pool, [], 15);
       }
 
-      // If top card matches the current visible card, rotate by 1 so the refresh is visibly apparent
-      if (freshRanked.length > 1 && currentVinyl && freshRanked[0]?.id === currentVinyl.id) {
-        const [first, ...rest] = freshRanked;
-        freshRanked = [...rest, first];
-      }
+      const currentIds = new Set(deck.map((d) => d.id));
+      const hasNewBreakouts = freshRanked.some((t) => !currentIds.has(t.id));
 
       if (freshRanked.length > 0) {
         setDeck(freshRanked);
         setCurrentIndex(0);
         setBatchCount(1);
       }
-      toast.success('Synced latest live audios', {
-        description: `Loaded ${freshRanked.length} fresh breakout tracks`,
-      });
+
+      if (hasNewBreakouts) {
+        toast.success('Synced latest live audios', {
+          description: `Loaded fresh breakout tracks · Card 1 is newest`,
+        });
+      } else {
+        toast.info('Catalog is up to date', {
+          description: `Latest scraper verified · ${freshRanked.length} tracks active`,
+        });
+      }
     } catch (err: any) {
       console.error('Failed to refresh deck:', err);
       toast.error('Sync failed', { description: 'Could not connect to live audio server' });
     } finally {
       setIsRefreshing(false);
     }
-  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes, currentVinyl]);
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes, deck]);
 
   // Initial fetch on mount & filter changes
   useEffect(() => {
@@ -583,62 +594,49 @@ function DeckScreen() {
   const handleDealMore = useCallback(async () => {
     setIsDealingMore(true);
     try {
-      let poolToUse = rawPool;
-
-      // Always fetch fresh pool if empty or running low
-      const swipedIds = new Set(swipes.map((s) => s.trend_id));
-      const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
-      let unswiped = poolToUse.filter((c) => !swipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id)));
-
-      if (unswiped.length < 5 || poolToUse.length === 0) {
-        try {
-          const params = new URLSearchParams({
-            mode,
-            limit: '120',
-            fresh: 'true',
-            _t: Date.now().toString(),
-          });
-          if (selectedLanguages.length > 0) {
-            params.append('langs', selectedLanguages.join(','));
-          }
-          if (selectedNiches.length > 0) {
-            params.append('niches', selectedNiches.join(','));
-          }
-          if (includeExpiredDeck || selectedNiches.length > 0) {
-            params.append('include_expired', 'true');
-          }
-          const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
-            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
-          });
-          if (res.ok) {
-            const data = await res.json();
-            const freshTrends: DeckTrend[] = data.trends || [];
-            if (freshTrends.length > 0) {
-              setRawPool(freshTrends);
-              poolToUse = freshTrends;
-            }
-          }
-        } catch (fetchErr) {
-          console.warn('Could not replenish deck pool:', fetchErr);
-        }
-      }
-
-      // Keep saved audios safe, clear passed skips so catalog loops seamlessly
+      // 1. Keep saved audios ('use'), clear passed skips so catalog loops seamlessly
       let activeSwipes = swipes.filter((s) => s.action === 'use');
       setSwipes(activeSwipes);
       if (typeof window !== 'undefined') {
         localStorage.setItem('trendrop_local_swipes', JSON.stringify(activeSwipes));
       }
 
-      // Rank deck
-      let nextRanked = rankDeck(poolToUse, activeSwipes, 15);
-
-      // If still 0 (e.g. all cards were swiped or filtered), cleanly redeal entire pool
-      if (nextRanked.length === 0 && poolToUse.length > 0) {
-        setSwipes([]);
-        if (typeof window !== 'undefined') {
-          localStorage.removeItem('trendrop_local_swipes');
+      // 2. Fetch fresh pool from backend
+      let poolToUse = rawPool;
+      try {
+        const params = new URLSearchParams({
+          mode,
+          limit: '120',
+          fresh: 'true',
+          _t: Date.now().toString(),
+        });
+        if (selectedLanguages.length > 0) {
+          params.append('langs', selectedLanguages.join(','));
         }
+        if (selectedNiches.length > 0) {
+          params.append('niches', selectedNiches.join(','));
+        }
+        if (includeExpiredDeck || selectedNiches.length > 0) {
+          params.append('include_expired', 'true');
+        }
+        const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
+          headers: { 'Cache-Control': 'no-cache, no-store', 'Pragma': 'no-cache' },
+        });
+        if (res.ok) {
+          const data = await res.json();
+          const freshTrends: DeckTrend[] = data.trends || [];
+          if (freshTrends.length > 0) {
+            setRawPool(freshTrends);
+            poolToUse = freshTrends;
+          }
+        }
+      } catch (fetchErr) {
+        console.warn('Could not replenish deck pool:', fetchErr);
+      }
+
+      // 3. Rank deck from poolToUse
+      let nextRanked = rankDeck(poolToUse, activeSwipes, 15);
+      if (nextRanked.length === 0 && poolToUse.length > 0) {
         nextRanked = rankDeck(poolToUse, [], 15);
       }
 
@@ -648,15 +646,12 @@ function DeckScreen() {
         setBatchCount((prev) => prev + 1);
         toast.success(`Redealt catalog with ${nextRanked.length} trending audios`);
       } else {
-        // Ultimate fallback: reset currentIndex to 0 if cards exist in deck
-        if (deck.length > 0) {
-          setCurrentIndex(0);
-        }
+        toast.error('No trending audios found');
       }
     } finally {
       setIsDealingMore(false);
     }
-  }, [rawPool, swipes, mode, selectedLanguages, selectedNiches, includeExpiredDeck, deck.length]);
+  }, [rawPool, swipes, mode, selectedLanguages, selectedNiches, includeExpiredDeck]);
 
   // Re-shuffle passed tracks (keeps saved audios safe, resets skips)
   const handleReshufflePassed = useCallback(() => {

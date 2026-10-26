@@ -218,7 +218,19 @@ export function rankDeck(
     return true;
   });
 
-  if (unswiped.length === 0) {
+  // Ensure creator always gets a full deck of 15 cards without lockup or starvation
+  let poolForRanking: DeckTrend[] = [];
+  if (unswiped.length >= deckSize) {
+    poolForRanking = unswiped;
+  } else if (unswiped.length > 0) {
+    const seenIds = new Set(unswiped.map(c => c.id));
+    const backfill = candidates.filter(c => !seenIds.has(c.id));
+    poolForRanking = [...unswiped, ...backfill];
+  } else {
+    poolForRanking = candidates;
+  }
+
+  if (poolForRanking.length === 0) {
     return [];
   }
 
@@ -226,7 +238,7 @@ export function rankDeck(
   const profile = buildAffinityProfile(swipes, nowMs);
 
   // 3. Score all candidates
-  const scored = unswiped.map(item => {
+  const scored = poolForRanking.map(item => {
     const base = calculateBaseScore(item, nowMs);
     const affinity = calculateAffinity(item, profile);
     const multiplier = calculatePersonalMultiplier(affinity);
@@ -238,8 +250,29 @@ export function rankDeck(
     };
   });
 
-  // Sort descending: strictly NEWEST to OLDEST (discovery date / creation date, fallback to id desc)
+  // Sort descending: active status first (emerging, rising, resurging > peaked > expired), identified songs boost, then strictly newest to oldest
+  const STATUS_ORDER: Record<string, number> = {
+    emerging: 5,
+    rising: 4,
+    resurging: 3,
+    peaked: 2,
+    expired: 1,
+  };
+
   scored.sort((a, b) => {
+    const statusA = STATUS_ORDER[(a.status || 'rising').toLowerCase().trim()] ?? 3;
+    const statusB = STATUS_ORDER[(b.status || 'rising').toLowerCase().trim()] ?? 3;
+    if (statusA !== statusB) {
+      return statusB - statusA;
+    }
+
+    // Boost identified songs with real titles over generic "Original audio"
+    const isNamedA = (a.audio_title || '').trim().toLowerCase() !== 'original audio' && (a.audio_title || '').trim().toLowerCase() !== 'unknown audio' ? 1 : 0;
+    const isNamedB = (b.audio_title || '').trim().toLowerCase() !== 'original audio' && (b.audio_title || '').trim().toLowerCase() !== 'unknown audio' ? 1 : 0;
+    if (isNamedA !== isNamedB) {
+      return isNamedB - isNamedA;
+    }
+
     const timeA = Math.max(
       a.first_detected_at ? new Date(a.first_detected_at).getTime() : 0,
       (a as any).created_at ? new Date((a as any).created_at).getTime() : 0

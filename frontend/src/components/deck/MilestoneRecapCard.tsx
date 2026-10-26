@@ -16,6 +16,7 @@ import {
 import { type DeckTrend } from '@/lib/deck-ranking';
 import { useAudioStore } from '@/store/useAudioStore';
 import { resolveAudioTrack } from '@/lib/audio-resolver';
+import { TrenddropIcon } from '@/components/TrenddropLogo';
 
 interface MilestoneRecapCardProps {
   batchCount: number;
@@ -89,31 +90,34 @@ export function MilestoneRecapCard({
       transition={{ duration: 0.35, ease: [0.16, 1, 0.3, 1] }}
       className="w-full max-w-[420px] rounded-[32px] p-5 sm:p-6 text-foreground relative overflow-hidden flex flex-col gap-4 sm:gap-5 shadow-2xl border"
       style={{
-        background: 'linear-gradient(180deg, rgba(24, 24, 27, 0.98) 0%, rgba(10, 10, 12, 1) 100%)',
-        borderColor: 'rgba(255, 77, 61, 0.2)',
-        boxShadow: '0 20px 48px -10px rgba(0, 0, 0, 0.6), 0 0 32px rgba(255, 77, 61, 0.1)',
+        background: 'linear-gradient(180deg, #181112 0%, #0E0E10 100%)',
+        borderColor: 'rgba(255, 77, 61, 0.4)',
+        boxShadow: '0 24px 60px -12px rgba(255, 77, 61, 0.25), 0 0 32px rgba(255, 77, 61, 0.15)',
       }}
     >
-      {/* Top Ambient Glow */}
+      {/* Top Ambient Coral Glow */}
       <div
-        className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-40 pointer-events-none rounded-full blur-3xl"
+        className="absolute -top-24 left-1/2 -translate-x-1/2 w-72 h-44 pointer-events-none rounded-full blur-3xl"
         style={{
-          background: 'radial-gradient(ellipse at center, rgba(255,77,61,0.25) 0%, transparent 70%)',
+          background: 'radial-gradient(ellipse at center, rgba(255,77,61,0.4) 0%, transparent 70%)',
         }}
       />
 
-      {/* Header Section */}
+      {/* Header Section with Trendrop App Logo */}
       <div className="relative z-10 flex flex-col items-center text-center">
-        <div
-          className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-semibold tracking-wide uppercase mb-2.5"
-          style={{
-            background: 'rgba(255, 77, 61, 0.12)',
-            color: '#FF4D3D',
-            border: '1px solid rgba(255, 77, 61, 0.3)',
-          }}
-        >
-          <Sparkles className="w-3.5 h-3.5" />
-          <span>Batch {batchCount} Conquered 🎉</span>
+        <div className="flex items-center gap-2 mb-2.5">
+          <TrenddropIcon size={32} className="shadow-lg" />
+          <div
+            className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold tracking-wide uppercase"
+            style={{
+              background: 'rgba(255, 77, 61, 0.18)',
+              color: '#FF4D3D',
+              border: '1.5px solid rgba(255, 77, 61, 0.45)',
+            }}
+          >
+            <Sparkles className="w-3.5 h-3.5" />
+            <span>Batch {batchCount} Conquered 🎉</span>
+          </div>
         </div>
 
         <h3
@@ -122,7 +126,7 @@ export function MilestoneRecapCard({
         >
           15 Audios Reviewed!
         </h3>
-        <p className="text-xs text-zinc-400 mt-1 max-w-[280px]">
+        <p className="text-xs text-zinc-300 mt-1 max-w-[280px]">
           Taste engine updated · Fresh catalog updated {freshnessMinutes}m ago.
         </p>
       </div>
@@ -276,10 +280,10 @@ export function MilestoneRecapCard({
         <button
           onClick={onDealMore}
           disabled={isLoadingMore}
-          className="w-full py-3.5 px-6 rounded-2xl text-white font-bold text-sm tracking-wide shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 group relative overflow-hidden"
+          className="w-full py-3.5 px-6 rounded-2xl text-white font-extrabold text-sm tracking-wide shadow-xl transition-all active:scale-95 flex items-center justify-center gap-2 group relative overflow-hidden cursor-pointer"
           style={{
-            background: 'linear-gradient(135deg, #FF4D3D 0%, #FF2E63 100%)',
-            boxShadow: '0 8px 24px rgba(255, 77, 61, 0.35)',
+            background: '#FF4D3D',
+            boxShadow: '0 8px 24px rgba(255, 77, 61, 0.45)',
           }}
         >
           {isLoadingMore ? (
