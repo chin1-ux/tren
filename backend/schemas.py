@@ -57,6 +57,9 @@ class FestiveIdeasRequest(BaseModel):
     event_slug: str
     niche: Optional[str] = "all"
     custom_angle: Optional[str] = None
+    tone: Optional[str] = "relatable"
+    format_style: Optional[str] = "grwm"
+    target_goal: Optional[str] = "viral_reach"
 
 
 class HookRequest(BaseModel):

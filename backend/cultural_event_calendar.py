@@ -1079,11 +1079,15 @@ class SeasonalEventEngine:
         event_slug: str,
         niche: str = "all",
         custom_angle: Optional[str] = None,
+        tone: str = "relatable",
+        format_style: str = "grwm",
+        target_goal: str = "viral_reach",
         grounding_audios: Optional[List[str]] = None
     ) -> Dict:
         """
         Generate 3 high-impact, actionable reel concepts for a festival and creator niche.
         Uses LLM with rich prompt and structured JSON output, with a deterministic fallback library.
+        Customized by creator format, tone, and viral goals.
         """
         events = cls.get_all_resolved_events_dict()
         event_data = events.get(event_slug)
@@ -1104,9 +1108,12 @@ class SeasonalEventEngine:
 
         wave = calculate_wave_phase(event_data["date"])
         clean_niche = (niche or "all").lower().strip()
+        clean_tone = (tone or "relatable").lower().strip()
+        clean_format = (format_style or "grwm").lower().strip()
+        clean_goal = (target_goal or "viral_reach").lower().strip()
 
         # Cache check: return instant cached response if generated within 24h
-        cache_key = f"{event_slug}:{clean_niche}:{(custom_angle or '').strip().lower()}"
+        cache_key = f"{event_slug}:{clean_niche}:{clean_tone}:{clean_format}:{clean_goal}:{(custom_angle or '').strip().lower()}"
         now_ts = datetime.now(timezone.utc).timestamp()
         if cache_key in _FESTIVE_IDEAS_CACHE:
             entry = _FESTIVE_IDEAS_CACHE[cache_key]
@@ -1121,54 +1128,61 @@ class SeasonalEventEngine:
         if grounding_audios and len(grounding_audios) > 0:
             real_audios_text = f"Currently Rising Audios in Trendrop DB to pair with: {', '.join(grounding_audios)}"
 
-        # Build prompt for LLM
+        # Professional viral prompt engineering
         system_prompt = (
-            "You are India's and global Instagram Reel Growth Architect and virality strategist. "
-            "You specialize in festival, pop-culture, and seasonal trend distribution on Instagram and Shorts. "
-            "Crucially, you know that the highest viral distribution happens 5-14 days BEFORE "
-            "an event (anticipation, preparations, hacks, trials, relatable stress), NOT on the day of when feeds are flooded. "
-            "You provide high-converting, actionable, word-for-word reel concepts with scroll-stopping 3-second hooks."
+            "You are India's and global Instagram Reel Creative Director and virality strategist. "
+            "You specialize in cultural events, festival anticipation waves, and high-retention short-form video. "
+            "You produce high-performing, authentic, modern, and creator-friendly concepts that avoid corporate fluff, generic Hallmark greetings, or boring clichés. "
+            "Every hook must be conversational, sharp, and create an irresistible curiosity gap or relatable truth in the first 3 seconds. "
+            "Script flows must feature exact visual camera actions, pacing, and spoken voiceover lines."
         )
 
         user_prompt = f"""
 Event: {event_data['name']} ({event_data.get('local_name', '')})
 Event Date: {event_data['date']}
-Current Status / Wave Phase: {wave['phase_name']} ({wave['badge']}) - {wave['days_until']} days until event.
-Filming Strategy: {wave['filming_action']}
+Wave Phase: {wave['phase_name']} ({wave['badge']}) - {wave['days_until']} days until event.
+Optimal Filming Strategy: {wave['filming_action']}
 Creator Niche: {clean_niche}
-Custom Angle / Note from Creator: {custom_angle or 'None provided'}
-Audience Culture & Themes: {', '.join(event_data.get('content_themes', []))}
-Recommended Audio Vibe: {event_data.get('audio_vibe', 'Trending festive upbeat beat')}
+Creator Format / Video Style: {clean_format} (e.g. GRWM, Faceless B-Roll, Fast Hack, POV Skit, Audio-Synced Cut)
+Requested Tone / Vibe: {clean_tone} (e.g. Relatable/Humorous, Aesthetic/Luxury, High-Energy Hype, Educational, Heartfelt)
+Primary Growth Goal: {clean_goal} (e.g. Mass Reach & Shares, High Saves & Bookmarks, Comment Debate)
+Custom Angle / Creator Note: {custom_angle or 'None provided'}
+Cultural Themes: {', '.join(event_data.get('content_themes', []))}
+Recommended Audio Vibe: {event_data.get('audio_vibe', 'Trending upbeat festive fusion beat')}
 {real_audios_text}
 
-Create 3 distinct, high-impact reel concepts tailored specifically to this niche and event wave phase:
-1. Concept 1: The Anticipation / Preparation Angle (High saves & shares)
-2. Concept 2: The Relatable POV / Comedy Angle (High comments & shares)
-3. Concept 3: The Quick Hack / Blueprint Angle (High retention & follows)
+Rules for output quality:
+1. NO generic 'Celebrate with family' or 'Joy is in the air' greetings. Make it punchy, practical, or hilarious.
+2. Hook (0-3s) must be word-for-word spoken or on-screen text matching the requested {clean_tone} tone and {clean_format} format.
+3. Flow (0-3s, 4-15s, 16-25s) must specify camera framing (e.g., 'Overhead flatlay', 'Tight selfie jump-cut', 'Slow-motion macro pan') and audio drop sync.
+4. virality_score must be an integer between 88 and 98 based on format strength.
 
 Return ONLY a valid JSON object in this exact schema:
 {{
   "event_name": "{event_data['name']}",
   "event_slug": "{event_slug}",
   "niche": "{clean_niche}",
+  "tone": "{clean_tone}",
+  "format_style": "{clean_format}",
+  "target_goal": "{clean_goal}",
   "wave_phase": {json.dumps(wave)},
   "audio_recommendation": "{event_data.get('audio_vibe', '')}",
   "recommended_hashtags": {json.dumps(event_data.get('hashtags', [])[:5])},
   "concepts": [
     {{
-      "concept_title": "Short punchy title",
-      "hook_3s": "Word-for-word spoken hook or on-screen text for the first 3 seconds",
-      "hook_archetype": "Contrarian Truth | Relatable POV | Curiosity Gap | Visual Transformation",
-      "format_archetype": "Split-Screen | GRWM & Chat | 3-Step Fast Blueprint | Skit",
+      "concept_title": "Short punchy, creative title",
+      "hook_3s": "Exact word-for-word spoken hook or on-screen text for the first 3 seconds",
+      "hook_archetype": "Contrarian Truth | Relatable POV | Curiosity Gap | Visual Pattern Interrupt | Bold Statement",
+      "format_archetype": "{clean_format.upper()} Format",
       "blueprint_flow": [
-        "0-3s: Hook visual and voiceover",
-        "4-15s: Core high-value delivery or comedic escalation",
-        "16-25s: Punchline, takeaway, and call-to-action"
+        "0-3s: Visual setup, camera angle, and spoken hook",
+        "4-15s: Core high-value delivery, transition, or comedic escalation",
+        "16-25s: Call-to-action driving the {clean_goal} goal (save/share/comment)"
       ],
       "sound_style": "Specific audio style description matching current trending archetypes",
       "optimal_post_window": "Specific posting day and IST time based on current wave phase",
-      "why_algorithm_favors": "Specific reason Instagram algorithm distributes this format (saves, re-watches, DM shares)",
-      "virality_score": 92
+      "why_algorithm_favors": "Specific algorithmic distribution trigger (e.g., high loop rate, DM shareability, collection saves)",
+      "virality_score": 94
     }}
   ]
 }}
@@ -1196,6 +1210,7 @@ Return ONLY a valid JSON object in this exact schema:
                     parsed = json.loads(raw_text.strip())
 
                 if parsed and "concepts" in parsed and len(parsed["concepts"]) >= 3:
+                    parsed["is_ai_generated"] = True
                     _FESTIVE_IDEAS_CACHE[cache_key] = {
                         "cached_at": now_ts,
                         "data": parsed
@@ -1210,6 +1225,9 @@ Return ONLY a valid JSON object in this exact schema:
             "event_name": event_data["name"],
             "event_slug": event_slug,
             "niche": clean_niche,
+            "tone": clean_tone,
+            "format_style": clean_format,
+            "target_goal": clean_goal,
             "wave_phase": wave,
             "audio_recommendation": event_data.get("audio_vibe", "Trending upbeat festive audio"),
             "recommended_hashtags": event_data.get("hashtags", ["#ReelsIndia", "#ViralReels"])[:5],

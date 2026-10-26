@@ -1192,14 +1192,29 @@ export interface FestiveReelConcept {
   virality_score: number;
 }
 
+export interface FestiveQuotaInfo {
+  limit: number;
+  used: number;
+  remaining: number;
+  resets_at: string;
+  is_authenticated?: boolean;
+  is_vip?: boolean;
+}
+
 export interface FestiveIdeasResponse {
   event_name: string;
   event_slug: string;
   niche: string;
+  tone?: string;
+  format_style?: string;
+  target_goal?: string;
   wave_phase: FestiveWavePhase;
   audio_recommendation: string;
   recommended_hashtags: string[];
   is_ai_generated?: boolean;
+  is_fallback?: boolean;
+  is_cached?: boolean;
+  quota?: FestiveQuotaInfo;
   concepts: FestiveReelConcept[];
 }
 
@@ -1210,10 +1225,19 @@ export async function fetchFestiveRadar(niche: string = "all", category: string 
   return http<FestiveRadarResponse>(`/api/india/festive-radar?${params}`);
 }
 
+export async function fetchFestiveQuota(): Promise<FestiveQuotaInfo> {
+  return http<FestiveQuotaInfo>("/api/india/festive-quota");
+}
+
 export async function generateFestiveIdeas(
   eventSlug: string,
   niche: string = "all",
-  customAngle?: string
+  options?: {
+    customAngle?: string;
+    tone?: string;
+    formatStyle?: string;
+    targetGoal?: string;
+  }
 ): Promise<FestiveIdeasResponse> {
   return http<FestiveIdeasResponse>("/api/india/festive-ideas", {
     method: "POST",
@@ -1221,7 +1245,10 @@ export async function generateFestiveIdeas(
     body: JSON.stringify({
       event_slug: eventSlug,
       niche,
-      custom_angle: customAngle,
+      custom_angle: options?.customAngle,
+      tone: options?.tone || "relatable",
+      format_style: options?.formatStyle || "grwm",
+      target_goal: options?.targetGoal || "viral_reach",
     }),
   });
 }

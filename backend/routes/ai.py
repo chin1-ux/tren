@@ -115,6 +115,38 @@ def _check_ai_quota(user_email: str, endpoint: str, tier: str) -> None:
     else:
         _AI_QUOTA_CACHE[cache_key] = {"day": today, "count": 1}
 
+def get_ai_quota_status(user_email: str, endpoint: str, tier: str = "heavy") -> dict:
+    """Return user daily quota usage and remaining allowance."""
+    limit = _DAILY_LIMITS.get(tier, 10)
+    if not user_email or user_email == "guest@trendrop.app":
+        return {"limit": limit, "used": 0, "remaining": limit, "resets_at": "00:00 UTC", "is_authenticated": False}
+    if PlanEnforcement.is_demo_allowlisted(user_email):
+        return {"limit": 999, "used": 0, "remaining": 999, "resets_at": "00:00 UTC", "is_authenticated": True, "is_vip": True}
+    
+    today = time.strftime("%Y-%m-%d")
+    redis_key = f"ai_quota:{user_email}:{endpoint}:{today}"
+    count = 0
+    if standard_queue and standard_queue.connection:
+        try:
+            val = standard_queue.connection.get(redis_key)
+            if val:
+                count = int(val)
+        except Exception:
+            pass
+    if count == 0:
+        entry = _AI_QUOTA_CACHE.get(f"{user_email}:{endpoint}")
+        if entry and entry.get("day") == today:
+            count = entry.get("count", 0)
+    
+    remaining = max(0, limit - count)
+    return {
+        "limit": limit,
+        "used": count,
+        "remaining": remaining,
+        "resets_at": "00:00 UTC",
+        "is_authenticated": True
+    }
+
 @router.post("/api/prepost-score")
 @limiter.limit("8/minute")
 def get_prepost_score(request: Request, req: PrePostRequest, current_user_email: str = Depends(get_current_user)):

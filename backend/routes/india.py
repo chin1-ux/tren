@@ -118,6 +118,20 @@ def get_festive_radar(
         raise HTTPException(status_code=500, detail="Failed to fetch festive radar")
 
 
+@router.get("/api/india/festive-quota")
+def get_festive_quota(
+    request: Request,
+    current_user: str = Depends(get_current_user)
+):
+    """Get the current user's remaining daily AI generation quota."""
+    try:
+        from routes.ai import get_ai_quota_status
+        return get_ai_quota_status(current_user, endpoint="festive_ideas", tier="heavy")
+    except Exception as e:
+        logger.warning(f"Failed to get AI quota: {e}")
+        return {"limit": 10, "used": 0, "remaining": 10, "resets_at": "00:00 UTC", "is_authenticated": True}
+
+
 @router.post("/api/india/festive-ideas")
 @limiter.limit("10/minute")
 def generate_festive_ideas(
@@ -127,9 +141,19 @@ def generate_festive_ideas(
 ):
     """
     Generate 3 tailored viral reel concepts for a festival wave phase and creator niche.
+    Protected by strict 10/day per-user quota and multi-tier model fallback.
     """
     if not CulturalEventCalendar:
         raise HTTPException(status_code=500, detail="Cultural event calendar not configured.")
+
+    # Strict daily quota protection (10 generations/day)
+    try:
+        from routes.ai import _check_ai_quota, get_ai_quota_status
+        _check_ai_quota(current_user, endpoint="festive_ideas", tier="heavy")
+    except HTTPException:
+        raise
+    except Exception as qe:
+        logger.warning(f"Quota check bypass/warning: {qe}")
 
     try:
         real_audios = []
@@ -145,10 +169,21 @@ def generate_festive_ideas(
             event_slug=body.event_slug,
             niche=body.niche or "all",
             custom_angle=body.custom_angle,
+            tone=body.tone or "relatable",
+            format_style=body.format_style or "grwm",
+            target_goal=body.target_goal or "viral_reach",
             grounding_audios=real_audios
         )
         if "error" in ideas:
             raise HTTPException(status_code=400, detail=ideas["error"])
+
+        # Attach updated quota usage info to response
+        try:
+            from routes.ai import get_ai_quota_status
+            ideas["quota"] = get_ai_quota_status(current_user, endpoint="festive_ideas", tier="heavy")
+        except Exception:
+            ideas["quota"] = {"limit": 10, "used": 1, "remaining": 9, "resets_at": "00:00 UTC"}
+
         return ideas
     except HTTPException:
         raise

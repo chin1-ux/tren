@@ -20,17 +20,23 @@ import {
   ArrowRight,
   Layers,
   BarChart2,
-  Info
+  Info,
+  SlidersHorizontal,
+  Video,
+  Target,
+  FileText
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "sonner";
 import { 
   fetchFestiveRadar, 
   generateFestiveIdeas, 
+  fetchFestiveQuota,
   FestiveRadarResponse, 
   FestiveEvent, 
   FestiveIdeasResponse,
-  FestiveReelConcept 
+  FestiveReelConcept,
+  FestiveQuotaInfo 
 } from "@/lib/api";
 import { useUserStore } from "@/store/useAppStore";
 
@@ -54,35 +60,100 @@ const CATEGORY_OPTIONS = [
   { id: "sports_entertainment", label: "Sports & Cricket", emoji: "🏏" },
 ];
 
+const FORMAT_OPTIONS = [
+  { id: "grwm", label: "GRWM & Talking Head", emoji: "🎬", desc: "Face-to-camera personal commentary, prep routine & relatable chatting" },
+  { id: "faceless", label: "Faceless B-Roll & Aesthetic", emoji: "📸", desc: "Cinematic flatlays, hands, atmospheric lighting, mood cuts" },
+  { id: "hack", label: "Fast 3-Step Actionable Hack", emoji: "⚡", desc: "Speedy tactical advice, problem-to-solution structure" },
+  { id: "skit", label: "Relatable POV Skit / Comedy", emoji: "😂", desc: "POV situational comedy, relatable festival chaos & irony" },
+  { id: "transformation", label: "Audio-Synced Transformation", emoji: "🔄", desc: "Satisfying before/after reveal snapped to audio beat drop" },
+];
+
+const TONE_OPTIONS = [
+  { id: "relatable", label: "Relatable & Humorous", emoji: "☕" },
+  { id: "aesthetic", label: "Aesthetic & Luxury", emoji: "✨" },
+  { id: "hype", label: "High-Energy Hype", emoji: "🔥" },
+  { id: "educational", label: "Authoritative & Tactical", emoji: "🧠" },
+  { id: "emotional", label: "Heartfelt & Nostalgic", emoji: "💖" },
+];
+
+const GOAL_OPTIONS = [
+  { id: "viral_reach", label: "Mass Reach & DM Shares", emoji: "🚀" },
+  { id: "saves", label: "High Saves & Bookmarks", emoji: "💾" },
+  { id: "engagement", label: "Comment Debate & Community", emoji: "💬" },
+];
+
+const QUICK_ANGLES = [
+  "Last-minute prep panic",
+  "Budget vs Luxury hack",
+  "3 Mistakes everyone makes",
+  "5-Minute quick glow-up",
+  "What nobody tells you",
+];
+
 export function FestiveViralRadar() {
   const storeNiche = useUserStore((s) => s.niche) || "all";
   const [selectedNiche, setSelectedNiche] = useState<string>(storeNiche);
   const [selectedCategory, setSelectedCategory] = useState<string>("all");
+
+  // Creator Customization Options
+  const [selectedFormat, setSelectedFormat] = useState<string>("grwm");
+  const [selectedTone, setSelectedTone] = useState<string>("relatable");
+  const [selectedGoal, setSelectedGoal] = useState<string>("viral_reach");
+  const [customAngle, setCustomAngle] = useState("");
+  const [isOptionsOpen, setIsOptionsOpen] = useState(true);
+
+  // Radar Data
   const { data: radarData = null, isLoading: loadingRadar } = useQuery<FestiveRadarResponse | null>({
     queryKey: ["festive-radar", selectedNiche, selectedCategory],
     queryFn: () => fetchFestiveRadar(selectedNiche, selectedCategory),
-    staleTime: 10 * 60_000, // 10 min cache for instant niche switching
+    staleTime: 10 * 60_000,
+  });
+
+  // Daily AI Quota Data
+  const { data: quotaData, refetch: refetchQuota } = useQuery<FestiveQuotaInfo>({
+    queryKey: ["festive-quota"],
+    queryFn: fetchFestiveQuota,
+    staleTime: 30_000,
   });
 
   // Idea Generation State
   const [generatingForSlug, setGeneratingForSlug] = useState<string | null>(null);
   const [activeIdeas, setActiveIdeas] = useState<FestiveIdeasResponse | null>(null);
-  const [customAngle, setCustomAngle] = useState("");
   const [copiedHook, setCopiedHook] = useState<string | null>(null);
+  const [copiedFlow, setCopiedFlow] = useState<number | null>(null);
   const [filterPhase, setFilterPhase] = useState<"all" | "golden" | "peak">("all");
 
   const handleGenerateIdeas = async (eventSlug: string, angleOverride?: string) => {
+    if (quotaData && quotaData.remaining <= 0) {
+      toast.error("Daily AI Blueprint quota reached (10/10). Resets at 00:00 UTC. Repeat requests still load instantly from cache!");
+    }
+
     setGeneratingForSlug(eventSlug);
     try {
-      const result = await generateFestiveIdeas(eventSlug, selectedNiche, angleOverride || customAngle);
+      const result = await generateFestiveIdeas(eventSlug, selectedNiche, {
+        customAngle: angleOverride !== undefined ? angleOverride : customAngle,
+        tone: selectedTone,
+        formatStyle: selectedFormat,
+        targetGoal: selectedGoal,
+      });
+
       setActiveIdeas(result);
-      toast.success(`Generated 3 viral concepts for ${result.event_name}!`);
-      // Scroll to ideas section smoothly
+      if (result.quota) {
+        refetchQuota();
+      }
+
+      toast.success(
+        result.is_cached
+          ? `⚡ Loaded cached concept for ${result.event_name} (0 quota used)`
+          : `✨ Generated 3 bespoke viral blueprints for ${result.event_name}!`
+      );
+
       const el = document.getElementById("festive-blueprints-view");
       if (el) el.scrollIntoView({ behavior: "smooth" });
-    } catch (err) {
+    } catch (err: any) {
       console.error("Error generating festive ideas:", err);
-      toast.error("Failed to generate festive concepts. Retrying with offline blueprint...");
+      const msg = err?.message || err?.detail || "Failed to generate festive concepts.";
+      toast.error(msg);
     } finally {
       setGeneratingForSlug(null);
     }
@@ -95,6 +166,19 @@ export function FestiveViralRadar() {
     setTimeout(() => setCopiedHook(null), 2500);
   };
 
+  const copyFullFlow = (concept: FestiveReelConcept, idx: number) => {
+    const text = `Title: ${concept.concept_title}\n` +
+      `3s Hook: "${concept.hook_3s}"\n` +
+      `Format: ${concept.format_archetype} | Tone: ${selectedTone.toUpperCase()}\n\n` +
+      `Script Flow:\n` +
+      concept.blueprint_flow.map((s) => `• ${s}`).join("\n") +
+      `\n\nOptimal Time: ${concept.optimal_post_window}\nAlgorithm Edge: ${concept.why_algorithm_favors}`;
+    navigator.clipboard.writeText(text);
+    setCopiedFlow(idx);
+    toast.success(`Full script & visual flow for Concept #${idx + 1} copied!`);
+    setTimeout(() => setCopiedFlow(null), 2500);
+  };
+
   const allFestivals = [
     ...(radarData?.active_wave_festivals || []),
     ...(radarData?.upcoming_radar_festivals || [])
@@ -105,6 +189,9 @@ export function FestiveViralRadar() {
     if (filterPhase === "peak") return f.wave_phase?.phase === "PEAK_HYPE" || f.wave_phase?.phase === "DAY_OF";
     return true;
   });
+
+  const remainingQuota = quotaData?.remaining ?? 10;
+  const totalLimit = quotaData?.limit ?? 10;
 
   return (
     <div className="space-y-8">
@@ -122,20 +209,36 @@ export function FestiveViralRadar() {
               Film the Pre-Festive Surge <span className="text-orange-400">Before Feeds Flood</span>
             </h2>
             <p className="text-sm text-muted-foreground leading-relaxed">
-              Instagram's algorithm distributes festive curiosity, glow-ups, styling, prep & shopping <strong className="text-foreground">5 to 14 days before</strong> the event. Posting on the festival day means competing with 50M+ personal greeting clips.
+              Instagram's algorithm distributes festive curiosity, styling, prep, & shopping <strong className="text-foreground">5 to 14 days before</strong> the event. Posting on the festival day means competing with 50M+ personal greeting clips.
             </p>
           </div>
 
-          {/* Quick Stat Pill */}
-          <div className="shrink-0 bg-background/80 backdrop-blur border border-border/80 rounded-2xl p-4 flex flex-col items-center justify-center text-center min-w-[160px] shadow-sm">
-            <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Monitored Waves</span>
-            <span className="text-3xl font-extrabold text-foreground mt-1">
-              {radarData?.active_wave_festivals?.length ?? 2} <span className="text-sm font-medium text-orange-400">Active</span>
-            </span>
-            <span className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
-              <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
-              Golden Window Open
-            </span>
+          {/* AI Quota & Stat Pill Group */}
+          <div className="shrink-0 flex flex-col sm:flex-row items-stretch sm:items-center gap-3">
+            {/* Strict Daily Quota Guard */}
+            <div className="bg-background/90 backdrop-blur border border-amber-500/40 rounded-2xl p-4 flex flex-col items-center justify-center text-center min-w-[170px] shadow-sm">
+              <span className="text-[10px] uppercase font-bold text-amber-500 tracking-wider flex items-center gap-1">
+                <Zap className="w-3 h-3" /> AI Daily Quota
+              </span>
+              <span className="text-2xl font-extrabold text-foreground mt-0.5">
+                {remainingQuota} <span className="text-xs font-normal text-muted-foreground">/ {totalLimit} left</span>
+              </span>
+              <span className="text-[10px] text-muted-foreground mt-1">
+                Resets at 00:00 UTC
+              </span>
+            </div>
+
+            {/* Quick Stat Pill */}
+            <div className="bg-background/80 backdrop-blur border border-border/80 rounded-2xl p-4 flex flex-col items-center justify-center text-center min-w-[150px] shadow-sm">
+              <span className="text-xs uppercase font-bold text-muted-foreground tracking-wider">Active Waves</span>
+              <span className="text-2xl font-extrabold text-foreground mt-0.5">
+                {radarData?.active_wave_festivals?.length ?? 2} <span className="text-xs font-medium text-orange-400">Waves</span>
+              </span>
+              <span className="text-[11px] text-emerald-400 font-semibold mt-1 flex items-center gap-1">
+                <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping inline-block" />
+                Golden Filming Open
+              </span>
+            </div>
           </div>
         </div>
 
@@ -178,6 +281,7 @@ export function FestiveViralRadar() {
           <h3 className="text-xs font-bold uppercase tracking-wider text-muted-foreground">Event Scope</h3>
           <p className="text-[11px] text-muted-foreground">Filter by Indian cultural traditions or global pop-culture viral spikes.</p>
         </div>
+
         <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-1 no-scrollbar">
           {CATEGORY_OPTIONS.map((cat) => (
             <button
@@ -200,7 +304,7 @@ export function FestiveViralRadar() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
         <div>
           <h3 className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Select Your Creator Niche</h3>
-          <p className="text-xs text-muted-foreground">Reel concepts and compatibility scores will adapt to your category.</p>
+          <p className="text-xs text-muted-foreground">Reel concepts and compatibility scores adapt to your category.</p>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto max-w-full pb-2 no-scrollbar">
@@ -210,7 +314,7 @@ export function FestiveViralRadar() {
               onClick={() => setSelectedNiche(n.id)}
               className={`px-3 py-1.5 rounded-full text-xs font-semibold whitespace-nowrap transition-all flex items-center gap-1.5 border ${
                 selectedNiche === n.id
-                  ? "bg-primary text-primary-foreground border-primary shadow-sm"
+                  ? "bg-primary text-primary-foreground border-primary shadow-sm font-bold"
                   : "bg-card/70 text-muted-foreground border-border/60 hover:text-foreground hover:bg-muted"
               }`}
             >
@@ -219,6 +323,129 @@ export function FestiveViralRadar() {
             </button>
           ))}
         </div>
+      </div>
+
+      {/* Interactive Creator Blueprint Studio Customizer */}
+      <div className="rounded-2xl border border-primary/20 bg-card/60 backdrop-blur p-5 space-y-4">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal className="w-4 h-4 text-primary" />
+            <h3 className="text-sm font-bold font-display text-foreground">
+              Creator Blueprint Options
+            </h3>
+            <span className="text-[10px] text-muted-foreground bg-muted px-2 py-0.5 rounded-full">
+              Customizes AI tone, script flow & hook style
+            </span>
+          </div>
+          <button
+            onClick={() => setIsOptionsOpen(!isOptionsOpen)}
+            className="text-xs text-primary font-semibold hover:underline"
+          >
+            {isOptionsOpen ? "Collapse Options" : "Customize Strategy"}
+          </button>
+        </div>
+
+        {isOptionsOpen && (
+          <div className="space-y-4 pt-2 border-t border-border/40 text-xs">
+            {/* 1. Format Style */}
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 flex items-center gap-1">
+                <Video className="w-3.5 h-3.5 text-orange-400" />
+                1. Video Format / Style
+              </label>
+              <div className="flex items-center gap-2 flex-wrap">
+                {FORMAT_OPTIONS.map((f) => (
+                  <button
+                    key={f.id}
+                    onClick={() => setSelectedFormat(f.id)}
+                    className={`px-3 py-1.5 rounded-xl border transition-all text-left flex items-center gap-1.5 ${
+                      selectedFormat === f.id
+                        ? "bg-orange-500/15 border-orange-500/50 text-foreground font-semibold shadow-sm"
+                        : "bg-muted/40 border-border/50 text-muted-foreground hover:text-foreground"
+                    }`}
+                  >
+                    <span>{f.emoji}</span>
+                    <span>{f.label}</span>
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* 2. Tone & Vibe + 3. Viral Goal in 2 columns */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Tone */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 flex items-center gap-1">
+                  <span>☕</span> 2. Tone & Voice
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {TONE_OPTIONS.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => setSelectedTone(t.id)}
+                      className={`px-2.5 py-1 rounded-lg border transition-all text-xs flex items-center gap-1 ${
+                        selectedTone === t.id
+                          ? "bg-primary/15 border-primary/50 text-primary font-bold shadow-sm"
+                          : "bg-muted/30 border-border/50 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span>{t.emoji}</span>
+                      <span>{t.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Goal */}
+              <div>
+                <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5 flex items-center gap-1">
+                  <Target className="w-3.5 h-3.5 text-emerald-400" /> 3. Primary Viral Metric
+                </label>
+                <div className="flex items-center gap-1.5 flex-wrap">
+                  {GOAL_OPTIONS.map((g) => (
+                    <button
+                      key={g.id}
+                      onClick={() => setSelectedGoal(g.id)}
+                      className={`px-2.5 py-1 rounded-lg border transition-all text-xs flex items-center gap-1 ${
+                        selectedGoal === g.id
+                          ? "bg-emerald-500/15 border-emerald-500/50 text-emerald-400 font-bold shadow-sm"
+                          : "bg-muted/30 border-border/50 text-muted-foreground hover:text-foreground"
+                      }`}
+                    >
+                      <span>{g.emoji}</span>
+                      <span>{g.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* 4. Quick Angles & Custom Creator Note */}
+            <div>
+              <label className="text-[11px] font-bold uppercase tracking-wider text-muted-foreground block mb-1.5">
+                4. Custom Angle or Quick Theme Idea
+              </label>
+              <div className="flex items-center gap-1.5 flex-wrap mb-2">
+                {QUICK_ANGLES.map((angle) => (
+                  <button
+                    key={angle}
+                    onClick={() => setCustomAngle(angle)}
+                    className="px-2.5 py-0.5 rounded-full bg-muted/60 hover:bg-muted text-[11px] text-muted-foreground hover:text-foreground transition-colors border border-border/40"
+                  >
+                    + {angle}
+                  </button>
+                ))}
+              </div>
+              <input
+                type="text"
+                value={customAngle}
+                onChange={(e) => setCustomAngle(e.target.value)}
+                placeholder="Optional: Describe your product, specific joke, outfit, or specific hook idea..."
+                className="w-full bg-background border border-border/70 rounded-xl px-3 py-2 text-xs text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+              />
+            </div>
+          </div>
+        )}
       </div>
 
       {/* Active Golden Opportunity Spotlight */}
@@ -290,14 +517,14 @@ export function FestiveViralRadar() {
                 )}
               </Button>
               <p className="text-[11px] text-muted-foreground text-center">
-                Generates 3 word-for-word hooks & 3-step script flows
+                Generates 3 word-for-word hooks & camera directions ({remainingQuota}/{totalLimit} daily credits left)
               </p>
             </div>
           </div>
         </div>
       )}
 
-      {/* Generated Ideas Spotlight Section (Appears when user clicks generate) */}
+      {/* Generated Ideas Spotlight Section */}
       <AnimatePresence>
         {activeIdeas && (
           <motion.div
@@ -311,11 +538,21 @@ export function FestiveViralRadar() {
               <div>
                 <div className="flex items-center gap-2 flex-wrap">
                   <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-primary/10 text-primary border border-primary/20">
-                    {activeIdeas.is_ai_generated ? "✨ AI Generated Blueprints" : "🎯 High-Converting Blueprint"}
+                    {activeIdeas.is_ai_generated ? "✨ AI Generated Blueprints" : activeIdeas.is_cached ? "⚡ Instant Cached Blueprint" : "🎯 High-Converting Blueprint"}
                   </span>
                   <span className="text-xs text-muted-foreground uppercase font-bold tracking-wider">
                     {activeIdeas.niche} Niche
                   </span>
+                  {activeIdeas.tone && (
+                    <span className="text-[11px] text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-md border border-amber-500/20">
+                      {activeIdeas.tone}
+                    </span>
+                  )}
+                  {activeIdeas.format_style && (
+                    <span className="text-[11px] text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-md border border-purple-500/20">
+                      {activeIdeas.format_style}
+                    </span>
+                  )}
                 </div>
                 <h3 className="text-xl md:text-2xl font-bold font-display text-foreground mt-1">
                   Viral Concepts for {activeIdeas.event_name}
@@ -399,11 +636,27 @@ export function FestiveViralRadar() {
 
                     {/* Step-by-Step Blueprint */}
                     <div className="space-y-1.5">
-                      <span className="text-[10px] uppercase font-bold text-muted-foreground block">
-                        Script & Visual Flow:
-                      </span>
+                      <div className="flex items-center justify-between">
+                        <span className="text-[10px] uppercase font-bold text-muted-foreground block">
+                          Script & Camera Directives:
+                        </span>
+                        <button
+                          onClick={() => copyFullFlow(concept, idx)}
+                          className="text-[10px] text-primary hover:underline flex items-center gap-1 font-semibold"
+                        >
+                          {copiedFlow === idx ? (
+                            <>
+                              <Check className="w-3 h-3 text-emerald-400" /> Copied Flow
+                            </>
+                          ) : (
+                            <>
+                              <FileText className="w-3 h-3" /> Copy Full Flow
+                            </>
+                          )}
+                        </button>
+                      </div>
                       {concept.blueprint_flow.map((step, sIdx) => (
-                        <div key={sIdx} className="text-xs text-muted-foreground flex items-start gap-1.5 leading-relaxed">
+                        <div key={sIdx} className="text-xs text-muted-foreground flex items-start gap-1.5 leading-relaxed bg-muted/20 p-2 rounded-lg">
                           <span className="text-primary font-bold text-[11px] shrink-0">•</span>
                           <span>{step}</span>
                         </div>
@@ -476,7 +729,7 @@ export function FestiveViralRadar() {
             <button
               onClick={() => setFilterPhase("all")}
               className={`px-3 py-1 rounded-lg text-xs font-semibold transition-all ${
-                filterPhase === "all" ? "bg-card text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"
+                filterPhase === "all" ? "bg-card text-foreground shadow-sm font-bold" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               All Waves ({allFestivals.length})
@@ -605,7 +858,7 @@ export function FestiveViralRadar() {
                     disabled={isGenerating}
                     onClick={() => handleGenerateIdeas(festival.slug)}
                     className={`w-full rounded-xl text-xs h-9 gap-1.5 font-bold ${
-                      isGolden ? "bg-emerald-500 hover:bg-emerald-600 text-white" : ""
+                      isGolden ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm" : ""
                     }`}
                   >
                     {isGenerating ? (
