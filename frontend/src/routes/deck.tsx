@@ -15,6 +15,7 @@ import {
   RefreshCw,
   HelpCircle,
 } from 'lucide-react';
+import { toast } from 'sonner';
 
 import {
   type DeckTrend,
@@ -272,7 +273,14 @@ function DeckScreen() {
 
       // On silent background polling: only update pool in memory, do NOT wipe or disrupt the active vinyl card
       if (!isSilent) {
-        const ranked = rankDeck(pool, swipes, 15);
+        let ranked = rankDeck(pool, swipes, 15);
+        if (ranked.length === 0 && pool.length > 0) {
+          const kept = swipes.filter((s) => s.action === 'use');
+          ranked = rankDeck(pool, kept, 15);
+          if (ranked.length === 0) {
+            ranked = rankDeck(pool, [], 15);
+          }
+        }
         setDeck(ranked);
         setCurrentIndex(0);
       }
@@ -287,6 +295,18 @@ function DeckScreen() {
       }
     }
   }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes]);
+
+  // Switch between India and Global mode cleanly without leaving stale state
+  const handleSwitchMode = useCallback((newMode: 'india' | 'global') => {
+    setMode(newMode);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('trendrop_deck_mode', newMode);
+    }
+    setCurrentIndex(0);
+    setBatchCount(1);
+    setDeck([]);
+    setLoading(true);
+  }, []);
 
   // Refresh deck from start & sync latest trends (resets passed cards so creator can see them again from start)
   const handleRefreshDeckFromStart = useCallback(async () => {
@@ -328,16 +348,32 @@ function DeckScreen() {
       setRawPool(pool);
 
       // 3. Re-rank from the beginning (index 0) with newly fetched trends prioritizing first
-      const freshRanked = rankDeck(pool, keptSwipes, 15);
-      setDeck(freshRanked);
-      setCurrentIndex(0);
-      setBatchCount(1);
+      let freshRanked = rankDeck(pool, keptSwipes, 15);
+      if (freshRanked.length === 0 && pool.length > 0) {
+        freshRanked = rankDeck(pool, [], 15);
+      }
+
+      // If top card matches the current visible card, rotate by 1 so the refresh is visibly apparent
+      if (freshRanked.length > 1 && currentVinyl && freshRanked[0]?.id === currentVinyl.id) {
+        const [first, ...rest] = freshRanked;
+        freshRanked = [...rest, first];
+      }
+
+      if (freshRanked.length > 0) {
+        setDeck(freshRanked);
+        setCurrentIndex(0);
+        setBatchCount(1);
+      }
+      toast.success('Synced latest live audios', {
+        description: `Loaded ${freshRanked.length} fresh breakout tracks`,
+      });
     } catch (err: any) {
       console.error('Failed to refresh deck:', err);
+      toast.error('Sync failed', { description: 'Could not connect to live audio server' });
     } finally {
       setIsRefreshing(false);
     }
-  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes]);
+  }, [mode, selectedLanguages, selectedNiches, includeExpiredDeck, swipes, currentVinyl]);
 
   // Initial fetch on mount & filter changes
   useEffect(() => {
@@ -543,22 +579,24 @@ function DeckScreen() {
     return rawPool.filter((c) => !swipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id))).length;
   }, [rawPool, swipes]);
 
-  // Deal Next 15 Candidates with continuous batching
+  // Deal Next 15 Candidates with continuous batching & bulletproof redeal
   const handleDealMore = useCallback(async () => {
     setIsDealingMore(true);
     try {
       let poolToUse = rawPool;
+
+      // Always fetch fresh pool if empty or running low
       const swipedIds = new Set(swipes.map((s) => s.trend_id));
       const swipedAudios = new Set(swipes.map((s) => s.audio_id).filter(Boolean));
       let unswiped = poolToUse.filter((c) => !swipedIds.has(c.id) && !(c.audio_id && swipedAudios.has(c.audio_id)));
 
-      // If pool is running low (< 5), fetch an expanded pool from backend
-      if (unswiped.length < 5) {
+      if (unswiped.length < 5 || poolToUse.length === 0) {
         try {
           const params = new URLSearchParams({
             mode,
             limit: '120',
-            include_expired: 'true',
+            fresh: 'true',
+            _t: Date.now().toString(),
           });
           if (selectedLanguages.length > 0) {
             params.append('langs', selectedLanguages.join(','));
@@ -566,15 +604,18 @@ function DeckScreen() {
           if (selectedNiches.length > 0) {
             params.append('niches', selectedNiches.join(','));
           }
-          const res = await fetch(`${API_URL}/api/deck?${params.toString()}`);
+          if (includeExpiredDeck || selectedNiches.length > 0) {
+            params.append('include_expired', 'true');
+          }
+          const res = await fetch(`${API_URL}/api/deck?${params.toString()}`, {
+            headers: { 'Cache-Control': 'no-cache', 'Pragma': 'no-cache' },
+          });
           if (res.ok) {
             const data = await res.json();
             const freshTrends: DeckTrend[] = data.trends || [];
             if (freshTrends.length > 0) {
               setRawPool(freshTrends);
               poolToUse = freshTrends;
-              const freshSwiped = new Set(swipes.map((s) => s.trend_id));
-              unswiped = freshTrends.filter((c) => !freshSwiped.has(c.id));
             }
           }
         } catch (fetchErr) {
@@ -582,26 +623,40 @@ function DeckScreen() {
         }
       }
 
-      // If still 0 unswiped, automatically clear skips to re-deal with refined taste
-      let activeSwipes = swipes;
-      if (unswiped.length === 0) {
-        activeSwipes = swipes.filter((s) => s.action === 'use');
-        setSwipes(activeSwipes);
-        if (typeof window !== 'undefined') {
-          localStorage.setItem('trendrop_local_swipes', JSON.stringify(activeSwipes));
-        }
+      // Keep saved audios safe, clear passed skips so catalog loops seamlessly
+      let activeSwipes = swipes.filter((s) => s.action === 'use');
+      setSwipes(activeSwipes);
+      if (typeof window !== 'undefined') {
+        localStorage.setItem('trendrop_local_swipes', JSON.stringify(activeSwipes));
       }
 
-      const nextRanked = rankDeck(poolToUse, activeSwipes, 15);
+      // Rank deck
+      let nextRanked = rankDeck(poolToUse, activeSwipes, 15);
+
+      // If still 0 (e.g. all cards were swiped or filtered), cleanly redeal entire pool
+      if (nextRanked.length === 0 && poolToUse.length > 0) {
+        setSwipes([]);
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('trendrop_local_swipes');
+        }
+        nextRanked = rankDeck(poolToUse, [], 15);
+      }
+
       if (nextRanked.length > 0) {
         setDeck(nextRanked);
         setCurrentIndex(0);
         setBatchCount((prev) => prev + 1);
+        toast.success(`Redealt catalog with ${nextRanked.length} trending audios`);
+      } else {
+        // Ultimate fallback: reset currentIndex to 0 if cards exist in deck
+        if (deck.length > 0) {
+          setCurrentIndex(0);
+        }
       }
     } finally {
       setIsDealingMore(false);
     }
-  }, [rawPool, swipes, mode, selectedLanguages, selectedNiches]);
+  }, [rawPool, swipes, mode, selectedLanguages, selectedNiches, includeExpiredDeck, deck.length]);
 
   // Re-shuffle passed tracks (keeps saved audios safe, resets skips)
   const handleReshufflePassed = useCallback(() => {
@@ -610,11 +665,15 @@ function DeckScreen() {
     if (typeof window !== 'undefined') {
       localStorage.setItem('trendrop_local_swipes', JSON.stringify(keptSwipes));
     }
-    const freshRanked = rankDeck(rawPool, keptSwipes, 15);
+    let freshRanked = rankDeck(rawPool, keptSwipes, 15);
+    if (freshRanked.length === 0 && rawPool.length > 0) {
+      freshRanked = rankDeck(rawPool, [], 15);
+    }
     if (freshRanked.length > 0) {
       setDeck(freshRanked);
       setCurrentIndex(0);
       setBatchCount((prev) => prev + 1);
+      toast.success('Catalog reshuffled with fresh priority');
     }
   }, [rawPool, swipes]);
 
@@ -627,139 +686,141 @@ function DeckScreen() {
 
       {/* Top Header Bar */}
       <header
-        className="flex flex-col gap-2.5 px-4 pt-3 pb-2.5 border-b border-border/40 z-40 sticky top-0 bg-background/85 backdrop-blur-xl"
+        className="flex flex-col gap-2 px-3 sm:px-4 pt-2.5 pb-2 border-b border-border/40 z-40 sticky top-0 bg-background/85 backdrop-blur-xl"
       >
-        <div className="flex items-center justify-between">
-          {/* Left: Mode Toggle & Niche Chip */}
-          <div className="flex items-center gap-2">
+        {/* Top Controls Row */}
+        <div className="flex items-center justify-between w-full min-w-0 gap-2">
+          {/* Left: Mode Switcher & Niche Filter & Guide */}
+          <div className="flex items-center gap-1.5 min-w-0 shrink">
             <button
-              onClick={() => {
-                const newMode = mode === 'india' ? 'global' : 'india';
-                setMode(newMode);
-                if (typeof window !== 'undefined') {
-                  localStorage.setItem('trendrop_deck_mode', newMode);
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full border text-xs font-semibold transition-all shadow-xs active:scale-95"
+              onClick={() => handleSwitchMode(mode === 'india' ? 'global' : 'india')}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold shrink-0 transition-all active:scale-95 cursor-pointer shadow-xs"
               style={{
-                background: '#FF4D3D', color: '#fff',
-                border: 'none', boxShadow: '0 2px 8px rgba(255,77,61,0.3)',
+                background: '#FF4D3D',
+                color: '#fff',
+                border: 'none',
+                boxShadow: '0 2px 8px rgba(255,77,61,0.3)',
               }}
+              title={`Switch to ${mode === 'india' ? 'Global' : 'India'} trends`}
             >
               <span>{mode === 'india' ? '🇮🇳 India' : '🌍 Global'}</span>
             </button>
 
             <button
               onClick={() => setIsOnboardingOpen(true)}
-              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 border"
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs transition-all active:scale-95 shrink min-w-0 cursor-pointer"
+              style={{
+                background: 'rgba(255,77,61,0.08)',
+                border: '1px solid rgba(255,77,61,0.2)',
+                color: '#FF4D3D',
+              }}
+              title="Filter by niche"
+            >
+              <span className="truncate max-w-[76px] sm:max-w-[120px] font-medium">
+                {selectedNiches.length > 0 ? selectedNiches.join(', ') : 'All Niches'}
+              </span>
+              <ChevronDown className="w-3 h-3 shrink-0" />
+            </button>
+
+            {/* Guide Button */}
+            <button
+              onClick={() => setIsOnboardingOpen(true)}
+              className="flex items-center gap-1 px-2 py-1.5 rounded-full text-xs transition-all active:scale-95 shrink-0 cursor-pointer"
               style={{
                 background: 'rgba(255,77,61,0.08)',
                 border: '1px solid rgba(255,77,61,0.22)',
                 color: '#FF4D3D',
               }}
               title="Deck Walkthrough & Guide"
+              aria-label="Deck Walkthrough & Guide"
             >
               <HelpCircle className="w-3.5 h-3.5" />
-              <span>Guide</span>
+              <span className="hidden sm:inline">Guide</span>
             </button>
-
-            <button
-              onClick={() => setIsOnboardingOpen(true)}
-              className="flex items-center gap-1 px-3 py-1.5 rounded-full text-xs transition-all active:scale-95"
-              style={{
-                background: 'rgba(255,77,61,0.08)',
-                border: '1px solid rgba(255,77,61,0.2)',
-                color: '#FF4D3D',
-              }}
-            >
-              <span className="truncate max-w-[100px]">
-                {selectedNiches.length > 0 ? selectedNiches.join(', ') : 'All Niches'}
-              </span>
-              <ChevronDown className="w-3.5 h-3.5 shrink-0" />
-            </button>
-
-            {/* Expired Toggle Chip in Deck Header */}
-            {activeTab === 'deck' && (
-              <button
-                onClick={() => setIncludeExpiredDeck((prev) => !prev)}
-                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs transition-all active:scale-95"
-                style={{
-                  background: includeExpiredDeck ? 'rgba(100,116,139,0.18)' : 'rgba(0,0,0,0.05)',
-                  border: `1px solid ${includeExpiredDeck ? 'rgba(100,116,139,0.35)' : 'rgba(0,0,0,0.08)'}`,
-                  color: includeExpiredDeck ? '#334155' : '#9A9AA8',
-                  fontWeight: includeExpiredDeck ? 700 : 500,
-                }}
-                title="Toggle including expired tracks in deck"
-              >
-                <span>{includeExpiredDeck ? '⛔ +Expired' : 'Active Only'}</span>
-              </button>
-            )}
           </div>
 
-          {/* Right: Refresh & Progress */}
+          {/* Right: Sync & Progress */}
           {activeTab === 'deck' && (
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-1.5 shrink-0">
               <button
                 onClick={handleRefreshDeckFromStart}
                 disabled={isRefreshing}
-                title="Restart deck from start & sync latest trends (resets passed cards)"
-                className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 bg-background border border-[#FF4D3D]/30 text-[#FF4D3D] hover:bg-[#FF4D3D]/10 shadow-xs cursor-pointer"
+                title="Sync latest live breakout audios"
+                className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-semibold transition-all active:scale-95 bg-background border border-[#FF4D3D]/30 text-[#FF4D3D] hover:bg-[#FF4D3D]/10 shadow-xs cursor-pointer shrink-0"
               >
                 <RefreshCw className={`w-3.5 h-3.5 ${isRefreshing ? 'animate-spin' : ''}`} />
-                <span>Refresh</span>
+                <span>Sync</span>
               </button>
               <span
-                className="text-xs font-mono font-medium px-2.5 py-1 rounded-full"
+                className="text-xs font-mono font-medium px-2 py-1 rounded-full shrink-0"
                 style={{ background: 'rgba(255,77,61,0.08)', color: '#FF4D3D', border: '1px solid rgba(255,77,61,0.15)' }}
               >
-                {Math.min(currentIndex + 1, deck.length || 15)} / {deck.length || 15}
+                {Math.min(currentIndex + 1, deck.length || 15)}/{deck.length || 15}
               </span>
             </div>
           )}
         </div>
 
-        {/* Sub-view Switcher */}
-        <div
-          className="flex items-center justify-center p-1 rounded-full max-w-sm mx-auto w-full"
-          style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
-        >
-          <button
-            onClick={() => setActiveTab('deck')}
-            className={`flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5`}
-            style={activeTab === 'deck'
-              ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
-              : { color: '#9A9AA8' }
-            }
+        {/* Sub-view Switcher & Expired Chip Row */}
+        <div className="flex items-center justify-between gap-2 max-w-sm mx-auto w-full">
+          <div
+            className="flex-1 flex items-center justify-center p-1 rounded-full"
+            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)' }}
           >
-            <Layers className="w-3.5 h-3.5" />
-            <span>Deck</span>
-          </button>
-          <button
-            onClick={() => navigate({ to: '/', search: { tab: 'feed' } as any })}
-            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 active:scale-95"
-            style={{ color: '#9A9AA8' }}
-          >
-            <Compass className="w-3.5 h-3.5" />
-            <span>Feed</span>
-          </button>
-          <button
-            onClick={() => setActiveTab('picks')}
-            className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1.5 relative"
-            style={activeTab === 'picks'
-              ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
-              : { color: '#9A9AA8' }
-            }
-          >
-            <Bookmark className="w-3.5 h-3.5" />
-            <span>Picks</span>
-            {savedAudios.length > 0 && (
-              <span className="px-1.5 py-0.2 text-[10px] rounded-full font-mono"
-                style={{ background: 'rgba(199,242,58,0.8)', color: '#0E0E10' }}
-              >
-                {savedAudios.length}
-              </span>
-            )}
-          </button>
+            <button
+              onClick={() => setActiveTab('deck')}
+              className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1 cursor-pointer"
+              style={activeTab === 'deck'
+                ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
+                : { color: '#9A9AA8' }
+              }
+            >
+              <Layers className="w-3.5 h-3.5" />
+              <span>Deck</span>
+            </button>
+            <button
+              onClick={() => navigate({ to: '/', search: { tab: 'feed' } as any })}
+              className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1 active:scale-95 cursor-pointer"
+              style={{ color: '#9A9AA8' }}
+            >
+              <Compass className="w-3.5 h-3.5" />
+              <span>Feed</span>
+            </button>
+            <button
+              onClick={() => setActiveTab('picks')}
+              className="flex-1 py-1.5 rounded-full text-xs font-bold transition-all flex items-center justify-center gap-1 relative cursor-pointer"
+              style={activeTab === 'picks'
+                ? { background: '#FF4D3D', color: '#fff', boxShadow: '0 2px 8px rgba(255,77,61,0.35)' }
+                : { color: '#9A9AA8' }
+              }
+            >
+              <Bookmark className="w-3.5 h-3.5" />
+              <span>Picks</span>
+              {savedAudios.length > 0 && (
+                <span className="px-1.5 py-0.2 text-[10px] rounded-full font-mono"
+                  style={{ background: 'rgba(199,242,58,0.8)', color: '#0E0E10' }}
+                >
+                  {savedAudios.length}
+                </span>
+              )}
+            </button>
+          </div>
+
+          {activeTab === 'deck' && (
+            <button
+              onClick={() => setIncludeExpiredDeck((prev) => !prev)}
+              className="flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] transition-all active:scale-95 shrink-0 cursor-pointer"
+              style={{
+                background: includeExpiredDeck ? 'rgba(100,116,139,0.18)' : 'rgba(0,0,0,0.05)',
+                border: `1px solid ${includeExpiredDeck ? 'rgba(100,116,139,0.35)' : 'rgba(0,0,0,0.08)'}`,
+                color: includeExpiredDeck ? '#334155' : '#9A9AA8',
+                fontWeight: includeExpiredDeck ? 700 : 500,
+              }}
+              title="Toggle including expired tracks in deck"
+            >
+              <span>{includeExpiredDeck ? '⛔ +Expired' : 'Active'}</span>
+            </button>
+          )}
         </div>
       </header>
 
