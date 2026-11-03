@@ -856,6 +856,7 @@ class InstagramScraper:
 
         ctx = None
         page = None
+        items: list = []
         try:
             cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
             if not os.path.exists(cookies_path):
@@ -905,7 +906,7 @@ class InstagramScraper:
                     wait_until="domcontentloaded",  # was: networkidle (waits 30s+ on Instagram SPA)
                     timeout=15000,
                 )
-                await page.wait_for_timeout(800)
+                await page.wait_for_timeout(2500)
             except Exception as e:
                 logger.warning(f"Navigation issue for #{hashtag}: {e}")
             finally:
@@ -948,7 +949,10 @@ class InstagramScraper:
                 logger.warning(f"No data returned for #{hashtag}")
                 return []
 
-            raw_data = data.get("data", {})
+            raw_data = data.get("data")
+            if not isinstance(raw_data, dict):
+                logger.warning(f"No valid data payload in response for #{hashtag}")
+                return []
 
             top_sections = raw_data.get("top", {}).get("sections", [])
             recent_sections = raw_data.get("recent", {}).get("sections", [])
@@ -1877,6 +1881,9 @@ Return ONLY valid JSON, no markdown, no explanation:
                     if not await self._init_browser_async():
                         logger.error("Browser reinitialization failed after timeout. Aborting scrape.")
                         break
+                    items = []
+                except Exception as tag_err:
+                    logger.error(f"Error scraping #{tag}: {tag_err}. Continuing with remaining hashtags...", exc_info=True)
                     items = []
                 finally:
                     if _has_sigalrm:
