@@ -553,7 +553,7 @@ def run_full_pipeline(stages: list = None):
             logging.info("Step 1b/5: Harvesting live algorithmic Reels stream (/reels/)...")
             import asyncio
             from feed_harvester import harvest_algorithmic_feed, save_harvested_reels
-            feed_reels = asyncio.run(harvest_algorithmic_feed(scroll_count=6))
+            feed_reels = asyncio.run(harvest_algorithmic_feed(scroll_count=15))
             sb_feed = _get_supabase()
             feed_stats = save_harvested_reels(sb_feed, feed_reels, live=True)
             new_feed_count = feed_stats.get("saved", 0)

@@ -176,7 +176,7 @@ async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
         page = await ctx.new_page()
 
         async def handle_response(response):
-            if "graphql/query" in response.url or "api/v1/clips/home" in response.url:
+            if "api/graphql" in response.url or "graphql/query" in response.url or "api/v1/clips/home" in response.url:
                 try:
                     data = await response.json()
                     new_items = extract_reels_from_graphql_payload(data)
@@ -200,7 +200,7 @@ async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
 
         for step in range(scroll_count):
             logger.info(f"Advancing feed (scroll step {step + 1}/{scroll_count})...")
-            await page.keyboard.press("PageDown")
+            await page.keyboard.press("ArrowDown")
             # Natural human viewing pause (2.5 - 4 seconds)
             await page.wait_for_timeout(3000)
 
