@@ -823,9 +823,10 @@ class InstagramScraper:
         """Load Instagram headers and cookies for direct HTTP fallbacks."""
         cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
         headers = {
-            "User-Agent": "Mozilla/5.0",
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
             "X-IG-App-ID": "936619743392459",
             "X-Requested-With": "XMLHttpRequest",
+            "Accept": "*/*",
             "Accept-Language": "en-US,en;q=0.9",
             "Referer": "https://www.instagram.com/",
         }
@@ -845,8 +846,8 @@ class InstagramScraper:
         return headers, cookies
 
     async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
-        """Navigate to the Instagram hashtag explore page with the Camoufox stealth browser
-        and capture the API JSON response via XHR interception."""
+        """Navigate to the Instagram search keyword page with the Camoufox stealth browser,
+        capture reel candidates from the search SERP GraphQL response, and fetch media details."""
         if not self._camoufox_browser or not self._camoufox_browser.is_connected():
             logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
             await self._close_browser_async()
@@ -863,7 +864,7 @@ class InstagramScraper:
                 logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
                 return []
 
-            with open(cookies_path, "r") as f:
+            with open(cookies_path, "r", encoding="utf-8") as f:
                 cookies = json.load(f)
 
             formatted_cookies = [
@@ -886,116 +887,96 @@ class InstagramScraper:
                 "Referer": "https://www.instagram.com/",
             })
 
-            captured_json: list = [None]
+            serp_candidates: list[dict] = []
+            got_serp = asyncio.Event()
 
-            def handle_response(response):
-                """Intercept the Instagram tags API XHR response."""
-                if "api/v1/tags/web_info" in response.url:
+            async def handle_response(response):
+                """Intercept the Instagram GraphQL SERP response."""
+                if "api/graphql" in response.url:
                     try:
-                        captured_json[0] = response.json()
+                        res_json = await response.json()
+                        serp = (res_json.get("data") or {}).get("xdt_fbsearch__top_serp_graphql") or {}
+                        for edge in serp.get("edges", []):
+                            for itm in edge.get("node", {}).get("items", []):
+                                pk = itm.get("pk")
+                                mtype = itm.get("media_type")
+                                if pk and mtype in (2, 8):
+                                    serp_candidates.append(itm)
+                        if serp_candidates:
+                            got_serp.set()
                     except Exception:
                         pass
 
             page = await ctx.new_page()
             page.on("response", handle_response)
 
+            clean_tag = hashtag.lstrip("#").strip()
+            search_url = f"https://www.instagram.com/explore/search/keyword/?q=%23{clean_tag}"
             try:
-                logger.info(f"Navigating Camoufox to explore page for #{hashtag}...")
-                await page.goto(
-                    f"https://www.instagram.com/explore/tags/{hashtag}/",
-                    wait_until="domcontentloaded",  # was: networkidle (waits 30s+ on Instagram SPA)
-                    timeout=15000,
-                )
-                await page.wait_for_timeout(2500)
+                logger.info(f"Navigating Camoufox to search page for #{clean_tag}: {search_url}...")
+                await page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
+                try:
+                    await asyncio.wait_for(got_serp.wait(), timeout=10.0)
+                except asyncio.TimeoutError:
+                    logger.warning(f"SERP GraphQL wait timed out for #{clean_tag}")
             except Exception as e:
-                logger.warning(f"Navigation issue for #{hashtag}: {e}")
+                logger.warning(f"Navigation issue for #{clean_tag}: {e}")
             finally:
                 try:
                     page.remove_listener("response", handle_response)
                 except Exception:
                     pass
 
-            # Fallback: directly navigate to the API URL if the XHR was not captured
-            if not captured_json[0]:
-                logger.warning(f"XHR not captured for #{hashtag} — trying direct API endpoint...")
-                for attempt in range(2):
-                    try:
-                        headers, cookies = self._load_instagram_cookie_headers()
-                        response = requests.get(
-                            f"https://www.instagram.com/api/v1/tags/web_info/?tag_name={hashtag}",
-                            headers=headers,
-                            cookies=cookies,
-                            timeout=20,
-                        )
-                        response.raise_for_status()
-                        captured_json[0] = response.json()
-                        break
-                    except Exception as e:
-                        if attempt == 0:
-                            logger.warning(
-                                f"Direct API fetch failed for #{hashtag}: {e}. Reinitializing browser and retrying once..."
-                            )
-                        else:
-                            logger.error(f"Direct API fetch also failed for #{hashtag}: {e}")
-                            return []
-
             # Detect login wall / challenge after navigation
             current_url = page.url
             if "/accounts/login/" in current_url or "/challenge/" in current_url:
                 raise RuntimeError(f"INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page ({current_url}) during scrape. Please refresh cookies.json.")
 
-            data = captured_json[0]
-            if not data:
-                logger.warning(f"No data returned for #{hashtag}")
+            if not serp_candidates:
+                logger.warning(f"No SERP candidate reels captured for #{clean_tag}")
                 return []
 
-            raw_data = data.get("data")
-            if not isinstance(raw_data, dict):
-                logger.warning(f"No valid data payload in response for #{hashtag}")
-                return []
+            logger.info(f"Captured {len(serp_candidates)} candidate reels from #{clean_tag} SERP. Resolving media metadata...")
 
-            top_sections = raw_data.get("top", {}).get("sections", [])
-            recent_sections = raw_data.get("recent", {}).get("sections", [])
-            
-            medias = []
-            for section in top_sections + recent_sections:
-                layout_content = section.get("layout_content") or {}
-                
-                # Standard list of medias
-                
-                # Standard list of medias
-                for m_wrapper in layout_content.get("medias", []):
-                    media = m_wrapper.get("media")
-                    if media:
-                        medias.append(media)
-                
-                # Nested layout (like 1x2 grid or other containers)
-                for key, val in layout_content.items():
-                    if isinstance(val, dict) and "media" in val:
-                        medias.append(val["media"])
-                    elif isinstance(val, list):
-                        for subval in val:
-                            if isinstance(subval, dict) and "media" in subval:
-                                    medias.append(subval["media"])
-                            elif isinstance(subval, dict) and "clips" in subval:
-                                clips = subval.get("clips") or {}
-                                media = clips.get("media")
-                                if media:
-                                    medias.append(media)
-            
+            # Resolve full media metadata (clips_metadata, music_info, play_count) for top candidates
+            headers, cookie_dict = self._load_instagram_cookie_headers()
+            session = requests.Session()
+            session.headers.update(headers)
+            session.cookies.update(cookie_dict)
+
+            medias: list[dict] = []
+            for candidate in serp_candidates[:12]:
+                pk = candidate.get("pk")
+                if not pk:
+                    continue
+                try:
+                    info_url = f"https://www.instagram.com/api/v1/media/{pk}/info/"
+                    res = session.get(info_url, timeout=10)
+                    if res.status_code == 200:
+                        info_data = res.json()
+                        raw_items = info_data.get("items", [])
+                        if raw_items:
+                            medias.append(raw_items[0])
+                            continue
+                except Exception as fetch_err:
+                    logger.debug(f"Media info fetch failed for pk {pk}: {fetch_err}")
+
+                # Fallback to candidate from SERP if media info fetch fails
+                medias.append(candidate)
+
             items = []
             for media in medias:
                 media_type = media.get("media_type")
                 if media_type not in (2, 8):  # Must be video or video-carousel
                     continue
-                
+
                 owner = media.get("user") or {}
                 caption_data = media.get("caption") or {}
-                caption_text = caption_data.get("text") or ""
-                
+                caption_text = caption_data.get("text") or "" if isinstance(caption_data, dict) else str(caption_data or "")
+
                 taken_at = media.get("taken_at", 0)
                 timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
-                
+
                 # Extract video url from video_versions
                 video_url = media.get("video_url")
                 if not video_url and media.get("video_versions"):
@@ -1017,15 +998,10 @@ class InstagramScraper:
                     "media_dict": media,
                     "pk": media.get("pk")
                 })
-                
+
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
-
-            # P-PIPE-1: Instagram's REST web_info endpoint does not support pagination.
-            # The response has no more_info/max_id cursor. Single-page ceiling applies.
-            # If pagination is needed in future, switch to GraphQL edge_hashtag_to_media.
-
             return items
-            
+
         except Exception as e:
             logger.error(f"API request failed for #{hashtag}: {e}", exc_info=True)
             err_str = str(e).lower()
