@@ -167,8 +167,11 @@ async def extract_audio_page_metadata(p, audio_id: str, cookies: list) -> dict:
         max_view = max([parse_compact_count(v) or 0 for v in grid_views], default=0)
         reels_int = result.get("reels_count_int") or 0
         # A trend requires replication: a single 1-reel post is a personal clip, not an audio trend.
-        if is_trending_badge or reels_int >= 1000 or (max_view >= 50000 and reels_int > 1):
-            result["is_viral"] = True
+        # Strict guard: skip if title is "Original audio" (personal creator sound, not music)
+        raw_title = (result.get("title") or "").strip().lower()
+        if not ("original audio" in raw_title or raw_title.startswith("original_audio")):
+            if is_trending_badge or reels_int >= 1000 or (max_view >= 50000 and reels_int > 1):
+                result["is_viral"] = True
 
         # Extract top reel shortcodes directly from the audio page grid
         try:
@@ -239,6 +242,11 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
     
     artist = meta.get("artist") or ""
     title = meta.get("title") or meta.get("audio_name") or ""
+    
+    # Strict guard: NEVER promote personal creator clips or "Original audio" tracks
+    if not title or "original audio" in title.lower() or title.lower().startswith("original_audio"):
+        logger.info(f"Skipping companion promotion for '{title}' by '{artist}' (personal creator sound, not commercial music)")
+        return {"action": "skipped_original_audio", "title": title}
     
     # 1. Zero-leak dynamic language resolution
     detected_lang = get_artist_language(artist)
@@ -327,6 +335,15 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
                 logger.info(f"-> Successfully indexed {len(reels_rows)} top reels from audio page into `reels`!")
             except Exception as r_err:
                 logger.warning(f"Failed to upsert top reels for {meta['audio_id']}: {r_err}")
+
+    # Immediately trigger auto-classification so why_this_works & content concepts generate instantly
+    if new_id:
+        try:
+            from cron_auto_classifier import auto_classify_trends
+            auto_classify_trends([new_id])
+            logger.info(f"-> Instant classification completed for promoted trend ID {new_id}!")
+        except Exception as class_err:
+            logger.warning(f"Immediate classification failed for promoted trend ID {new_id} (non-fatal): {class_err}")
 
     return {"action": "promoted", "id": new_id, "payload": trend_payload}
 

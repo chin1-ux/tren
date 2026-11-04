@@ -846,8 +846,92 @@ class InstagramScraper:
         return headers, cookies
 
     async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
-        """Navigate to the Instagram search keyword page with the Camoufox stealth browser,
-        capture reel candidates from the search SERP GraphQL response, and fetch media details."""
+        """Fetch trending reels for a hashtag using Instagram's native sections endpoint.
+        Falls back to Camoufox search keyword SERP if sections endpoint fails."""
+        clean_tag = hashtag.lstrip("#").strip()
+        items: list = []
+
+        # ── Fast-path 1: Direct Instagram Native Hashtag Sections API (POST) ──
+        # Instagram's live hashtag clips feed endpoint. Delivers ~30 fresh reels (8-24h old)
+        # with full clips_metadata, audio titles, artists, taken_at, views and likes.
+        try:
+            headers, cookie_dict = self._load_instagram_cookie_headers()
+            post_headers = dict(headers)
+            post_headers["X-CSRFToken"] = cookie_dict.get("csrftoken", "")
+            post_headers["Referer"] = f"https://www.instagram.com/explore/tags/{clean_tag}/"
+
+            sections_url = f"https://www.instagram.com/api/v1/tags/{clean_tag}/sections/"
+
+            def _post_sections():
+                with requests.Session() as s:
+                    s.headers.update(post_headers)
+                    s.cookies.update(cookie_dict)
+                    return s.post(sections_url, data={"tab": "clips", "page": 1}, timeout=15)
+
+            loop = asyncio.get_event_loop()
+            res = await loop.run_in_executor(None, _post_sections)
+
+            if res.status_code == 200:
+                res_data = res.json()
+                sections = res_data.get("sections", [])
+                medias: list[dict] = []
+                for s in sections:
+                    content = s.get("layout_content", {})
+                    for m_wrap in content.get("medias", []):
+                        med = m_wrap.get("media") or m_wrap
+                        if med and med.get("pk"):
+                            medias.append(med)
+                    for key in ["one_by_two_item", "fill_items", "two_by_two_item"]:
+                        items_val = content.get(key, {})
+                        if isinstance(items_val, list):
+                            for itm in items_val:
+                                m = itm.get("media") or itm
+                                if m and m.get("pk"):
+                                    medias.append(m)
+                        elif isinstance(items_val, dict):
+                            m = items_val.get("media") or items_val
+                            if m and m.get("pk"):
+                                medias.append(m)
+
+                if len(medias) >= 5:
+                    for media in medias:
+                        media_type = media.get("media_type")
+                        if media_type not in (2, 8):
+                            continue
+                        owner = media.get("user") or {}
+                        caption_data = media.get("caption") or {}
+                        caption_text = caption_data.get("text") or "" if isinstance(caption_data, dict) else str(caption_data or "")
+
+                        taken_at = media.get("taken_at", 0)
+                        timestamp = datetime.fromtimestamp(taken_at, tz=timezone.utc).isoformat() if taken_at else datetime.now(timezone.utc).isoformat()
+
+                        video_url = media.get("video_url")
+                        if not video_url and media.get("video_versions"):
+                            video_url = media["video_versions"][0].get("url")
+
+                        raw_play_count = media.get("play_count") if media.get("play_count") is not None else media.get("view_count")
+                        items.append({
+                            "shortCode": media.get("code"),
+                            "videoViewCount": raw_play_count,
+                            "likesCount": media.get("like_count"),
+                            "commentsCount": media.get("comment_count") or 0,
+                            "ownerFollowersCount": owner.get("follower_count") or 0,
+                            "timestamp": timestamp,
+                            "ownerUsername": owner.get("username"),
+                            "caption": caption_text[:500],
+                            "videoUrl": video_url,
+                            "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
+                            "media_dict": media,
+                            "pk": media.get("pk")
+                        })
+
+                    if items:
+                        logger.info(f"Direct sections API succeeded for #{clean_tag}: extracted {len(items)} eligible reels!")
+                        return items
+        except Exception as sec_err:
+            logger.warning(f"Direct sections API fetch failed for #{clean_tag} ({sec_err}), falling back to browser SERP...")
+
+        # ── Fallback 2: Camoufox Browser Search SERP ──
         if not self._camoufox_browser or not self._camoufox_browser.is_connected():
             logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
             await self._close_browser_async()
@@ -857,7 +941,7 @@ class InstagramScraper:
 
         ctx = None
         page = None
-        items: list = []
+        items = []
         try:
             cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
             if not os.path.exists(cookies_path):
