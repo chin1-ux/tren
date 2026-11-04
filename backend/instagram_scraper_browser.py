@@ -756,7 +756,7 @@ class InstagramScraper:
                 # Pass audio_id so _extract_audio_use_count can query audio_official_counts
                 use_cnt = self._extract_audio_use_count(media, audio_id=str(audio_id))
                 is_orig = True
-                if use_cnt >= 50:
+                if use_cnt is not None and use_cnt >= 50:  # fix: guard NoneType >= int crash
                     is_orig = False
                 return str(audio_id), audio_title, audio_artist, is_orig
         except Exception as e:
@@ -1273,6 +1273,16 @@ Return ONLY valid JSON, no markdown, no explanation:
             posted = datetime.fromisoformat(timestamp)
             hours_live = max((now_utc - posted).total_seconds() / 3600.0, 0.5)
 
+            # Skip reels older than MAX_REEL_AGE_HOURS (default 90 days).
+            # SERP top results often include months-old viral hits whose
+            # exponential-decay velocity will always be ~0, polluting the DB
+            # with NULL-audio rows and burning detection-window slots.
+            # Exception: very high-view reels (>100K) are kept regardless of age.
+            MAX_REEL_AGE_HOURS = float(os.getenv("MAX_REEL_AGE_HOURS", "2160"))  # 90 days
+            if hours_live > MAX_REEL_AGE_HOURS and (view is None or view < 100_000):
+                scrape_stats["too_old_skipped"] = scrape_stats.get("too_old_skipped", 0) + 1
+                continue
+
             if view is not None:
                 engagement = (view * 1.0) + (likes * 3.0) + (comments * 3.0)
             else:
@@ -1331,8 +1341,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             thumbnail_url = item.get("thumbnailUrl")
 
             media_dict = item.get("media_dict")
-            audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict)
-            audio_use = self._extract_audio_use_count(media_dict, audio_id=audio_id)
+            audio_id, audio_title, audio_artist, is_original_audio = self._extract_audio_info(media_dict or {})
+            audio_use = self._extract_audio_use_count(media_dict or {}, audio_id=audio_id)
 
             if is_disallowed_regional_content(audio_title, audio_artist, caption, [tag] + hashtags):
                 scrape_stats["disallowed_regional_filtered"] = scrape_stats.get("disallowed_regional_filtered", 0) + 1
