@@ -428,39 +428,42 @@ def run_full_pipeline(stages: list = None):
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
-    # Mixed mode: India core + global regional clusters in one balanced hashtag pool.
-    # ~35 India tags (high-velocity local) + ~40 global tags (Brazil, Korea, Africa, Arab, Latin)
-    # The scraper's hashtag_groups / POOL_LOCALE_CONFIG handles locale injection per tag.
-    if scrape_mode in ("mixed", "global"):
-        mixed_tags = ",".join([
-            # ── INDIA CORE (must-have every run) ──────────────────────────────────────
-            "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
-            "viralaudio", "viralsong", "reelsaudio",
-            "punjabisongs", "hindireels", "hindisongs", "telugureels", "tamilreels",
-            "marathireels", "bhojpurisongs", "haryanvisongs",
-            "danceindia", "choreography", "indianfashion", "transitionreels",
-            # ── BRAZIL / LATIN ────────────────────────────────────────────────────────
+    # Three dedicated pools — set by SCRAPER_MODE env var injected from workflow:
+    #   india  = India vernacular + dance/fashion + regional (deep India coverage)
+    #   global = Brazil/Latin + Korea/Asia + Africa + Arab + Europe (deep global coverage)
+    #   mixed  = Core India + all global regions balanced (fallback / manual runs)
+    if scrape_mode == "global":
+        global_tags = ",".join([
+            # ── BRAZIL / LATIN (deepest coverage) ────────────────────────────────────
             "sertanejo", "piseiro", "forronovinho", "pagodao", "bregafunk",
-            "funkbrasil", "funkbrasileiro", "passinho", "funkmtg",
-            "reelsbrasil", "reggaeton", "perreo", "musicalatina", "bachata", "latinpop",
-            # ── KOREA / ASIA ──────────────────────────────────────────────────────────
-            "kpop", "kpopdance", "kpopsongs", "kpopedit",
+            "funkbrasil", "funkbrasileiro", "passinho", "funkmtg", "montagem",
+            "reelsbrasil", "pagode", "baile",
+            "reggaeton", "perreo", "musicalatina", "bachata", "latinpop", "latinvibes",
+            "latinreels", "rosalia", "badbunny", "anitta",
+            # ── KOREA / ASIA (deepest coverage) ──────────────────────────────────────
+            "kpop", "kpopdance", "kpopsongs", "kpopedit", "kpopchoreography",
             "jpop", "animesong", "opmhits", "musikaindonesia",
-            # ── AFRICA / GLOBAL ───────────────────────────────────────────────────────
-            "amapiano", "amapianodance", "afrobeats", "naijamusic", "afropop",
+            "jedagjedug", "laguviral", "indotrending",
+            "straykids", "newjeans",
+            # ── AFRICA ────────────────────────────────────────────────────────────────
+            "amapiano", "amapianodance", "afrobeats", "afrobeatsreels",
+            "naijamusic", "afropop", "afrodance", "gqom",
+            "burnaboy", "tyla",
             # ── MIDEAST / ARAB ────────────────────────────────────────────────────────
-            "arabicmusic", "arabicsongs", "khaleejimusic", "turkishmusic",
-            # ── EUROPE / GLOBAL ───────────────────────────────────────────────────────
-            "ukdrill", "frenchmusic", "eurodance", "russianmusic",
-            # ── GLOBAL SIGNALS ────────────────────────────────────────────────────────
-            "phonk", "driftphonk", "speedupsongs", "slowedandreverb",
-            "capcuttemplate", "dancechallenge", "viralreels",
+            "arabicmusic", "arabicsongs", "arabicpop", "arabicvibes",
+            "khaleejimusic", "saudimusic", "gulfmusic", "turkishmusic",
+            # ── EUROPE ────────────────────────────────────────────────────────────────
+            "ukdrill", "ukrap", "ukrnb", "grime", "frenchmusic",
+            "eurodance", "russianmusic", "russianphonk",
+            # ── GLOBAL VIRAL SIGNALS ──────────────────────────────────────────────────
+            "phonk", "driftphonk", "darkphonk", "speedupsongs", "slowedandreverb",
+            "capcuttemplate", "dancechallenge", "viralreels", "trendingaudio",
             "lofimusic", "chillmusic",
         ])
-        os.environ["SCRAPER_HASHTAGS"] = mixed_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for {scrape_mode} mode: {len(mixed_tags.split(','))} tags (India+Brazil+Korea+Africa+Arab+Europe)")
-    else:
-        # India-only mode (explicit override via SCRAPER_MODE=india env var)
+        os.environ["SCRAPER_HASHTAGS"] = global_tags
+        logging.info(f"Set SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags (Brazil+Korea+Africa+Arab+Europe+phonk)")
+    elif scrape_mode == "india":
+        # India-only mode — dedicated deep-dive into India vernacular/dance/fashion
         india_tags = ",".join([
             # ── CORE HIGH-VELOCITY INDIAN AUDIO SIGNALS ────────────────────────────────
             "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
@@ -469,14 +472,41 @@ def run_full_pipeline(stages: list = None):
             "punjabisongs", "punjabireels", "hindireels", "hindisongs",
             "telugureels", "tamilreels", "marathireels", "kannadareels", "malayalamreels",
             "bhojpurisongs", "bhojpurireels", "haryanvisongs",
+            # ── DANCE / FASHION / TRANSITION ────────────────────────────────────────────
+            "danceindia", "indiandance", "choreography", "dancechallenge",
+            "indianfashion", "streetstyleindia", "fashiontransition", "transitionreels",
+            "lehenga", "kurti", "ootdindia", "lookbookindia",
             # ── CREATOR / MEME / EDIT FORMATS ──────────────────────────────────────────
-            "desicomedy", "relatablereels", "funnyreels", "danceindia", "choreography",
-            "capcutindia", "transitionreels", "lipsyncindia",
-            # ── NICHE HUBS (High retention) ───────────────────────────────────────────
-            "indianfashion", "streetstyleindia", "indianstreetfood", "desifood", "gymindia"
+            "desicomedy", "relatablereels", "funnyreels",
+            "capcutindia", "lipsyncindia",
+            # ── NICHE HUBS ────────────────────────────────────────────────────────────
+            "indianstreetfood", "desifood", "gymindia", "fitindia",
         ])
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set expanded SCRAPER_HASHTAGS for India-only mode: {len(india_tags.split(','))} tags")
+        logging.info(f"Set SCRAPER_HASHTAGS for india mode: {len(india_tags.split(','))} tags (India vernacular+dance+fashion+niches)")
+    else:
+        # Mixed mode — balanced India core + all global regions (manual runs / fallback)
+        mixed_tags = ",".join([
+            # ── INDIA CORE ────────────────────────────────────────────────────────────
+            "trendingaudio", "reelsindia", "trendingreels", "trendingsong",
+            "viralaudio", "viralsong", "reelsaudio",
+            "punjabisongs", "hindireels", "hindisongs", "telugureels", "tamilreels",
+            "danceindia", "choreography", "indianfashion", "transitionreels",
+            # ── BRAZIL / LATIN ────────────────────────────────────────────────────────
+            "sertanejo", "piseiro", "bregafunk", "funkbrasil", "passinho",
+            "reelsbrasil", "reggaeton", "perreo", "musicalatina", "bachata",
+            # ── KOREA / ASIA ──────────────────────────────────────────────────────────
+            "kpop", "kpopdance", "kpopsongs", "jpop", "animesong",
+            # ── AFRICA / GLOBAL ───────────────────────────────────────────────────────
+            "amapiano", "afrobeats", "naijamusic",
+            # ── MIDEAST / ARAB / EUROPE ───────────────────────────────────────────────
+            "arabicmusic", "turkishmusic", "ukdrill", "eurodance",
+            # ── GLOBAL SIGNALS ────────────────────────────────────────────────────────
+            "phonk", "driftphonk", "speedupsongs", "capcuttemplate",
+            "dancechallenge", "viralreels", "lofimusic",
+        ])
+        os.environ["SCRAPER_HASHTAGS"] = mixed_tags
+        logging.info(f"Set SCRAPER_HASHTAGS for mixed mode: {len(mixed_tags.split(','))} tags (India+Global balanced)")
 
     # 0. Schema Validation
     if _stage("schema"):

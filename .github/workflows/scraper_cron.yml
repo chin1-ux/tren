@@ -1,13 +1,40 @@
 name: Trendrop Scheduled Scraper Pipeline Cron
 
+# Schedule design (all times IST = UTC+5:30):
+#
+#  Slot A — India-heavy   (IST 09:17, 15:17, 21:17)  →  UTC 03:47, 09:47, 15:47
+#  Slot B — Global-heavy  (IST 12:17, 18:17, 00:17)  →  UTC 06:47, 12:47, 18:47
+#
+#  Slots are 3h apart within each type, and 3h apart from each other overall.
+#  A run takes ~40–60 min. Guard gap = 55 min → no slot can double-fire.
+#  Concurrency group ensures only 1 job runs at a time (no overlap possible).
+#  workflow_dispatch bypasses guard — always runs (used for manual testing).
+#
+#  SCRAPER_MODE is injected per slot so cron_job.py uses the right pool:
+#    india  → India vernacular + dance/fashion + regional
+#    global → Brazil/Latin + Korea/Asia + Africa + Arab + Europe + phonk/viral
+
 on:
   schedule:
-    - cron: '17 * * * *'  # Hourly trigger, guarded by 2h45m completion check
-  workflow_dispatch:        # Manual trigger button in GitHub UI
+    # ── SLOT A: India-heavy  ─────────────────────────────────────────────────
+    - cron: '47 3 * * *'    # 09:17 IST  — India morning peak
+    - cron: '47 9 * * *'    # 15:17 IST  — India afternoon peak
+    - cron: '47 15 * * *'   # 21:17 IST  — India prime time
+    # ── SLOT B: Global-heavy ────────────────────────────────────────────────
+    - cron: '47 6 * * *'    # 12:17 IST  — Brazil/Latin morning, Korea afternoon
+    - cron: '47 12 * * *'   # 18:17 IST  — Africa/Europe/Arab active
+    - cron: '47 18 * * *'   # 00:17 IST  — Americas prime time, Latin/phonk peak
+
+  workflow_dispatch:         # Manual trigger — bypasses guard, always runs
+    inputs:
+      scraper_mode:
+        description: 'Scraper mode override (india / global / mixed)'
+        required: false
+        default: 'mixed'
 
 concurrency:
   group: scraper-cron
-  cancel-in-progress: false
+  cancel-in-progress: false   # Queue, never cancel — prevents overlap
 
 jobs:
   scrape_and_detect:
@@ -43,12 +70,38 @@ jobs:
           done
           python -m camoufox version
 
-      - name: Check 2h45m Early Exit Guard
+      - name: Resolve scraper mode for this slot
+        id: resolve_mode
+        run: |
+          # Manual dispatch: use the input, default mixed
+          if [ "$GITHUB_EVENT_NAME" = "workflow_dispatch" ]; then
+            MODE="${{ github.event.inputs.scraper_mode }}"
+            MODE="${MODE:-mixed}"
+            echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+            echo "Dispatch mode: $MODE"
+            exit 0
+          fi
+          # Scheduled: pick mode by UTC hour
+          HOUR=$(date -u +%-H)
+          # India slots: 03:47, 09:47, 15:47 UTC  → hours 3, 9, 15
+          # Global slots: 06:47, 12:47, 18:47 UTC → hours 6, 12, 18
+          if [ "$HOUR" -eq 3 ] || [ "$HOUR" -eq 9 ] || [ "$HOUR" -eq 15 ]; then
+            MODE="india"
+          elif [ "$HOUR" -eq 6 ] || [ "$HOUR" -eq 12 ] || [ "$HOUR" -eq 18 ]; then
+            MODE="global"
+          else
+            MODE="mixed"
+          fi
+          echo "mode=$MODE" >> "$GITHUB_OUTPUT"
+          echo "Scheduled mode (UTC hour $HOUR): $MODE"
+
+      - name: Check scraper guard (55-min gap)
         id: guard
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
           SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SCRAPER_GUARD_MIN_GAP_MINUTES: "55"
         run: |
           python scripts/check_scraper_guard.py
 
@@ -62,5 +115,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
           CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCRAPER_MODE: ${{ steps.resolve_mode.outputs.mode }}
         run: |
+          echo "=== Scraper Mode: $SCRAPER_MODE ==="
           python backend/cron_job.py
