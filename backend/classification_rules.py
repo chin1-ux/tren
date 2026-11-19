@@ -2,60 +2,129 @@ import re
 from collections import Counter
 
 HASHTAG_POOL_MAP = {
+    # ── INDIA ─────────────────────────────────────────────────────────────────
     "INDIA_TRENDING": {
         "trendingindia", "reelsindia", "instagramindia", "indiansong",
         "reelkarofeelkaro", "desimemes", "exploreindia", "desibeats",
+        "trendingaudio", "indianreels",
     },
     "INDIA_VERNACULAR": {
         "hindireels", "hindisongs", "bollywoodsongs", "bollywoodreels",
         "telugureels", "telugusongs", "tollywood", "telugutrending",
         "tamilreels", "tamilsongs", "kollywood", "tamilaudio",
         "malayalamreels", "malayalamsongs", "mollywood", "mallureels",
-    },
-    "GLOBAL_NICHES": {
-        "fitnessreels", "foodreels", "comedyreels", "fashionreels",
-        "travelreels", "beautyreels", "artreels", "grwmoutfit",
-        "gymmotivation", "aestheticvlog", "cinematictravel", "storytime",
-    },
-    "GLOBAL_DISCOVERY": {
-        "brazilianphonk", "funkbrasil", "phonkmusic", "phonk", "funkmtg",
-        "reelsbrasil", "passinho", "dancabrasil", "speedupphonk",
-        # Brazilian viral dance music (sertanejo, forró, piseiro)
-        "sertanejo", "piseiro", "forronovinho", "pagodao", "bailebaile", "danca", "transicao",
-        "sertanejoraiz", "forroeletronico", "serejo", "bregafunk",
-        "kpop", "kpopdance", "kpopreels", "kpopsongs", "kpopchallenge",
-        "viralaudio", "trendingsound", "speedupsongs", "remixreels",
-        "reelsound", "viralmusic", "audiosforedits", "trendingaudio",
-        "reggaeton", "latinmusic", "spanishmusic", "latinreels",
-        "spanishreels", "latintrend", "perreo", "afrobeats", "afrobeatsmusic",
-        "ukdrill", "eurodance", "popmusic", "billboardhot100", "filmtok", "filmedit",
+        "punjabireels", "punjabisongs", "haryanvisongs", "bhojpurisong",
+        "kannadareels", "marathireels",
     },
     "INDIA_DANCE_FASHION": {
         # Hindi dance & hookstep
         "bollywoodnachle", "bollywoodsteps", "hindinachle", "indiandance",
         "hookstep", "dancecover", "dancetrend", "dancechallengeindia",
         "hindiaudios", "trendinghindimusic", "hindinewsong", "hindisong",
-        "bollywoodsong", "bollywoodnews",
+        "bollywoodsong", "indianreelsdance",
         # Indian fashion transitions
         "fashiontransition", "indianootd", "ethnicootd", "lookbookindia",
         "lehenga", "sareedraping", "ethnicfashion", "indianstyle",
-        "desifashion", "kurti", "indianreelsdance",
+        "desifashion", "kurti",
+    },
+
+    # ── BRAZIL / LATIN AMERICA ─────────────────────────────────────────────
+    "BRAZIL_LATIN": {
+        # Brazilian viral dance music — sertanejo, forró, piseiro, pagode, funk
+        "sertanejo", "sertanejoraiz", "piseiro", "forronovinho", "forroeletronico",
+        "pagodao", "pagode", "bailebaile", "bregafunk", "funkbrasil", "funkmtg",
+        "reelsbrasil", "passinho", "dancabrasil", "musicabrasil",
+        # Latin / Spanish-speaking (Mexico, Colombia, Argentina, Spain)
+        "reggaeton", "latinmusic", "spanishmusic", "latinreels",
+        "perreo", "cumbiaargentina", "musicamexico", "bandamexicana",
+        "musicalatina", "latintrend", "urbanolatino",
+        # Cross-border viral audio pools
+        "brazilianphonk", "phonk", "speedupphonk", "phonkmusic",
+    },
+
+    # ── KOREA / KPOP / ASIAN ───────────────────────────────────────────────
+    "KOREA_ASIA": {
+        # K-Pop & Korean audio (biggest global trend exporter after US)
+        "kpop", "kpopdance", "kpopreels", "kpopsongs", "kpopchallenge",
+        "kdramamusic", "koreanmusic", "kpopcover",
+        # J-Pop & Japanese (anime, lofi, city pop crossovers)
+        "jpop", "japanesemusic", "animesong", "citypop", "lofimusic",
+        # Southeast Asia — Philippines & Indonesia (huge Reels markets)
+        "opmhits", "opmmusic", "philippinesmusic",
+        "musikaindonesia", "lagupopindonesia", "dangdut",
+        # Thai (huge TikTok/Reels crossover, t-pop emerging)
+        "thaisong", "tpop",
+    },
+
+    # ── AFRICA / AFROBEATS ─────────────────────────────────────────────────
+    "AFRICA_GLOBAL": {
+        # Nigeria / West Africa (Afrobeats → global crossover)
+        "afrobeats", "afrobeatsmusic", "afrobeatsreels", "nigerianmusic",
+        "naijareels", "afropop", "afrofusion",
+        # South Africa (Amapiano is #1 global dance export from SA)
+        "amapiano", "amapianodance", "amapianochallenge",
+        "southafricanmusic", "gqom",
+        # Africa-wide
+        "africamusic", "africandance", "afrohouse",
+    },
+
+    # ── MIDDLE EAST / ARAB WORLD ───────────────────────────────────────────
+    "MIDEAST_ARAB": {
+        # Arabic pop (Egypt, Lebanon, Gulf — massive Reels presence)
+        "arabicmusic", "arabicsong", "arabicreels",
+        "egyptianmusic", "khaleejimusic", "levantinemusic",
+        "arabdance", "mahraganat",
+        # Turkish (Türkiye is top-5 Reels country)
+        "turkishmusic", "turkmuzik", "arabesque", "turpop",
+    },
+
+    # ── EUROPE ────────────────────────────────────────────────────────────
+    "EUROPE_GLOBAL": {
+        # UK (drill, grime — heavy global influence)
+        "ukdrill", "ukmusicreel", "ukrap", "grimemusic",
+        # French pop & French tropical (global Reels crossover)
+        "frenchmusic", "musiquefrancaise", "zouk", "kompa",
+        # Spanish/European
+        "eurodance", "spainmusic", "flamenco",
+        # Eastern Europe (Russian-language still active in CIS)
+        "russianmusic", "russiansongs",
+    },
+
+    # ── GLOBAL AUDIO DISCOVERY ────────────────────────────────────────────
+    "GLOBAL_DISCOVERY": {
+        # Universal audio trend hubs (platform-agnostic, language-agnostic)
+        "viralaudio", "trendingsound", "speedupsongs", "remixreels",
+        "reelsound", "viralmusic", "audiosforedits", "capcuttemplate",
+        # Global pop / charts
+        "popmusic", "billboardhot100", "filmtok", "filmedit",
+        # Creative / edit aesthetics
+        "aestheticreels", "cinematicedit", "moodreels", "gloomyvibes",
+        "streetstyle", "dancetrend",
+        # Afrobeats
+        "afrobeats", "afrobeatsmusic",
+    },
+
+    # ── MICRO-NICHE POOLS ────────────────────────────────────────────────
+    "GLOBAL_NICHES": {
+        "fitnessreels", "foodreels", "comedyreels", "fashionreels",
+        "travelreels", "beautyreels", "artreels", "grwmoutfit",
+        "gymmotivation", "aestheticvlog", "cinematictravel", "storytime",
     },
     "MICRO_DANCE": {
         "microdance", "trendingdance", "viralchallenge", "dancehacks",
-        "indiandance", "southdance", "bangaloredance"
+        "indiandance", "southdance", "bangaloredance",
     },
     "MICRO_FOOD": {
         "foodcreators", "microfood", "tastyfood", "indianfood",
-        "streetfood", "foodrecipe", "kitchenhacks", "homecooking"
+        "streetfood", "foodrecipe", "kitchenhacks", "homecooking",
     },
     "MICRO_FASHION": {
         "fashionhacks", "styletips", "outfitideas", "microfashion",
-        "indianfashion", "sareestyle", "fashiondiy", "budgetfashion"
+        "indianfashion", "sareestyle", "fashiondiy", "budgetfashion",
     },
     "MICRO_COMEDY": {
         "funnyreels", "comedyhacks", "relatable", "microcomedy",
-        "indiancomedy", "viralcomedy", "humor", "troll"
+        "indiancomedy", "viralcomedy", "humor", "troll",
     },
 }
 
@@ -119,18 +188,77 @@ HASHTAG_NICHE_MAP = {
     "kurti": "fashion",
     # --- Brazil / PT dance & music ---
     "sertanejo": "music",
+    "sertanejoraiz": "music",
     "piseiro": "dance",
     "forronovinho": "dance",
+    "forroeletronico": "music",
     "pagodao": "music",
+    "pagode": "music",
     "bailebaile": "dance",
     "danca": "dance",
     "transicao": "fashion",
-    "sertanejoraiz": "music",
-    "forroeletronico": "music",
     "bregafunk": "dance",
     "funkbrasil": "dance",
+    "funkmtg": "dance",
     "passinho": "dance",
     "dancabrasil": "dance",
+    "reelsbrasil": "general",
+    "musicabrasil": "music",
+    # --- Latin America ---
+    "reggaeton": "dance",
+    "perreo": "dance",
+    "cumbiaargentina": "dance",
+    "bandamexicana": "music",
+    "musicalatina": "music",
+    "urbanolatino": "music",
+    # --- Korea / Asia ---
+    "kpop": "music",
+    "kpopdance": "dance",
+    "kpopreels": "music",
+    "kpopsongs": "music",
+    "kdramamusic": "music",
+    "koreanmusic": "music",
+    "jpop": "music",
+    "japanesemusic": "music",
+    "animesong": "music",
+    "citypop": "music",
+    "opmhits": "music",
+    "opmmusic": "music",
+    "musikaindonesia": "music",
+    "lagupopindonesia": "music",
+    "dangdut": "dance",
+    "thaisong": "music",
+    "tpop": "music",
+    # --- Africa / Afrobeats ---
+    "afrobeats": "dance",
+    "afrobeatsmusic": "music",
+    "afrobeatsreels": "dance",
+    "nigerianmusic": "music",
+    "naijareels": "general",
+    "afropop": "music",
+    "afrofusion": "music",
+    "amapiano": "dance",
+    "amapianodance": "dance",
+    "amapianochallenge": "dance",
+    "southafricanmusic": "music",
+    "gqom": "dance",
+    "africandance": "dance",
+    # --- Middle East / Arab / Turkey ---
+    "arabicmusic": "music",
+    "arabicsong": "music",
+    "egyptianmusic": "music",
+    "khaleejimusic": "music",
+    "mahraganat": "dance",
+    "turkishmusic": "music",
+    "turpop": "music",
+    # --- Europe ---
+    "ukdrill": "music",
+    "ukrap": "music",
+    "frenchmusic": "music",
+    "zouk": "dance",
+    "kompa": "dance",
+    "eurodance": "dance",
+    "russianmusic": "music",
 }
 
 NICHE_KEYWORDS = {
