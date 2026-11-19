@@ -415,63 +415,52 @@ def run_full_pipeline(stages: list = None):
         run_count = 0
 
     if not os.environ.get("SCRAPER_MODE"):
-        # Peak-hour schedule: India daytime (02:00-16:00 UTC = 07:30-21:30 IST) runs India mode;
-        # India night / Americas-Europe peak (16:00-02:00 UTC) runs Global mode.
-        now_utc = datetime.now(timezone.utc)
-        scrape_mode = "india" if (2 <= now_utc.hour < 16) else "global"
+        # Always use mixed mode so every run captures both India AND global trends.
+        # Previously split by UTC hour (india 02-16, global 16-02) which meant:
+        #   - IST daytime runs (most common) NEVER got Brazil/Korea/Africa
+        #   - Global runs only happened at night India time (missed creators)
+        # Mixed mode selects from ALL regional pools (India + Brazil + Korea + Africa + ...)
+        # in a balanced rotation — best coverage per run.
+        scrape_mode = "mixed"
         os.environ["SCRAPER_MODE"] = scrape_mode
-        logging.info(f"Selected scraper mode based on UTC hour {now_utc.hour} ({now_utc.strftime('%H:%M UTC')}): {scrape_mode}")
+        logging.info(f"Selected scraper mode: {scrape_mode} (always-on global+india balanced)")
     else:
         scrape_mode = os.environ["SCRAPER_MODE"]
         logging.info(f"Selected scraper mode for this run: {scrape_mode} (inherited from environment)")
 
-    if scrape_mode == "global":
-        global_tags = ",".join([
-            # ── CORE AUDIO SIGNALS ────────────────────────────────────────────────────
-            "trendingaudio", "trendingsound", "trendingsong", "trendingmusic",
-            "viralaudio", "viralsong", "viralmusic", "reelsaudio",
-            "speedupsongs", "speedup", "slowedandreverb", "remixreels", "mashup",
-            "djremix", "remixsong",
-            # ── FORMAT / EDIT SIGNALS ─────────────────────────────────────────────────
-            "capcuttemplate", "transitionreels", "lipsync", "dancechallenge",
-            "trendingreels", "viralreels",
-            # ── US / UK AUDIO ─────────────────────────────────────────────────────────
-            "hiphop", "hiphopreels", "rnbmusic", "rnbvibes", "trapmusic",
-            "popmusic", "indiepop", "indiemusic",
-            "ukdrill", "ukrap", "ukrnb", "drill", "grime", "ukgarage", "ukmusic",
-            # ── BRAZIL (restored DB-confirmed drops: funkbrasil #9, passinho #5) ──────
-            "phonk", "phonkmusic", "brazilianphonk", "funkbrasil", "funkbrasileiro",
-            "passinho", "funkmtg", "montagem", "reelsbrasil",
-            "pagode", "sertanejo", "baile",
-            # ── RUSSIA / CIS PHONK (restored: driftphonk, darkphonk, speedupphonk) ───
-            "driftphonk", "darkphonk", "speedupphonk", "russianphonk", "russianmusic",
-            # ── AFROBEATS / AMAPIANO (restored: afrobeatsreels, afrodance, naijamusic) ─
-            "afrobeats", "afrobeatsreels", "afrodance", "naijamusic", "afropop",
-            "amapiano", "amapianovibes", "amapianodance",
-            # ── K-POP ─────────────────────────────────────────────────────────────────
-            "kpop", "kpopdance", "kpopedit", "kpopchoreography",
-            # ── LATIN / SPANISH (restored: perreo, spanishmusic) ─────────────────────
-            "reggaeton", "musicalatina", "latinpop", "bachata",
-            "perreo", "spanishmusic", "latinvibes", "latinreels",
-            # ── ARABIC (expanded from 1 tag to full cluster) ─────────────────────────
-            "arabicmusic", "arabicsongs", "arabicpop", "arabicvibes",
-            "khaleejimusic", "saudimusic", "gulfmusic", "arabicreels",
-            # ── INDONESIA / SEA (zero coverage before — 2nd most-active IG country) ──
-            "jedagjedug", "laguviral", "musikalagu", "indonesiareels",
-            "indotrending", "koplo", "dangdut",
-            # ── EDM / ELECTRONIC ──────────────────────────────────────────────────────
-            "hardstyle", "eurodance", "edm", "electronicmusic",
-            # ── LOFI / ACOUSTIC / AESTHETIC ───────────────────────────────────────────
-            "lofimusic", "lofireels", "chillmusic", "acousticcovers", "aestheticreels",
-            # ── GLOBAL ARTISTS (Tyla-tier audio wave drivers per region) ─────────────
-            "tyla", "badbunny", "drake",
-            "sabrinacarpenter", "anitta", "rosalia",
-            "burnaboy", "straykids", "newjeans",
-            "theweeknd", "sza", "dojacat", "icespice",
+    # Mixed mode: India core + global regional clusters in one balanced hashtag pool.
+    # ~35 India tags (high-velocity local) + ~40 global tags (Brazil, Korea, Africa, Arab, Latin)
+    # The scraper's hashtag_groups / POOL_LOCALE_CONFIG handles locale injection per tag.
+    if scrape_mode in ("mixed", "global"):
+        mixed_tags = ",".join([
+            # ── INDIA CORE (must-have every run) ──────────────────────────────────────
+            "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
+            "viralaudio", "viralsong", "reelsaudio",
+            "punjabisongs", "hindireels", "hindisongs", "telugureels", "tamilreels",
+            "marathireels", "bhojpurisongs", "haryanvisongs",
+            "danceindia", "choreography", "indianfashion", "transitionreels",
+            # ── BRAZIL / LATIN ────────────────────────────────────────────────────────
+            "sertanejo", "piseiro", "forronovinho", "pagodao", "bregafunk",
+            "funkbrasil", "funkbrasileiro", "passinho", "funkmtg",
+            "reelsbrasil", "reggaeton", "perreo", "musicalatina", "bachata", "latinpop",
+            # ── KOREA / ASIA ──────────────────────────────────────────────────────────
+            "kpop", "kpopdance", "kpopsongs", "kpopedit",
+            "jpop", "animesong", "opmhits", "musikaindonesia",
+            # ── AFRICA / GLOBAL ───────────────────────────────────────────────────────
+            "amapiano", "amapianodance", "afrobeats", "naijamusic", "afropop",
+            # ── MIDEAST / ARAB ────────────────────────────────────────────────────────
+            "arabicmusic", "arabicsongs", "khaleejimusic", "turkishmusic",
+            # ── EUROPE / GLOBAL ───────────────────────────────────────────────────────
+            "ukdrill", "frenchmusic", "eurodance", "russianmusic",
+            # ── GLOBAL SIGNALS ────────────────────────────────────────────────────────
+            "phonk", "driftphonk", "speedupsongs", "slowedandreverb",
+            "capcuttemplate", "dancechallenge", "viralreels",
+            "lofimusic", "chillmusic",
         ])
-        os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set expanded SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags")
+        os.environ["SCRAPER_HASHTAGS"] = mixed_tags
+        logging.info(f"Set SCRAPER_HASHTAGS for {scrape_mode} mode: {len(mixed_tags.split(','))} tags (India+Brazil+Korea+Africa+Arab+Europe)")
     else:
+        # India-only mode (explicit override via SCRAPER_MODE=india env var)
         india_tags = ",".join([
             # ── CORE HIGH-VELOCITY INDIAN AUDIO SIGNALS ────────────────────────────────
             "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
@@ -487,7 +476,7 @@ def run_full_pipeline(stages: list = None):
             "indianfashion", "streetstyleindia", "indianstreetfood", "desifood", "gymindia"
         ])
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set expanded SCRAPER_HASHTAGS for India mode: {len(india_tags.split(','))} tags")
+        logging.info(f"Set expanded SCRAPER_HASHTAGS for India-only mode: {len(india_tags.split(','))} tags")
 
     # 0. Schema Validation
     if _stage("schema"):
@@ -977,7 +966,7 @@ def run_full_pipeline(stages: list = None):
                 run_state["cutoff_reason"] = f"trend engine failed: {e}"
                 logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
 
-        # 3b. Permanent Disallowed Regional Filter Pass: purge Gujarati, Haryanvi, Bengali, Bhojpuri trends & reels
+        # 3b. Regional Filter Pass: purge Bhojpuri & Haryanvi trends & reels (Gujarati & Bengali are preserved)
         try:
             from language_detection import is_disallowed_regional_content
             sb = _get_supabase()
@@ -988,7 +977,7 @@ def run_full_pipeline(stages: list = None):
                     sb.table("trends").update({"status": "unqualified"}).eq("id", t["id"]).execute()
                     regional_purged += 1
             if regional_purged > 0:
-                logging.info(f"Regional Filter Pass: Marked {regional_purged} disallowed regional trends (Gujarati/Bhojpuri/Haryanvi/Bengali) as unqualified.")
+                logging.info(f"Regional Filter Pass: Marked {regional_purged} disallowed regional trends (Bhojpuri/Haryanvi) as unqualified.")
 
             # Also delete any stored disallowed regional reels
             all_reels = sb.table("reels").select("reel_id, audio_title, audio_artist, caption").execute().data or []
