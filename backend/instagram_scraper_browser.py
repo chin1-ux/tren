@@ -456,8 +456,30 @@ class InstagramScraper:
                 logger.warning(f"XHR profile not captured for @{username} — trying direct API endpoint inside page context...")
                 try:
                     direct_url = f"https://www.instagram.com/api/v1/users/web_profile_info/?username={username}"
-                    await page.goto(direct_url, wait_until="domcontentloaded", timeout=15000)
-                    body_text = await page.inner_text("body")
+                    # Use page.evaluate fetch — same session/cookies as the page,
+                    # returns actual JSON text. page.goto() to an API URL returns
+                    # an empty body_text because the JSON is delivered as a stream
+                    # that inner_text("body") cannot read.
+                    body_text = await page.evaluate(
+                        """async (url) => {
+                            try {
+                                const r = await fetch(url, {
+                                    credentials: 'include',
+                                    headers: {
+                                        'X-IG-App-ID': '936619743392459',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'Accept': 'application/json'
+                                    }
+                                });
+                                return await r.text();
+                            } catch (e) {
+                                return '';
+                            }
+                        }""",
+                        direct_url
+                    )
+                    if not body_text:
+                        raise ValueError("Empty response from profile API fetch")
                     if body_text.startswith("for (;;);"):
                         body_text = body_text[9:]
                     captured_data["profile"] = json.loads(body_text)
