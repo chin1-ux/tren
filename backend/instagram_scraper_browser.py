@@ -143,13 +143,22 @@ class InstagramScraper:
         self._camoufox_page = None      # Active page for scraping
         
         self.hashtag_groups = {
+            # ── INDIA ──────────────────────────────────────────────────────────
             "INDIA_TRENDING": [
-                "indiansong", "reelkarofeelkaro", "trendingindia", "exploreindia"
+                "indiansong", "reelkarofeelkaro", "trendingindia", "exploreindia",
+                "trendingaudio", "indianreels",
             ],
             "INDIA_VERNACULAR": [
                 "telugureels", "kannadareels", "marathireels", "punjabisongs",
                 "hindireels", "tamilreels", "malayalamreels",
-                "keralagram", "chennaimemes"
+                "keralagram", "chennaimemes",
+            ],
+            "INDIA_DANCE_FASHION": [
+                # Hindi dance & hookstep audios
+                "bollywoodnachle", "bollywoodsteps", "hindinachle", "hookstep",
+                "hindiaudios", "trendinghindimusic", "hindinewsong", "indianreelsdance",
+                # Indian fashion & transition
+                "fashiontransition", "indianootd", "lookbookindia", "lehenga", "kurti",
             ],
             "FITNESS": [
                 "fitnessreels", "gymindia", "workoutmotivation", "desiworkout",
@@ -204,16 +213,58 @@ class InstagramScraper:
                 "footballindia", "badminton", "kabaddi", "neerajchopra",
                 "indiancricket"
             ],
+
+            # ── BRAZIL / LATIN AMERICA (pt-BR locale) ─────────────────────────
+            "BRAZIL_LATIN": [
+                "sertanejo", "piseiro", "forronovinho", "pagodao", "bregafunk",
+                "reelsbrasil", "musicabrasil", "passinho", "dancabrasil",
+                "reggaeton", "perreo", "urbanolatino", "musicalatina",
+            ],
+
+            # ── KOREA / ASIA / AFRICA / GLOBAL (ko-KR, various) ───────────────
+            "KOREA_ASIA": [
+                "kpop", "kpopdance", "kpopsongs", "kpopreels",
+                "jpop", "animesong", "opmhits", "musikaindonesia",
+            ],
+            "AFRICA_GLOBAL": [
+                "amapiano", "amapianodance", "afrobeats", "afrobeatsmusic",
+                "nigerianmusic", "afropop", "gqom",
+            ],
+            "MIDEAST_EUROPE": [
+                "arabicmusic", "arabicsong", "turkishmusic",
+                "ukdrill", "frenchmusic", "eurodance",
+            ],
+
+            # ── GLOBAL AUDIO DISCOVERY (language-agnostic) ─────────────────────
             "GLOBAL_DISCOVERY": [
-                # 1. Creator Audio, Speed-Up & Template Incubators (High audio density, 0 bot spam)
-                "trendingsound", "reelsaudio", "viralaudio", "speedupsongs", "capcuttemplate", "audiosforedits",
-                # 2. Viral Sub-Culture Launchpads (Where global breakout hits originate)
-                "brazilianphonk", "funkmtg", "phonk", "reggaeton", "afrobeats", "amapiano", "kpopdance",
-                # 3. Global Dance & Challenge Hubs
-                "dancechallenge", "gloomyvibes", "streetstyle", "remixreels", "dancetrend", "passinho",
-                # 4. Regional & Niche Sound Hubs
-                "latinmusic", "latinreels", "spanishmusic", "afrobeatsreels", "kpop", "speedupphonk", "funkbrasil"
-            ]
+                # Universal audio trend hubs
+                "trendingsound", "viralaudio", "speedupsongs", "capcuttemplate",
+                "audiosforedits", "remixreels", "viralmusic", "trendingaudio",
+                # Global creative/edit
+                "gloomyvibes", "streetstyle", "dancetrend", "popmusic",
+                "filmtok", "filmedit", "phonk", "speedupphonk",
+            ],
+        }
+
+        # ── Pool → Locale config for geo-spoofing per regional session ──────
+        # These are injected into HTTP headers (Accept-Language, X-IG-App-Locale)
+        # and Playwright context locale so Instagram's content ranking reflects
+        # the target country, not the Azure US-Central runner IP.
+        self.POOL_LOCALE_CONFIG = {
+            # India (default — no change)
+            "INDIA_TRENDING":      {"accept_lang": "hi-IN,hi;q=0.9,en-IN;q=0.8,en;q=0.7", "ctx_locale": "hi-IN", "ig_locale": "hi_IN", "timezone": "Asia/Kolkata"},
+            "INDIA_VERNACULAR":    {"accept_lang": "hi-IN,hi;q=0.9,en-IN;q=0.8,en;q=0.7", "ctx_locale": "hi-IN", "ig_locale": "hi_IN", "timezone": "Asia/Kolkata"},
+            "INDIA_DANCE_FASHION": {"accept_lang": "hi-IN,hi;q=0.9,en-IN;q=0.8,en;q=0.7", "ctx_locale": "hi-IN", "ig_locale": "hi_IN", "timezone": "Asia/Kolkata"},
+            # Brazil / Latin America
+            "BRAZIL_LATIN":    {"accept_lang": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7", "ctx_locale": "pt-BR", "ig_locale": "pt_BR", "timezone": "America/Sao_Paulo"},
+            # Korea / Asia
+            "KOREA_ASIA":      {"accept_lang": "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7", "ctx_locale": "ko-KR", "ig_locale": "ko_KR", "timezone": "Asia/Seoul"},
+            # Africa / Global
+            "AFRICA_GLOBAL":   {"accept_lang": "en-NG,en;q=0.9,yo;q=0.8", "ctx_locale": "en-NG", "ig_locale": "en_NG", "timezone": "Africa/Lagos"},
+            # Middle East / Europe
+            "MIDEAST_EUROPE":  {"accept_lang": "ar,ar-EG;q=0.9,en-US;q=0.8,en;q=0.7", "ctx_locale": "ar", "ig_locale": "ar_AR", "timezone": "Africa/Cairo"},
+            # Global Discovery — stay en-US (mixed international)
+            "GLOBAL_DISCOVERY": {"accept_lang": "en-US,en;q=0.9", "ctx_locale": "en-US", "ig_locale": "en_US", "timezone": "America/New_York"},
         }
 
         # Dynamically load event hashtags from EventMonitor
@@ -845,11 +896,22 @@ class InstagramScraper:
 
         return headers, cookies
 
-    async def _scrape_hashtag_page_async(self, hashtag: str) -> list[dict]:
+    async def _scrape_hashtag_page_async(self, hashtag: str, locale_cfg: dict | None = None) -> list[dict]:
         """Fetch trending reels for a hashtag using Instagram's native sections endpoint.
-        Falls back to Camoufox search keyword SERP if sections endpoint fails."""
+        Falls back to Camoufox search keyword SERP if sections endpoint fails.
+
+        locale_cfg: optional dict with keys accept_lang, ctx_locale, ig_locale, timezone.
+        When provided, injects country-specific headers so Instagram's content ranking
+        reflects the target region (locale spoofing — changes browser signals, not IP).
+        """
         clean_tag = hashtag.lstrip("#").strip()
         items: list = []
+
+        # Resolve locale config — default to en-US if not provided
+        _lc = locale_cfg or {"accept_lang": "en-US,en;q=0.9", "ctx_locale": "en-US", "ig_locale": "en_US"}
+        _accept_lang = _lc.get("accept_lang", "en-US,en;q=0.9")
+        _ctx_locale  = _lc.get("ctx_locale", "en-US")
+        _ig_locale   = _lc.get("ig_locale", "en_US")
 
         # ── Fast-path 1: Direct Instagram Native Hashtag Sections API (POST) ──
         # Instagram's live hashtag clips feed endpoint. Delivers ~30 fresh reels (8-24h old)
@@ -857,6 +919,9 @@ class InstagramScraper:
         try:
             headers, cookie_dict = self._load_instagram_cookie_headers()
             post_headers = dict(headers)
+            # Inject locale-specific headers so Instagram returns regionally-ranked content
+            post_headers["Accept-Language"] = _accept_lang
+            post_headers["X-IG-App-Locale"] = _ig_locale
             post_headers["X-CSRFToken"] = cookie_dict.get("csrftoken", "")
             post_headers["Referer"] = f"https://www.instagram.com/explore/tags/{clean_tag}/"
 
@@ -961,13 +1026,14 @@ class InstagramScraper:
                 for c in cookies
             ]
 
-            logger.info(f"Creating a fresh browser context for #{hashtag}...")
-            ctx = await self._camoufox_browser.new_context(no_viewport=True, locale="en-US")
+            logger.info(f"Creating a fresh browser context for #{hashtag} [locale={_ctx_locale}]...")
+            ctx = await self._camoufox_browser.new_context(no_viewport=True, locale=_ctx_locale)
             await ctx.add_cookies(formatted_cookies)
             await ctx.set_extra_http_headers({
                 "X-IG-App-ID": "936619743392459",
                 "X-Requested-With": "XMLHttpRequest",
-                "Accept-Language": "en-US,en;q=0.9",
+                "Accept-Language": _accept_lang,
+                "X-IG-App-Locale": _ig_locale,
                 "Referer": "https://www.instagram.com/",
             })
 
@@ -1882,26 +1948,41 @@ Return ONLY valid JSON, no markdown, no explanation:
             if "CUSTOM" in self.hashtag_groups:
                 priority_pool = self.hashtag_groups["CUSTOM"]
             elif scrape_mode == "global":
-                priority_pool = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:15]
+                # Global mode: all regional clusters, 2-4 hashtags each
+                priority_pool = (
+                    self.hashtag_groups.get("BRAZIL_LATIN", [])[:4]
+                    + self.hashtag_groups.get("KOREA_ASIA", [])[:3]
+                    + self.hashtag_groups.get("AFRICA_GLOBAL", [])[:3]
+                    + self.hashtag_groups.get("MIDEAST_EUROPE", [])[:2]
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:5]
+                )
             elif scrape_mode == "india":
                 priority_pool = (
-                    self.hashtag_groups.get("INDIA_TRENDING", [])[:6]
-                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:6]
-                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:5]
+                    self.hashtag_groups.get("INDIA_TRENDING", [])[:5]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:5]
+                    + self.hashtag_groups.get("INDIA_DANCE_FASHION", [])[:4]
+                    + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:4]
                     + self.hashtag_groups.get("DANCE", [])[:2]
-                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:4]
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:3]
                 )
             else:
-                # 50/50 Mixed Mode (Default): Equal balance between India trends & Global sounds
-                # (Brazilian Phonk/Funk, Latin/Spanish, K-Pop/Afrobeats, Global Dance)
+                # Mixed mode (default): India + all global regions, balanced
+                # Guard prevents any overlap if run takes >150 min — no burst collision possible
                 india_tags = (
-                    self.hashtag_groups.get("INDIA_TRENDING", [])[:4]
-                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:4]
+                    self.hashtag_groups.get("INDIA_TRENDING", [])[:3]
+                    + self.hashtag_groups.get("INDIA_VERNACULAR", [])[:3]
+                    + self.hashtag_groups.get("INDIA_DANCE_FASHION", [])[:3]
                     + self.hashtag_groups.get("EVENT_HASHTAGS", [])[:2]
                 )
-                global_tags = self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:10]
+                global_tags = (
+                    self.hashtag_groups.get("BRAZIL_LATIN", [])[:3]
+                    + self.hashtag_groups.get("KOREA_ASIA", [])[:2]
+                    + self.hashtag_groups.get("AFRICA_GLOBAL", [])[:2]
+                    + self.hashtag_groups.get("MIDEAST_EUROPE", [])[:1]
+                    + self.hashtag_groups.get("GLOBAL_DISCOVERY", [])[:5]
+                )
                 priority_pool = india_tags + global_tags
-            
+
             seen = set()
             selected = []
             for h in priority_pool:
@@ -1909,13 +1990,13 @@ Return ONLY valid JSON, no markdown, no explanation:
                     seen.add(h)
                     selected.append(h)
             
-            logger.info(f"Scraping {len(selected)} hashtags: {selected}")
+            logger.info(f"Scraping {len(selected)} hashtags [{scrape_mode} mode]: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
             # Global wall-clock guard: abort scrape if pipeline runs too long
-            # Default 15 min — scraper stage typically finishes in ~6 min for 15 hashtags.
+            # Raised to 20 min to accommodate larger regional hashtag pools.
             # Configurable via SCRAPER_GLOBAL_TIMEOUT if hashtag count grows.
-            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(15 * 60)))
+            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(20 * 60)))
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
@@ -1928,11 +2009,15 @@ Return ONLY valid JSON, no markdown, no explanation:
                     logger.info(f"Rate limiting: waiting {wait_time}s before next hashtag...")
                     time.sleep(wait_time)
                 
-                logger.info(f"Scraping #{tag} ({tag_idx + 1}/{len(selected)})...")
+                # Resolve per-tag locale config from pool membership for geo-spoofing
+                tag_pool = self._hashtag_pool_lookup.get(tag.lower())
+                tag_locale_cfg = self.POOL_LOCALE_CONFIG.get(tag_pool) if tag_pool else None
+                locale_label = tag_locale_cfg.get("ctx_locale", "en-US") if tag_locale_cfg else "en-US"
+                logger.info(f"Scraping #{tag} ({tag_idx + 1}/{len(selected)}) [locale={locale_label}, pool={tag_pool}]...")
 
-                # --- OS-level per-hashtag timeout (60s) ---
+                # --- OS-level per-hashtag timeout (120s) ---
                 # Playwright-internal timeouts are worthless when the Firefox/Node.js
-                # driver process crashes â€” all Playwright calls then block forever.
+                # driver process crashes — all Playwright calls then block forever.
                 # SIGALRM fires from the OS regardless of Python's blocking state.
                 # Only available on Linux (GitHub Actions ubuntu-latest). Safe to skip on Windows.
                 _has_sigalrm = hasattr(signal, "SIGALRM")
@@ -1944,7 +2029,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                     signal.alarm(hashtag_timeout)
 
                 try:
-                    items = await self._scrape_hashtag_page_async(tag)
+                    items = await self._scrape_hashtag_page_async(tag, locale_cfg=tag_locale_cfg)
                 except TimeoutError as te:
                     logger.error(f"{te}. Reinitializing browser for remaining hashtags...")
                     await self._close_browser_async()
