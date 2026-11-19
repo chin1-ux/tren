@@ -20,12 +20,26 @@ HASHTAG_POOL_MAP = {
     "GLOBAL_DISCOVERY": {
         "brazilianphonk", "funkbrasil", "phonkmusic", "phonk", "funkmtg",
         "reelsbrasil", "passinho", "dancabrasil", "speedupphonk",
+        # Brazilian viral dance music (sertanejo, forró, piseiro)
+        "sertanejo", "piseiro", "forronovinho", "pagodao", "bailebaile", "danca", "transicao",
+        "sertanejoraiz", "forroeletronico", "serejo", "bregafunk",
         "kpop", "kpopdance", "kpopreels", "kpopsongs", "kpopchallenge",
         "viralaudio", "trendingsound", "speedupsongs", "remixreels",
         "reelsound", "viralmusic", "audiosforedits", "trendingaudio",
         "reggaeton", "latinmusic", "spanishmusic", "latinreels",
         "spanishreels", "latintrend", "perreo", "afrobeats", "afrobeatsmusic",
         "ukdrill", "eurodance", "popmusic", "billboardhot100", "filmtok", "filmedit",
+    },
+    "INDIA_DANCE_FASHION": {
+        # Hindi dance & hookstep
+        "bollywoodnachle", "bollywoodsteps", "hindinachle", "indiandance",
+        "hookstep", "dancecover", "dancetrend", "dancechallengeindia",
+        "hindiaudios", "trendinghindimusic", "hindinewsong", "hindisong",
+        "bollywoodsong", "bollywoodnews",
+        # Indian fashion transitions
+        "fashiontransition", "indianootd", "ethnicootd", "lookbookindia",
+        "lehenga", "sareedraping", "ethnicfashion", "indianstyle",
+        "desifashion", "kurti", "indianreelsdance",
     },
     "MICRO_DANCE": {
         "microdance", "trendingdance", "viralchallenge", "dancehacks",
@@ -46,6 +60,7 @@ HASHTAG_POOL_MAP = {
 }
 
 HASHTAG_NICHE_MAP = {
+    # --- Global niches ---
     "fitnessreels": "fitness",
     "foodreels": "food",
     "comedyreels": "comedy",
@@ -53,6 +68,7 @@ HASHTAG_NICHE_MAP = {
     "travelreels": "travel",
     "beautyreels": "beauty",
     "artreels": "art",
+    # --- India general ---
     "trendingindia": "general",
     "reelsindia": "general",
     "instagramindia": "general",
@@ -71,6 +87,50 @@ HASHTAG_NICHE_MAP = {
     "fashion": "fashion",
     "beauty": "beauty",
     "art": "art",
+    # --- India dance ---
+    "bollywoodnachle": "dance",
+    "bollywoodsteps": "dance",
+    "hindinachle": "dance",
+    "indiandance": "dance",
+    "hookstep": "dance",
+    "dancecover": "dance",
+    "dancetrend": "dance",
+    "dancechallengeindia": "dance",
+    "indianreelsdance": "dance",
+    "southdance": "dance",
+    "bangaloredance": "dance",
+    # --- India music ---
+    "hindiaudios": "music",
+    "trendinghindimusic": "music",
+    "hindinewsong": "music",
+    "hindisong": "music",
+    "bollywoodsong": "music",
+    "bollywoodnews": "music",
+    # --- India fashion ---
+    "fashiontransition": "fashion",
+    "indianootd": "fashion",
+    "ethnicootd": "fashion",
+    "lookbookindia": "fashion",
+    "lehenga": "fashion",
+    "sareedraping": "fashion",
+    "ethnicfashion": "fashion",
+    "indianstyle": "fashion",
+    "desifashion": "fashion",
+    "kurti": "fashion",
+    # --- Brazil / PT dance & music ---
+    "sertanejo": "music",
+    "piseiro": "dance",
+    "forronovinho": "dance",
+    "pagodao": "music",
+    "bailebaile": "dance",
+    "danca": "dance",
+    "transicao": "fashion",
+    "sertanejoraiz": "music",
+    "forroeletronico": "music",
+    "bregafunk": "dance",
+    "funkbrasil": "dance",
+    "passinho": "dance",
+    "dancabrasil": "dance",
 }
 
 NICHE_KEYWORDS = {
