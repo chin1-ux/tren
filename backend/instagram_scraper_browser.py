@@ -283,10 +283,11 @@ class InstagramScraper:
             pass
 
         override = os.getenv("SCRAPER_HASHTAGS", "").strip()
+        self.custom_hashtag_override = None
         if override:
             custom_tags = [tag.strip().lstrip("#") for tag in override.split(",") if tag.strip()]
             if custom_tags:
-                self.hashtag_groups = {"CUSTOM": custom_tags}
+                self.custom_hashtag_override = custom_tags
         self._hashtag_pool_lookup = {}
         # Register specific niche pools first so catch-all pools cannot overwrite them
         for pool_name, tags in self.hashtag_groups.items():
@@ -298,6 +299,19 @@ class InstagramScraper:
             for tag in self.hashtag_groups.get(pool_name, []):
                 if tag.lower() not in self._hashtag_pool_lookup:
                     self._hashtag_pool_lookup[tag.lower()] = pool_name
+        # If custom override provided, ensure tags are assigned to their real regional pool
+        if self.custom_hashtag_override:
+            try:
+                from classification_rules import REGIONAL_POOLS
+                for rpool, rtags in REGIONAL_POOLS.items():
+                    for rt in rtags:
+                        if rt.lower() not in self._hashtag_pool_lookup:
+                            self._hashtag_pool_lookup[rt.lower()] = rpool
+            except Exception:
+                pass
+            for tag in self.custom_hashtag_override:
+                if tag.lower() not in self._hashtag_pool_lookup:
+                    self._hashtag_pool_lookup[tag.lower()] = "GLOBAL_DISCOVERY"
 
     def _source_hashtag_pool_for_hashtags(self, hashtags: list[str], scraped_tag: str | None = None) -> str | None:
         if scraped_tag:
@@ -980,7 +994,7 @@ class InstagramScraper:
                             if m and m.get("pk"):
                                 medias.append(m)
 
-                if len(medias) >= 5:
+                if medias:
                     for media in medias:
                         media_type = media.get("media_type")
                         if media_type not in (2, 8):
@@ -1967,8 +1981,8 @@ Return ONLY valid JSON, no markdown, no explanation:
         
         try:
             scrape_mode = os.getenv("SCRAPER_MODE", "mixed").strip().lower()
-            if "CUSTOM" in self.hashtag_groups:
-                priority_pool = self.hashtag_groups["CUSTOM"]
+            if getattr(self, "custom_hashtag_override", None):
+                priority_pool = self.custom_hashtag_override
             elif scrape_mode == "global":
                 # Global mode: all regional clusters, 2-4 hashtags each
                 priority_pool = (
@@ -2018,7 +2032,7 @@ Return ONLY valid JSON, no markdown, no explanation:
             # Global wall-clock guard: abort scrape if pipeline runs too long
             # Raised to 20 min to accommodate larger regional hashtag pools.
             # Configurable via SCRAPER_GLOBAL_TIMEOUT if hashtag count grows.
-            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(20 * 60)))
+            _SCRAPE_TIMEOUT_S = int(os.getenv("SCRAPER_GLOBAL_TIMEOUT", str(35 * 60)))
             _scrape_start = time.monotonic()
             
             for tag_idx, tag in enumerate(selected):
