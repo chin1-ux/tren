@@ -72,15 +72,25 @@ def generate_local_fallback(trend):
     elif age_hours > 48:
         confidence = max(confidence - 0.1, 0.5)
 
-    # Optimal posting hour based on current time of day
-    from datetime import datetime, timezone
-    current_hour_ist = (datetime.now(timezone.utc).hour + 5 + 30 // 60) % 24
-    if current_hour_ist < 12:
-        optimal_post_hour_ist = 20  # evening peak
-    elif current_hour_ist < 17:
-        optimal_post_hour_ist = 13  # afternoon
-    else:
-        optimal_post_hour_ist = 10  # next morning
+    # Optimal posting hour (IST) — niche-aware research-backed lookup
+    niche_key = (trend.get("niche_tag") or "").lower()
+    NICHE_POST_HOURS: dict = {
+        "fitness":     20,  # 7–9 PM IST  (morning option: 6)
+        "food":        17,  # 5 PM IST
+        "fashion":     19,  # 7 PM IST (Fri–Sat peak)
+        "beauty":      19,
+        "dance":       20,  # 8 PM IST
+        "music":       20,
+        "comedy":      21,  # 9 PM IST
+        "entertainment": 21,
+        "travel":      12,  # 12 PM IST
+        "finance":      9,  # 9 AM IST
+        "tech":         9,
+        "business":     9,
+        "motivation":  20,
+        "current_affairs": 9,
+    }
+    optimal_post_hour_ist = NICHE_POST_HOURS.get(niche_key, 20)  # default 8 PM IST
 
     return {
         "content_type": None,
@@ -1104,6 +1114,22 @@ class TrendEngine:
                     continue
 
                 max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
+
+                # ── VELOCITY RESCUE (Proposal B — approved 2026-11-19) ───────────────
+                # Instagram's hashtag sections API (/api/v1/tags/{tag}/sections/) does NOT
+                # return audio_use_count. This causes high-velocity tracks scraped via
+                # hashtag pools to have audio_use_count=0 and get silently dropped by
+                # the EMERGING_USE_THRESHOLD gate below — even if avg_velocity is 500k+.
+                # Fix: if audio_use_count=0 but velocity is massive, treat the audio as
+                # emerging (synthetic floor = EMERGING_USE_THRESHOLD). All other gates
+                # (creator diversity ≥2, engagement ≥10 likes, 72h time-window) still apply.
+                VELOCITY_RESCUE_THRESHOLD = 500000  # reels/day — only rescue truly viral tracks
+                if max_use_count == 0 and avg_velocity >= VELOCITY_RESCUE_THRESHOLD:
+                    logging.info(
+                        f"[VELOCITY_RESCUE] '{title}' | {artist}: vel={avg_velocity:,.0f} but "
+                        f"audio_use_count=0 (hashtag API gap). Injecting synthetic floor={EMERGING_USE_THRESHOLD:,}."
+                    )
+                    max_use_count = EMERGING_USE_THRESHOLD  # synthetic floor — allows emerging detection
 
                 official_velocity_val = None
                 if representative_audio_id:
