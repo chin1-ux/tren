@@ -212,19 +212,21 @@ def calculate_realistic_peaking_score(trend: dict, snapshots: list) -> float:
     # Calculate velocity acceleration from snapshots
     velocity_score = 0
     if len(snapshots) >= 2:
-        recent_velocity = snapshots[0]['velocity_avg']
-        older_velocity = snapshots[-1]['velocity_avg']
+        recent_velocity = float(snapshots[0].get('velocity_avg') or 0.0)
+        older_velocity = float(snapshots[-1].get('velocity_avg') or 0.0)
         if older_velocity > 0:
             acceleration = ((recent_velocity - older_velocity) / older_velocity) * 100
             # Normalize to 0-100 (assume 100% acceleration = 100 points)
             velocity_score = min(100, max(0, acceleration))
     
     # Calculate window efficiency (strictly 0-100 scale)
-    window_remaining = trend.get('window_hours_remaining', 0)
-    window_efficiency = min(100.0, (window_remaining / 48.0) * 100.0) if window_remaining > 0 else 0
+    window_raw = trend.get('window_hours_remaining')
+    window_remaining = float(window_raw) if window_raw is not None else 0.0
+    window_efficiency = min(100.0, (window_remaining / 48.0) * 100.0) if window_remaining > 0 else 0.0
     
     # Calculate creator count score
-    reel_count = trend.get('reel_count', 0)
+    reel_raw = trend.get('reel_count')
+    reel_count = float(reel_raw) if reel_raw is not None else 0.0
     creator_score = min(100.0, (reel_count / 1000.0) * 100.0)  # 1000 reels = 100 points
     
     # Combined score

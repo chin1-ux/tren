@@ -204,7 +204,8 @@ class TrendRefresher:
                 current_status = trend.get("status", "rising")
                 current_velocity = trend.get("velocity_avg", 0.0)
                 peak_velocity = trend.get("peak_velocity") or current_velocity
-                window_hours = trend.get("window_hours_remaining", 24)
+                window_raw = trend.get("window_hours_remaining")
+                window_hours = int(window_raw) if window_raw is not None else 24
 
                 # Always refresh audio use count first, regardless of status (skip DB write on dry_run)
                 if not dry_run:
@@ -406,40 +407,6 @@ class TrendRefresher:
                             }).eq("id", trend_id).execute()
                         return local_summary
 
-                if not outage_guard and velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
-                    # Anti-flicker: require 2 consecutive low-velocity snapshots before demoting.
-                    # Fail-safe: Require explicit snapshot history before demoting to peaked.
-                    try:
-                        snaps_res = self.supabase.table("trend_snapshots") \
-                            .select("velocity_avg") \
-                            .eq("trend_id", trend_id) \
-                            .order("captured_at", desc=True) \
-                            .limit(2) \
-                            .execute()
-                        snap_vels = [float(s.get("velocity_avg") or 0.0) for s in (snaps_res.data or [])]
-                        # Need at least 2 historical snapshots both below the threshold
-                        two_dip_confirmed = (
-                            len(snap_vels) >= 2
-                            and all(v < peak_velocity * 0.60 for v in snap_vels)
-                        )
-                    except Exception as _snap_err:
-                        logger.debug(f"Anti-flicker snapshot check failed for trend_id={trend_id}: {_snap_err}")
-                        two_dip_confirmed = False  # Fail-safe: Hold current status if snapshots unavailable
-
-                    if two_dip_confirmed:
-                        self._update_status(trend_id, "peaked", {
-                            "window_hours_remaining": new_window,
-                            "velocity_avg": velocity_for_check,
-                            "reel_count": total_reels_count,
-                            "high_confidence": bool(trend.get("high_confidence", False)),
-                            "promotion_reason": trend.get("promotion_reason"),
-                        }, previous_status=current_status)
-                        logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f}, 2-dip confirmed)")
-                        local_summary["peaked"] += 1
-                        return local_summary
-                    else:
-                        logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but held — protecting active feed ({current_status})")
-
                 creator_count = self._count_unique_creators(
                     trend.get("audio_title"), trend.get("audio_artist"), now
                 )
@@ -458,6 +425,61 @@ class TrendRefresher:
                     }, previous_status=current_status)
                     local_summary["emerged"] = local_summary.get("emerged", 0) + 1
                     return local_summary
+
+                # Peaked Demotion Gate:
+                # Requires:
+                # 1. Minimum 12-hour observation window (age_hours >= 12.0)
+                # 2. Velocity drop below 60% of peak_velocity
+                # 3. Sustained deceleration across at least 2 snapshots spanning >= 2 hours
+                if not outage_guard and velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
+                    if age_hours < 12.0:
+                        logger.info(f"[OBSERVATION_HOLD] '{audio_title}' velocity dropped but age={age_hours:.1f}h < 12h — holding in {current_status}")
+                    else:
+                        # Anti-flicker: require 2 consecutive low-velocity snapshots before demoting.
+                        # Fail-safe: Require explicit snapshot history before demoting to peaked.
+                        try:
+                            snaps_res = self.supabase.table("trend_snapshots") \
+                                .select("velocity_avg, captured_at") \
+                                .eq("trend_id", trend_id) \
+                                .order("captured_at", desc=True) \
+                                .limit(3) \
+                                .execute()
+                            snaps_data = snaps_res.data or []
+                            snap_vels = [float(s.get("velocity_avg") or 0.0) for s in snaps_data]
+                            has_time_span = False
+                            if len(snaps_data) >= 2 and snaps_data[0].get("captured_at") and snaps_data[-1].get("captured_at"):
+                                try:
+                                    t_latest = datetime.fromisoformat(str(snaps_data[0]["captured_at"]).replace("Z", "+00:00"))
+                                    t_oldest = datetime.fromisoformat(str(snaps_data[-1]["captured_at"]).replace("Z", "+00:00"))
+                                    span_hours = abs((t_latest - t_oldest).total_seconds()) / 3600.0
+                                    has_time_span = span_hours >= 2.0 or len(snaps_data) >= 3
+                                except Exception:
+                                    has_time_span = len(snaps_data) >= 2
+                            else:
+                                has_time_span = len(snaps_data) >= 2
+
+                            two_dip_confirmed = (
+                                len(snap_vels) >= 2
+                                and all(v < peak_velocity * 0.60 for v in snap_vels)
+                                and has_time_span
+                            )
+                        except Exception as _snap_err:
+                            logger.debug(f"Anti-flicker snapshot check failed for trend_id={trend_id}: {_snap_err}")
+                            two_dip_confirmed = False  # Fail-safe: Hold current status if snapshots unavailable
+
+                        if two_dip_confirmed:
+                            self._update_status(trend_id, "peaked", {
+                                "window_hours_remaining": new_window,
+                                "velocity_avg": velocity_for_check,
+                                "reel_count": total_reels_count,
+                                "high_confidence": high_confidence,
+                                "promotion_reason": trend.get("promotion_reason"),
+                            }, previous_status=current_status)
+                            logger.info(f"[PEAKED] '{audio_title}' (was {peak_velocity:.2f}, now {velocity_for_check:.2f}, 2-dip confirmed, age={age_hours:.1f}h)")
+                            local_summary["peaked"] += 1
+                            return local_summary
+                        else:
+                            logger.info(f"[ANTI-FLICKER] '{audio_title}' low velocity but held — protecting active feed ({current_status})")
 
                 trend_state = calculate_trend_state(
                     velocity_avg=velocity_for_check,
