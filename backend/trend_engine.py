@@ -888,43 +888,54 @@ class TrendEngine:
                             break
 
                 if existing_match:
-                    # Update-in-place: never-downgrade status on re-detection.
-                    # Only status is updated here — velocity/metrics are owned by
-                    # trend_refresher.py via snapshot logic. No last_detected_at
-                    # column exists; consider adding via migration for staleness tracking.
+                    # Update-in-place: refresh freshness and momentum on re-detection
+                    now_iso = datetime.now(timezone.utc).isoformat()
+                    velocities = [(r.get("velocity_score") or 0.0) for r in group_reels]
+                    fresh_avg_v = sum(velocities) / len(velocities) if velocities else None
+                    fresh_max_v = max(velocities) if velocities else None
+
+                    update_payload = {
+                        "last_seen_at": now_iso,
+                    }
+                    if fresh_avg_v is not None and fresh_avg_v > (existing_match.get("velocity_avg") or 0.0):
+                        update_payload["velocity_avg"] = fresh_avg_v
+                    if fresh_max_v is not None:
+                        current_peak = float(existing_match.get("peak_velocity") or 0.0)
+                        if fresh_max_v > current_peak:
+                            update_payload["peak_velocity"] = fresh_max_v
+
                     old_status = existing_match.get("status", "emerging")
                     new_detected_status = "emerging"
                     old_priority = STATUS_PRIORITY.get(old_status, 0)
                     new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
                     final_status = old_status if old_priority >= new_priority else new_detected_status
+
                     if final_status != old_status:
-                        update_payload = {
-                            "status": final_status,
-                            "status_reason": {
-                                "previous_status": old_status,
-                                "new_status": final_status,
-                                "transition_timestamp": datetime.now(timezone.utc).isoformat(),
-                                "trigger_source": "detect",
-                                "decision_metrics": {
-                                    "old_priority": old_priority,
-                                    "new_priority": new_priority,
-                                }
+                        update_payload["status"] = final_status
+                        update_payload["status_reason"] = {
+                            "previous_status": old_status,
+                            "new_status": final_status,
+                            "transition_timestamp": now_iso,
+                            "trigger_source": "detect",
+                            "decision_metrics": {
+                                "old_priority": old_priority,
+                                "new_priority": new_priority,
                             }
                         }
-                        if final_status in ("emerging", "rising"):
-                            update_payload["window_hours_remaining"] = 48
-                            
-                        try:
-                            self.supabase.table("trends") \
-                                .update(update_payload) \
-                                .eq("id", existing_match["id"]) \
-                                .execute()
-                            logging.info(
-                                f"Updated existing trend '{title}' (id={existing_match['id']}): "
-                                f"status {old_status} -> {final_status}"
-                            )
-                        except Exception as update_err:
-                            logging.warning(f"Failed to update existing trend '{title}': {update_err}")
+                    if final_status in ("emerging", "rising", "resurging"):
+                        update_payload["window_hours_remaining"] = 48
+
+                    try:
+                        self.supabase.table("trends") \
+                            .update(update_payload) \
+                            .eq("id", existing_match["id"]) \
+                            .execute()
+                        logging.info(
+                            f"Re-caught existing trend '{title}' (id={existing_match['id']}): "
+                            f"refreshed last_seen_at={now_iso}, status={final_status}"
+                        )
+                    except Exception as update_err:
+                        logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
 
                 usernames = {r.get("owner_username") for r in group_reels if r.get("owner_username")}

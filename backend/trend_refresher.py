@@ -202,8 +202,9 @@ class TrendRefresher:
                 audio_title = trend.get("audio_title", "?")
                 created_at_str = trend.get("first_detected_at") or trend.get("created_at")
                 current_status = trend.get("status", "rising")
-                current_velocity = trend.get("velocity_avg", 0.0)
-                peak_velocity = trend.get("peak_velocity") or current_velocity
+                current_velocity = float(trend.get("velocity_avg") or 0.0)
+                peak_raw = trend.get("peak_velocity")
+                peak_velocity = float(peak_raw) if peak_raw is not None else current_velocity
                 window_raw = trend.get("window_hours_remaining")
                 window_hours = int(window_raw) if window_raw is not None else 24
 
@@ -431,7 +432,7 @@ class TrendRefresher:
                 # 1. Minimum 12-hour observation window (age_hours >= 12.0)
                 # 2. Velocity drop below 60% of peak_velocity
                 # 3. Sustained deceleration across at least 2 snapshots spanning >= 2 hours
-                if not outage_guard and velocity_for_check < peak_velocity * 0.60 and peak_velocity > 0:
+                if not outage_guard and peak_velocity > 0 and velocity_for_check < peak_velocity * 0.60:
                     if age_hours < 12.0:
                         logger.info(f"[OBSERVATION_HOLD] '{audio_title}' velocity dropped but age={age_hours:.1f}h < 12h — holding in {current_status}")
                     else:
