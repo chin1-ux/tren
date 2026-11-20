@@ -1503,9 +1503,8 @@ Return ONLY valid JSON, no markdown, no explanation:
             normalized_followers = math.log(followers + 10)
             velocity = (engagement / hours_live / normalized_followers) * 100
 
-            # Exponential decay: 24-hour half-life
-            # Reels lose ~50% of attention weight every 24 hours
-            decay_half_life_hours = 24.0
+            # Exponential decay: 48-hour half-life (calibrated for native sections clips endpoint)
+            decay_half_life_hours = float(os.getenv("SCRAPER_DECAY_HALF_LIFE_HOURS", "48.0"))
             decay_factor = 0.5 ** (hours_live / decay_half_life_hours)
             velocity *= decay_factor
 

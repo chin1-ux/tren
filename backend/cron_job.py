@@ -526,26 +526,31 @@ def run_full_pipeline(stages: list = None):
     else:
         # Mixed mode — balanced India core + global sample (manual dispatch / fallback)
         mixed_tags = ",".join([
-            # ── INDIA CORE (best-signal audio tags) ───────────────────────────────────
-            "trendingaudio", "reelsindia", "hindisongs", "punjabisongs",
-            "tamilsongs", "telugusongs", "reelitfeelit",
+            # ── INDIA CORE AUDIO SIGNALS ──────────────────────────────────────────────
+            "trendingaudio", "reelsindia", "trendingreels", "reelitfeelit", "trendingsong",
+            "viralaudio", "viralsong", "reelsaudio",
+            "hindisongs", "hindireels", "hindidance", "bollywooddance",
+            "punjabisongs", "punjabireels", "punjabidance",
+            "tamilsongs", "tamilreels", "telugusongs", "telugureels",
+            "marathisongs", "malayalamsongs", "kannadasongs",
             "danceindia", "choreography", "indianfashion", "transitionreels",
-            "bollywooddance", "hindidance", "capcutindia",
+            "capcutindia", "reeledit", "desicomedy", "relatablereels",
             # ── BRAZIL / LATIN ────────────────────────────────────────────────────────
-            "sertanejo", "piseiro", "bregafunk", "funkbrasil", "passinho",
-            "pagodao", "reelsbrasil", "reggaeton", "perreo", "musicalatina",
+            "sertanejo", "piseiro", "forronovinho", "pagodao", "bregafunk",
+            "funkbrasil", "funkbrasileiro", "passinho", "funkmtg",
+            "reelsbrasil", "reggaeton", "perreo", "musicalatina", "bachata", "latinpop",
             # ── KOREA / ASIA ──────────────────────────────────────────────────────────
-            "kpop", "kpopdance", "kpopsongs", "kpopcover",
-            "jpop", "animesong", "opmhits", "musikaindonesia",
+            "kpop", "kpopdance", "kpopsongs", "kpopcover", "kpopedit",
+            "jpop", "animesong", "opmhits", "musikaindonesia", "laguviral", "jedagjedug",
             # ── AFRICA ────────────────────────────────────────────────────────────────
-            "amapiano", "amapianovibes", "afrobeats", "afrodance", "naijamusic",
+            "amapiano", "amapianovibes", "amapianodance", "afrobeats", "afrodance", "naijamusic", "afropop",
             # ── MIDEAST / ARAB ────────────────────────────────────────────────────────
             "arabicmusic", "arabicsongs", "khaleejimusic", "turkishmusic",
-            # ── EUROPE ────────────────────────────────────────────────────────────────
-            "ukdrill", "frenchrap", "eurodance", "russianmusic",
+            # ── EUROPE / DRILL ────────────────────────────────────────────────────────
+            "ukdrill", "ukrap", "frenchrap", "eurodance", "russianmusic",
             # ── PHONK / GLOBAL VIRAL ──────────────────────────────────────────────────
             "phonk", "driftphonk", "speedupsongs", "slowedandreverb",
-            "capcuttemplate", "dancechallenge", "trendingaudio",
+            "capcuttemplate", "dancechallenge", "viralreels", "lofimusic",
         ])
         os.environ["SCRAPER_HASHTAGS"] = mixed_tags
         logging.info(f"Set SCRAPER_HASHTAGS for mixed mode: {len(mixed_tags.split(','))} tags (India core + global sample — balanced)")

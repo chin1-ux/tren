@@ -806,18 +806,17 @@ class TrendEngine:
                 len(audio_groups),
             )
 
-            # STEP 3: Fetch ALL existing trends for dedup from content_trends (all statuses).
+            # STEP 3: Fetch ALL existing trends for dedup from trends table (all statuses).
             from audio_utils import _normalize_audio_title_and_artist, _extract_remix_indicators
 
             STATUS_PRIORITY = {"expired": 0, "peaked": 1, "emerging": 2, "rising": 3}
-            all_trends_res = self.supabase.table("content_trends") \
-                .select("trend_name, artist, audio_id, template_pattern, status, id") \
-                .eq("trend_type", "audio") \
+            all_trends_res = self.supabase.table("trends") \
+                .select("audio_title, audio_artist, audio_id, status, id, velocity_avg, peak_velocity") \
                 .execute()
             
             all_trends = all_trends_res.data or []
             existing_by_audio_id = {
-                (t.get("audio_id") or "").strip(): t
+                str(t.get("audio_id")).strip(): t
                 for t in all_trends
                 if t.get("audio_id")
             }
@@ -878,13 +877,13 @@ class TrendEngine:
                     remix_kw = _extract_remix_indicators(title)
 
                     for t in all_trends:
-                        e_norm_t, e_norm_a = _normalize_audio_title_and_artist(t.get("trend_name", ""), t.get("artist", ""))
-                        e_remix_kw = _extract_remix_indicators(t.get("trend_name", ""))
+                        e_norm_t, e_norm_a = _normalize_audio_title_and_artist(t.get("audio_title", ""), t.get("audio_artist", ""))
+                        e_remix_kw = _extract_remix_indicators(t.get("audio_title", ""))
                         if norm_t == e_norm_t and norm_a == e_norm_a and remix_kw == e_remix_kw:
                             existing_match = t
                             if representative_audio_id and not t.get("audio_id"):
                                 # Backfill audio_id on first match so subsequent reels hit Step 1 fast-path
-                                self.supabase.table("content_trends").update({"audio_id": representative_audio_id}).eq("id", t["id"]).execute()
+                                self.supabase.table("trends").update({"audio_id": representative_audio_id}).eq("id", t["id"]).execute()
                             break
 
                 if existing_match:
@@ -896,6 +895,7 @@ class TrendEngine:
 
                     update_payload = {
                         "last_seen_at": now_iso,
+                        "window_hours_remaining": 48,
                     }
                     if fresh_avg_v is not None and fresh_avg_v > (existing_match.get("velocity_avg") or 0.0):
                         update_payload["velocity_avg"] = fresh_avg_v
@@ -905,10 +905,18 @@ class TrendEngine:
                             update_payload["peak_velocity"] = fresh_max_v
 
                     old_status = existing_match.get("status", "emerging")
-                    new_detected_status = "emerging"
-                    old_priority = STATUS_PRIORITY.get(old_status, 0)
-                    new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
-                    final_status = old_status if old_priority >= new_priority else new_detected_status
+                    if old_status in ("peaked", "expired"):
+                        if (fresh_avg_v or 0) >= 30.0 or len(group_reels) >= 3:
+                            final_status = "rising"
+                        elif (fresh_avg_v or 0) >= 5.0 or len(group_reels) >= 1:
+                            final_status = "emerging"
+                        else:
+                            final_status = old_status
+                    else:
+                        old_priority = STATUS_PRIORITY.get(old_status, 0)
+                        new_detected_status = "emerging"
+                        new_priority = STATUS_PRIORITY.get(new_detected_status, 0)
+                        final_status = old_status if old_priority >= new_priority else new_detected_status
 
                     if final_status != old_status:
                         update_payload["status"] = final_status
@@ -916,14 +924,12 @@ class TrendEngine:
                             "previous_status": old_status,
                             "new_status": final_status,
                             "transition_timestamp": now_iso,
-                            "trigger_source": "detect",
+                            "trigger_source": "detect_resurrect",
                             "decision_metrics": {
-                                "old_priority": old_priority,
-                                "new_priority": new_priority,
+                                "fresh_avg_v": fresh_avg_v,
+                                "fresh_max_v": fresh_max_v,
                             }
                         }
-                    if final_status in ("emerging", "rising", "resurging"):
-                        update_payload["window_hours_remaining"] = 48
 
                     try:
                         self.supabase.table("trends") \
@@ -934,6 +940,8 @@ class TrendEngine:
                             f"Re-caught existing trend '{title}' (id={existing_match['id']}): "
                             f"refreshed last_seen_at={now_iso}, status={final_status}"
                         )
+                        # Add refreshed trend ID to new_trend_ids so feeds & notifications immediately pick it up
+                        new_trend_ids.append(existing_match["id"])
                     except Exception as update_err:
                         logging.warning(f"Failed to update existing trend '{title}': {update_err}")
                     continue
@@ -1461,6 +1469,8 @@ class TrendEngine:
                     "exogenous_correlation": news_matches,
                     "content_tone": content_tone,
                     "first_detected_at": datetime.now(timezone.utc).isoformat(),
+                    "last_seen_at": datetime.now(timezone.utc).isoformat(),
+                    "window_hours_remaining": 48,
                     # Trend classification for display differentiation
                     "trend_classification": trend_classification["trend_classification"],
                     "velocity_pattern": trend_classification["velocity_pattern"],
@@ -1509,8 +1519,11 @@ class TrendEngine:
                     if existing_t_data:
                         tid = existing_t_data["id"]
                         update_payload = {k: v for k, v in trend_data.items() if k not in ("status", "status_reason", "first_detected_at", "created_at")}
+                        update_payload["last_seen_at"] = datetime.now(timezone.utc).isoformat()
+                        update_payload["window_hours_remaining"] = 48
                         self.supabase.table("trends").update(update_payload).eq("id", tid).execute()
-                        logging.info(f"Updated metrics for existing trend '{trend['audio_title']}' (id={tid}, status={existing_t_data.get('status')}) without clobbering status")
+                        new_trend_ids.append(tid)
+                        logging.info(f"Updated metrics & freshness for existing trend '{trend['audio_title']}' (id={tid}, status={existing_t_data.get('status')})")
                     else:
                         try:
                             res = self.supabase.table("trends").insert(trend_data).execute()
@@ -1522,7 +1535,10 @@ class TrendEngine:
                             if "23505" in str(insert_err) or "duplicate key" in str(insert_err).lower():
                                 logging.warning(f"Race condition caught on insert for '{trend['audio_title']}': {insert_err}. Falling back to non-clobbering update.")
                                 update_payload = {k: v for k, v in trend_data.items() if k not in ("status", "status_reason", "first_detected_at", "created_at")}
+                                update_payload["last_seen_at"] = datetime.now(timezone.utc).isoformat()
+                                update_payload["window_hours_remaining"] = 48
                                 self.supabase.table("trends").update(update_payload).eq("audio_id", target_audio_id).execute()
+                                new_trend_ids.append(target_audio_id)
                             else:
                                 raise insert_err
                 except Exception as e:
