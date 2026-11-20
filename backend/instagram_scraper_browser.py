@@ -967,32 +967,55 @@ class InstagramScraper:
                 with requests.Session() as s:
                     s.headers.update(post_headers)
                     s.cookies.update(cookie_dict)
-                    return s.post(sections_url, data={"tab": "clips", "page": 1}, timeout=15)
+                    r1 = s.post(sections_url, data={"tab": "clips", "page": 1}, timeout=15)
+                    all_sections = []
+                    if r1.status_code == 200:
+                        d1 = r1.json()
+                        all_sections.extend(d1.get("sections", []))
+                        next_max_id = d1.get("next_max_id")
+                        more_avail = d1.get("more_available", False)
+                        if more_avail and next_max_id:
+                            try:
+                                r2 = s.post(sections_url, data={"tab": "clips", "page": 2, "max_id": next_max_id}, timeout=15)
+                                if r2.status_code == 200:
+                                    d2 = r2.json()
+                                    all_sections.extend(d2.get("sections", []))
+                            except Exception as _p2_err:
+                                logger.debug(f"sections page 2 fetch error for #{clean_tag}: {_p2_err}")
+                    return all_sections
 
             loop = asyncio.get_event_loop()
-            res = await loop.run_in_executor(None, _post_sections)
+            sections = await loop.run_in_executor(None, _post_sections)
 
-            if res.status_code == 200:
-                res_data = res.json()
-                sections = res_data.get("sections", [])
+            if sections:
                 medias: list[dict] = []
+                seen_pks = set()
                 for s in sections:
                     content = s.get("layout_content", {})
                     for m_wrap in content.get("medias", []):
                         med = m_wrap.get("media") or m_wrap
                         if med and med.get("pk"):
-                            medias.append(med)
+                            pk = med.get("pk")
+                            if pk not in seen_pks:
+                                seen_pks.add(pk)
+                                medias.append(med)
                     for key in ["one_by_two_item", "fill_items", "two_by_two_item"]:
                         items_val = content.get(key, {})
                         if isinstance(items_val, list):
                             for itm in items_val:
                                 m = itm.get("media") or itm
                                 if m and m.get("pk"):
-                                    medias.append(m)
+                                    pk = m.get("pk")
+                                    if pk not in seen_pks:
+                                        seen_pks.add(pk)
+                                        medias.append(m)
                         elif isinstance(items_val, dict):
                             m = items_val.get("media") or items_val
                             if m and m.get("pk"):
-                                medias.append(m)
+                                pk = m.get("pk")
+                                if pk not in seen_pks:
+                                    seen_pks.add(pk)
+                                    medias.append(m)
 
                 if medias:
                     for media in medias:
