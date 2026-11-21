@@ -1216,6 +1216,7 @@ def run_full_pipeline(stages: list = None):
             "new_reels_count": new_reels_count,
             "new_trends_found": len(trend_ids),
             "new_trends_count": len(trend_ids),
+            "trends_promoted_count": int(engine.last_run_stats.get("refreshed_trends_count", 0)) if ('engine' in locals() and hasattr(engine, 'last_run_stats')) else 0,
             "trend_ids": trend_ids,
             "status": status,
             "stage": run_state.get("stage"),

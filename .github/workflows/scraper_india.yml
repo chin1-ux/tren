@@ -1,0 +1,87 @@
+name: Trendrop Scraper — India Cluster
+
+# Schedule design for India virality peaks (all times IST = UTC+5:30):
+#  Slot 1 — 09:15 IST (03:45 UTC) — Morning commute & early trend ignition
+#  Slot 2 — 14:15 IST (08:45 UTC) — Afternoon lunch surge & creator posting
+#  Slot 3 — 20:15 IST (14:45 UTC) — Prime time evening (highest viral velocity in India)
+
+on:
+  schedule:
+    - cron: '45 3 * * *'
+    - cron: '45 8 * * *'
+    - cron: '45 14 * * *'
+
+  workflow_dispatch:
+    inputs:
+      force_run:
+        description: 'Bypass guard and force execution'
+        required: false
+        default: 'false'
+
+concurrency:
+  group: scraper-pipeline
+  cancel-in-progress: false
+
+jobs:
+  scrape_india:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Camoufox browser binaries
+        uses: actions/cache@v4
+        id: camoufox-cache
+        with:
+          path: ~/.camoufox
+          key: camoufox-v2-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            camoufox-v2-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright "camoufox[geoip]"
+          playwright install chromium
+          python -m camoufox sync || true
+          for i in 1 2 3; do
+            python -m camoufox fetch && break || (echo "camoufox fetch retry $i in 10s..." && sleep 10)
+          done
+          python -m camoufox version
+
+      - name: Check scraper guard (90-min gap)
+        id: guard
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          SCRAPER_GUARD_MIN_GAP_MINUTES: "90"
+          SCRAPER_GUARD_WORKFLOW_NAME: "scraper_india.yml"
+        run: |
+          if [ "${{ github.event.inputs.force_run }}" = "true" ]; then
+            echo "Force run requested: bypassing guard."
+          else
+            python scripts/check_scraper_guard.py
+          fi
+
+      - name: Run India Scraper & Detection Pipeline
+        if: steps.guard.outputs.skip != 'true'
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          CRON_SECRET: ${{ secrets.CRON_SECRET }}
+          SCRAPER_MODE: "india"
+        run: |
+          echo "=== Scraper Mode: $SCRAPER_MODE (Dedicated India Cluster) ==="
+          python backend/cron_job.py

@@ -34,17 +34,18 @@ def check_guard_v3(min_gap_minutes: int = None):
     print(f"Target Repo: {repo} | Current Run ID: {current_run_id} | Gap Threshold: {min_gap_minutes}m")
     
     runs = []
+    workflow_name = os.getenv("SCRAPER_GUARD_WORKFLOW_NAME", "scraper_cron.yml")
     
     # Attempt 1: GitHub API via gh CLI or curl
     try:
-        cmd = ["gh", "run", "list", "--workflow", "scraper_cron.yml", "--repo", repo, "--limit", "15", "--json", "databaseId,createdAt,updatedAt,status,conclusion"]
+        cmd = ["gh", "run", "list", "--workflow", workflow_name, "--repo", repo, "--limit", "15", "--json", "databaseId,createdAt,updatedAt,status,conclusion"]
         env = os.environ.copy()
         if gh_token:
             env["GH_TOKEN"] = gh_token
         res = subprocess.run(cmd, env=env, capture_output=True, text=True, timeout=15)
         if res.returncode == 0 and res.stdout.strip():
             runs = json.loads(res.stdout.strip())
-            print(f"Retrieved {len(runs)} recent workflow runs from GitHub API.")
+            print(f"Retrieved {len(runs)} recent workflow runs for {workflow_name} from GitHub API.")
     except Exception as e:
         print(f"GitHub API query via gh CLI failed: {e}")
 
@@ -53,7 +54,7 @@ def check_guard_v3(min_gap_minutes: int = None):
         try:
             import urllib.request
             req = urllib.request.Request(
-                f"https://api.github.com/repos/{repo}/actions/workflows/scraper_cron.yml/runs?per_page=15",
+                f"https://api.github.com/repos/{repo}/actions/workflows/{workflow_name}/runs?per_page=15",
                 headers={
                     "Authorization": f"Bearer {gh_token}",
                     "Accept": "application/vnd.github.v3+json",

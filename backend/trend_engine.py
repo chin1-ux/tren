@@ -712,6 +712,7 @@ class TrendEngine:
         """
         logging.info("=== TrendEngine.detect_trends() starting ===")
         new_trend_ids = []
+        refreshed_trend_ids = []
 
         try:
             # Check for scraper outage: skip only if 0 reels scraped in the last 6h.
@@ -996,9 +997,20 @@ class TrendEngine:
                     and max_group_likes >= min_likes_required
                 )
 
+                # Hashtag velocity cluster: Instagram hashtag sections API returns audio_use_count=0.
+                # If 2+ distinct creators posted within 36h with solid velocity (>= 500),
+                # or a single creator had a valid breakout, treat it as a qualified cluster.
+                is_hashtag_velocity_cluster = (
+                    max_group_use == 0
+                    and (avg_velocity >= 500.0 or max_group_v >= 1000.0)
+                    and single_reel_age_ok
+                    and (unique_creators >= 2 or is_valid_single_creator_breakout)
+                )
+
                 is_breakout_single_reel = (
                     ((max_group_v > 5000.0 and single_reel_age_ok)
-                     or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok))
+                     or (max_group_use > 1000 and max_group_use < 100000 and single_reel_age_ok)
+                     or is_hashtag_velocity_cluster)
                     and (unique_creators >= 2 or is_valid_single_creator_breakout)
                 ) or is_crossplatform_breakout
 
@@ -1134,19 +1146,17 @@ class TrendEngine:
 
                 max_use_count = max((r.get("audio_use_count") or 0 for r in group_reels), default=0)
 
-                # ── VELOCITY RESCUE (Proposal B — approved 2026-11-19) ───────────────
+                # ── VELOCITY RESCUE (Proposal B — calibrated 2026-11-21) ───────────────
                 # Instagram's hashtag sections API (/api/v1/tags/{tag}/sections/) does NOT
                 # return audio_use_count. This causes high-velocity tracks scraped via
                 # hashtag pools to have audio_use_count=0 and get silently dropped by
-                # the EMERGING_USE_THRESHOLD gate below — even if avg_velocity is 500k+.
-                # Fix: if audio_use_count=0 but velocity is massive, treat the audio as
-                # emerging (synthetic floor = EMERGING_USE_THRESHOLD). All other gates
-                # (creator diversity ≥2, engagement ≥10 likes, 72h time-window) still apply.
-                VELOCITY_RESCUE_THRESHOLD = 500000  # reels/day — only rescue truly viral tracks
-                if max_use_count == 0 and avg_velocity >= VELOCITY_RESCUE_THRESHOLD:
+                # the EMERGING_USE_THRESHOLD gate below.
+                # Fix: if audio_use_count=0 but velocity is solid (>= 5k) or it is a qualified hashtag cluster,
+                # inject synthetic floor = EMERGING_USE_THRESHOLD so it can be evaluated as emerging.
+                VELOCITY_RESCUE_THRESHOLD = 5000.0  # reels/day — calibrated to allow real trending sounds
+                if max_use_count == 0 and (avg_velocity >= VELOCITY_RESCUE_THRESHOLD or is_hashtag_velocity_cluster or is_breakout_single_reel):
                     logging.info(
-                        f"[VELOCITY_RESCUE] '{title}' | {artist}: vel={avg_velocity:,.0f} but "
-                        f"audio_use_count=0 (hashtag API gap). Injecting synthetic floor={EMERGING_USE_THRESHOLD:,}."
+                        f"[VELOCITY_RESCUE] '{title}' | {artist}: vel={avg_velocity:,.0f} (hashtag API gap). Injecting synthetic floor={EMERGING_USE_THRESHOLD:,}."
                     )
                     max_use_count = EMERGING_USE_THRESHOLD  # synthetic floor — allows emerging detection
 
@@ -1522,15 +1532,15 @@ class TrendEngine:
                         update_payload["last_seen_at"] = datetime.now(timezone.utc).isoformat()
                         update_payload["window_hours_remaining"] = 48
                         self.supabase.table("trends").update(update_payload).eq("id", tid).execute()
-                        new_trend_ids.append(tid)
-                        logging.info(f"Updated metrics & freshness for existing trend '{trend['audio_title']}' (id={tid}, status={existing_t_data.get('status')})")
+                        refreshed_trend_ids.append(tid)
+                        logging.info(f"Refreshed existing trend '{trend['audio_title']}' (id={tid}, status={existing_t_data.get('status')})")
                     else:
                         try:
                             res = self.supabase.table("trends").insert(trend_data).execute()
                             if res.data:
                                 tid = res.data[0].get("id")
                                 new_trend_ids.append(tid)
-                                logging.info(f"Saved new trend '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
+                                logging.info(f"Saved NEW trend '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
                         except Exception as insert_err:
                             if "23505" in str(insert_err) or "duplicate key" in str(insert_err).lower():
                                 logging.warning(f"Race condition caught on insert for '{trend['audio_title']}': {insert_err}. Falling back to non-clobbering update.")
@@ -1538,7 +1548,7 @@ class TrendEngine:
                                 update_payload["last_seen_at"] = datetime.now(timezone.utc).isoformat()
                                 update_payload["window_hours_remaining"] = 48
                                 self.supabase.table("trends").update(update_payload).eq("audio_id", target_audio_id).execute()
-                                new_trend_ids.append(target_audio_id)
+                                refreshed_trend_ids.append(target_audio_id)
                             else:
                                 raise insert_err
                 except Exception as e:
@@ -1550,7 +1560,9 @@ class TrendEngine:
         except Exception as e:
             logging.error(f"Critical error in detect_trends: {e}", exc_info=True)
 
-        logging.info(f"=== TrendEngine done. {len(new_trend_ids)} new trends saved ===")
+        self.last_run_stats["inserted_trends_count"] = len(new_trend_ids)
+        self.last_run_stats["refreshed_trends_count"] = len(refreshed_trend_ids)
+        logging.info(f"=== TrendEngine done. {len(new_trend_ids)} new trends inserted, {len(refreshed_trend_ids)} existing trends refreshed ===")
         return new_trend_ids
 
     def classify_lifecycle(self, audio_id: str, reels: list = None, percentile_80: float = 0.0) -> dict:
