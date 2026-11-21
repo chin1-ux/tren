@@ -821,8 +821,8 @@ class InstagramScraper:
                     is_orig = ("original audio" in audio_title.lower()) if audio_title else False
                     return str(audio_id), audio_title, audio_artist, is_orig
                     
-            # 2. Try direct music_info
-            music_info = media.get("music_info")
+            # 2. Try direct music_info or music_metadata (e.g. on carousel posts)
+            music_info = media.get("music_info") or (media.get("music_metadata") or {}).get("music_info")
             if music_info:
                 minfo = music_info.get("music_info") if music_info.get("music_info") else music_info
                 asset = minfo.get("music_asset_info") or {}
@@ -927,6 +927,8 @@ class InstagramScraper:
                 value = cookie.get("value")
                 if name and value is not None:
                     cookies[name] = value
+            if cookies.get("csrftoken"):
+                headers["X-CSRFToken"] = cookies["csrftoken"]
         except Exception as e:
             logger.warning(f"Could not load cookies.json for direct API fallback: {e}")
 
@@ -1101,17 +1103,18 @@ class InstagramScraper:
 
             async def handle_response(response):
                 """Intercept the Instagram GraphQL SERP response."""
-                if "api/graphql" in response.url:
+                if "api/graphql" in response.url or "graphql/query" in response.url:
                     try:
                         res_json = await response.json()
-                        serp = (res_json.get("data") or {}).get("xdt_fbsearch__top_serp_graphql") or {}
+                        data = res_json.get("data") or {}
+                        serp = data.get("xdt_fbsearch__top_serp_graphql") or {}
                         for edge in serp.get("edges", []):
                             for itm in edge.get("node", {}).get("items", []):
-                                pk = itm.get("pk")
+                                pk = itm.get("pk") or (itm.get("id", "").split("_")[0] if itm.get("id") else None)
                                 mtype = itm.get("media_type")
                                 if pk and mtype in (2, 8):
                                     serp_candidates.append(itm)
-                        if serp_candidates:
+                        if len(serp_candidates) >= 18:
                             got_serp.set()
                     except Exception:
                         pass
@@ -1120,14 +1123,29 @@ class InstagramScraper:
             page.on("response", handle_response)
 
             clean_tag = hashtag.lstrip("#").strip()
-            search_url = f"https://www.instagram.com/explore/search/keyword/?q=%23{clean_tag}"
+            target_tag_url = f"https://www.instagram.com/explore/tags/{clean_tag}/"
             try:
-                logger.info(f"Navigating Camoufox to search page for #{clean_tag}: {search_url}...")
-                await page.goto(search_url, wait_until="domcontentloaded", timeout=15000)
+                logger.info(f"Navigating Camoufox to hashtag page for #{clean_tag}: {target_tag_url}...")
+                await page.goto(target_tag_url, wait_until="domcontentloaded", timeout=15000)
                 try:
-                    await asyncio.wait_for(got_serp.wait(), timeout=10.0)
+                    await asyncio.wait_for(got_serp.wait(), timeout=8.0)
                 except asyncio.TimeoutError:
-                    logger.warning(f"SERP GraphQL wait timed out for #{clean_tag}")
+                    # Scroll to trigger lazy GraphQL response
+                    try:
+                        await page.mouse.wheel(0, 1500)
+                        await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
+
+                # If hashtag page yielded no reels, attempt keyword search fallback
+                if not serp_candidates:
+                    search_url = f"https://www.instagram.com/explore/search/keyword/?q=%23{clean_tag}"
+                    logger.info(f"Fallback: Navigating to search page for #{clean_tag}: {search_url}...")
+                    await page.goto(search_url, wait_until="domcontentloaded", timeout=12000)
+                    try:
+                        await asyncio.wait_for(got_serp.wait(), timeout=8.0)
+                    except asyncio.TimeoutError:
+                        logger.warning(f"SERP GraphQL wait timed out for #{clean_tag}")
             except Exception as e:
                 logger.warning(f"Navigation issue for #{clean_tag}: {e}")
             finally:
@@ -1154,10 +1172,12 @@ class InstagramScraper:
             session.cookies.update(cookie_dict)
 
             medias: list[dict] = []
-            for candidate in serp_candidates[:12]:
-                pk = candidate.get("pk")
-                if not pk:
+            seen_pks = set()
+            for candidate in serp_candidates[:24]:
+                pk = candidate.get("pk") or (candidate.get("id", "").split("_")[0] if candidate.get("id") else None)
+                if not pk or pk in seen_pks:
                     continue
+                seen_pks.add(pk)
                 try:
                     info_url = f"https://www.instagram.com/api/v1/media/{pk}/info/"
                     res = session.get(info_url, timeout=10)
@@ -1166,6 +1186,7 @@ class InstagramScraper:
                         raw_items = info_data.get("items", [])
                         if raw_items:
                             medias.append(raw_items[0])
+                            time.sleep(0.04)
                             continue
                 except Exception as fetch_err:
                     logger.debug(f"Media info fetch failed for pk {pk}: {fetch_err}")

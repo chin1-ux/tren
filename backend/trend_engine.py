@@ -712,6 +712,7 @@ class TrendEngine:
         """
         logging.info("=== TrendEngine.detect_trends() starting ===")
         new_trend_ids = []
+        truly_inserted_trend_ids = []
         refreshed_trend_ids = []
 
         try:
@@ -1540,6 +1541,7 @@ class TrendEngine:
                             if res.data:
                                 tid = res.data[0].get("id")
                                 new_trend_ids.append(tid)
+                                truly_inserted_trend_ids.append(tid)
                                 logging.info(f"Saved NEW trend '{trend['audio_title']}' as {trend.get('initial_status')} (id={tid})")
                         except Exception as insert_err:
                             if "23505" in str(insert_err) or "duplicate key" in str(insert_err).lower():
@@ -1560,9 +1562,9 @@ class TrendEngine:
         except Exception as e:
             logging.error(f"Critical error in detect_trends: {e}", exc_info=True)
 
-        self.last_run_stats["inserted_trends_count"] = len(new_trend_ids)
+        self.last_run_stats["inserted_trends_count"] = len(truly_inserted_trend_ids)
         self.last_run_stats["refreshed_trends_count"] = len(refreshed_trend_ids)
-        logging.info(f"=== TrendEngine done. {len(new_trend_ids)} new trends inserted, {len(refreshed_trend_ids)} existing trends refreshed ===")
+        logging.info(f"=== TrendEngine done. {len(truly_inserted_trend_ids)} new trends inserted, {len(refreshed_trend_ids)} existing trends refreshed ===")
         return new_trend_ids
 
     def classify_lifecycle(self, audio_id: str, reels: list = None, percentile_80: float = 0.0) -> dict:

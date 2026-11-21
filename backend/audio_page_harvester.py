@@ -34,22 +34,33 @@ if not logger.handlers:
 
 async def _fetch_single_reel_caption(client: httpx.AsyncClient, shortcode: str) -> Optional[Dict[str, Any]]:
     """Fetches caption, hashtags, and creator username via tokenless embed."""
-    url = f"https://www.instagram.com/reel/{shortcode}/embed/captioned/"
+    url = f"https://www.instagram.com/reel/{shortcode}/embed/captioned/?_fb_noscript=1"
     try:
         resp = await client.get(url, timeout=5.0)
         if resp.status_code == 200:
             html = resp.text
-            m = re.search(r'<div class="Caption"[^>]*>(.*?)</div>', html, re.DOTALL)
+            clean_text = ""
+            hashtags = []
+            username = ""
+
+            m = re.search(r'<div class="Caption"[^>]*>(.*?)</div>', html, re.DOTALL | re.IGNORECASE)
             if m:
                 clean_raw = re.sub(r'<[^>]+>', ' ', m.group(1)).strip()
                 hashtags = re.findall(r'#(\w+)', clean_raw)
                 clean_text = re.sub(r'#\w+', '', clean_raw).strip()
                 clean_text = re.sub(r'\s+', ' ', clean_text)
                 
-                # Extract creator username
                 creator_match = re.search(r'class="CaptionUsername"[^>]*>([^<]+)</a>', html)
                 username = creator_match.group(1).strip() if creator_match else ""
+            else:
+                # Fallback to meta tags or JSON script snippets
+                desc_m = re.search(r'<meta\s+(?:property="og:description"|name="description")\s+content="([^"]+)"', html, re.IGNORECASE)
+                if desc_m:
+                    raw_desc = desc_m.group(1)
+                    hashtags = re.findall(r'#(\w+)', raw_desc)
+                    clean_text = re.sub(r'#\w+', '', raw_desc).strip()
 
+            if clean_text or hashtags or username:
                 return {
                     "shortcode": shortcode,
                     "caption": clean_text[:280],
@@ -130,7 +141,7 @@ async def harvest_audio_reels_async(
                 await page.mouse.wheel(0, 1500)
                 await page.wait_for_timeout(1200)
 
-            # Extract shortcodes and views from DOM
+            # Extract shortcodes, views, and thumbnail alt text from DOM
             dom_items = await page.evaluate("""() => {
                 const anchors = Array.from(document.querySelectorAll('a[href*="/reel/"], a[href*="/p/"]'));
                 const seen = new Set();
@@ -140,9 +151,12 @@ async def harvest_audio_reels_async(
                     const m = href.match(/\\/(?:reel|p)\\/([A-Za-z0-9_-]+)\\//);
                     if (m && !seen.has(m[1])) {
                         seen.add(m[1]);
+                        const img = a.querySelector('img');
+                        const alt = img ? (img.getAttribute('alt') || '') : '';
                         list.push({
                             shortcode: m[1],
-                            views_text: (a.innerText || '').trim()
+                            views_text: (a.innerText || '').trim(),
+                            alt_caption: alt
                         });
                     }
                 }
@@ -169,6 +183,24 @@ async def harvest_audio_reels_async(
         tasks = [_fetch_single_reel_caption(client, item["shortcode"]) for item in shortcodes_found[:max_reels]]
         caption_results = await asyncio.gather(*tasks)
 
+    # Look up known audio title & artist from trends table to prevent unidentifiable reels
+    known_title = None
+    known_artist = None
+    if supabase_client and audio_id:
+        try:
+            t_match = (
+                supabase_client.table("trends")
+                .select("audio_title, audio_artist")
+                .eq("audio_id", str(audio_id))
+                .limit(1)
+                .execute()
+            )
+            if t_match.data:
+                known_title = t_match.data[0].get("audio_title")
+                known_artist = t_match.data[0].get("audio_artist")
+        except Exception as _t_err:
+            logger.debug(f"Could not load trend metadata for audio {audio_id}: {_t_err}")
+
     for item, cap_data in zip(shortcodes_found, caption_results):
         sc = item["shortcode"]
         v_text = item.get("views_text", "")
@@ -181,8 +213,20 @@ async def harvest_audio_reels_async(
         tags = cap_data.get("hashtags") if cap_data else []
         username = cap_data.get("owner_username") if cap_data else ""
 
+        # Fallback to alt_caption from audio page if embed returned empty caption
+        if not cap and item.get("alt_caption"):
+            alt_raw = item["alt_caption"]
+            alt_tags = re.findall(r'#(\w+)', alt_raw)
+            clean_alt = re.sub(r'#\w+', '', alt_raw).strip()
+            clean_alt = re.sub(r'\s+', ' ', clean_alt)
+            cap = clean_alt[:280]
+            if not tags:
+                tags = alt_tags[:12]
+
         harvested_reels.append({
             "audio_id": str(audio_id),
+            "audio_title": known_title,
+            "audio_artist": known_artist,
             "reel_id": sc,
             "caption": cap,
             "hashtags": tags,
@@ -191,7 +235,17 @@ async def harvest_audio_reels_async(
             "owner_username": username
         })
 
-    # 5. Insert harvested reels into Supabase
+    # 5. Pre-resolve video URLs for top harvested reels so they play immediately
+    try:
+        from routes.deck import _resolve_fresh_reel_video_url
+        for item in harvested_reels[:15]:
+            v = _resolve_fresh_reel_video_url(item["reel_id"])
+            if v:
+                item["video_url"] = v
+    except Exception as e_res:
+        logger.debug(f"Pre-resolving video_urls at harvest time: {e_res}")
+
+    # 6. Insert harvested reels into Supabase
     if harvested_reels and supabase_client:
         try:
             supabase_client.table("reels").upsert(
