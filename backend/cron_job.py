@@ -1017,6 +1017,19 @@ def run_full_pipeline(stages: list = None):
                 classification_failed_429 = int(engine.last_run_stats.get("classification_failed_429", 0) or 0)
                 logging.info(f"Step 3/5: Trend detection complete. New trend IDs: {trend_ids}")
 
+                # Step 3-accumulator: Multi-run rolling candidate aggregation
+                # Bridges 45-min hashtag crawls by promoting audios that accumulated 2+ reels across 48-72h
+                try:
+                    from candidate_accumulator import promote_rolling_candidates
+                    accumulated_ids, acc_refreshed = promote_rolling_candidates(target_min_trends=30)
+                    if accumulated_ids:
+                        trend_ids.extend(accumulated_ids)
+                        logging.info(f"Step 3-accumulator: Promoted {len(accumulated_ids)} additional rolling candidate trends (Refreshed: {acc_refreshed}).")
+                    else:
+                        logging.info(f"Step 3-accumulator: Verified rolling window ({acc_refreshed} existing trends refreshed).")
+                except Exception as _acc_err:
+                    logging.warning(f"Step 3-accumulator non-fatal warning: {_acc_err}")
+
                 # S2.2 Post-Ingestion Normalizer:
                 # Null template fallback text on new trends so the UI does not display generic filler,
                 # and set analysis_status = 'pending' to enqueue for genuine LLM analysis.
