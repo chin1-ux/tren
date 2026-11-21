@@ -619,7 +619,11 @@ def run_full_pipeline(stages: list = None):
             logging.info("Step 1b/5: Harvesting live algorithmic Reels stream (/reels/)...")
             import asyncio
             from feed_harvester import harvest_algorithmic_feed, save_harvested_reels
-            feed_reels = asyncio.run(harvest_algorithmic_feed(scroll_count=15))
+
+            async def _run_feed_guarded():
+                return await asyncio.wait_for(harvest_algorithmic_feed(scroll_count=6), timeout=35.0)
+
+            feed_reels = asyncio.run(_run_feed_guarded())
             sb_feed = _get_supabase()
             feed_stats = save_harvested_reels(sb_feed, feed_reels, live=True)
             new_feed_count = feed_stats.get("saved", 0)
@@ -630,7 +634,7 @@ def run_full_pipeline(stages: list = None):
                 f"({new_feed_count} new saved live)."
             )
         except Exception as feed_err:
-            logging.warning(f"Step 1b/5 Algorithmic Feed Harvesting failed (non-fatal): {feed_err}")
+            logging.warning(f"Step 1b/5 Algorithmic Feed Harvesting failed (non-fatal, continuing pipeline): {feed_err}")
 
     # 2. YouTube Data Fetcher
     if _stage("scrape"):

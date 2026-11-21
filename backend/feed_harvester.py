@@ -200,11 +200,17 @@ async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
 
         for step in range(scroll_count):
             logger.info(f"Advancing feed (scroll step {step + 1}/{scroll_count})...")
-            await page.keyboard.press("ArrowDown")
-            # Natural human viewing pause (2.5 - 4 seconds)
-            await page.wait_for_timeout(3000)
+            try:
+                await asyncio.wait_for(page.keyboard.press("ArrowDown"), timeout=4.0)
+                await page.wait_for_timeout(2000)
+            except Exception as scroll_err:
+                logger.warning(f"Scroll step {step + 1} timed out or interrupted ({scroll_err}); stopping feed harvest.")
+                break
 
-        await browser.close()
+        try:
+            await asyncio.wait_for(browser.close(), timeout=5.0)
+        except Exception:
+            pass
 
     logger.info(f"Harvest complete. Intercepted {len(all_harvested_reels)} unique algorithmic reels.")
     return all_harvested_reels
