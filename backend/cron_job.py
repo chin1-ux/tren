@@ -476,12 +476,12 @@ def run_full_pipeline(stages: list = None):
             "eurodance", "europop",
             "russianmusic", "russianrap", "russiandance", "russianphonk",
             "italianmusic", "spanishmusic",
-            # ── PHONK / VIRAL EDIT FORMATS ────────────────────────────────────────────
-            "phonk", "driftphonk", "darkphonk", "horrorcore", "brazilianphonk",
-            "speedupsongs", "speedup", "slowedandreverb", "nightcore",
-            "capcuttemplate", "capcutedit", "trendingtemplate",
-            "dancechallenge", "choreographychallenge",
-            "trendingaudio", "lofimusic", "chillmusic",
+            # ── PHONK / HIGH-SIGNAL VIRAL EDIT FORMATS ────────────────────────────────
+            "phonk", "driftphonk", "darkphonk", "horrorcore", "brazilianphonk", "speedupphonk",
+            "nightcore", "audiosforedits",
+            # ── GLOBAL BILLBOARD / POP / DRILL ─────────────────────────────────────────
+            "billboardhot100", "newmusicfriday", "popmusic", "ukrap",
+            "trapbrasil", "trapbr", "reggaeton2026", "latinpop",
         ])
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags (Brazil+Korea+Africa+Arab+Europe+phonk — pinpoint audio-signal)")
@@ -697,44 +697,51 @@ def run_full_pipeline(stages: list = None):
                 .select("reel_id, video_url, owner_username, audio_backfill_attempts") \
                 .eq("audio_backfill_status", "needs_audio_backfill") \
                 .lt("audio_backfill_attempts", 3) \
-                .limit(30) \
+                .order("id", desc=True) \
+                .limit(50) \
                 .execute()
             backfill_reels = backfill_res.data or []
             if backfill_reels:
                 logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
+                from instagram_scraper_browser import InstagramScraper
+                _scraper = InstagramScraper()
+                bf_headers, bf_cookies = _scraper._load_instagram_cookie_headers()
+                bf_session = requests.Session()
+                bf_session.headers.update(bf_headers)
+                bf_session.cookies.update(bf_cookies)
+
+                alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
                 for r in backfill_reels:
                     rid = r["reel_id"]
                     attempts = (r.get("audio_backfill_attempts") or 0) + 1
-                    # Re-fetch the reel's audio via Instagram shortcode endpoint
                     recovered = False
                     try:
-                        import requests
-                        resp = requests.get(
-                            f"https://www.instagram.com/p/{rid}/?__a=1&__d=dis",
-                            headers={"User-Agent": "Mozilla/5.0"},
-                            timeout=6,
-                        )
-                        if resp.ok:
+                        pk = 0
+                        for char in rid:
+                            pk = pk * 64 + alphabet.index(char)
+                        info_url = f"https://www.instagram.com/api/v1/media/{pk}/info/"
+                        resp = bf_session.get(info_url, timeout=8)
+                        if resp.status_code == 200:
                             data = resp.json()
-                            item = (
-                                data.get("graphql", {}).get("shortcode_media")
-                                or data.get("items", [{}])[0]
-                            )
-                            clips_metadata = item.get("clips_metadata", {}) or {}
-                            audio_info = clips_metadata.get("original_sound_info") or clips_metadata.get("music_info", {}) or {}
-                            music = audio_info.get("music_asset_info") or audio_info
-                            new_title = music.get("title") or music.get("display_artist")
-                            new_audio_id = str(music.get("audio_cluster_id") or music.get("id") or "")
-                            if new_title or new_audio_id:
-                                sb.table("reels").update({
-                                    "audio_title": new_title,
-                                    "audio_id": new_audio_id or None,
-                                    "audio_backfill_status": "backfilled",
-                                    "audio_backfill_attempts": attempts,
-                                }).eq("reel_id", rid).execute()
-                                audio_backfill_filled += 1
-                                recovered = True
-                                logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}'")
+                            items = data.get("items", [])
+                            if items:
+                                new_audio_id, new_title, new_artist, is_orig = _scraper._extract_audio_info(items[0])
+                                audio_use = _scraper._extract_audio_use_count(items[0], audio_id=new_audio_id)
+                                if new_title or new_audio_id:
+                                    sb.table("reels").update({
+                                        "audio_title": new_title,
+                                        "audio_artist": new_artist,
+                                        "audio_id": new_audio_id or None,
+                                        "is_original_audio": is_orig,
+                                        "audio_use_count": audio_use,
+                                        "pk": str(pk),
+                                        "audio_backfill_status": "backfilled",
+                                        "audio_backfill_attempts": attempts,
+                                    }).eq("reel_id", rid).execute()
+                                    audio_backfill_filled += 1
+                                    recovered = True
+                                    logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}' artist='{new_artist}'")
+                                    time.sleep(0.04)
                     except Exception as bf_err:
                         logging.debug(f"Audio backfill fetch failed for reel={rid}: {bf_err}")
 
@@ -1021,7 +1028,7 @@ def run_full_pipeline(stages: list = None):
                 # Bridges 45-min hashtag crawls by promoting audios that accumulated 2+ reels across 48-72h
                 try:
                     from candidate_accumulator import promote_rolling_candidates
-                    accumulated_ids, acc_refreshed = promote_rolling_candidates(target_min_trends=30)
+                    accumulated_ids, acc_refreshed = promote_rolling_candidates(target_min_trends=30, mode=scrape_mode)
                     if accumulated_ids:
                         trend_ids.extend(accumulated_ids)
                         logging.info(f"Step 3-accumulator: Promoted {len(accumulated_ids)} additional rolling candidate trends (Refreshed: {acc_refreshed}).")

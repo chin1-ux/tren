@@ -35,7 +35,7 @@ def _get_sb():
     return create_client(url, key)
 
 
-def promote_rolling_candidates(target_min_trends: int = 30) -> Tuple[List[int], int]:
+def promote_rolling_candidates(target_min_trends: int = 30, mode: str = "mixed") -> Tuple[List[int], int]:
     """
     Evaluates unpromoted reels from the rolling 48-72 hour pool.
     - If audio is brand new and qualified: inserts as new trend (returns ID in inserted_ids).
@@ -47,7 +47,8 @@ def promote_rolling_candidates(target_min_trends: int = 30) -> Tuple[List[int], 
         logger.warning("[accumulator] Supabase client unavailable.")
         return [], 0
 
-    logger.info("=== Rolling Candidate Accumulator Starting ===")
+    mode_clean = (mode or "mixed").strip().lower()
+    logger.info(f"=== Rolling Candidate Accumulator Starting [{mode_clean} mode] ===")
 
     # 1. Fetch recent reels (last 10,000 reels by ID)
     try:
@@ -179,6 +180,30 @@ def promote_rolling_candidates(target_min_trends: int = 30) -> Tuple[List[int], 
         if not lang or lang == "unknown":
             lang = "en"
 
+        INDIAN_LANG_CODES = {
+            "hi", "hindi", "pa", "punjabi", "ta", "tamil", "te", "telugu",
+            "kn", "kannada", "ml", "malayalam", "mr", "marathi", "bn", "bengali",
+            "gu", "gujarati", "bho", "bhojpuri", "ne", "nepali"
+        }
+        GLOBAL_LANG_CODES = {
+            "en", "english", "es", "spanish", "pt", "portuguese",
+            "ko", "korean", "ja", "japanese", "ru", "russian",
+            "fr", "french", "de", "german", "it", "italian"
+        }
+
+        if mode_clean == "global":
+            if lang in INDIAN_LANG_CODES:
+                logger.debug(f"[accumulator] Skipping Indian audio '{title}' in global mode")
+                continue
+            trend_origin = "GLOBAL"
+        elif mode_clean == "india":
+            if lang in GLOBAL_LANG_CODES and lang not in INDIAN_LANG_CODES:
+                logger.debug(f"[accumulator] Skipping global audio '{title}' in india mode")
+                continue
+            trend_origin = "IN"
+        else:
+            trend_origin = "IN" if lang in INDIAN_LANG_CODES else "GLOBAL"
+
         niche = classify_niche(hashtags, captions, title)
         tone = classify_content_tone(captions, hashtags)
 
@@ -208,6 +233,7 @@ def promote_rolling_candidates(target_min_trends: int = 30) -> Tuple[List[int], 
             "language_final": lang,
             "language_confidence": 0.88,
             "language_source": "rolling_accumulator",
+            "trend_origin": trend_origin,
             "niche_tag": niche,
             "semantic_niches": [niche],
             "content_tone": tone,

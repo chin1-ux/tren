@@ -1427,6 +1427,21 @@ class TrendEngine:
                     oldest_age_hours=oldest_age_hours
                 )
 
+                # Strict Scraper Mode Isolation
+                scrape_mode = os.getenv("SCRAPER_MODE", "mixed").strip().lower()
+                if scrape_mode == "global":
+                    t_lang = (trend.get("language") or "").lower()
+                    t_origin = (trend_origin or "").upper()
+                    _INDIAN_CODES = {"hi", "pa", "ta", "te", "kn", "ml", "mr", "bho", "gu", "bn", "ne"}
+                    if t_origin == "IN" or t_lang in _INDIAN_CODES:
+                        logging.debug(f"[trend_engine] Skipping Indian trend '{trend['audio_title']}' in global scrape mode")
+                        continue
+                elif scrape_mode == "india":
+                    t_origin = (trend_origin or "").upper()
+                    if t_origin in ("GLOBAL", "KR", "BR", "ES", "RU"):
+                        logging.debug(f"[trend_engine] Skipping global trend '{trend['audio_title']}' in india scrape mode")
+                        continue
+
                 trend_data = {
                     "audio_title": trend["audio_title"],
                     "audio_artist": trend["audio_artist"],

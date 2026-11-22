@@ -43,6 +43,13 @@ except Exception:
     pass
 logger = logging.getLogger(__name__)
 
+def shortcode_to_pk(shortcode: str) -> int:
+    alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+    pk = 0
+    for char in str(shortcode).strip():
+        pk = pk * 64 + alphabet.index(char)
+    return pk
+
 def calculate_saturation(audio_use_count: int | None, india_use_count: int | None) -> dict:
     global_pct = round(min(100.0, (audio_use_count / 100_000) * 100), 1) if audio_use_count is not None else None
     india_pct = round(min(100.0, ((india_use_count or 0) / 8_000) * 100), 1)
@@ -235,14 +242,12 @@ class InstagramScraper:
                 "ukdrill", "frenchmusic", "eurodance",
             ],
 
-            # ── GLOBAL AUDIO DISCOVERY (language-agnostic) ─────────────────────
+            # ── GLOBAL AUDIO DISCOVERY (high-signal international) ────────────
             "GLOBAL_DISCOVERY": [
-                # Universal audio trend hubs
-                "trendingsound", "viralaudio", "speedupsongs", "capcuttemplate",
-                "audiosforedits", "remixreels", "viralmusic", "trendingaudio",
-                # Global creative/edit
-                "gloomyvibes", "streetstyle", "dancetrend", "popmusic",
-                "filmtok", "filmedit", "phonk", "speedupphonk",
+                # High-signal global audio trend hubs
+                "audiosforedits", "viralmusic", "billboardhot100", "newmusicfriday",
+                "popmusic", "filmedit", "phonk", "speedupphonk", "driftphonk",
+                "gloomyvibes", "streetstyle", "dancetrend", "filmtok",
             ],
         }
 
@@ -1111,6 +1116,14 @@ class InstagramScraper:
                         for edge in serp.get("edges", []):
                             for itm in edge.get("node", {}).get("items", []):
                                 pk = itm.get("pk") or (itm.get("id", "").split("_")[0] if itm.get("id") else None)
+                                if not pk:
+                                    code = itm.get("code") or itm.get("shortcode")
+                                    if code:
+                                        try:
+                                            pk = str(shortcode_to_pk(code))
+                                            itm["pk"] = pk
+                                        except Exception:
+                                            pass
                                 mtype = itm.get("media_type")
                                 if pk and mtype in (2, 8):
                                     serp_candidates.append(itm)
@@ -1175,6 +1188,14 @@ class InstagramScraper:
             seen_pks = set()
             for candidate in serp_candidates[:24]:
                 pk = candidate.get("pk") or (candidate.get("id", "").split("_")[0] if candidate.get("id") else None)
+                if not pk:
+                    code = candidate.get("code") or candidate.get("shortcode")
+                    if code:
+                        try:
+                            pk = str(shortcode_to_pk(code))
+                            candidate["pk"] = pk
+                        except Exception:
+                            pass
                 if not pk or pk in seen_pks:
                     continue
                 seen_pks.add(pk)
@@ -1796,6 +1817,16 @@ Return ONLY valid JSON, no markdown, no explanation:
                         is_outlier = view > multiplier * median_v
 
             reel["is_creator_outlier"] = is_outlier
+
+            # Strict Global Mode Isolation:
+            # When running in dedicated global mode, prevent Indian regional tracks/languages from entering the global pool
+            scrape_mode = os.getenv("SCRAPER_MODE", "mixed").strip().lower()
+            if scrape_mode == "global":
+                audio_lang = reel.get("audio_language", "unknown")
+                if (creator_country == "IN" and audio_lang in _INDIAN_LANG_CODES) or reel.get("trend_origin") == "IN":
+                    scrape_stats["indian_in_global_skipped"] = scrape_stats.get("indian_in_global_skipped", 0) + 1
+                    logger.debug(f"Skipping Indian regional audio '{audio_title}' in global scrape mode")
+                    continue
 
             inserted_reels.append(reel)
 
