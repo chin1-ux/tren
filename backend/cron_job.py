@@ -703,7 +703,6 @@ def run_full_pipeline(stages: list = None):
             backfill_reels = backfill_res.data or []
             if backfill_reels:
                 logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
-                from instagram_scraper_browser import InstagramScraper
                 _scraper = InstagramScraper()
                 bf_headers, bf_cookies = _scraper._load_instagram_cookie_headers()
                 bf_session = requests.Session()
