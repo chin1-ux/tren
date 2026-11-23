@@ -504,42 +504,63 @@ def run_full_pipeline(stages: list = None):
         logging.info(f"Set SCRAPER_HASHTAGS for global mode (slot {_run_mod}): {len(global_tags.split(','))} tags — base({len(_base_global)}) + slot({len(slot_pool)})")
     elif scrape_mode == "india":
         # India-only mode — dedicated deep-dive into India's audio-first content landscape
-        india_tags = ",".join([
-            # ── CORE AUDIO-FIRST DISCOVERY ─────────────────────────────────────────────
+        # Rotation strategy: same slot system as global to avoid "top posts" staleness as DB fills.
+        # India pool currently yields 100-130 new reels/run — rotation keeps this high long-term.
+        _india_mod = run_count % 3
+        logging.info(f"India hashtag rotation slot: {_india_mod} (run_count={run_count})")
+
+        # Base pool — always scraped (highest-rotation India tags, mid-tier volume)
+        _india_base = [
+            # Core audio signals — rotate fastest
             "trendingaudio", "hinditrendingsong", "newhindimusic", "trendinghindimusic",
             "reelsindia", "trendingreels", "reelitfeelit", "viralaudio", "reelsaudio",
-            # ── HINDI & BOLLYWOOD ─────────────────────────────────────────────────────
+            # Evergreen dance / choreography (audio-first, always fresh)
+            "danceindia", "indiandance", "choreography", "bollywoodchoreography",
+            "dancecover", "dancereels", "dancechallenge",
+            # Edit formats (CapCut content rotates very fast)
+            "capcutindia", "capcutedit", "reeledit", "lipsyncindia",
+            "desicomedy", "relatablereels",
+            # Fashion / transition (new creator content daily)
+            "fashiontransition", "transitionreels", "outfittransition",
+            "ootdindia", "lookbookindia",
+        ]
+
+        # Slot 0 — Hindi/Bollywood/Punjabi emphasis (biggest volume, runs first)
+        _india_slot0 = [
             "hindisongs", "hindireels", "hindidance", "bollywooddance",
-            "bollywoodsteps", "bollywooddancecover", "bollywoedance",
-            "newbollywoodsong", "bollywoodnewsong",
-            # ── PUNJABI (highest volume in India IG) ──────────────────────────────────
+            "bollywoodsteps", "bollywooddancecover", "newbollywoodsong", "bollywoodnewsong",
             "punjabisongs", "punjabireels", "punjabimusic", "punjabidance",
             "punjabinewsong", "punjabitrendingsong",
             "diljitdosanjh", "sidhumoosewala", "apdhillon",
-            # ── VERNACULAR REGIONAL ────────────────────────────────────────────────────
-            "telugusongs", "telugureels", "telugudance",
-            "tamilsongs", "tamilreels", "tamildance",
-            "kannadasongs", "kannadareels",
-            "malayalamsongs", "malayalamreels",
-            "marathisongs", "marathireels",
-            "bhojpurisong", "bhojpurireels",
-            "haryanvisong", "haryanvidance",
-            "rajasthanisong", "devotionalsong", "bhaktisong",
-            # ── DANCE / CHOREOGRAPHY (audio-use goldmine) ─────────────────────────────
-            "danceindia", "indiandance", "choreography", "dancechallenge",
-            "bollywoodchoreography", "dancecover", "dancereels",
-            # ── FASHION / TRANSITION (high audio use) ─────────────────────────────────
-            "indianfashion", "ethnicwear", "sareedraping", "bridallook",
-            "fashiontransition", "transitionreels", "outfittransition",
-            "ootdindia", "lookbookindia", "lehenga", "kurti",
-            # ── EDIT FORMATS / CAPCUT ─────────────────────────────────────────────────
-            "capcutindia", "capcutedit", "reeledit",
-            "lipsyncindia", "desicomedy", "relatablereels",
-            # ── FITNESS / LIFESTYLE (audio-driven in India) ───────────────────────────
-            "gymindia", "fitindia", "yogaindia", "indianstreetfood", "desifood",
-        ])
+            "indianfashion", "ethnicwear", "lehenga", "kurti",
+        ]
+
+        # Slot 1 — South India emphasis (Telugu, Tamil, Kannada, Malayalam)
+        _india_slot1 = [
+            "telugusongs", "telugureels", "telugudance", "tollywood",
+            "tamilsongs", "tamilreels", "tamildance", "kollywood",
+            "kannadasongs", "kannadareels", "sandalwood",
+            "malayalamsongs", "malayalamreels", "mollywood",
+            "southindianmusic", "southindianreels", "southindianactor",
+            "devotionalsong", "bhaktisong",
+        ]
+
+        # Slot 2 — Regional North/West + lifestyle emphasis (Bhojpuri, Haryanvi, fitness, food)
+        _india_slot2 = [
+            "bhojpurisong", "bhojpurireels", "bhojpuridance",
+            "haryanvisong", "haryanvidance", "haryanvireels",
+            "rajasthanisong", "rajasthanidance",
+            "marathisongs", "marathireels", "marathidance",
+            "gujaratisong", "gujaratireels",
+            "gymindia", "fitindia", "yogaindia",
+            "indianstreetfood", "desifood", "foodreelsindia",
+            "sareedraping", "bridallook",
+        ]
+
+        india_slot_pool = [_india_slot0, _india_slot1, _india_slot2][_india_mod]
+        india_tags = ",".join(list(dict.fromkeys(_india_base + india_slot_pool)))
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for india mode: {len(india_tags.split(','))} tags (Hindi+Punjabi+vernacular+dance+fashion+edit formats — pinpoint)")
+        logging.info(f"Set SCRAPER_HASHTAGS for india mode (slot {_india_mod}): {len(india_tags.split(','))} tags — base({len(_india_base)}) + slot({len(india_slot_pool)})")
     else:
         # Mixed mode — balanced India core + global sample (manual dispatch / fallback)
         mixed_tags = ",".join([
