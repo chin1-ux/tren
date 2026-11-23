@@ -440,51 +440,68 @@ def run_full_pipeline(stages: list = None):
     #   ✗ Mega-generic tags (#reels 500M+, #viral 300M+) — too diluted, buried signal
     #   ✗ One-off artist tags unless they're wave-drivers (badbunny, anitta, etc.)
     if scrape_mode == "global":
-        global_tags = ",".join([
-            # ── BRAZIL — DANCE / FUNK ─────────────────────────────────────────────────
-            "sertanejo", "sertejanouniversitario", "sertejanoromantico",
-            "piseiro", "piseirooriginal", "forronovinho", "forroeletronico",
-            "pagodao", "pagodebaiano", "pagode", "axe", "zouk",
-            "bregafunk", "bregaofunk", "funkbrasil", "funkbrasileiro",
-            "funkcarioca", "funkviral", "passinho", "funkmtg", "montagem",
-            "reelsbrasil", "baile", "tendenciabrasil",
-            # ── LATIN ─────────────────────────────────────────────────────────────────
-            "reggaeton", "perreo", "perreando", "musicalatina", "bachata",
-            "latinpop", "latinvibes", "urbanlatin", "cumbia", "merengue",
+        # Hashtag rotation strategy: use get-based run_count to rotate between pool slices.
+        # Each pool slice focuses on a different region/genre so we avoid hitting the SAME
+        # mega-hashtag "top posts" wall every run. Smaller tags (1M-30M) rotate content faster.
+        _run_mod = run_count % 3  # 0, 1, 2 rotates across 3 regional emphasis slices
+        logging.info(f"Global hashtag rotation slot: {_run_mod} (run_count={run_count})")
+
+        # Base pool — mid-tier tags with fast content rotation (always included)
+        _base_global = [
+            # Brazil — mid-tier rotating tags
+            "piseiro", "piseirooriginal", "bregafunk", "pagodebaiano",
+            "funkviral", "passinho", "funkmtg", "tendenciabrasil",
+            "sertanejoviral", "sertejanoromantico", "reelsbrasil",
+            # Latin — sub-genre rotating
+            "perreo", "urbanlatin", "musicalatina", "bachata",
+            "reggaetonvibes", "reggaetonnuevo", "latinpopvibes",
+            # Korea/Asia — sub-niche rotating
+            "kpop4thgen", "kpop5thgen", "kpopnewrelease", "kpopweekly",
+            "kpopboygroup", "kpopgirlgroup", "jpopnow", "aespa", "lesserafim", "newjeans",
+            # Africa — sub-genre rotating
+            "amapianodance", "amapianovibes", "afrobeatsvibes", "afrodance",
+            "naijamusic", "nigerianmusic", "afropop",
+            # Phonk/Edit — rotates very fast
+            "phonk", "driftphonk", "speedupphonk", "brazilianphonk",
+            "audiosforedits", "nightcore", "slowedandreverb",
+            # Global viral signals
+            "newmusicfriday", "viralmusic", "musicreels",
+        ]
+
+        # Slot 0 — Brazil/Latin emphasis (runs at 12:45 UTC = Asia evening peak)
+        _slot0 = [
+            "sertanejo", "pagodao", "pagode", "axe", "zouk", "montagem",
+            "forronovinho", "forroeletronico", "funkbrasil", "funkcarioca",
+            "reggaeton", "cumbia", "merengue", "latinvibes",
             "badbunny", "anitta", "karolg", "maluma",
-            # ── KOREA / ASIA — AUDIO-FIRST TAGS ──────────────────────────────────────
-            "kpop", "kpopdance", "kpopsongs", "kpopcover", "kpopchoreography",
-            "kpop4thgen", "kpop5thgen", "kpopboygroup", "kpopgirlgroup",
-            "jpop", "jpopdance", "animesong", "animemusic", "vtuber",
-            "opmhits", "opm", "philippinesongs",
-            "musikaindonesia", "indopop", "jedagjedug", "laguviral",
-            "straykids", "newjeans", "aespa", "lesserafim",
-            # ── AFRICA — GENRE-SPECIFIC ───────────────────────────────────────────────
-            "amapiano", "amapianovibes", "amapianodance", "amapianomix",
-            "afrobeats", "afrobeatsvibes", "afrodance", "afrobeatsmusic",
-            "naijamusic", "nigerianmusic", "9jamusic", "afropop",
-            "gqom", "highlife", "afroswing",
-            "burnaboy", "tyla", "davido", "wizkid",
-            # ── MIDEAST / ARAB — NATIVE TAGS ──────────────────────────────────────────
-            "arabicmusic", "arabicsongs", "arabicpop", "arabicsound",
-            "khaleejimusic", "saudimusic", "uaemusic", "egyption",
-            "turkishmusic", "turkishpop", "turk",
-            "mahraganat", "shaabi",
-            # ── EUROPE — DRILL / RAP / POP ────────────────────────────────────────────
+            "trapbrasil", "trapbr", "reggaeton2026",
+        ]
+        # Slot 1 — Korea/Asia/Africa emphasis (runs at 18:45 UTC = Europe evening peak)
+        _slot1 = [
+            "kpop", "kpopdance", "kpopsongs", "kpopchoreography",
+            "jpop", "jpopdance", "animesong", "animemusic",
+            "opmhits", "opm", "musikaindonesia", "jedagjedug", "laguviral",
+            "straykids",
+            "amapiano", "amapianomix", "afrobeats", "afrobeatsmusic",
+            "gqom", "highlife", "burnaboy", "tyla", "davido", "wizkid",
+            "9jamusic",
+        ]
+        # Slot 2 — Europe/Mideast/Pop emphasis (runs at 00:45 UTC = Americas prime time)
+        _slot2 = [
             "ukdrill", "ukrap", "ukrnb", "grime", "ukgarage",
             "frenchrap", "frenchpop", "musiquefrancaise",
-            "eurodance", "europop",
+            "eurodance", "europop", "italianmusic", "spanishmusic",
             "russianmusic", "russianrap", "russiandance", "russianphonk",
-            "italianmusic", "spanishmusic",
-            # ── PHONK / HIGH-SIGNAL VIRAL EDIT FORMATS ────────────────────────────────
-            "phonk", "driftphonk", "darkphonk", "horrorcore", "brazilianphonk", "speedupphonk",
-            "nightcore", "audiosforedits",
-            # ── GLOBAL BILLBOARD / POP / DRILL ─────────────────────────────────────────
-            "billboardhot100", "newmusicfriday", "popmusic", "ukrap",
-            "trapbrasil", "trapbr", "reggaeton2026", "latinpop",
-        ])
+            "arabicmusic", "arabicsongs", "arabicpop", "arabicsound",
+            "khaleejimusic", "turkishmusic", "turkishpop",
+            "mahraganat", "shaabi",
+            "billboardhot100", "popmusic", "popvibes", "darkphonk",
+        ]
+
+        slot_pool = [_slot0, _slot1, _slot2][_run_mod]
+        global_tags = ",".join(list(dict.fromkeys(_base_global + slot_pool)))  # deduplicate, preserve order
         os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for global mode: {len(global_tags.split(','))} tags (Brazil+Korea+Africa+Arab+Europe+phonk — pinpoint audio-signal)")
+        logging.info(f"Set SCRAPER_HASHTAGS for global mode (slot {_run_mod}): {len(global_tags.split(','))} tags — base({len(_base_global)}) + slot({len(slot_pool)})")
     elif scrape_mode == "india":
         # India-only mode — dedicated deep-dive into India's audio-first content landscape
         india_tags = ",".join([
