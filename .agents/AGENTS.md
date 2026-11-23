@@ -84,3 +84,41 @@ for stmt in new_columns:
 5. **Zero-Leak Language Engine**: Strict `language_final` priority on backend and frontend with Romanized Hindi/Punjabi vocabulary pre-rules.
 6. **2:1 Balanced Interleaving**: Indian and Global audio balance in top rail feeds.
 7. **Native Multi-Country Scraper Clusters**: Dedicated scraper crawling native hashtags across Brazil (pt), South Korea (ko), Latin/Spain (es), Russia (ru), and Global Edits (en).
+
+## Production Ready Golden Checkpoint (prod-ready-v2.0)
+
+**Tag**: `prod-ready-v2.0`
+- **Main Repo (`ch1n-may/trendrop`)**: Commit `e34c82f` (Tag: `prod-ready-v2.0`)
+- **Scraper Repo (`chin1-ux/tren`)**: Commit `caedd45` (Tag: `prod-ready-v2.0`)
+- **Date**: Nov 23, 2026
+
+**Verified Core Systems in this Checkpoint**:
+1. **Global Scraper Hashtag Rotation**: 3-slot rotation system (`run_count % 3`) in `cron_job.py` — Slot 0 (Brazil/Latin), Slot 1 (Korea/Asia/Africa), Slot 2 (Europe/Mideast/Pop) — permanently breaks the "cached top-posts" Instagram staleness loop that caused `0 new reels` per global run.
+2. **India Scraper Hashtag Rotation**: Same rotation system — Slot 0 (Bollywood/Punjabi), Slot 1 (South India — Telugu/Tamil/Kannada/Malayalam), Slot 2 (North/West regional + lifestyle) — proactively prevents future staleness as DB fills.
+3. **FYP 500 Error Guard**: `backend/routes/fyp.py` safely guards `None` decision_metrics on niche queries — no more Fashion/Fitness 500 crashes.
+4. **Dynamic How-to-Use Resolution**: `_resolve_how_to_use()` in discover.py prioritises `used_for_note` → `ideal_content_description` → `hook_brief` → niche templates — no more hardcoded boilerplate copy.
+5. **Mobile Responsiveness**: DiscoverCategoryGrid horizontal snap rail on mobile, iOS safe-area insets in BottomTabBar, overflow-x-hidden on root — fully usable on all screen sizes.
+6. **Instagram Connect Hardened**: `backend/routes/creator.py` — TooManyRedirects fixed; public account profiling working end-to-end.
+7. **Global Trends Verified in DB**: IDs 11221–11234 confirmed: `window_hours_remaining=46-47`, `language_final` populated, `why_this_works` populated via safety-net classifier, `status=emerging/rising`. All 12 valid global trends visible in `/discover` (10 of top 15 results are global-language).
+8. **Pipeline RCA Completed**: Root cause of "0 new global reels" definitively traced to Instagram mega-hashtag "Top Posts" section serving the same cached viral reels across days. Fix: rotate to mid-tier sub-genre tags (1M-30M posts) that Instagram refreshes faster.
+9. **cron_job UnboundLocalError Fixed**: `InstagramScraper` duplicate inline import at line 706 removed — no more pipeline crash on Step 2b audio backfill.
+10. **Safety-Net LLM Classifier**: `run_unclassified_safety_net_pass(limit=30)` runs at end of every pipeline — ensures no trend is left without `why_this_works` / `language_final` even when LLM API quota is 0.
+
+**Revert Protocol**:
+```bash
+# Revert main repo to this checkpoint
+git checkout prod-ready-v2.0 -- backend/cron_job.py backend/routes/fyp.py backend/routes/discover.py backend/routes/creator.py
+
+# Revert scraper repo (via GitHub API or direct clone)
+# Tag: prod-ready-v2.0 on chin1-ux/tren @ caedd45
+```
+
+**What is NOT under golden checkpoint protection in v2.0** (safe to modify):
+- `backend/cron_job.py` — hashtag pools, pipeline orchestration, alert thresholds
+- `backend/routes/*.py` — all API endpoints
+- `frontend/src/**` — all frontend code
+
+**Golden Checkpoint files (still require Chinmay approval before ANY edit)**:
+- `backend/instagram_scraper_browser.py`
+- `backend/trend_engine.py`
+- `backend/spotify_fetcher.py`
