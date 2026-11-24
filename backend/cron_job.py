@@ -1294,7 +1294,10 @@ def run_full_pipeline(stages: list = None):
                 f"• Duration: {int(elapsed)}s\n"
                 f"• Status set to: partial (zero_reels)"
             )
-        _send_scraper_failure_alert(alert_subj, alert_body, log_snippet=last_logs, is_escalation=is_escalation)
+        try:
+            _send_scraper_failure_alert(alert_subj, alert_body, log_snippet=last_logs, is_escalation=is_escalation)
+        except Exception as _alert_err:
+            logging.warning(f"Failed to dispatch scraper failure alert (Resend unverified/unconfigured): {_alert_err}")
     else:
         status = "success" if not run_state.get("cutoff_reason") else "partial"
 

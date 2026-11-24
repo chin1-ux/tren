@@ -62,6 +62,9 @@ def _parse_cookie_expiry(cookies: List[Dict[str, Any]]) -> Tuple[Optional[float]
             if exp:
                 try:
                     exp_ts = float(exp)
+                    # -1 or <= 0 indicates a session cookie with no fixed expiry (not expired in 1969)
+                    if exp_ts <= 0:
+                        return None, None
                     exp_iso = datetime.fromtimestamp(exp_ts, tz=timezone.utc).isoformat()
                     return exp_ts, exp_iso
                 except Exception:
@@ -189,8 +192,18 @@ def probe_instagram_session_authenticated(cookie_input: Any = None) -> Tuple[boo
                 pass
         if resp.status_code in (301, 302, 303, 307, 308):
             loc = resp.headers.get("Location", "")
+            if "/accounts/login/" in loc or "/challenge/" in loc:
+                return False, f"login_redirect:{loc}"
+            if loc in ("https://www.instagram.com/", "https://www.instagram.com", "/"):
+                return True, "valid:home_redirect"
             return False, f"login_redirect:{loc}"
         if resp.status_code == 401:
+            try:
+                data = resp.json()
+                if "Please wait a few minutes" in data.get("message", ""):
+                    return True, "valid:rate_limited_intact"
+            except Exception:
+                pass
             return False, "http_401_require_login"
         return False, f"http_{resp.status_code}"
     except Exception as e:
@@ -340,6 +353,86 @@ def get_session_health() -> Dict[str, Any]:
         "last_slid_at": None,
         "cookie_count": len(cookies),
     }
+
+
+# ── Account Pool Management (Order 95 Phase 2) ───────────────────────────────
+
+_LAST_ALERT_TIMESTAMPS: dict = {}
+
+def lease_scraper_account(mode: str, run_id: str) -> Tuple[Optional[dict], Optional[list]]:
+    """
+    Leases an active, non-cooldown account from scraper_accounts for this mode.
+    Fails closed (returns None, None) if no active account is available.
+    """
+    sb = _get_supabase_client()
+    if not sb:
+        return None, None
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        res = sb.table("scraper_accounts").select("*").eq("mode", mode).eq("status", "active").is_("cooldown_until", "null").order("last_verified_at", desc=False).limit(1).execute()
+        if res.data and len(res.data) > 0:
+            account = res.data[0]
+            acc_id = account["id"]
+            sb.table("scraper_accounts").update({"leased_by": run_id, "leased_at": now_iso}).eq("id", acc_id).execute()
+            logger.info(f"[ACCOUNT_POOL] Leased account '{acc_id}' for mode '{mode}' (run_id={run_id})")
+            
+            cookies_ref = account.get("cookies_secret_ref") or f"instagram_{acc_id}"
+            c_res = sb.table("scraper_sessions").select("cookies").eq("id", cookies_ref).execute()
+            if c_res.data and c_res.data[0].get("cookies"):
+                return account, c_res.data[0]["cookies"]
+            return account, []
+    except Exception as e:
+        logger.debug(f"[ACCOUNT_POOL] scraper_accounts check notice: {e}")
+
+    logger.info(f"[ACCOUNT_POOL] No pool account available for mode '{mode}'. Checking mode session in scraper_sessions...")
+    cookies = load_active_session_cookies()
+    if cookies:
+        return {"id": get_session_id_key(), "mode": mode, "status": "active"}, cookies
+    return None, None
+
+def release_scraper_account(account_id: str, success: bool, reason: str = "") -> bool:
+    """
+    Releases the leased account. If failure, marks dead and triggers alerts with deduplication.
+    """
+    sb = _get_supabase_client()
+    if not sb:
+        return False
+
+    now_iso = datetime.now(timezone.utc).isoformat()
+    try:
+        if success:
+            sb.table("scraper_accounts").update({
+                "leased_by": None,
+                "leased_at": None,
+                "last_verified_at": now_iso,
+                "fail_count": 0,
+                "updated_at": now_iso
+            }).eq("id", account_id).execute()
+            logger.info(f"[ACCOUNT_POOL] Released account '{account_id}' with success.")
+        else:
+            sb.table("scraper_accounts").update({
+                "leased_by": None,
+                "leased_at": None,
+                "status": "dead",
+                "updated_at": now_iso
+            }).eq("id", account_id).execute()
+            logger.warning(f"[ACCOUNT_POOL] Account '{account_id}' marked DEAD: {reason}")
+            _dispatch_account_alert(account_id, reason)
+        return True
+    except Exception as e:
+        logger.debug(f"[ACCOUNT_POOL] Error in release_scraper_account: {e}")
+        return False
+
+def _dispatch_account_alert(account_id: str, reason: str):
+    """Dispatches deduplicated alert: max 1 alert per 6h."""
+    now_ts = datetime.now(timezone.utc).timestamp()
+    last_alert = _LAST_ALERT_TIMESTAMPS.get(account_id, 0)
+    if now_ts - last_alert < (6 * 3600):
+        logger.info(f"[ACCOUNT_POOL] Alert for '{account_id}' throttled (already alerted in last 6h).")
+        return
+    _LAST_ALERT_TIMESTAMPS[account_id] = now_ts
+    logger.error(f"[ALERT:ACCOUNT_DEAD] Scraper account '{account_id}' has been marked DEAD: {reason}")
 
 
 if __name__ == "__main__":
