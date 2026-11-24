@@ -728,55 +728,79 @@ class InstagramScraper:
                 for c in cookies
             ]
 
-            # Launch Camoufox browser
-            self._camoufox_cm = CamoufoxBrowser(headless=True, geoip=False)
+            # S2: Suppress Camoufox LeakWarning
+            import warnings
+            try:
+                from camoufox.warnings import LeakWarning
+                warnings.filterwarnings("ignore", category=LeakWarning)
+            except ImportError:
+                pass
+
+            # S2: Align OS/GPU and proxy
+            cam_kwargs = {
+                "headless": True,
+                "geoip": True,
+            }
+            if sys.platform.startswith("linux"):
+                cam_kwargs["os"] = "linux"
+            elif sys.platform == "darwin":
+                cam_kwargs["os"] = "macos"
+            else:
+                cam_kwargs["os"] = "windows"
+
+            proxy_url = os.getenv("SCRAPER_PROXY_URL")
+            if proxy_url and proxy_url.strip():
+                cam_kwargs["proxy"] = {"server": proxy_url.strip()}
+
+            # Launch Camoufox browser with runner-aligned fingerprint
+            self._camoufox_cm = CamoufoxBrowser(**cam_kwargs)
             self._camoufox_browser = await self._camoufox_cm.__aenter__()
 
-            # Verify cookies by creating a temporary validation context
-            temp_ctx = await self._camoufox_browser.new_context(no_viewport=True)
-            try:
-                await temp_ctx.add_cookies(formatted_cookies)
-                await temp_ctx.set_extra_http_headers({
-                    "X-IG-App-ID": "936619743392459",
-                    "X-Requested-With": "XMLHttpRequest",
-                    "Accept-Language": "en-US,en;q=0.9",
-                    "Referer": "https://www.instagram.com/",
-                })
+            # S1: One persistent browser context per run
+            self._camoufox_ctx = await self._camoufox_browser.new_context(
+                viewport={"width": 1280, "height": 800},
+                locale="en-US"
+            )
+            await self._camoufox_ctx.add_cookies(formatted_cookies)
+            await self._camoufox_ctx.set_extra_http_headers({
+                "X-IG-App-ID": "936619743392459",
+                "X-Requested-With": "XMLHttpRequest",
+                "Accept-Language": "en-US,en;q=0.9",
+                "Referer": "https://www.instagram.com/",
+            })
 
-                active_cookies = await temp_ctx.cookies("https://www.instagram.com")
-                sessionid_present = any(c["name"] == "sessionid" for c in active_cookies)
-                self._last_cookie_check = "sessionid present" if sessionid_present else "sessionid absent"
-                if not sessionid_present:
-                    raise RuntimeError(
-                        "INSTAGRAM COOKIE EXPIRED/INVALID: sessionid not found in injected cookies. "
-                        "Please refresh cookies.json using cookie_exporter_guide.md."
-                    )
+            active_cookies = await self._camoufox_ctx.cookies("https://www.instagram.com")
+            sessionid_present = any(c["name"] == "sessionid" for c in active_cookies)
+            self._last_cookie_check = "sessionid present" if sessionid_present else "sessionid absent"
+            if not sessionid_present:
+                raise RuntimeError(
+                    "INSTAGRAM COOKIE EXPIRED/INVALID: sessionid not found in injected cookies. "
+                    "Please refresh cookies in scraper_sessions."
+                )
 
-                if self._skip_instagram_warmup:
-                    logger.info(
-                        "Skipping Instagram warm-up navigation by config; "
-                        f"cookie check passed ({len(active_cookies)} Instagram cookies loaded, sessionid present)."
-                    )
-                else:
-                    logger.info("Warming up Camoufox session on Instagram home...")
-                    warmup_page = await temp_ctx.new_page()
-                    try:
-                        await warmup_page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
-                        await warmup_page.wait_for_timeout(2000)
-                        if "/accounts/login/" in warmup_page.url:
-                            raise RuntimeError(
-                                "INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login page. Please refresh cookies.json using cookie_exporter_guide.md."
-                            )
-                    finally:
-                        try:
-                            await warmup_page.close()
-                        except Exception:
-                            pass
-            finally:
-                await temp_ctx.close()
+            # S1: Persistent page and warm-up navigation
+            self._camoufox_page = await self._camoufox_ctx.new_page()
+            if self._skip_instagram_warmup:
+                logger.info(
+                    "Skipping Instagram warm-up navigation by config; "
+                    f"cookie check passed ({len(active_cookies)} Instagram cookies loaded, sessionid present)."
+                )
+            else:
+                logger.info("S1: Warming up persistent Camoufox session on Instagram home...")
+                try:
+                    await self._camoufox_page.goto("https://www.instagram.com/", wait_until="domcontentloaded", timeout=30000)
+                    await self._camoufox_page.wait_for_timeout(2000)
+                    await self._camoufox_page.evaluate("window.scrollBy(0, 300)")
+                    await self._camoufox_page.wait_for_timeout(1000)
+                    if "/accounts/login/" in self._camoufox_page.url:
+                        raise RuntimeError(
+                            "INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login page during warm-up. Please refresh cookies."
+                        )
+                except Exception as warmup_err:
+                    logger.warning(f"S1 warm-up navigation notice: {warmup_err}")
 
             self._last_browser_init = "initialized"
-            logger.info("Camoufox stealth browser verified and ready.")
+            logger.info("Camoufox stealth browser verified and ready with persistent context.")
             return True
         except Exception as e:
             self._last_browser_init = "crashed"
@@ -789,25 +813,30 @@ class InstagramScraper:
     async def _close_browser_async(self):
         """Async close helper used by the async scrape path."""
         try:
+            if hasattr(self, '_camoufox_page') and self._camoufox_page:
+                try:
+                    await self._camoufox_page.close()
+                except Exception:
+                    pass
+                self._camoufox_page = None
+            if hasattr(self, '_camoufox_ctx') and self._camoufox_ctx:
+                try:
+                    await self._camoufox_ctx.close()
+                except Exception:
+                    pass
+                self._camoufox_ctx = None
             if hasattr(self, '_camoufox_cm') and self._camoufox_cm:
                 try:
                     await self._camoufox_cm.__aexit__(None, None, None)
                 except Exception:
                     pass
                 self._camoufox_cm = None
-            else:
-                if self._camoufox_ctx:
-                    try:
-                        await self._camoufox_ctx.close()
-                    except Exception:
-                        pass
-                if self._camoufox_browser:
-                    try:
-                        await self._camoufox_browser.close()
-                    except Exception:
-                        pass
-            self._camoufox_ctx = None
-            self._camoufox_browser = None
+            elif self._camoufox_browser:
+                try:
+                    await self._camoufox_browser.close()
+                except Exception:
+                    pass
+                self._camoufox_browser = None
         except Exception as e:
             logger.warning(f"Error closing Camoufox browser: {e}")
 
@@ -956,43 +985,68 @@ class InstagramScraper:
         _ctx_locale  = _lc.get("ctx_locale", "en-US")
         _ig_locale   = _lc.get("ig_locale", "en_US")
 
-        # ── Fast-path 1: Direct Instagram Native Hashtag Sections API (POST) ──
-        # Instagram's live hashtag clips feed endpoint. Delivers ~30 fresh reels (8-24h old)
-        # with full clips_metadata, audio titles, artists, taken_at, views and likes.
+        # ── Fast-path 1: Same-Origin In-Browser Hashtag Sections API (POST) (S1) ──
+        # Instagram's live hashtag clips feed endpoint evaluated inside the persistent browser context.
         try:
-            headers, cookie_dict = self._load_instagram_cookie_headers()
-            post_headers = dict(headers)
-            # Inject locale-specific headers so Instagram returns regionally-ranked content
-            post_headers["Accept-Language"] = _accept_lang
-            post_headers["X-IG-App-Locale"] = _ig_locale
-            post_headers["X-CSRFToken"] = cookie_dict.get("csrftoken", "")
-            post_headers["Referer"] = f"https://www.instagram.com/explore/tags/{clean_tag}/"
+            if hasattr(self, '_camoufox_page') and self._camoufox_page:
+                csrf_val = cookie_dict.get("csrftoken", "")
+                eval_sections_script = f"""
+                async () => {{
+                    try {{
+                        const bodyParams = new URLSearchParams();
+                        bodyParams.append('tab', 'clips');
+                        bodyParams.append('page', '1');
 
-            sections_url = f"https://www.instagram.com/api/v1/tags/{clean_tag}/sections/"
-
-            def _post_sections():
-                with requests.Session() as s:
-                    s.headers.update(post_headers)
-                    s.cookies.update(cookie_dict)
-                    r1 = s.post(sections_url, data={"tab": "clips", "page": 1}, timeout=15)
-                    all_sections = []
-                    if r1.status_code == 200:
-                        d1 = r1.json()
-                        all_sections.extend(d1.get("sections", []))
-                        next_max_id = d1.get("next_max_id")
-                        more_avail = d1.get("more_available", False)
-                        if more_avail and next_max_id:
-                            try:
-                                r2 = s.post(sections_url, data={"tab": "clips", "page": 2, "max_id": next_max_id}, timeout=15)
-                                if r2.status_code == 200:
-                                    d2 = r2.json()
-                                    all_sections.extend(d2.get("sections", []))
-                            except Exception as _p2_err:
-                                logger.debug(f"sections page 2 fetch error for #{clean_tag}: {_p2_err}")
-                    return all_sections
-
-            loop = asyncio.get_event_loop()
-            sections = await loop.run_in_executor(None, _post_sections)
+                        const r1 = await fetch('https://www.instagram.com/api/v1/tags/{clean_tag}/sections/', {{
+                            method: 'POST',
+                            headers: {{
+                                'X-IG-App-ID': '936619743392459',
+                                'X-CSRFToken': '{csrf_val}',
+                                'X-Requested-With': 'XMLHttpRequest',
+                                'Content-Type': 'application/x-www-form-urlencoded',
+                                'Accept': '*/*'
+                            }},
+                            body: bodyParams.toString()
+                        }});
+                        if (r1.status !== 200) {{
+                            return {{ status: r1.status, sections: [] }};
+                        }}
+                        const d1 = await r1.json();
+                        let all_sections = d1.sections || [];
+                        const next_max_id = d1.next_max_id;
+                        if (d1.more_available && next_max_id) {{
+                            try {{
+                                const bodyParams2 = new URLSearchParams();
+                                bodyParams2.append('tab', 'clips');
+                                bodyParams2.append('page', '2');
+                                bodyParams2.append('max_id', next_max_id);
+                                const r2 = await fetch('https://www.instagram.com/api/v1/tags/{clean_tag}/sections/', {{
+                                    method: 'POST',
+                                    headers: {{
+                                        'X-IG-App-ID': '936619743392459',
+                                        'X-CSRFToken': '{csrf_val}',
+                                        'X-Requested-With': 'XMLHttpRequest',
+                                        'Content-Type': 'application/x-www-form-urlencoded',
+                                        'Accept': '*/*'
+                                    }},
+                                    body: bodyParams2.toString()
+                                }});
+                                if (r2.status === 200) {{
+                                    const d2 = await r2.json();
+                                    all_sections = all_sections.concat(d2.sections || []);
+                                }}
+                            }} catch (e2) {{}}
+                        }}
+                        return {{ status: 200, sections: all_sections }};
+                    }} catch (err) {{
+                        return {{ status: 500, error: err.toString(), sections: [] }};
+                    }}
+                }}
+                """
+                sec_res = await self._camoufox_page.evaluate(eval_sections_script)
+                sections = sec_res.get("sections") if isinstance(sec_res, dict) else []
+            else:
+                sections = []
 
             if sections:
                 medias: list[dict] = []
@@ -1062,79 +1116,50 @@ class InstagramScraper:
         except Exception as sec_err:
             logger.warning(f"Direct sections API fetch failed for #{clean_tag} ({sec_err}), falling back to browser SERP...")
 
-        # ── Fallback 2: Camoufox Browser Search SERP ──
-        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
-            logger.warning(f"Camoufox browser disconnected or uninitialized. Initializing browser session...")
+        # ── Fallback 2: Camoufox Browser Search SERP (S1 Persistent Context) ──
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected() or not hasattr(self, '_camoufox_page') or not self._camoufox_page:
+            logger.warning("Camoufox browser/page disconnected or uninitialized. Initializing persistent session...")
             await self._close_browser_async()
             if not await self._init_browser_async():
-                logger.error("Failed to initialize browser session.")
+                logger.error("Failed to initialize persistent browser session.")
                 return []
 
-        ctx = None
-        page = None
-        items = []
+        page = self._camoufox_page
+        ctx = self._camoufox_ctx
+        serp_candidates: list[dict] = []
+        got_serp = asyncio.Event()
+
+        async def handle_response(response):
+            """Intercept the Instagram GraphQL SERP response."""
+            if "graphql" in response.url or "api/v1" in response.url:
+                try:
+                    text = await response.text()
+                    if "for (;;);" in text:
+                        text = text.replace("for (;;);", "").strip()
+                    res_json = json.loads(text)
+                    data = res_json.get("data") or {}
+                    serp = data.get("xdt_fbsearch__top_serp_graphql") or {}
+                    for edge in serp.get("edges", []):
+                        for itm in edge.get("node", {}).get("items", []):
+                            pk = itm.get("pk") or (itm.get("id", "").split("_")[0] if itm.get("id") else None)
+                            if not pk:
+                                code = itm.get("code") or itm.get("shortcode")
+                                if code:
+                                    try:
+                                        pk = str(shortcode_to_pk(code))
+                                        itm["pk"] = pk
+                                    except Exception:
+                                        pass
+                            mtype = itm.get("media_type")
+                            if pk and mtype in (2, 8):
+                                serp_candidates.append(itm)
+                    if len(serp_candidates) >= 12:
+                        got_serp.set()
+                except Exception:
+                    pass
+
         try:
-            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
-            if not os.path.exists(cookies_path):
-                logger.error("cookies.json not found! See cookie_exporter_guide.md for export instructions.")
-                return []
-
-            with open(cookies_path, "r", encoding="utf-8") as f:
-                cookies = json.load(f)
-
-            formatted_cookies = [
-                {
-                    "name": c["name"],
-                    "value": c["value"],
-                    "domain": c.get("domain", ".instagram.com"),
-                    "path": c.get("path", "/"),
-                }
-                for c in cookies
-            ]
-
-            logger.info(f"Creating a fresh browser context for #{hashtag} [locale={_ctx_locale}]...")
-            ctx = await self._camoufox_browser.new_context(no_viewport=True, locale=_ctx_locale)
-            await ctx.add_cookies(formatted_cookies)
-            await ctx.set_extra_http_headers({
-                "X-IG-App-ID": "936619743392459",
-                "X-Requested-With": "XMLHttpRequest",
-                "Accept-Language": _accept_lang,
-                "X-IG-App-Locale": _ig_locale,
-                "Referer": "https://www.instagram.com/",
-            })
-
-            serp_candidates: list[dict] = []
-            got_serp = asyncio.Event()
-
-            async def handle_response(response):
-                """Intercept the Instagram GraphQL SERP response."""
-                if "api/graphql" in response.url or "graphql/query" in response.url:
-                    try:
-                        res_json = await response.json()
-                        data = res_json.get("data") or {}
-                        serp = data.get("xdt_fbsearch__top_serp_graphql") or {}
-                        for edge in serp.get("edges", []):
-                            for itm in edge.get("node", {}).get("items", []):
-                                pk = itm.get("pk") or (itm.get("id", "").split("_")[0] if itm.get("id") else None)
-                                if not pk:
-                                    code = itm.get("code") or itm.get("shortcode")
-                                    if code:
-                                        try:
-                                            pk = str(shortcode_to_pk(code))
-                                            itm["pk"] = pk
-                                        except Exception:
-                                            pass
-                                mtype = itm.get("media_type")
-                                if pk and mtype in (2, 8):
-                                    serp_candidates.append(itm)
-                        if len(serp_candidates) >= 18:
-                            got_serp.set()
-                    except Exception:
-                        pass
-
-            page = await ctx.new_page()
             page.on("response", handle_response)
-
             clean_tag = hashtag.lstrip("#").strip()
             target_tag_url = f"https://www.instagram.com/explore/tags/{clean_tag}/"
             try:
@@ -1167,6 +1192,24 @@ class InstagramScraper:
                 except Exception:
                     pass
 
+            if not serp_candidates:
+                # Fallback: extract shortcodes directly from DOM anchors /reel/ or /p/
+                try:
+                    dom_hrefs = await page.evaluate("() => Array.from(document.querySelectorAll('a[href*=\"/reel/\"], a[href*=\"/p/\"]')).map(a => a.href)")
+                    for href in dom_hrefs:
+                        m = re.search(r'/(?:reel|p)/([A-Za-z0-9_-]+)', href)
+                        if m:
+                            code = m.group(1)
+                            try:
+                                pk = str(shortcode_to_pk(code))
+                                serp_candidates.append({"pk": pk, "code": code, "media_type": 2})
+                            except Exception:
+                                pass
+                    if serp_candidates:
+                        logger.info(f"Captured {len(serp_candidates)} candidate reels from DOM links for #{clean_tag}")
+                except Exception as _dom_err:
+                    logger.debug(f"DOM fallback error for #{clean_tag}: {_dom_err}")
+
             # Detect login wall / challenge after navigation
             current_url = page.url
             if "/accounts/login/" in current_url or "/challenge/" in current_url:
@@ -1174,6 +1217,23 @@ class InstagramScraper:
 
             if not serp_candidates:
                 logger.warning(f"No SERP candidate reels captured for #{clean_tag}")
+                # S4 Failure logging and artifact capture
+                self._fail_count = getattr(self, "_fail_count", 0) + 1
+                try:
+                    pg_title = await page.title()
+                except Exception:
+                    pg_title = "unknown"
+                logger.warning(f"S4 Failure #{self._fail_count} for #{clean_tag}: final_url={current_url}, title='{pg_title}'")
+                if self._fail_count <= 3:
+                    os.makedirs("artifacts", exist_ok=True)
+                    try:
+                        await page.screenshot(path=f"artifacts/failure_{self._fail_count}_{clean_tag}.png")
+                        html_dump = await page.content()
+                        with open(f"artifacts/failure_{self._fail_count}_{clean_tag}.html", "w", encoding="utf-8") as f:
+                            f.write(html_dump)
+                        logger.info(f"S4: Saved failure artifact failure_{self._fail_count}_{clean_tag}.png/.html")
+                    except Exception as _art_err:
+                        logger.debug(f"Failed to write failure artifact: {_art_err}")
                 return []
 
             logger.info(f"Captured {len(serp_candidates)} candidate reels from #{clean_tag} SERP. Resolving media metadata...")
@@ -1261,29 +1321,15 @@ class InstagramScraper:
                 await self._close_browser_async()
             return []
         finally:
-            if page:
-                try:
-                    page.remove_all_listeners()
-                except Exception:
-                    pass
-                try:
-                    await page.close()
-                except Exception:
-                    pass
-            if ctx:
+            if ctx and items:
                 # In-Session Cookie Sliding: capture rotated cookies if items were successfully extracted
-                if items:
-                    try:
-                        refreshed = await ctx.cookies()
-                        if refreshed:
-                            from cookie_sliding_manager import save_slid_cookies
-                            save_slid_cookies(refreshed, reels_scraped=len(items), run_id=os.getenv("GITHUB_RUN_ID", "local"))
-                    except Exception as slide_err:
-                        logger.warning(f"[COOKIE_SLIDING] Failed to slide cookies: {slide_err}")
                 try:
-                    await ctx.close()
-                except Exception:
-                    pass
+                    refreshed = await ctx.cookies()
+                    if refreshed:
+                        from cookie_sliding_manager import save_slid_cookies
+                        save_slid_cookies(refreshed, reels_scraped=len(items), run_id=os.getenv("GITHUB_RUN_ID", "local"), is_verified=True)
+                except Exception as slide_err:
+                    logger.warning(f"[COOKIE_SLIDING] Failed to slide cookies: {slide_err}")
 
     def _is_top_20_for_audio(self, audio_id: str, view_count: int) -> bool:
         if not audio_id:
@@ -1730,7 +1776,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                 "owner_follower_count": c["followers"],
                 "caption": c["caption"],
                 "hashtags": c["hashtags"],
-                "source_hashtag_pool": source_hashtag_pool,
+                "source_hashtag_pool": source_hashtag_pool or "HASHTAG",
+                "source_tag": tag,
                 "video_url": c["video_url"],
                 "thumbnail_url": c["thumbnail_url"],
                 "audio_title": audio_title,
@@ -2100,6 +2147,10 @@ Return ONLY valid JSON, no markdown, no explanation:
                     seen.add(h)
                     selected.append(h)
             
+            # S3: Cap at ~15 hashtags per run via existing rotation
+            selected = selected[:15]
+            consecutive_failures = 0
+            
             logger.info(f"Scraping {len(selected)} hashtags [{scrape_mode} mode]: {selected}")
             scraped_at = datetime.now(timezone.utc).isoformat()
             audio_groups: dict[tuple, list[dict]] = {}
@@ -2115,8 +2166,13 @@ Return ONLY valid JSON, no markdown, no explanation:
                     logger.error(f"Scrape global timeout ({_SCRAPE_TIMEOUT_S}s) reached at hashtag {tag_idx+1}/{len(selected)}. Aborting.")
                     break
                 if tag_idx > 0:
-                    wait_time = 1 + (tag_idx % 2)
-                    logger.info(f"Rate limiting: waiting {wait_time}s before next hashtag...")
+                    # S3: Randomized 8-25s waits, longer pause (45-60s) every 5 tags
+                    if tag_idx % 5 == 0:
+                        wait_time = random.uniform(45.0, 60.0)
+                        logger.info(f"S3 Batch Pause: waiting {wait_time:.1f}s after {tag_idx} hashtags...")
+                    else:
+                        wait_time = random.uniform(8.0, 25.0)
+                        logger.info(f"S3 Rate Limiting: waiting {wait_time:.1f}s before next hashtag...")
                     time.sleep(wait_time)
                 
                 # Resolve per-tag locale config from pool membership for geo-spoofing
@@ -2153,6 +2209,16 @@ Return ONLY valid JSON, no markdown, no explanation:
                 finally:
                     if _has_sigalrm:
                         signal.alarm(0)  # Cancel the alarm
+
+                # S3: Consecutive hard failure tracking
+                if not items:
+                    consecutive_failures += 1
+                    logger.warning(f"S3: #{tag} yielded 0 reels. Consecutive failures: {consecutive_failures}/3")
+                    if consecutive_failures >= 3:
+                        logger.error("S3 ABORT: 3 consecutive hard failures encountered. Aborting scraper run to protect session.")
+                        break
+                else:
+                    consecutive_failures = 0
 
                 total_scraped += len(items)
 

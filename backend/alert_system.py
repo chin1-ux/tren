@@ -560,18 +560,35 @@ class AlertSystem:
 
     def send_login_wall_alert(self, targets: list[str] | None = None, gha_run_id: str | None = None) -> bool:
         """
-        Fires a single consolidated alert when Instagram login wall is detected.
-        Supports Telegram Bot API (TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID) or Discord Webhook (DISCORD_WEBHOOK_URL).
+        Fires a consolidated alert when Instagram login wall / blocked session is detected.
+        C1 (Order 91): Deduplicated to max 1 alert per 6 hours.
+        Supports Telegram Bot, Discord Webhook, or GitHub Issue.
         """
+        # Deduplication check: check last alert timestamp in scraper_sessions
+        now = datetime.now(timezone.utc)
+        sb = self.supabase
+        if sb:
+            try:
+                res = sb.table("scraper_sessions").select("metadata").limit(1).execute()
+                if res.data and res.data[0].get("metadata"):
+                    last_alert_str = res.data[0]["metadata"].get("last_login_wall_alert_at")
+                    if last_alert_str:
+                        last_alert_dt = datetime.fromisoformat(last_alert_str.replace("Z", "+00:00"))
+                        if (now - last_alert_dt).total_seconds() < 6 * 3600:
+                            logging.info(f"[ALERT] Login wall alert throttled (last sent {(now - last_alert_dt).total_seconds()/3600:.1f}h ago; max 1 per 6h).")
+                            return False
+            except Exception as _dedup_err:
+                logging.debug(f"[ALERT] Dedup check warning: {_dedup_err}")
+
         targets_str = ", ".join(targets) if targets else "Multiple scrape targets"
         run_id_str = f"Run ID: {gha_run_id}" if gha_run_id else "Local/Manual Run"
         
         msg = (
-            f"🚨 <b>INSTAGRAM LOGIN WALL DETECTED</b> 🚨\n\n"
-            f"• <b>Status</b>: Instagram redirected Playwright navigation to /accounts/login/\n"
+            f"🚨 <b>INSTAGRAM LOGIN WALL / SESSION BLOCKED</b> 🚨\n\n"
+            f"• <b>Status</b>: Instagram redirected Playwright navigation to /accounts/login/ or session probe failed\n"
             f"• <b>Affected Targets</b>: {targets_str}\n"
             f"• <b>Context</b>: {run_id_str}\n"
-            f"• <b>Action Required</b>: Update INSTAGRAM_COOKIES_B64 in GitHub repository secrets with a fresh logged-in session cookie.\n"
+            f"• <b>Action Required</b>: Update INSTAGRAM_COOKIES_B64 or scraper_sessions with fresh cookies.\n"
         )
         
         logging.warning(f"[LOGIN WALL ALERT] {msg.replace('<b>', '').replace('</b>', '')}")
@@ -579,6 +596,7 @@ class AlertSystem:
         telegram_token = os.getenv("TELEGRAM_BOT_TOKEN")
         telegram_chat = os.getenv("TELEGRAM_CHAT_ID")
         discord_webhook = os.getenv("DISCORD_WEBHOOK_URL")
+        gh_token = os.getenv("GITHUB_TOKEN") or os.getenv("GH_TOKEN")
         
         sent = False
         if telegram_token and telegram_chat:
@@ -608,5 +626,45 @@ class AlertSystem:
                     logging.warning(f"[ALERT] Discord Webhook returned status {res.status_code}: {res.text}")
             except Exception as e:
                 logging.error(f"[ALERT] Failed to send Discord alert: {e}")
+
+        # Fallback: GitHub Issue
+        if not sent and gh_token and os.getenv("GITHUB_REPOSITORY"):
+            try:
+                import requests
+                repo = os.getenv("GITHUB_REPOSITORY")
+                issue_url = f"https://api.github.com/repos/{repo}/issues"
+                headers = {
+                    "Authorization": f"Bearer {gh_token}",
+                    "Accept": "application/vnd.github.v3+json"
+                }
+                issue_body = {
+                    "title": "🚨 Instagram Session Blocked / Expired",
+                    "body": msg.replace("<b>", "**").replace("</b>", "**"),
+                    "labels": ["bug", "ops"]
+                }
+                res = requests.post(issue_url, headers=headers, json=issue_body, timeout=10)
+                if res.status_code in (200, 201):
+                    logging.info("[ALERT] Successfully created GitHub issue for session block.")
+                    sent = True
+            except Exception as _gh_err:
+                logging.debug(f"[ALERT] GitHub issue alert creation warning: {_gh_err}")
                 
+        if sent and sb:
+            try:
+                # Update last alert timestamp in scraper_sessions for deduplication
+                from cookie_sliding_manager import get_session_id_key
+                sess_id = get_session_id_key()
+                sb.table("scraper_sessions").update({
+                    "metadata": {"last_login_wall_alert_at": now.isoformat()}
+                }).eq("id", sess_id).execute()
+            except Exception:
+                pass
+
+        if not sent:
+            logging.critical(
+                "[ALERT] Instagram session blocked — no Telegram/Discord/GH token configured. "
+                "Logged alert to stderr/GHA."
+            )
+        return sent
+
         return sent

@@ -25,7 +25,19 @@ logger = logging.getLogger("session_sliding_manager")
 if not logger.handlers:
     logging.basicConfig(level=logging.INFO, format="%(asctime)s - [%(levelname)s] - %(message)s")
 
-_SESSION_ID_KEY = "instagram_primary"
+def get_session_id_key() -> str:
+    """Returns the session row ID based on SCRAPER_SESSION_ID or SCRAPER_MODE.
+    Defaults to instagram_india or instagram_global per active mode, or instagram_primary fallback.
+    """
+    env_override = os.getenv("SCRAPER_SESSION_ID")
+    if env_override and env_override.strip():
+        return env_override.strip()
+    mode = os.getenv("SCRAPER_MODE", "").strip().lower()
+    if mode in ("india", "global"):
+        return f"instagram_{mode}"
+    return "instagram_primary"
+
+_SESSION_ID_KEY = get_session_id_key()
 
 
 def _get_supabase_client() -> Optional[Client]:
@@ -66,23 +78,27 @@ def load_active_session_cookies() -> Optional[List[Dict[str, Any]]]:
     """
     sb = _get_supabase_client()
     now_ts = datetime.now(timezone.utc).timestamp()
+    session_key = get_session_id_key()
 
     # 1. Try Supabase
     if sb:
         try:
-            res = sb.table("scraper_sessions").select("*").eq("id", _SESSION_ID_KEY).execute()
+            res = sb.table("scraper_sessions").select("*").eq("id", session_key).execute()
+            if not res.data and session_key != "instagram_primary":
+                # Fallback to instagram_primary row if mode-specific row not seeded yet
+                res = sb.table("scraper_sessions").select("*").eq("id", "instagram_primary").execute()
             if res.data and len(res.data) > 0:
                 row = res.data[0]
                 cookies = row.get("cookies")
                 status = row.get("session_status", "active")
-                if isinstance(cookies, list) and len(cookies) > 0 and status != "expired":
+                if isinstance(cookies, list) and len(cookies) > 0 and status not in ("expired", "blocked"):
                     exp_ts, _ = _parse_cookie_expiry(cookies)
                     # If cookie has not already passed hard expiry
                     if not exp_ts or (exp_ts - now_ts) > 0:
-                        logger.info(f"[SESSION_MANAGER] Loaded active session from Supabase (last slid: {row.get('last_slid_at')}).")
+                        logger.info(f"[SESSION_MANAGER] Loaded active session '{row.get('id')}' from Supabase (last slid: {row.get('last_slid_at')}).")
                         return cookies
                     else:
-                        logger.warning(f"[SESSION_MANAGER] Supabase session expired at {row.get('expires_at')}.")
+                        logger.warning(f"[SESSION_MANAGER] Supabase session '{row.get('id')}' expired at {row.get('expires_at')}.")
         except Exception as e:
             logger.warning(f"[SESSION_MANAGER] Could not read from Supabase: {e}")
 
@@ -118,17 +134,91 @@ def load_active_session_cookies() -> Optional[List[Dict[str, Any]]]:
     return None
 
 
+def probe_instagram_session_authenticated(cookie_input: Any = None) -> Tuple[bool, str]:
+    """
+    F1 / Order 91 Authenticated Probe:
+    Performs an active HTTP check against Instagram's current_user endpoint.
+    Returns (True, username) if valid JSON session, or (False, reason) if expired/blocked.
+    """
+    import requests
+
+    if cookie_input is None:
+        cookie_input = load_active_session_cookies()
+    if not cookie_input:
+        return False, "no_cookies_found"
+
+    if isinstance(cookie_input, list):
+        cookie_dict = {c.get("name"): c.get("value") for c in cookie_input if isinstance(c, dict) and "name" in c}
+    elif isinstance(cookie_input, dict):
+        cookie_dict = cookie_input
+    else:
+        return False, "invalid_cookie_format"
+
+    sessionid = cookie_dict.get("sessionid")
+    if not sessionid:
+        return False, "missing_sessionid_cookie"
+
+    csrf_token = cookie_dict.get("csrftoken", "")
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:128.0) Gecko/20100101 Firefox/128.0",
+        "Accept": "*/*",
+        "Accept-Language": "en-US,en;q=0.9",
+        "X-IG-App-ID": "936619743392459",
+        "X-Requested-With": "XMLHttpRequest",
+        "X-CSRFToken": csrf_token,
+        "Referer": "https://www.instagram.com/",
+    }
+
+    try:
+        resp = requests.get(
+            "https://www.instagram.com/api/v1/accounts/current_user/?edit=true",
+            headers=headers,
+            cookies=cookie_dict,
+            allow_redirects=False,
+            timeout=10,
+        )
+        if resp.status_code == 200:
+            try:
+                data = resp.json()
+                username = data.get("user", {}).get("username")
+                if username:
+                    return True, f"valid:{username}"
+                if data.get("status") == "ok":
+                    return True, "valid:status_ok"
+            except Exception:
+                pass
+        if resp.status_code in (301, 302, 303, 307, 308):
+            loc = resp.headers.get("Location", "")
+            return False, f"login_redirect:{loc}"
+        if resp.status_code == 401:
+            return False, "http_401_require_login"
+        return False, f"http_{resp.status_code}"
+    except Exception as e:
+        return False, f"probe_network_error:{e}"
+
+
 def save_slid_cookies(
     new_cookies: List[Dict[str, Any]],
     reels_scraped: int = 0,
-    run_id: str = "manual"
+    run_id: str = "manual",
+    is_verified: bool = False
 ) -> bool:
     """
     Persists refreshed browser cookies back to Supabase `scraper_sessions`.
-    Only saves if a valid `sessionid` cookie is present.
+    B2 Security Audit:
+    - Only saves if a valid `sessionid` is present.
+    - FORBIDS saving if reels_scraped == 0 and is_verified is False (prevents saving dead/login-wall cookies).
+    - Refuses to overwrite if current session status in Supabase is 'expired' or 'blocked' unless is_verified is True.
     """
     if not new_cookies or not isinstance(new_cookies, list):
         logger.warning("[SESSION_MANAGER] save_slid_cookies received empty cookie list.")
+        return False
+
+    # B2 Audit Guard: Never persist cookies if 0 reels scraped and not probe-verified
+    if not is_verified and reels_scraped <= 0:
+        logger.warning(
+            f"[SESSION_MANAGER] B2 GUARD: Refusing to persist unverified cookies to Supabase (reels_scraped={reels_scraped}, is_verified=False)."
+        )
         return False
 
     exp_ts, exp_iso = _parse_cookie_expiry(new_cookies)
@@ -137,27 +227,41 @@ def save_slid_cookies(
         logger.warning("[SESSION_MANAGER] Cannot slide cookies: missing 'sessionid'.")
         return False
 
-    # Extract username / ds_user_id if present
-    ds_user_id = next((c.get("value") for c in new_cookies if c.get("name") == "ds_user_id"), None)
-
+    session_key = get_session_id_key()
     sb = _get_supabase_client()
     if not sb:
         logger.warning("[SESSION_MANAGER] Supabase unavailable — skipping slide persistence.")
         return False
 
+    # Check existing status: if marked expired/blocked, do not slide unverified
+    try:
+        cur = sb.table("scraper_sessions").select("session_status").eq("id", session_key).execute()
+        if cur.data and cur.data[0].get("session_status") in ("expired", "blocked"):
+            if not is_verified:
+                logger.warning(
+                    f"[SESSION_MANAGER] B2 GUARD: Refusing to overwrite {session_key} while status is '{cur.data[0].get('session_status')}'."
+                )
+                return False
+    except Exception as _chk_err:
+        logger.debug(f"[SESSION_MANAGER] Status pre-check warning: {_chk_err}")
+
+    # Extract username / ds_user_id if present
+    ds_user_id = next((c.get("value") for c in new_cookies if c.get("name") == "ds_user_id"), None)
+
     now_iso = datetime.now(timezone.utc).isoformat()
     payload = {
-        "id": _SESSION_ID_KEY,
+        "id": session_key,
         "cookies": new_cookies,
         "session_status": "active",
         "account_username": ds_user_id,
         "last_slid_at": now_iso,
-        "last_verified_at": now_iso if reels_scraped > 0 else now_iso,
+        "last_verified_at": now_iso if (reels_scraped > 0 or is_verified) else now_iso,
         "expires_at": exp_iso,
         "metadata": {
             "last_run_id": str(run_id),
             "reels_scraped": reels_scraped,
             "cookie_count": len(new_cookies),
+            "is_verified": is_verified,
             "updated_at": now_iso,
         }
     }
@@ -165,18 +269,19 @@ def save_slid_cookies(
     try:
         sb.table("scraper_sessions").upsert(payload).execute()
         hours_msg = f" (expires: {exp_iso})" if exp_iso else ""
-        logger.info(f"✅ [SESSION_MANAGER] Cookie sliding successful! Saved {len(new_cookies)} cookies to Supabase{hours_msg}.")
+        logger.info(f"✅ [SESSION_MANAGER] Cookie sliding successful for '{session_key}'! Saved {len(new_cookies)} cookies to Supabase{hours_msg}.")
         return True
     except Exception as e:
-        logger.error(f"[SESSION_MANAGER] Failed to upsert slid cookies to Supabase: {e}")
+        logger.error(f"[SESSION_MANAGER] Failed to upsert slid cookies to Supabase for '{session_key}': {e}")
         return False
 
 
 def mark_session_status(status: str, reason: str = "") -> bool:
-    """Updates the status of the session in Supabase (e.g., 'expired', 'warning', 'checkpoint')."""
+    """Updates the status of the session in Supabase (e.g., 'expired', 'warning', 'checkpoint', 'scrape_blocked')."""
     sb = _get_supabase_client()
     if not sb:
         return False
+    session_key = get_session_id_key()
     try:
         now_iso = datetime.now(timezone.utc).isoformat()
         sb.table("scraper_sessions").update({
@@ -185,21 +290,24 @@ def mark_session_status(status: str, reason: str = "") -> bool:
                 "status_reason": reason,
                 "status_changed_at": now_iso
             }
-        }).eq("id", _SESSION_ID_KEY).execute()
-        logger.info(f"[SESSION_MANAGER] Marked session '{_SESSION_ID_KEY}' as {status}: {reason}")
+        }).eq("id", session_key).execute()
+        logger.info(f"[SESSION_MANAGER] Marked session '{session_key}' as {status}: {reason}")
         return True
     except Exception as e:
-        logger.error(f"[SESSION_MANAGER] Failed to update session status: {e}")
+        logger.error(f"[SESSION_MANAGER] Failed to update session status for '{session_key}': {e}")
         return False
 
 
 def get_session_health() -> Dict[str, Any]:
     """Returns a health summary of the current session."""
     now_ts = datetime.now(timezone.utc).timestamp()
+    session_key = get_session_id_key()
     sb = _get_supabase_client()
     if sb:
         try:
-            res = sb.table("scraper_sessions").select("*").eq("id", _SESSION_ID_KEY).execute()
+            res = sb.table("scraper_sessions").select("*").eq("id", session_key).execute()
+            if not res.data and session_key != "instagram_primary":
+                res = sb.table("scraper_sessions").select("*").eq("id", "instagram_primary").execute()
             if res.data:
                 row = res.data[0]
                 cookies = row.get("cookies") or []
@@ -207,6 +315,7 @@ def get_session_health() -> Dict[str, Any]:
                 hours_remaining = round((exp_ts - now_ts) / 3600.0, 1) if exp_ts else None
                 return {
                     "exists": True,
+                    "session_id": row.get("id"),
                     "status": row.get("session_status"),
                     "hours_remaining": hours_remaining,
                     "expires_at": exp_iso,
@@ -224,6 +333,7 @@ def get_session_health() -> Dict[str, Any]:
     hours_remaining = round((exp_ts - now_ts) / 3600.0, 1) if exp_ts else None
     return {
         "exists": True,
+        "session_id": session_key,
         "status": "active" if (hours_remaining is None or hours_remaining > 0) else "expired",
         "hours_remaining": hours_remaining,
         "expires_at": exp_iso,

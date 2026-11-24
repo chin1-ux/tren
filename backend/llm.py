@@ -3,9 +3,28 @@ import json
 import logging
 import re
 import socket
+import itertools
 import requests
+from dotenv import load_dotenv
+
+# Auto-load env if not already populated
+load_dotenv()
+_backend_env = os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env")
+if os.path.exists(_backend_env):
+    load_dotenv(_backend_env)
 
 logger = logging.getLogger("llm")
+
+# Atomic counters for round-robin key balancing across serverless / worker requests
+_groq_counter = itertools.count()
+_gemini_counter = itertools.count()
+
+def _rotate_keys(keys: list[str], counter: itertools.count) -> list[str]:
+    """Rotate keys in round-robin fashion so requests are load-balanced across all free keys."""
+    if not keys or len(keys) <= 1:
+        return keys
+    start = next(counter) % len(keys)
+    return keys[start:] + keys[:start]
 
 # Force IPv4 — IPv6 is broken on some environments causing hangs
 _orig_getaddrinfo = socket.getaddrinfo
@@ -25,7 +44,6 @@ socket.getaddrinfo = _ipv4_only
 _GEMINI_FALLBACK_MODELS = [
     "gemini-flash-lite-latest",
     "gemini-flash-latest",
-    "gemini-2.5-flash",
 ]
 
 
@@ -152,8 +170,8 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         else:
             logger.info(f"Using all {len(keys)} configured Groq key(s) for this request.")
 
-        # Apply cost optimisation defaults
-        model = os.getenv("LLM_MODEL", "allam-2-7b")
+        # Apply cost optimisation defaults (qwen3.8-27b is the fast, high-quality primary model)
+        model = os.getenv("LLM_MODEL", "qwen/qwen3.8-27b")
         payload = {
             "model": model,
             "messages": [
@@ -170,6 +188,8 @@ def call_llm(system_prompt: str, user_prompt: str, response_mime_type: str = "ap
         if response_mime_type == "application/json" and model not in _GROQ_NO_JSON_FORMAT:
             payload["response_format"] = {"type": "json_object"}
         headers_common = {"Content-Type": "application/json"}
+        # Load-balance starting key across requests to multiply free-tier RPM/TPM ceilings
+        keys = _rotate_keys(keys, _groq_counter)
         for idx, key in enumerate(keys, start=1):
             headers = {**headers_common, "Authorization": f"Bearer {key}"}
             try:
@@ -220,6 +240,8 @@ def _try_gemini_fallback(system_prompt: str, user_prompt: str, response_mime_typ
     if not gemini_keys:
         raise RuntimeError("All Groq API keys failed. No Gemini keys configured for fallback.")
     
+    # Load-balance starting Gemini key across requests
+    gemini_keys = _rotate_keys(gemini_keys, _gemini_counter)
     last_err = None
     for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):
         for gemini_model in _GEMINI_FALLBACK_MODELS:
@@ -243,6 +265,8 @@ def call_gemini_only(system_prompt: str, user_prompt: str, response_mime_type: s
     if not gemini_keys:
         raise RuntimeError("No Gemini API keys configured.")
     
+    # Load-balance starting Gemini key across requests
+    gemini_keys = _rotate_keys(gemini_keys, _gemini_counter)
     last_err = None
     total_keys = len(gemini_keys)
     for gemini_idx, gemini_key in enumerate(gemini_keys, start=1):

@@ -8,6 +8,7 @@ if backend_dir not in sys.path:
     sys.path.insert(0, backend_dir)
 
 import api_globals
+import requests
 from datetime import datetime, timezone, timedelta
 
 # Load .env BEFORE any module-level os.getenv() calls (e.g. SCRAPER_BACKEND below).
@@ -607,49 +608,68 @@ def run_full_pipeline(stages: list = None):
 
     # 1. Instagram Scraper
     new_reels_count = 0
+    session_is_valid = True
+    session_blocked_reason = ""
     if _stage("scrape"):
         try:
-            run_state["stage"] = "instagram_scrape"
-            logging.info("Step 1/5: Scraping Instagram trending reels...")
-            if os.getenv("TEST_FORCE_LOGIN_WALL_ERROR") == "1":
-                raise RuntimeError("INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page (https://www.instagram.com/accounts/login/) during scrape. Please refresh cookies.json.")
-            insta = InstagramScraper()
-            new_reels_count = insta.scrape_trending_reels()
-            reels_scraped = new_reels_count
-            scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}
-            reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
-            uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
-            logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
-        except RuntimeError as e:
-            run_state["stage"] = "instagram_scrape_failed"
-            err_msg = str(e)
-            if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
-                run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
-                logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
-                try:
-                    alert_sys = AlertSystem()
-                    alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
-                    run_state["login_wall_alert_sent"] = True
-                except Exception as alert_err:
-                    logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
-            else:
-                run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
-                logging.error(f"Step 1/5 FAILED (Instagram RuntimeError): {e}", exc_info=True)
-        except Exception as e:
-            run_state["stage"] = "instagram_scrape_failed"
-            err_msg = str(e)
-            if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
-                run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
-                logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
-                try:
-                    alert_sys = AlertSystem()
-                    alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
-                    run_state["login_wall_alert_sent"] = True
-                except Exception as alert_err:
-                    logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
-            else:
-                run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
-                logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
+            from cookie_sliding_manager import probe_instagram_session_authenticated
+            session_is_valid, session_blocked_reason = probe_instagram_session_authenticated()
+        except Exception as _p_err:
+            logging.warning(f"Session probe check warning: {_p_err}")
+
+        if not session_is_valid:
+            run_state["stage"] = "scrape_blocked"
+            run_state["cutoff_reason"] = f"session_blocked: {session_blocked_reason}"
+            logging.error(f"Step 1/5 BLOCKED: Instagram session probe failed ({session_blocked_reason}). Aborting authenticated hashtag scraping.")
+            try:
+                alert_sys = AlertSystem()
+                alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
+                run_state["login_wall_alert_sent"] = True
+            except Exception as _al_err:
+                logging.debug(f"Alert dispatch warning: {_al_err}")
+        else:
+            try:
+                run_state["stage"] = "instagram_scrape"
+                logging.info("Step 1/5: Scraping Instagram trending reels...")
+                if os.getenv("TEST_FORCE_LOGIN_WALL_ERROR") == "1":
+                    raise RuntimeError("INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page (https://www.instagram.com/accounts/login/) during scrape. Please refresh cookies.json.")
+                insta = InstagramScraper()
+                new_reels_count = insta.scrape_trending_reels()
+                reels_scraped = new_reels_count
+                scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}
+                reels_skipped_low_engagement = int(scrape_stats.get("low_engagement", 0) or 0)
+                uploads_skipped_oversized = int(scrape_stats.get("failed_video_stores", 0) or 0)
+                logging.info(f"Step 1/5: Instagram scraping complete. {new_reels_count} new reels saved.")
+            except RuntimeError as e:
+                run_state["stage"] = "instagram_scrape_failed"
+                err_msg = str(e)
+                if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
+                    run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
+                    logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
+                    try:
+                        alert_sys = AlertSystem()
+                        alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
+                        run_state["login_wall_alert_sent"] = True
+                    except Exception as alert_err:
+                        logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
+                else:
+                    run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
+                    logging.error(f"Step 1/5 FAILED (Instagram RuntimeError): {e}", exc_info=True)
+            except Exception as e:
+                run_state["stage"] = "instagram_scrape_failed"
+                err_msg = str(e)
+                if "INSTAGRAM COOKIE EXPIRED" in err_msg or "/accounts/login/" in err_msg or "/challenge/" in err_msg:
+                    run_state["cutoff_reason"] = f"instagram cookie expired/login wall: {e}"
+                    logging.error(f"Step 1/5 FAILED (Instagram Cookie Expired / Login Wall): {e}")
+                    try:
+                        alert_sys = AlertSystem()
+                        alert_sys.send_login_wall_alert(targets=["hashtag_page_scrape"], gha_run_id=os.getenv("GITHUB_RUN_ID"))
+                        run_state["login_wall_alert_sent"] = True
+                    except Exception as alert_err:
+                        logging.error(f"Failed to dispatch login wall alert from Step 1 handler: {alert_err}")
+                else:
+                    run_state["cutoff_reason"] = f"instagram scrape failed: {e}"
+                    logging.error(f"Step 1/5 FAILED (Instagram): {e}", exc_info=True)
 
     # 1b. Algorithmic Feed Harvester: stream from /reels/ to catch zero-hashtag viral trends
     if _stage("scrape"):
@@ -958,6 +978,8 @@ def run_full_pipeline(stages: list = None):
                             "view_count": r.get("view_count", 0),
                             "like_count": r.get("like_count", 0),
                             "comment_count": r.get("comment_count", 0),
+                            "source_hashtag_pool": "WATCHLIST",
+                            "source_tag": "creator_watchlist",
                             "scraped_at": now_str,
                         }
                         try:
@@ -1063,16 +1085,20 @@ def run_full_pipeline(stages: list = None):
 
                 # Step 3-accumulator: Multi-run rolling candidate aggregation
                 # Bridges 45-min hashtag crawls by promoting audios that accumulated 2+ reels across 48-72h
-                try:
-                    from candidate_accumulator import promote_rolling_candidates
-                    accumulated_ids, acc_refreshed = promote_rolling_candidates(target_min_trends=30, mode=scrape_mode)
-                    if accumulated_ids:
-                        trend_ids.extend(accumulated_ids)
-                        logging.info(f"Step 3-accumulator: Promoted {len(accumulated_ids)} additional rolling candidate trends (Refreshed: {acc_refreshed}).")
-                    else:
-                        logging.info(f"Step 3-accumulator: Verified rolling window ({acc_refreshed} existing trends refreshed).")
-                except Exception as _acc_err:
-                    logging.warning(f"Step 3-accumulator non-fatal warning: {_acc_err}")
+                # F1 Guard: Skip candidate promotion if session is blocked
+                if not session_is_valid:
+                    logging.warning("Step 3-accumulator: Skipping rolling candidate promotion because Instagram session is blocked.")
+                else:
+                    try:
+                        from candidate_accumulator import promote_rolling_candidates
+                        accumulated_ids, acc_refreshed = promote_rolling_candidates(target_min_trends=30, mode=scrape_mode)
+                        if accumulated_ids:
+                            trend_ids.extend(accumulated_ids)
+                            logging.info(f"Step 3-accumulator: Promoted {len(accumulated_ids)} additional rolling candidate trends (Refreshed: {acc_refreshed}).")
+                        else:
+                            logging.info(f"Step 3-accumulator: Verified rolling window ({acc_refreshed} existing trends refreshed).")
+                    except Exception as _acc_err:
+                        logging.warning(f"Step 3-accumulator non-fatal warning: {_acc_err}")
 
                 # S2.2 Post-Ingestion Normalizer:
                 # Null template fallback text on new trends so the UI does not display generic filler,
@@ -1219,8 +1245,12 @@ def run_full_pipeline(stages: list = None):
     elapsed = (datetime.now(timezone.utc) - start).total_seconds()
     completed_at = datetime.now(timezone.utc)
     
-    # Order 80 B2: Check if scrape was active and yielded 0 new reels
-    if _stage("scrape") and new_reels_count == 0:
+    # Order 80 B2 / Order 91 C1: Check if scrape was blocked or yielded 0 new reels
+    if not session_is_valid:
+        status = "scrape_blocked"
+        if not run_state.get("cutoff_reason"):
+            run_state["cutoff_reason"] = f"session_blocked: {session_blocked_reason}"
+    elif _stage("scrape") and new_reels_count == 0:
         if not run_state.get("cutoff_reason"):
             run_state["cutoff_reason"] = "zero_reels"
         status = "partial"

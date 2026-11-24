@@ -226,6 +226,21 @@ class TrendRefresher:
                 if current_status not in ["emerging", "rising", "peaked", "expired"]:
                     return local_summary
 
+                # F3 (Order 90/91): Skip expired trends older than 7 days to eliminate wasteful queries
+                if current_status == "expired":
+                    last_seen_str = trend.get("last_seen_at") or trend.get("created_at")
+                    if last_seen_str:
+                        if last_seen_str.endswith("Z"):
+                            last_seen_str = last_seen_str[:-1] + "+00:00"
+                        try:
+                            dt_last = datetime.fromisoformat(last_seen_str)
+                            if dt_last.tzinfo is None:
+                                dt_last = dt_last.replace(tzinfo=timezone.utc)
+                            if (now - dt_last).total_seconds() > 7 * 86400:
+                                return local_summary
+                        except Exception:
+                            pass
+
                 if created_at_str:
                     if created_at_str.endswith("Z"):
                         created_at_str = created_at_str[:-1] + "+00:00"
@@ -689,7 +704,7 @@ class TrendRefresher:
                 r for r in (res.data or [])
                 if normalize_audio_title(r.get("audio_title", "") or "") == normalized_title
             ]
-            scores = [r.get("velocity_score", 0.0) for r in matching]
+            scores = [float(r.get("velocity_score") or 0.0) for r in matching]
             return sum(scores) / len(scores) if scores else 0.0
         except Exception as e:
             logger.warning(f"Could not calc live velocity for '{audio_title}': {e}")

@@ -1150,16 +1150,16 @@ class TrendEngine:
                 # ── VELOCITY RESCUE (Proposal B — calibrated 2026-11-21) ───────────────
                 # Instagram's hashtag sections API (/api/v1/tags/{tag}/sections/) does NOT
                 # return audio_use_count. This causes high-velocity tracks scraped via
-                # hashtag pools to have audio_use_count=0 and get silently dropped by
-                # the EMERGING_USE_THRESHOLD gate below.
-                # Fix: if audio_use_count=0 but velocity is solid (>= 5k) or it is a qualified hashtag cluster,
-                # inject synthetic floor = EMERGING_USE_THRESHOLD so it can be evaluated as emerging.
+                # hashtag pools to have audio_use_count=0.
+                # F2 (Order 90/91): Never inject artificial thousands into user-facing velocity fields.
+                # Flag velocity_synthetic=True so feed endpoints can exclude or handle appropriately.
+                is_velocity_synthetic = False
                 VELOCITY_RESCUE_THRESHOLD = 5000.0  # reels/day — calibrated to allow real trending sounds
                 if max_use_count == 0 and (avg_velocity >= VELOCITY_RESCUE_THRESHOLD or is_hashtag_velocity_cluster or is_breakout_single_reel):
                     logging.info(
-                        f"[VELOCITY_RESCUE] '{title}' | {artist}: vel={avg_velocity:,.0f} (hashtag API gap). Injecting synthetic floor={EMERGING_USE_THRESHOLD:,}."
+                        f"[VELOCITY_RESCUE] '{title}' | {artist}: vel={avg_velocity:,.0f} (hashtag API gap). Flagging velocity_synthetic=True."
                     )
-                    max_use_count = EMERGING_USE_THRESHOLD  # synthetic floor — allows emerging detection
+                    is_velocity_synthetic = True
 
                 official_velocity_val = None
                 if representative_audio_id:
@@ -1175,7 +1175,10 @@ class TrendEngine:
                     except Exception as _auc_err:
                         logging.debug(f"detect_trends: could not fetch official audio velocity for audio_id={representative_audio_id}: {_auc_err}")
 
-                # Mandatory Creator Diversity Gate:
+                # Mandatory Creator Diversity Gate (F2: creators=0 must never enter feed as emerging):
+                if creator_count == 0:
+                    logging.debug(f"Creator diversity gate: skipping '{title}' | {artist} — 0 distinct creator accounts")
+                    continue
                 # Require at least 2 distinct creator accounts for emerging, and at least 3 distinct creators for rising.
                 # Single-creator self-promotional audios (e.g. speechplaninc with 12 reels from 1 account) are strictly skipped.
                 if creator_count < 2 and not (is_valid_single_creator_breakout or (max_use_count >= RISING_USE_THRESHOLD and max_velocity >= 1.0)):
@@ -1514,6 +1517,8 @@ class TrendEngine:
                     "vibe_tag": trend.get("vibe_tag", "general"),
                     "is_voiceover": trend.get("is_voiceover", False),
                     "saturation_count": trend.get("saturation_count", 0),
+                    # F2: Flag whether velocity calculation had synthetic rescue applied
+                    "velocity_synthetic": is_velocity_synthetic,
                     # Fix #5: sample_captions written at detection time for nightly LLM batch context
                     "sample_captions": trend.get("sample_captions", ""),
                     "status_reason": {
@@ -1580,7 +1585,7 @@ class TrendEngine:
         self.last_run_stats["inserted_trends_count"] = len(truly_inserted_trend_ids)
         self.last_run_stats["refreshed_trends_count"] = len(refreshed_trend_ids)
         logging.info(f"=== TrendEngine done. {len(truly_inserted_trend_ids)} new trends inserted, {len(refreshed_trend_ids)} existing trends refreshed ===")
-        return new_trend_ids
+        return truly_inserted_trend_ids
 
     def classify_lifecycle(self, audio_id: str, reels: list = None, percentile_80: float = 0.0) -> dict:
         """
