@@ -244,7 +244,7 @@ def save_harvested_reels(sb, reels: list[dict], live=False) -> dict:
                 "comment_count": r["comment_count"],
                 "owner_username": r["owner_username"],
                 "scraped_at": r["scraped_at"],
-                "source_hashtag_pool": "ALGORITHMIC_FEED",
+                "source_hashtag_pool": "feed",
             }
             try:
                 sb.table("reels").insert(insert_payload).execute()

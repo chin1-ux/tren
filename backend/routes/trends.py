@@ -8,6 +8,16 @@ from api_globals import *
 from api_globals import _PEAKED_TRENDS_CACHE, standard_queue, _normalize_trends, _trend_priority_key, _resolve_user
 from schemas import *
 import niche_relevance_engine
+try:
+    from paywall_engine import is_user_pro, get_or_create_daily_picks, get_user_home_niche
+except ImportError:
+    try:
+        from backend.paywall_engine import is_user_pro, get_or_create_daily_picks, get_user_home_niche
+    except ImportError:
+        def is_user_pro(*args, **kwargs): return False
+        def get_or_create_daily_picks(*args, **kwargs): return []
+        def get_user_home_niche(*args, **kwargs): return "fitness"
+
 router = APIRouter()
 
 _TRENDS_FEED_CACHE: dict = {}
@@ -170,15 +180,75 @@ SLIM_FEED_COLUMNS = (
     "id,audio_title,audio_artist,audio_id,audio_use_count,status,velocity_avg,"
     "opportunity_score,saturation_score,india_saturation_pct,global_saturation_pct,"
     "saturation_penalty,creator_fit_score,hook_retention_score,window_hours_remaining,"
-    "first_detected_at,created_at,status_changed_at,why_this_works,used_for,used_for_note,"
+    "first_detected_at,created_at,status_changed_at,last_seen_at,why_this_works,used_for,used_for_note,"
     "niche_tag,semantic_niches,language,language_final,trend_classification,velocity_pattern,"
     "optimal_post_hour_ist,is_dance,is_voiceover,is_seed_data,is_regional_crossover,crossover_message,"
     "display_title,commercial_song_alias,has_creator_outlier,reel_count,content_type,composite_score,"
-    "ideal_content_description,llm_classification_status,hook_brief,adaptation_briefs"
+    "ideal_content_description,llm_classification_status,hook_brief,adaptation_briefs,"
+    "shazam_canonical_title,shazam_canonical_artist,shazam_id,velocity_synthetic"
 )
 
 _FEED_UNIFIED_CACHE: dict = {}
 _ASK_SEARCH_CACHE: dict = {}
+
+_GLOBAL_SONG_TIMELINE_CACHE: dict = {
+    "earliest": {},
+    "latest": {},
+    "last_fetched": 0
+}
+_GLOBAL_SONG_TIMELINE_LOCK = threading.Lock()
+
+def _refresh_global_song_timeline():
+    """Builds an in-memory map of earliest detection and latest verification across all DB records."""
+    if not supabase:
+        return
+    try:
+        earliest_map = {}
+        latest_map = {}
+        page_size = 1000
+        offset = 0
+        while True:
+            res = supabase.table("trends").select("audio_title,audio_artist,first_detected_at,created_at,last_seen_at,status_changed_at").range(offset, offset + page_size - 1).execute()
+            rows = res.data or []
+            if not rows:
+                break
+            for r in rows:
+                title = (r.get("audio_title") or "").strip().lower()
+                artist = (r.get("audio_artist") or "").strip().lower()
+                if not title or title == "original audio":
+                    continue
+                s_key = f"{title}|||{artist}"
+                fd = r.get("first_detected_at") or r.get("created_at")
+                if fd:
+                    if s_key not in earliest_map or fd < earliest_map[s_key]:
+                        earliest_map[s_key] = fd
+                ls = r.get("last_seen_at") or r.get("status_changed_at") or r.get("created_at")
+                if ls:
+                    if s_key not in latest_map or ls > latest_map[s_key]:
+                        latest_map[s_key] = ls
+            if len(rows) < page_size:
+                break
+            offset += page_size
+
+        _GLOBAL_SONG_TIMELINE_CACHE["earliest"] = earliest_map
+        _GLOBAL_SONG_TIMELINE_CACHE["latest"] = latest_map
+        _GLOBAL_SONG_TIMELINE_CACHE["last_fetched"] = time.time()
+        logger.info(f"Loaded global song timeline cache: {len(earliest_map)} unique songs across DB.")
+    except Exception as e:
+        logger.warning(f"Error in _refresh_global_song_timeline: {e}")
+
+def _get_global_song_timeline_map() -> tuple[dict, dict]:
+    now = time.time()
+    if _GLOBAL_SONG_TIMELINE_CACHE["last_fetched"] > 0 and (now - _GLOBAL_SONG_TIMELINE_CACHE["last_fetched"] < 600):
+        return _GLOBAL_SONG_TIMELINE_CACHE["earliest"], _GLOBAL_SONG_TIMELINE_CACHE["latest"]
+    with _GLOBAL_SONG_TIMELINE_LOCK:
+        if _GLOBAL_SONG_TIMELINE_CACHE["last_fetched"] > 0 and (now - _GLOBAL_SONG_TIMELINE_CACHE["last_fetched"] < 600):
+            return _GLOBAL_SONG_TIMELINE_CACHE["earliest"], _GLOBAL_SONG_TIMELINE_CACHE["latest"]
+        _refresh_global_song_timeline()
+    return _GLOBAL_SONG_TIMELINE_CACHE["earliest"], _GLOBAL_SONG_TIMELINE_CACHE["latest"]
+
+# Asynchronously prime the cache on module import
+threading.Thread(target=_refresh_global_song_timeline, daemon=True).start()
 
 def _clean_analysis_text(text: Optional[str]) -> Optional[str]:
     if not text:
@@ -202,7 +272,7 @@ def _clean_analysis_text(text: Optional[str]) -> Optional[str]:
         return None
     return text
 
-def _normalize_trends_slim(trends: list) -> list:
+def _normalize_trends_slim(trends: list, allow_unqualified: bool = False) -> list:
     """Fast slim normalization: sanitizes title, artist, language, niches without DB reel fetches."""
     if not trends:
         return trends
@@ -219,14 +289,24 @@ def _normalize_trends_slim(trends: list) -> list:
             title = (t.get("audio_title") or "").lower()
             rc = t.get("reel_count") or 0
             uc = t.get("audio_use_count") or 0
-            if st in ("unqualified", "disqualified") or "speech plan" in title or "speechplan" in title:
+            if not allow_unqualified and st in ("unqualified", "disqualified"):
+                continue
+            if "speech plan" in title or "speechplan" in title:
+                continue
+            # F2: Filter out trends with synthetic velocity from feed
+            if t.get("velocity_synthetic") is True:
                 continue
             # Quality Gate: Exclude single-user personal audio clips with no creator replication
-            if "original audio" in title and rc <= 1 and uc <= 1:
+            if "original audio" in title and rc <= 1 and uc <= 1 and not t.get("shazam_canonical_title"):
                 continue
 
-            raw_title = t.get("audio_title") or t.get("song") or ""
-            raw_artist = t.get("audio_artist") or t.get("artist") or ""
+            is_orig_sound = (
+                "original" in (t.get("audio_title") or "").lower()
+                or bool(t.get("is_original_audio"))
+                or not t.get("audio_title")
+            )
+            raw_title = t.get("shazam_canonical_title") if (is_orig_sound and t.get("shazam_canonical_title")) else (t.get("audio_title") or t.get("song") or "")
+            raw_artist = t.get("shazam_canonical_artist") if (is_orig_sound and t.get("shazam_canonical_artist")) else (t.get("audio_artist") or t.get("artist") or "")
             norm_title = normalize_audio_title(raw_title)
             norm_artist = raw_artist
             t["audio_title"] = norm_title
@@ -254,41 +334,54 @@ def _normalize_trends_slim(trends: list) -> list:
                 t["language"] = lang_final
                 t["detected_language"] = lang_final
 
-            # Enrich niche tag from why_this_works / used_for / used_for_note if not present
-            context_blob = f"{t.get('why_this_works') or ''} {t.get('used_for_note') or ''} {t.get('used_for') or ''}".lower()
+            # Classify niche strictly based on Creator Intelligence, Content Concept, and Why This Works
+            context_blob = f"{t.get('why_this_works') or ''} {t.get('used_for_note') or ''} {t.get('ideal_content_description') or ''} {t.get('used_for') or ''}".lower()
             if context_blob.strip():
-                matched_niches = []
-                for n_key, keywords in NICHE_CONTEXT_MAP.items():
-                    if any(kw in context_blob for kw in keywords):
-                        matched_niches.append(n_key)
-                if matched_niches:
+                best_niche = None
+                best_score = 0
+                for n_key, patterns in NICHE_SEMANTIC_PATTERNS:
+                    score = sum(1 for p in patterns if re.search(p, context_blob, re.IGNORECASE))
+                    if score > best_score:
+                        best_score = score
+                        best_niche = n_key
+
+                if best_score >= 1:
+                    t["niche_tag"] = best_niche
                     existing_semantic = set(t.get("semantic_niches") or [])
                     existing_semantic.discard("general")
-                    existing_semantic.update(matched_niches)
+                    existing_semantic.add(best_niche)
                     t["semantic_niches"] = sorted(list(existing_semantic))
-                    if not t.get("niche_tag") or t.get("niche_tag") == "general":
-                        t["niche_tag"] = matched_niches[0]
+                elif t.get("is_dance"):
+                    t["niche_tag"] = "dance"
+                elif not t.get("niche_tag") or t.get("niche_tag") in ("general", "other", "unknown"):
+                    t["niche_tag"] = "creator"
 
             clean_trends.append(t)
 
-        # Align song-level earliest detection date so any duplicate or variant shows true first caught
-        song_earliest = {}
-        for t in clean_trends:
-            title = (t.get("audio_title") or t.get("song") or "").strip().lower()
-            artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
-            if title and title != "original audio":
-                s_key = f"{title}|||{artist}"
-                fd = t.get("first_detected_at") or t.get("created_at")
-                if fd:
-                    if s_key not in song_earliest or fd < song_earliest[s_key]:
-                        song_earliest[s_key] = fd
+        # Align song-level earliest detection date & latest verification across the entire database
+        global_earliest, global_latest = _get_global_song_timeline_map()
 
         for t in clean_trends:
             title = (t.get("audio_title") or t.get("song") or "").strip().lower()
             artist = (t.get("audio_artist") or t.get("artist") or "").strip().lower()
+            if not title or title == "original audio":
+                continue
             s_key = f"{title}|||{artist}"
-            if s_key in song_earliest:
-                t["first_detected_at"] = song_earliest[s_key]
+            
+            # 1. True earliest caught date across all historical records
+            earliest_date = global_earliest.get(s_key)
+            current_fd = t.get("first_detected_at") or t.get("created_at")
+            if earliest_date:
+                if not current_fd or earliest_date < current_fd:
+                    t["first_detected_at"] = earliest_date
+
+            # 2. Latest verification date across all rescrapes
+            latest_date = global_latest.get(s_key)
+            current_ls = t.get("last_seen_at") or t.get("status_changed_at")
+            if latest_date:
+                if not current_ls or latest_date > current_ls:
+                    t["last_seen_at"] = latest_date
+                    t["status_changed_at"] = latest_date
 
         freshness = _get_data_freshness()
         for t in clean_trends:
@@ -416,13 +509,30 @@ def search_trends_global(
         if safe_q.isdigit() and len(safe_q) > 6:
             query = supabase.table("trends").select(SLIM_FEED_COLUMNS).eq("audio_id", safe_q).limit(limit_val)
         else:
+            or_parts = [
+                f"audio_title.ilike.%{safe_q}%",
+                f"audio_artist.ilike.%{safe_q}%",
+                f"shazam_canonical_title.ilike.%{safe_q}%",
+                f"shazam_canonical_artist.ilike.%{safe_q}%"
+            ]
+            if " by " in safe_q.lower():
+                parts = safe_q.lower().split(" by ", 1)
+                s_part = parts[0].strip()
+                a_part = parts[1].strip()
+                if s_part:
+                    or_parts.append(f"audio_title.ilike.%{s_part}%")
+                    or_parts.append(f"shazam_canonical_title.ilike.%{s_part}%")
+                if a_part:
+                    or_parts.append(f"audio_artist.ilike.%{a_part}%")
+                    or_parts.append(f"shazam_canonical_artist.ilike.%{a_part}%")
+
             query = supabase.table("trends").select(SLIM_FEED_COLUMNS).or_(
-                f"audio_title.ilike.%{safe_q}%,audio_artist.ilike.%{safe_q}%"
+                ",".join(or_parts)
             ).order("first_detected_at", desc=True).limit(limit_val)
             
         res = execute_supabase_get(query)
         raw_trends = res.data or []
-        trends = _normalize_trends_slim(raw_trends)
+        trends = _normalize_trends_slim(raw_trends, allow_unqualified=True)
         
         return JSONResponse(
             content={"trends": trends, "total": len(trends), "query": clean_q},
@@ -1276,14 +1386,25 @@ def get_all_active_trends(
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
     try:
-        res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
+        res = None
+        for attempt in range(3):
+            try:
+                res = supabase.table("trends").select(FEED_CARD_COLUMNS).in_("status", ["emerging", "rising"]).eq("is_seed_data", False).in_("llm_classification_status", ["completed", "not_needed", "skipped_local_fallback", "verified"]).order("velocity_avg", desc=True).limit(100).execute()
+                break
+            except Exception as e:
+                logger.warning(f"All-active trends query attempt {attempt+1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(0.3 * (attempt + 1))
+                else:
+                    return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
+
         trends = _normalize_trends(res.data or [])
         trends.sort(key=_trend_priority_key, reverse=True)
         headers = {"Cache-Control": "public, max-age=60, s-maxage=120, stale-while-revalidate=300"}
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.exception(f"Error fetching all-active trends: {e}")
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
 
 
 @router.get("/api/trends/peaked")
@@ -1337,7 +1458,26 @@ def get_peaked_trends(
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
         q = q.range(start_idx, end_idx)
-        res = q.execute()
+        # Resilient query execution with retry for transient network connection drops
+        res = None
+        for attempt in range(3):
+            try:
+                res = q.execute()
+                break
+            except Exception as e:
+                logger.warning(f"Supabase peaked trends query attempt {attempt+1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(0.3 * (attempt + 1))
+                else:
+                    if cache_key in _PEAKED_TRENDS_CACHE:
+                        logger.info(f"Serving stale peaked trends cache for key '{cache_key}'")
+                        return JSONResponse(
+                            content=_PEAKED_TRENDS_CACHE[cache_key]["data"],
+                            headers={"Cache-Control": "public, s-maxage=10, stale-if-error=86400", "X-Cache": "STALE-FALLBACK"}
+                        )
+                    logger.error(f"Peaked trends query failed all retries with no cache: {e}")
+                    return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
+
         trends = _normalize_trends_slim(res.data or [])
         trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
@@ -1351,7 +1491,12 @@ def get_peaked_trends(
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching peaked trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        if cache_key in _PEAKED_TRENDS_CACHE:
+            return JSONResponse(
+                content=_PEAKED_TRENDS_CACHE[cache_key]["data"],
+                headers={"Cache-Control": "public, s-maxage=10, stale-if-error=86400", "X-Cache": "STALE-FALLBACK"}
+            )
+        return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
 
 
 @router.get("/api/trends/resurging")
@@ -1410,7 +1555,26 @@ def get_resurging_trends(
         q = _apply_languages_filter(q, language, languages)
         q = q.order("status_changed_at", desc=True)
         q = q.range(start_idx, end_idx)
-        res = q.execute()
+        # Resilient query execution with retry for transient network connection drops
+        res = None
+        for attempt in range(3):
+            try:
+                res = q.execute()
+                break
+            except Exception as e:
+                logger.warning(f"Supabase resurging trends query attempt {attempt+1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(0.3 * (attempt + 1))
+                else:
+                    if cache_key in _RESURGING_TRENDS_CACHE:
+                        logger.info(f"Serving stale resurging trends cache for key '{cache_key}'")
+                        return JSONResponse(
+                            content=_RESURGING_TRENDS_CACHE[cache_key]["data"],
+                            headers={"Cache-Control": "public, s-maxage=10, stale-if-error=86400", "X-Cache": "STALE-FALLBACK"}
+                        )
+                    logger.error(f"Resurging trends query failed all retries with no cache: {e}")
+                    return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
+
         trends = _normalize_trends_slim(res.data or [])
         trends.sort(key=lambda t: t.get("status_changed_at") or t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
         
@@ -1427,7 +1591,12 @@ def get_resurging_trends(
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching resurging trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        if cache_key in _RESURGING_TRENDS_CACHE:
+            return JSONResponse(
+                content=_RESURGING_TRENDS_CACHE[cache_key]["data"],
+                headers={"Cache-Control": "public, s-maxage=10, stale-if-error=86400", "X-Cache": "STALE-FALLBACK"}
+            )
+        return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Cache": "ERROR-FALLBACK"})
 
 
 @router.get("/api/trends/expired")
@@ -1477,7 +1646,33 @@ def get_expired_trends(
         q = _apply_languages_filter(q, language, languages)
         q = q.order("first_detected_at", desc=True)
         q = q.range(start_idx, end_idx)
-        res = q.execute()
+        # Resilient query execution with retry for transient network connection drops
+        res = None
+        for attempt in range(3):
+            try:
+                res = q.execute()
+                break
+            except Exception as e:
+                logger.warning(f"Supabase expired trends query attempt {attempt+1}/3 failed: {e}")
+                if attempt < 2:
+                    time.sleep(0.3 * (attempt + 1))
+                else:
+                    if cache_key in _EXPIRED_TRENDS_CACHE:
+                        logger.info(f"Serving stale expired trends cache for key '{cache_key}'")
+                        return JSONResponse(
+                            content=_EXPIRED_TRENDS_CACHE[cache_key]["data"],
+                            headers={
+                                "Cache-Control": "public, s-maxage=10, stale-if-error=86400",
+                                "X-Status-Filter": "expired",
+                                "X-Cache": "STALE-FALLBACK"
+                            }
+                        )
+                    logger.error(f"Expired trends query failed all retries with no cache: {e}")
+                    return JSONResponse(
+                        content=[],
+                        headers={"Cache-Control": "no-cache", "X-Status-Filter": "expired", "X-Cache": "ERROR-FALLBACK"}
+                    )
+
         trends = _normalize_trends_slim(res.data or [])
         trends.sort(key=lambda t: t.get("first_detected_at") or t.get("created_at") or "", reverse=True)
 
@@ -1494,7 +1689,12 @@ def get_expired_trends(
         return JSONResponse(content=trends, headers=headers)
     except Exception as e:
         logger.error(f"Error fetching expired trends: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Internal Server Error")
+        if cache_key in _EXPIRED_TRENDS_CACHE:
+            return JSONResponse(
+                content=_EXPIRED_TRENDS_CACHE[cache_key]["data"],
+                headers={"Cache-Control": "public, s-maxage=10, stale-if-error=86400", "X-Status-Filter": "expired", "X-Cache": "STALE-FALLBACK"}
+            )
+        return JSONResponse(content=[], headers={"Cache-Control": "no-cache", "X-Status-Filter": "expired", "X-Cache": "ERROR-FALLBACK"})
 
 
 @router.get("/api/trends/audio-scores")
@@ -1592,6 +1792,7 @@ def get_peaking_trends(
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    _verify_trend_access(trend_id, request, current_user)
     
     try:
         from datetime import timedelta
@@ -1659,6 +1860,7 @@ def get_trend_timeline(
     """
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    _verify_trend_access(trend_id, request, current_user)
     
     try:
         from datetime import timedelta
@@ -1765,12 +1967,46 @@ def get_targeted_trends(authorization: Optional[str] = Header(None)):
         return []
 
 
+def _verify_trend_access(trend_id: int, request: Request, current_user: Optional[str] = None):
+    """
+    Paywall v1: Verifies whether the requesting user is entitled to view this trend.
+    Pro users get unrestricted access.
+    Free users are restricted to their 5 daily picks; all emerging/locked trends return 403.
+    """
+    auth_header = request.headers.get("authorization")
+    user_id = _resolve_user(auth_header)
+    if is_user_pro(user_id=user_id, email=current_user, supabase_client=supabase):
+        return True
+
+    device_id = request.headers.get("x-device-id")
+    client_ip = request.client.host if request.client else "unknown"
+    user_ident = user_id or device_id or f"anon_{client_ip}"
+    home_niche = get_user_home_niche(user_id=user_id, email=current_user, supabase_client=supabase) or "fitness"
+    allowed_picks = get_or_create_daily_picks(user_ident, home_niche, supabase)
+
+    if trend_id in allowed_picks:
+        return True
+
+    # If not in allowed daily picks, verify against trends status
+    try:
+        t_res = supabase.table("trends").select("status").eq("id", trend_id).limit(1).execute()
+        if t_res.data and len(t_res.data) > 0:
+            st = (t_res.data[0].get("status") or "").lower()
+            if st == "emerging" or trend_id not in allowed_picks:
+                raise HTTPException(status_code=403, detail="Trendrop Pro required to access this trend")
+    except HTTPException:
+        raise
+    except Exception as e:
+        logger.debug(f"Trend access check exception: {e}")
+
+
 @router.get("/api/trends/{trend_id}")
 @limiter.limit("60/minute")
 def get_trend(request: Request, trend_id: int, current_user: str = Depends(get_current_user)):
-    """Fetch single trend by ID."""
+    """Fetch single trend by ID with Paywall v1 entitlement verification."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    _verify_trend_access(trend_id, request, current_user)
     try:
         res = supabase.table("trends").select("*").eq("id", trend_id).execute()
         if not res.data:
@@ -1791,6 +2027,7 @@ def get_trend_audio_history(request: Request, trend_id: int, current_user: str =
     """Fetch 72h historical snapshot points for sparkline growth charting."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    _verify_trend_access(trend_id, request, current_user)
     try:
         # Get trend representative audio_id
         q_tr = supabase.table("trends").select("audio_id").eq("id", trend_id)
@@ -1829,6 +2066,7 @@ def get_trend_reels(
     """Fetch reels linked to a trend (by matching audio_title + audio_artist). Pro/Agency feature only."""
     if not supabase:
         raise HTTPException(status_code=500, detail="Supabase client not configured.")
+    _verify_trend_access(trend_id, request, current_user)
     try:
         trend_res = supabase.table("trends") \
             .select("audio_title, audio_artist") \

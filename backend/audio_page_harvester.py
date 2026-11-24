@@ -230,7 +230,7 @@ async def harvest_audio_reels_async(
             "reel_id": sc,
             "caption": cap,
             "hashtags": tags,
-            "source_hashtag_pool": "AUDIO_PAGE",
+            "source_hashtag_pool": "algorithmic",
             "source_tag": f"audio_{audio_id}",
             "view_count": v_count,
             "like_count": int(v_count * 0.08) if v_count else 50,

@@ -84,9 +84,9 @@ def load_active_session_cookies() -> Optional[List[Dict[str, Any]]]:
     if sb:
         try:
             res = sb.table("scraper_sessions").select("*").eq("id", session_key).execute()
-            if not res.data and session_key != "instagram_primary":
-                # Fallback to instagram_primary row if mode-specific row not seeded yet
-                res = sb.table("scraper_sessions").select("*").eq("id", "instagram_primary").execute()
+            if not res.data:
+                logger.warning(f"[SESSION_MANAGER] Fail closed: Missing session row '{session_key}' in scraper_sessions.")
+                return None
             if res.data and len(res.data) > 0:
                 row = res.data[0]
                 cookies = row.get("cookies")
@@ -214,10 +214,10 @@ def save_slid_cookies(
         logger.warning("[SESSION_MANAGER] save_slid_cookies received empty cookie list.")
         return False
 
-    # B2 Audit Guard: Never persist cookies if 0 reels scraped and not probe-verified
-    if not is_verified and reels_scraped <= 0:
+    # B2 Audit Guard: Strictly write cookies only if authenticated probe passed
+    if not is_verified:
         logger.warning(
-            f"[SESSION_MANAGER] B2 GUARD: Refusing to persist unverified cookies to Supabase (reels_scraped={reels_scraped}, is_verified=False)."
+            "[SESSION_MANAGER] B2 GUARD: Refusing to persist cookies to Supabase because authenticated session probe was not verified (is_verified=False)."
         )
         return False
 
@@ -306,8 +306,8 @@ def get_session_health() -> Dict[str, Any]:
     if sb:
         try:
             res = sb.table("scraper_sessions").select("*").eq("id", session_key).execute()
-            if not res.data and session_key != "instagram_primary":
-                res = sb.table("scraper_sessions").select("*").eq("id", "instagram_primary").execute()
+            if not res.data:
+                return {"exists": False, "session_id": session_key, "status": "missing_row", "hours_remaining": None}
             if res.data:
                 row = res.data[0]
                 cookies = row.get("cookies") or []

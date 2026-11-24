@@ -978,7 +978,7 @@ def run_full_pipeline(stages: list = None):
                             "view_count": r.get("view_count", 0),
                             "like_count": r.get("like_count", 0),
                             "comment_count": r.get("comment_count", 0),
-                            "source_hashtag_pool": "WATCHLIST",
+                            "source_hashtag_pool": "watchlist",
                             "source_tag": "creator_watchlist",
                             "scraped_at": now_str,
                         }

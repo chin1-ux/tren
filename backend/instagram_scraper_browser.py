@@ -1192,24 +1192,6 @@ class InstagramScraper:
                 except Exception:
                     pass
 
-            if not serp_candidates:
-                # Fallback: extract shortcodes directly from DOM anchors /reel/ or /p/
-                try:
-                    dom_hrefs = await page.evaluate("() => Array.from(document.querySelectorAll('a[href*=\"/reel/\"], a[href*=\"/p/\"]')).map(a => a.href)")
-                    for href in dom_hrefs:
-                        m = re.search(r'/(?:reel|p)/([A-Za-z0-9_-]+)', href)
-                        if m:
-                            code = m.group(1)
-                            try:
-                                pk = str(shortcode_to_pk(code))
-                                serp_candidates.append({"pk": pk, "code": code, "media_type": 2})
-                            except Exception:
-                                pass
-                    if serp_candidates:
-                        logger.info(f"Captured {len(serp_candidates)} candidate reels from DOM links for #{clean_tag}")
-                except Exception as _dom_err:
-                    logger.debug(f"DOM fallback error for #{clean_tag}: {_dom_err}")
-
             # Detect login wall / challenge after navigation
             current_url = page.url
             if "/accounts/login/" in current_url or "/challenge/" in current_url:

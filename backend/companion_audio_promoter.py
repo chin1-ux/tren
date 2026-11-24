@@ -327,7 +327,7 @@ def promote_audio_to_trends(sb, meta: dict, dry_run=True) -> dict:
                 "view_count": views,
                 "like_count": int(views * 0.08) if views else 50,
                 "caption": f"Trending audio reel for {trend_payload['audio_title']}",
-                "source_hashtag_pool": "AUDIO_PAGE",
+                "source_hashtag_pool": "algorithmic",
                 "source_tag": f"audio_{meta.get('audio_id')}",
                 "owner_username": "creator"
             })
