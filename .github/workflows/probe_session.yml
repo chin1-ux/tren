@@ -1,0 +1,55 @@
+name: Probe Instagram Session
+
+on:
+  workflow_dispatch:
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Cache Camoufox browser binaries
+        uses: actions/cache@v4
+        id: camoufox-cache
+        with:
+          path: ~/.camoufox
+          key: camoufox-v2-${{ runner.os }}-${{ hashFiles('**/requirements.txt') }}
+          restore-keys: |
+            camoufox-v2-${{ runner.os }}-
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install playwright "camoufox[geoip]" requests
+          python -m camoufox sync || true
+          for i in 1 2 3; do
+            python -m camoufox fetch && break || (echo "camoufox fetch retry $i in 10s..." && sleep 10)
+          done
+          python -m camoufox version
+
+      - name: Run Session Probe v2
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+          SUPABASE_KEY: ${{ secrets.SUPABASE_KEY }}
+          INSTAGRAM_COOKIES_B64: ${{ secrets.INSTAGRAM_COOKIES_B64 }}
+          SCRAPER_MODE: "india"
+        run: |
+          python scripts/probe_instagram_session_v2.py
+
+      - name: Upload Screenshot Artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: instagram-probe-v2-screenshot
+          path: probe_v2_screenshot.png
+          if-no-files-found: ignore

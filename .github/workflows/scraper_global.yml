@@ -85,3 +85,14 @@ jobs:
         run: |
           echo "=== Scraper Mode: $SCRAPER_MODE (Dedicated Global Cluster) ==="
           python backend/cron_job.py
+
+      - name: Upload Artifacts on Failure or Cancellation
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@v4
+        with:
+          name: scraper-global-artifacts-${{ github.run_id }}
+          path: |
+            *.png
+            artifacts/
+            *.log
+          if-no-files-found: ignore

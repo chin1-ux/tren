@@ -634,6 +634,7 @@ def run_full_pipeline(stages: list = None):
                 if os.getenv("TEST_FORCE_LOGIN_WALL_ERROR") == "1":
                     raise RuntimeError("INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page (https://www.instagram.com/accounts/login/) during scrape. Please refresh cookies.json.")
                 insta = InstagramScraper()
+                insta._session_probe_verified = True
                 new_reels_count = insta.scrape_trending_reels()
                 reels_scraped = new_reels_count
                 scrape_stats = getattr(insta, "_last_scrape_stats", {}) or {}

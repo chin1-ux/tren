@@ -107,6 +107,7 @@ class InstagramScraper:
             "no",
             "off",
         }
+        self._session_probe_verified = False
         self._last_cookie_check = "not checked"
         self._last_browser_init = "not started"
         self._last_scrape_result = "not started"
@@ -792,11 +793,13 @@ class InstagramScraper:
                     await self._camoufox_page.wait_for_timeout(2000)
                     await self._camoufox_page.evaluate("window.scrollBy(0, 300)")
                     await self._camoufox_page.wait_for_timeout(1000)
-                    if "/accounts/login/" in self._camoufox_page.url:
+                    if "/accounts/login/" in getattr(self._camoufox_page, "url", ""):
                         raise RuntimeError(
                             "INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login page during warm-up. Please refresh cookies."
                         )
                 except Exception as warmup_err:
+                    if "/accounts/login/" in getattr(self._camoufox_page, "url", "") or "INSTAGRAM COOKIE EXPIRED" in str(warmup_err):
+                        raise
                     logger.warning(f"S1 warm-up navigation notice: {warmup_err}")
 
             self._last_browser_init = "initialized"
@@ -986,9 +989,10 @@ class InstagramScraper:
         _ig_locale   = _lc.get("ig_locale", "en_US")
 
         # ── Fast-path 1: Same-Origin In-Browser Hashtag Sections API (POST) (S1) ──
-        # Instagram's live hashtag clips feed endpoint evaluated inside the persistent browser context.
+        # Gated by SCRAPER_USE_SECTIONS_API (default 0) to avoid unnecessary 404 roundtrips
+        use_sections_api = os.getenv("SCRAPER_USE_SECTIONS_API", "0").strip().lower() in ("1", "true", "yes")
         try:
-            if hasattr(self, '_camoufox_page') and self._camoufox_page:
+            if use_sections_api and hasattr(self, '_camoufox_page') and self._camoufox_page:
                 csrf_val = cookie_dict.get("csrftoken", "")
                 eval_sections_script = f"""
                 async () => {{
@@ -1309,7 +1313,9 @@ class InstagramScraper:
                     refreshed = await ctx.cookies()
                     if refreshed:
                         from cookie_sliding_manager import save_slid_cookies
-                        save_slid_cookies(refreshed, reels_scraped=len(items), run_id=os.getenv("GITHUB_RUN_ID", "local"), is_verified=True)
+                        # Order 94 Item 5: Set is_verified from the authenticated probe result, not from items > 0
+                        is_verified = getattr(self, "_session_probe_verified", False)
+                        save_slid_cookies(refreshed, reels_scraped=len(items), run_id=os.getenv("GITHUB_RUN_ID", "local"), is_verified=is_verified)
                 except Exception as slide_err:
                     logger.warning(f"[COOKIE_SLIDING] Failed to slide cookies: {slide_err}")
 
