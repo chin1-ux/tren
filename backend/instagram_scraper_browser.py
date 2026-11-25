@@ -1215,11 +1215,20 @@ class InstagramScraper:
                                     seen_codes.add(code)
                                     try:
                                         pk = str(shortcode_to_pk(code))
+                                        img = await a.query_selector("img")
+                                        img_src = await img.get_attribute("src") if img else None
+                                        img_alt = await img.get_attribute("alt") if img else None
+                                        owner_match = re.search(r"(?:Photo|Video) by ([^ ]+) on", img_alt or "")
+                                        cand_owner = owner_match.group(1).replace("@", "") if owner_match else None
                                         serp_candidates.append({
                                             "pk": pk,
                                             "shortcode": code,
                                             "code": code,
-                                            "media_type": 2
+                                            "media_type": 2,
+                                            "thumbnail_url": img_src,
+                                            "caption": img_alt or "",
+                                            "owner": cand_owner,
+                                            "user": {"username": cand_owner} if cand_owner else {}
                                         })
                                     except Exception:
                                         pass
@@ -1255,15 +1264,14 @@ class InstagramScraper:
             medias: list[dict] = []
             seen_pks = set()
             for candidate in serp_candidates[:16]:
+                code = candidate.get("code") or candidate.get("shortcode")
                 pk = candidate.get("pk") or (candidate.get("id", "").split("_")[0] if candidate.get("id") else None)
-                if not pk:
-                    code = candidate.get("code") or candidate.get("shortcode")
-                    if code:
-                        try:
-                            pk = str(shortcode_to_pk(code))
-                            candidate["pk"] = pk
-                        except Exception:
-                            pass
+                if not pk and code:
+                    try:
+                        pk = str(shortcode_to_pk(code))
+                        candidate["pk"] = pk
+                    except Exception:
+                        pass
                 if not pk or pk in seen_pks:
                     continue
                 seen_pks.add(pk)
@@ -1421,10 +1429,10 @@ class InstagramScraper:
                     "commentsCount": media.get("comment_count") or 0,
                     "ownerFollowersCount": owner.get("follower_count") or 0,
                     "timestamp": timestamp,
-                    "ownerUsername": owner.get("username"),
-                    "caption": caption_text[:500],
+                    "ownerUsername": owner.get("username") or media.get("owner"),
+                    "caption": (caption_text or media.get("caption") or "")[:500],
                     "videoUrl": video_url,
-                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
+                    "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url") or media.get("thumbnail_url"),
                     "media_dict": media,
                     "pk": media.get("pk"),
                     "is_top_serp": is_top_serp
