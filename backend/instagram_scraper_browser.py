@@ -407,6 +407,153 @@ class InstagramScraper:
             if ctx:
                 await ctx.close()
 
+    async def scrape_reel_post_async(self, shortcode: str) -> dict | None:
+        """
+        Navigate to https://www.instagram.com/p/{shortcode}/ in a Camoufox browser page
+        and extract audio metadata via the same 3-tier fetch waterfall used in hashtag scraping.
+
+        Returns a dict with keys: audio_id, audio_title, audio_artist, is_original_audio
+        or None if metadata could not be resolved.
+
+        Called from the audio backfill step (Step 2b) to populate audio_title for reels
+        that were saved with baseline stubs because api/v1/media/{pk}/info/ returned 401
+        outside a full browser context.
+        """
+        if not self._camoufox_browser or not self._camoufox_browser.is_connected():
+            await self._close_browser_async()
+            if not await self._init_browser_async():
+                logger.error("scrape_reel_post_async: Failed to initialize browser session.")
+                return None
+
+        ctx = None
+        page = None
+        try:
+            cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
+            with open(cookies_path, "r") as f:
+                cookies = json.load(f)
+
+            formatted_cookies = [
+                {
+                    "name": c["name"],
+                    "value": c["value"],
+                    "domain": c.get("domain", ".instagram.com"),
+                    "path": c.get("path", "/"),
+                }
+                for c in cookies
+            ]
+
+            ctx = await self._camoufox_browser.new_context(no_viewport=True)
+            await ctx.add_cookies(formatted_cookies)
+            page = await ctx.new_page()
+
+            # Navigate to the reel post page
+            post_url = f"https://www.instagram.com/p/{shortcode}/"
+            logger.debug(f"scrape_reel_post_async: navigating to {post_url}")
+            await page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
+            await page.wait_for_timeout(2000)
+
+            # Check for login redirect
+            current_url = page.url
+            if "accounts/login" in current_url or "challenge" in current_url:
+                logger.warning(f"scrape_reel_post_async: session redirected to login for shortcode={shortcode}")
+                return None
+
+            # Run same 3-tier fetch waterfall as hashtag scraping (page.evaluate in-browser context)
+            info_data = await page.evaluate(
+                """async ({ code }) => {
+                    const csrf = document.cookie.split('; ')
+                        .find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+
+                    const baseHeaders = {
+                        'X-IG-App-ID': '936619743392459',
+                        'X-CSRFToken': csrf,
+                        'X-ASBD-ID': '129477',
+                        'X-Requested-With': 'XMLHttpRequest',
+                        'Accept': '*/*'
+                    };
+
+                    const parseResp = async (r) => {
+                        let text = await r.text();
+                        if (text.startsWith('for (;;);')) { text = text.substring(9); }
+                        return JSON.parse(text);
+                    };
+
+                    // 1. GraphQL PolarisPostRootQuery
+                    try {
+                        const gqlResp = await fetch('https://www.instagram.com/api/graphql', {
+                            method: 'POST',
+                            credentials: 'include',
+                            headers: { ...baseHeaders, 'Content-Type': 'application/x-www-form-urlencoded', 'X-FB-Friendly-Name': 'PolarisPostRootQuery' },
+                            body: new URLSearchParams({ doc_id: '8845758582119845', variables: JSON.stringify({ shortcode: code }) })
+                        });
+                        if (gqlResp.status === 200) {
+                            const gqlJson = await parseResp(gqlResp);
+                            const items = gqlJson?.data?.xdt_api__v1__media__shortcode__web_info?.items;
+                            if (items && items.length > 0) return { items: items, source: 'graphql' };
+                        }
+                    } catch (e) {}
+
+                    // 2. Classic web JSON endpoint
+                    try {
+                        const webResp = await fetch(`https://www.instagram.com/p/${code}/?__a=1&__d=dis`, {
+                            credentials: 'include',
+                            headers: baseHeaders
+                        });
+                        if (webResp.status === 200) {
+                            const webJson = await parseResp(webResp);
+                            if (webJson?.items && webJson.items.length > 0) return { items: webJson.items, source: 'web_json' };
+                        }
+                    } catch (e) {}
+
+                    // 3. Standard API endpoint (last resort)
+                    try {
+                        const pageData = document.querySelector('script[type="application/json"]');
+                        if (pageData) {
+                            const pd = JSON.parse(pageData.textContent || '{}');
+                            const media = pd?.require?.[0]?.[3]?.[0]?.__bbox?.require?.[0]?.[3]?.[1]?.__bbox?.result?.data?.xdt_api__v1__media__shortcode__web_info?.items?.[0];
+                            if (media) return { items: [media], source: 'page_json' };
+                        }
+                    } catch (e) {}
+
+                    return { error: 'all_fallbacks_failed' };
+                }""",
+                {"code": shortcode}
+            )
+
+            if isinstance(info_data, dict) and "items" in info_data:
+                raw_items = info_data.get("items", [])
+                if raw_items:
+                    source = info_data.get("source", "unknown")
+                    logger.info(f"scrape_reel_post_async: resolved {shortcode} via {source}")
+                    audio_id, audio_title, audio_artist, is_orig = self._extract_audio_info(raw_items[0])
+                    audio_use = self._extract_audio_use_count(raw_items[0], audio_id=audio_id)
+                    if audio_title or audio_id:
+                        return {
+                            "audio_id": audio_id,
+                            "audio_title": audio_title,
+                            "audio_artist": audio_artist,
+                            "is_original_audio": is_orig,
+                            "audio_use_count": audio_use,
+                        }
+
+            logger.debug(f"scrape_reel_post_async: could not resolve audio for shortcode={shortcode}")
+            return None
+
+        except Exception as e:
+            logger.error(f"scrape_reel_post_async: error for shortcode={shortcode}: {e}")
+            return None
+        finally:
+            if page:
+                try:
+                    await page.close()
+                except Exception:
+                    pass
+            if ctx:
+                try:
+                    await ctx.close()
+                except Exception:
+                    pass
+
     async def _scrape_creator_profile_playwright_async(self, username: str) -> dict | None:
         """Helper to navigate to creator profile using Playwright and intercept XHR response."""
         if not self._camoufox_browser or not self._camoufox_browser.is_connected():
