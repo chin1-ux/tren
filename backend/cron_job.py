@@ -449,24 +449,19 @@ def run_full_pipeline(stages: list = None):
 
         # Base pool — mid-tier tags with fast content rotation (always included)
         _base_global = [
-            # Brazil — mid-tier rotating tags
+            # High-velocity universal viral & edit signals (top priority for SERP ingestion)
+            "viralmusic", "musicreels", "newmusicfriday",
+            "phonk", "driftphonk", "audiosforedits",
+            "reelsbrasil", "perreo", "musicalatina", "reggaetonvibes", "funkviral",
+            "afrobeatsvibes", "amapianovibes", "kpop4thgen", "funkmtg",
+            # Additional rotating base tags
             "piseiro", "piseirooriginal", "bregafunk", "pagodebaiano",
-            "funkviral", "passinho", "funkmtg", "tendenciabrasil",
-            "sertanejoviral", "sertejanoromantico", "reelsbrasil",
-            # Latin — sub-genre rotating
-            "perreo", "urbanlatin", "musicalatina", "bachata",
-            "reggaetonvibes", "reggaetonnuevo", "latinpopvibes",
-            # Korea/Asia — sub-niche rotating
-            "kpop4thgen", "kpop5thgen", "kpopnewrelease", "kpopweekly",
+            "passinho", "tendenciabrasil", "sertanejoviral", "sertejanoromantico",
+            "urbanlatin", "bachata", "reggaetonnuevo", "latinpopvibes",
+            "kpop5thgen", "kpopnewrelease", "kpopweekly",
             "kpopboygroup", "kpopgirlgroup", "jpopnow", "aespa", "lesserafim", "newjeans",
-            # Africa — sub-genre rotating
-            "amapianodance", "amapianovibes", "afrobeatsvibes", "afrodance",
-            "naijamusic", "nigerianmusic", "afropop",
-            # Phonk/Edit — rotates very fast
-            "phonk", "driftphonk", "speedupphonk", "brazilianphonk",
-            "audiosforedits", "nightcore", "slowedandreverb",
-            # Global viral signals
-            "newmusicfriday", "viralmusic", "musicreels",
+            "amapianodance", "afrodance", "naijamusic", "nigerianmusic", "afropop",
+            "speedupphonk", "brazilianphonk", "nightcore", "slowedandreverb",
         ]
 
         # Slot 0 — Brazil/Latin emphasis (runs at 12:45 UTC = Asia evening peak)

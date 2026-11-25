@@ -1157,7 +1157,7 @@ class InstagramScraper:
                             mtype = itm.get("media_type")
                             if pk and mtype in (2, 8):
                                 serp_candidates.append(itm)
-                    if len(serp_candidates) >= 12:
+                    if len(serp_candidates) >= 6:
                         got_serp.set()
                 except Exception:
                     pass
@@ -1175,19 +1175,17 @@ class InstagramScraper:
                     # Scroll to trigger lazy GraphQL response
                     try:
                         await page.mouse.wheel(0, 1500)
-                        await asyncio.sleep(2.0)
+                        await asyncio.sleep(2.5)
                     except Exception:
                         pass
 
-                # If hashtag page yielded no reels, attempt keyword search fallback
+                # If hashtag page yielded no reels after initial wait, try second scroll
                 if not serp_candidates:
-                    search_url = f"https://www.instagram.com/explore/search/keyword/?q=%23{clean_tag}"
-                    logger.info(f"Fallback: Navigating to search page for #{clean_tag}: {search_url}...")
-                    await page.goto(search_url, wait_until="domcontentloaded", timeout=12000)
                     try:
-                        await asyncio.wait_for(got_serp.wait(), timeout=8.0)
-                    except asyncio.TimeoutError:
-                        logger.warning(f"SERP GraphQL wait timed out for #{clean_tag}")
+                        await page.mouse.wheel(0, 2000)
+                        await asyncio.sleep(2.0)
+                    except Exception:
+                        pass
             except Exception as e:
                 logger.warning(f"Navigation issue for #{clean_tag}: {e}")
             finally:
