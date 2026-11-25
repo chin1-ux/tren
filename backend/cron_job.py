@@ -506,9 +506,9 @@ def run_full_pipeline(stages: list = None):
 
         # Base pool — always scraped (highest-rotation India tags, mid-tier volume)
         _india_base = [
-            # Core audio signals — rotate fastest
-            "trendingaudio", "hinditrendingsong", "newhindimusic", "trendinghindimusic",
-            "reelsindia", "trendingreels", "reelitfeelit", "viralaudio", "reelsaudio",
+            # Core audio signals — verified active & fast rotating
+            "reelsindia", "hindisongs", "punjabisongs", "trendingaudio", "viralaudio",
+            "trendingreels", "reelitfeelit", "hinditrendingsong", "newhindimusic", "trendinghindimusic",
             # Evergreen dance / choreography (audio-first, always fresh)
             "danceindia", "indiandance", "choreography", "bollywoodchoreography",
             "dancecover", "dancereels", "dancechallenge",

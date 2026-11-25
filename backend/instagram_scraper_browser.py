@@ -1252,14 +1252,9 @@ class InstagramScraper:
             logger.info(f"Captured {len(serp_candidates)} candidate reels from #{clean_tag} SERP. Resolving media metadata...")
 
             # Resolve full media metadata (clips_metadata, music_info, play_count) for top candidates
-            headers, cookie_dict = self._load_instagram_cookie_headers()
-            session = requests.Session()
-            session.headers.update(headers)
-            session.cookies.update(cookie_dict)
-
             medias: list[dict] = []
             seen_pks = set()
-            for candidate in serp_candidates[:24]:
+            for candidate in serp_candidates[:16]:
                 pk = candidate.get("pk") or (candidate.get("id", "").split("_")[0] if candidate.get("id") else None)
                 if not pk:
                     code = candidate.get("code") or candidate.get("shortcode")
@@ -1272,21 +1267,48 @@ class InstagramScraper:
                 if not pk or pk in seen_pks:
                     continue
                 seen_pks.add(pk)
-                try:
-                    info_url = f"https://www.instagram.com/api/v1/media/{pk}/info/"
-                    res = session.get(info_url, timeout=10)
-                    if res.status_code == 200:
-                        info_data = res.json()
-                        raw_items = info_data.get("items", [])
-                        if raw_items:
-                            medias.append(raw_items[0])
-                            time.sleep(0.04)
-                            continue
-                except Exception as fetch_err:
-                    logger.debug(f"Media info fetch failed for pk {pk}: {fetch_err}")
 
-                # Fallback to candidate from SERP if media info fetch fails
-                medias.append(candidate)
+                # In-page fetch using Camoufox page context (preserves active HTTP/2 session and cookies)
+                resolved_media = None
+                try:
+                    if hasattr(self, "_camoufox_page") and self._camoufox_page:
+                        info_data = await self._camoufox_page.evaluate(
+                            """async (media_pk) => {
+                                try {
+                                    const r = await fetch(`https://www.instagram.com/api/v1/media/${media_pk}/info/`, {
+                                        credentials: 'include',
+                                        headers: {
+                                            'X-IG-App-ID': '936619743392459',
+                                            'X-Requested-With': 'XMLHttpRequest',
+                                            'Accept': '*/*'
+                                        }
+                                    });
+                                    if (r.status === 200) {
+                                        return await r.json();
+                                    }
+                                    return { error_status: r.status };
+                                } catch (e) {
+                                    return { error: e.toString() };
+                                }
+                            }""",
+                            pk
+                        )
+                        if isinstance(info_data, dict) and "items" in info_data:
+                            raw_items = info_data.get("items", [])
+                            if raw_items:
+                                resolved_media = raw_items[0]
+                                try:
+                                    await asyncio.sleep(random.uniform(0.6, 1.2))
+                                except Exception:
+                                    await asyncio.sleep(0.8)
+                except Exception as fetch_err:
+                    logger.debug(f"In-page media info fetch failed for pk {pk}: {fetch_err}")
+
+                if resolved_media:
+                    medias.append(resolved_media)
+                else:
+                    # Fallback to candidate from SERP if media info fetch fails
+                    medias.append(candidate)
 
             items = []
             for media in medias:
