@@ -446,11 +446,35 @@ class InstagramScraper:
             await ctx.add_cookies(formatted_cookies)
             page = await ctx.new_page()
 
+            # Intercept live GraphQL / media JSON responses fired by Instagram's own frontend
+            intercepted_media = []
+
+            async def _on_post_response(resp):
+                try:
+                    url = resp.url
+                    if resp.status != 200:
+                        return
+                    if not any(k in url for k in ("graphql", "/api/v1/media/", "clips")):
+                        return
+                    ctype = resp.headers.get("content-type", "")
+                    if "json" not in ctype and "javascript" not in ctype:
+                        return
+                    text = await resp.text()
+                    if "clips_metadata" in text or "music_info" in text or "xdt_api__v1__media__shortcode__web_info" in text:
+                        if text.startswith("for (;;);"):
+                            text = text[9:]
+                        data = json.loads(text)
+                        intercepted_media.append(data)
+                except Exception:
+                    pass
+
+            page.on("response", _on_post_response)
+
             # Navigate to the reel post page
             post_url = f"https://www.instagram.com/p/{shortcode}/"
             logger.debug(f"scrape_reel_post_async: navigating to {post_url}")
             await page.goto(post_url, wait_until="domcontentloaded", timeout=20000)
-            await page.wait_for_timeout(2000)
+            await page.wait_for_timeout(3500)
 
             # Check for login redirect
             current_url = page.url
@@ -458,76 +482,29 @@ class InstagramScraper:
                 logger.warning(f"scrape_reel_post_async: session redirected to login for shortcode={shortcode}")
                 return None
 
-            # Run same 3-tier fetch waterfall as hashtag scraping (page.evaluate in-browser context)
-            info_data = await page.evaluate(
-                """async ({ code }) => {
-                    const csrf = document.cookie.split('; ')
-                        .find(r => r.startsWith('csrftoken='))?.split('=')[1] || '';
+            # Tier 1: Check intercepted live XHR/GraphQL responses from Instagram's own page load
+            def _find_media_node(obj):
+                if isinstance(obj, dict):
+                    if "clips_metadata" in obj or "music_info" in obj:
+                        return obj
+                    for v in obj.values():
+                        found = _find_media_node(v)
+                        if found:
+                            return found
+                elif isinstance(obj, list):
+                    for item in obj:
+                        found = _find_media_node(item)
+                        if found:
+                            return found
+                return None
 
-                    const baseHeaders = {
-                        'X-IG-App-ID': '936619743392459',
-                        'X-CSRFToken': csrf,
-                        'X-ASBD-ID': '129477',
-                        'X-Requested-With': 'XMLHttpRequest',
-                        'Accept': '*/*'
-                    };
-
-                    const parseResp = async (r) => {
-                        let text = await r.text();
-                        if (text.startsWith('for (;;);')) { text = text.substring(9); }
-                        return JSON.parse(text);
-                    };
-
-                    // 1. GraphQL PolarisPostRootQuery
-                    try {
-                        const gqlResp = await fetch('https://www.instagram.com/api/graphql', {
-                            method: 'POST',
-                            credentials: 'include',
-                            headers: { ...baseHeaders, 'Content-Type': 'application/x-www-form-urlencoded', 'X-FB-Friendly-Name': 'PolarisPostRootQuery' },
-                            body: new URLSearchParams({ doc_id: '8845758582119845', variables: JSON.stringify({ shortcode: code }) })
-                        });
-                        if (gqlResp.status === 200) {
-                            const gqlJson = await parseResp(gqlResp);
-                            const items = gqlJson?.data?.xdt_api__v1__media__shortcode__web_info?.items;
-                            if (items && items.length > 0) return { items: items, source: 'graphql' };
-                        }
-                    } catch (e) {}
-
-                    // 2. Classic web JSON endpoint
-                    try {
-                        const webResp = await fetch(`https://www.instagram.com/p/${code}/?__a=1&__d=dis`, {
-                            credentials: 'include',
-                            headers: baseHeaders
-                        });
-                        if (webResp.status === 200) {
-                            const webJson = await parseResp(webResp);
-                            if (webJson?.items && webJson.items.length > 0) return { items: webJson.items, source: 'web_json' };
-                        }
-                    } catch (e) {}
-
-                    // 3. Standard API endpoint (last resort)
-                    try {
-                        const pageData = document.querySelector('script[type="application/json"]');
-                        if (pageData) {
-                            const pd = JSON.parse(pageData.textContent || '{}');
-                            const media = pd?.require?.[0]?.[3]?.[0]?.__bbox?.require?.[0]?.[3]?.[1]?.__bbox?.result?.data?.xdt_api__v1__media__shortcode__web_info?.items?.[0];
-                            if (media) return { items: [media], source: 'page_json' };
-                        }
-                    } catch (e) {}
-
-                    return { error: 'all_fallbacks_failed' };
-                }""",
-                {"code": shortcode}
-            )
-
-            if isinstance(info_data, dict) and "items" in info_data:
-                raw_items = info_data.get("items", [])
-                if raw_items:
-                    source = info_data.get("source", "unknown")
-                    logger.info(f"scrape_reel_post_async: resolved {shortcode} via {source}")
-                    audio_id, audio_title, audio_artist, is_orig = self._extract_audio_info(raw_items[0])
-                    audio_use = self._extract_audio_use_count(raw_items[0], audio_id=audio_id)
+            for payload in intercepted_media:
+                media_node = _find_media_node(payload)
+                if media_node:
+                    audio_id, audio_title, audio_artist, is_orig = self._extract_audio_info(media_node)
+                    audio_use = self._extract_audio_use_count(media_node, audio_id=audio_id)
                     if audio_title or audio_id:
+                        logger.info(f"scrape_reel_post_async: resolved {shortcode} via xhr_intercept")
                         return {
                             "audio_id": audio_id,
                             "audio_title": audio_title,
@@ -535,6 +512,66 @@ class InstagramScraper:
                             "is_original_audio": is_orig,
                             "audio_use_count": audio_use,
                         }
+
+            # Tier 2: Scan inline <script type="application/json"> embedded in page HTML (gives full audio_artist + audio_title)
+            info_data = await page.evaluate(
+                """() => {
+                    const scripts = Array.from(document.querySelectorAll('script[type="application/json"]'));
+                    for (const s of scripts) {
+                        const raw = s.textContent || '';
+                        if (raw.includes('clips_metadata') || raw.includes('music_info')) {
+                            try { return JSON.parse(raw); } catch (e) {}
+                        }
+                    }
+                    return null;
+                }"""
+            )
+            if info_data:
+                media_node = _find_media_node(info_data)
+                if media_node:
+                    audio_id, audio_title, audio_artist, is_orig = self._extract_audio_info(media_node)
+                    audio_use = self._extract_audio_use_count(media_node, audio_id=audio_id)
+                    if audio_title or audio_id:
+                        logger.info(f"scrape_reel_post_async: resolved {shortcode} via page_json")
+                        return {
+                            "audio_id": audio_id,
+                            "audio_title": audio_title,
+                            "audio_artist": audio_artist,
+                            "is_original_audio": is_orig,
+                            "audio_use_count": audio_use,
+                        }
+
+            # Tier 3: Extract directly from rendered DOM (<a href="/reels/audio/{id}/">...)
+            try:
+                audio_links = await page.eval_on_selector_all(
+                    'a[href*="/reels/audio/"]',
+                    'els => els.map(e => ({href: e.getAttribute("href") || "", text: (e.innerText || "").trim()}))'
+                )
+                for link in audio_links or []:
+                    href = link.get("href", "")
+                    text = link.get("text", "")
+                    m = re.search(r"/reels/audio/(\d+)", href)
+                    if m:
+                        audio_id = m.group(1)
+                        if text:
+                            # Format is often "Song Title · Artist" or "Original audio"
+                            parts = [p.strip() for p in re.split(r"\s*[·•]\s*", text, maxsplit=1)]
+                            audio_title = parts[0] or "Original audio"
+                            audio_artist = parts[1] if len(parts) > 1 else None
+                            is_orig = "original audio" in audio_title.lower()
+                            logger.info(
+                                f"scrape_reel_post_async: resolved {shortcode} via dom_audio_link "
+                                f"(audio_id={audio_id}, title={audio_title!r})"
+                            )
+                            return {
+                                "audio_id": audio_id,
+                                "audio_title": audio_title,
+                                "audio_artist": audio_artist,
+                                "is_original_audio": is_orig,
+                                "audio_use_count": None,
+                            }
+            except Exception as dom_err:
+                logger.debug(f"scrape_reel_post_async: DOM audio extraction error for {shortcode}: {dom_err}")
 
             logger.debug(f"scrape_reel_post_async: could not resolve audio for shortcode={shortcode}")
             return None
