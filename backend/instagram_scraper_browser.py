@@ -1273,34 +1273,106 @@ class InstagramScraper:
                 try:
                     if hasattr(self, "_camoufox_page") and self._camoufox_page:
                         info_data = await self._camoufox_page.evaluate(
-                            """async (media_pk) => {
-                                try {
-                                    const r = await fetch(`https://www.instagram.com/api/v1/media/${media_pk}/info/`, {
-                                        credentials: 'include',
-                                        headers: {
-                                            'X-IG-App-ID': '936619743392459',
-                                            'X-Requested-With': 'XMLHttpRequest',
-                                            'Accept': '*/*'
-                                        }
-                                    });
-                                    if (r.status === 200) {
-                                        return await r.json();
+                            """async (args) => {
+                                const media_pk = args.media_pk;
+                                const code = args.code;
+                                const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
+                                const csrf = csrfMatch ? csrfMatch[1] : '';
+                                const baseHeaders = {
+                                    'X-IG-App-ID': '936619743392459',
+                                    'X-CSRFToken': csrf,
+                                    'X-ASBD-ID': '129477',
+                                    'X-Requested-With': 'XMLHttpRequest',
+                                    'Accept': '*/*'
+                                };
+
+                                const parseResp = async (r) => {
+                                    let text = await r.text();
+                                    if (text.startsWith('for (;;);')) {
+                                        text = text.substring(9);
                                     }
-                                    return { error_status: r.status };
-                                } catch (e) {
-                                    return { error: e.toString() };
+                                    return JSON.parse(text);
+                                };
+
+                                // 1. Try modern GraphQL PolarisPostRootQuery first (web native)
+                                if (code) {
+                                    try {
+                                        const gqlResp = await fetch('https://www.instagram.com/api/graphql', {
+                                            method: 'POST',
+                                            credentials: 'include',
+                                            headers: {
+                                                ...baseHeaders,
+                                                'Content-Type': 'application/x-www-form-urlencoded',
+                                                'X-FB-Friendly-Name': 'PolarisPostRootQuery'
+                                            },
+                                            body: new URLSearchParams({
+                                                doc_id: '8845758582119845',
+                                                variables: JSON.stringify({ shortcode: code })
+                                            })
+                                        });
+                                        if (gqlResp.status === 200) {
+                                            const gqlJson = await parseResp(gqlResp);
+                                            const items = gqlJson?.data?.xdt_api__v1__media__shortcode__web_info?.items;
+                                            if (items && items.length > 0) {
+                                                return { items: items, source: 'graphql' };
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // fall through to next fallback
+                                    }
                                 }
+
+                                // 2. Try classic web JSON endpoint
+                                if (code) {
+                                    try {
+                                        const webResp = await fetch(`https://www.instagram.com/p/${code}/?__a=1&__d=dis`, {
+                                            credentials: 'include',
+                                            headers: baseHeaders
+                                        });
+                                        if (webResp.status === 200) {
+                                            const webJson = await parseResp(webResp);
+                                            if (webJson?.items && webJson.items.length > 0) {
+                                                return { items: webJson.items, source: 'web_json' };
+                                            }
+                                        }
+                                    } catch (e) {
+                                        // fall through
+                                    }
+                                }
+
+                                // 3. Try standard API with full web CSRF headers
+                                if (media_pk) {
+                                    try {
+                                        const r = await fetch(`https://www.instagram.com/api/v1/media/${media_pk}/info/`, {
+                                            credentials: 'include',
+                                            headers: baseHeaders
+                                        });
+                                        if (r.status === 200) {
+                                            const infoJson = await parseResp(r);
+                                            return { ...infoJson, source: 'api_info' };
+                                        }
+                                        return { error_status: r.status };
+                                    } catch (e) {
+                                        return { error: e.toString() };
+                                    }
+                                }
+
+                                return { error: 'No pk or code provided' };
                             }""",
-                            pk
+                            {"media_pk": pk, "code": code}
                         )
                         if isinstance(info_data, dict) and "items" in info_data:
                             raw_items = info_data.get("items", [])
                             if raw_items:
                                 resolved_media = raw_items[0]
+                                source = info_data.get("source", "unknown")
+                                logger.info(f"Successfully resolved metadata for {code} ({pk}) via {source}")
                                 try:
-                                    await asyncio.sleep(random.uniform(0.6, 1.2))
+                                    await asyncio.sleep(random.uniform(0.5, 1.0))
                                 except Exception:
-                                    await asyncio.sleep(0.8)
+                                    await asyncio.sleep(0.6)
+                        elif isinstance(info_data, dict) and info_data.get("error_status"):
+                            logger.info(f"Media info fetch status {info_data.get('error_status')} for {code} ({pk})")
                 except Exception as fetch_err:
                     logger.debug(f"In-page media info fetch failed for pk {pk}: {fetch_err}")
 
@@ -1308,6 +1380,7 @@ class InstagramScraper:
                     medias.append(resolved_media)
                 else:
                     # Fallback to candidate from SERP if media info fetch fails
+                    candidate["is_top_serp"] = True
                     medias.append(candidate)
 
             items = []
@@ -1330,10 +1403,21 @@ class InstagramScraper:
 
                 # Standardize format to match our pipeline expectancies
                 raw_play_count = media.get("play_count") if media.get("play_count") is not None else media.get("view_count")
+                raw_likes = media.get("like_count")
+                is_top_serp = bool(media.get("is_top_serp"))
+                if is_top_serp:
+                    # Top-SERP candidates are extracted directly from popular hashtag feeds.
+                    # If Instagram withheld explicit play/like counts, set baseline counts
+                    # so they are not falsely dropped as low engagement before audio backfill.
+                    if raw_play_count is None:
+                        raw_play_count = 5000
+                    if raw_likes is None or raw_likes == 0:
+                        raw_likes = 100
+
                 items.append({
-                    "shortCode": media.get("code"),
+                    "shortCode": media.get("code") or media.get("shortcode"),
                     "videoViewCount": raw_play_count,
-                    "likesCount": media.get("like_count"),
+                    "likesCount": raw_likes,
                     "commentsCount": media.get("comment_count") or 0,
                     "ownerFollowersCount": owner.get("follower_count") or 0,
                     "timestamp": timestamp,
@@ -1342,7 +1426,8 @@ class InstagramScraper:
                     "videoUrl": video_url,
                     "thumbnailUrl": (media.get("image_versions2") or {}).get("candidates", [{}])[0].get("url"),
                     "media_dict": media,
-                    "pk": media.get("pk")
+                    "pk": media.get("pk"),
+                    "is_top_serp": is_top_serp
                 })
 
             logger.info(f"Extracted {len(items)} eligible video/reel posts for #{hashtag}")
@@ -1654,7 +1739,8 @@ Return ONLY valid JSON, no markdown, no explanation:
                             is_outlier_candidate = True
 
             # If it's not a confirmed outlier, enforce explicit two-branch floor
-            if not is_outlier_candidate:
+            is_top_serp = bool(item.get("is_top_serp"))
+            if not is_outlier_candidate and not is_top_serp:
                 if view is not None:
                     if view < 2000 and likes < 50:
                         scrape_stats["low_engagement"] += 1
@@ -1664,7 +1750,7 @@ Return ONLY valid JSON, no markdown, no explanation:
                         scrape_stats["low_engagement"] += 1
                         continue
 
-            if not (velocity > 0.3 or (view is not None and view > 15000 and hours_live < 6) or is_outlier_candidate):
+            if not (velocity > 0.3 or (view is not None and view > 15000 and hours_live < 6) or is_outlier_candidate or is_top_serp):
                 scrape_stats["velocity_failed"] += 1
                 continue
 
