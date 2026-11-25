@@ -494,9 +494,12 @@ def run_full_pipeline(stages: list = None):
         ]
 
         slot_pool = [_slot0, _slot1, _slot2][_run_mod]
-        global_tags = ",".join(list(dict.fromkeys(_base_global + slot_pool)))  # deduplicate, preserve order
+        # Put slot_pool FIRST so each run rotates fresh hashtags instead of repeating _base_global first;
+        # cap at 8 tags per run for safe residential/mobile scraping without hitting login walls.
+        _ordered_global = list(dict.fromkeys(slot_pool + _base_global))[:8]
+        global_tags = ",".join(_ordered_global)
         os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for global mode (slot {_run_mod}): {len(global_tags.split(','))} tags — base({len(_base_global)}) + slot({len(slot_pool)})")
+        logging.info(f"Set SCRAPER_HASHTAGS for global mode (slot {_run_mod}): {len(_ordered_global)} tags (rotated slot-first)")
     elif scrape_mode == "india":
         # India-only mode — dedicated deep-dive into India's audio-first content landscape
         # Rotation strategy: same slot system as global to avoid "top posts" staleness as DB fills.
@@ -553,9 +556,12 @@ def run_full_pipeline(stages: list = None):
         ]
 
         india_slot_pool = [_india_slot0, _india_slot1, _india_slot2][_india_mod]
-        india_tags = ",".join(list(dict.fromkeys(_india_base + india_slot_pool)))
+        # Put india_slot_pool FIRST so each run rotates fresh hashtags instead of repeating _india_base first;
+        # cap at 8 tags per run for safe residential/mobile scraping without hitting login walls.
+        _ordered_india = list(dict.fromkeys(india_slot_pool + _india_base))[:8]
+        india_tags = ",".join(_ordered_india)
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for india mode (slot {_india_mod}): {len(india_tags.split(','))} tags — base({len(_india_base)}) + slot({len(india_slot_pool)})")
+        logging.info(f"Set SCRAPER_HASHTAGS for india mode (slot {_india_mod}): {len(_ordered_india)} tags (rotated slot-first)")
     else:
         # Mixed mode — balanced India core + global sample (manual dispatch / fallback)
         mixed_tags = ",".join([
@@ -753,7 +759,7 @@ def run_full_pipeline(stages: list = None):
                 .eq("audio_backfill_status", "needs_audio_backfill") \
                 .lt("audio_backfill_attempts", 3) \
                 .order("id", desc=True) \
-                .limit(50) \
+                .limit(80) \
                 .execute()
             backfill_reels = backfill_res.data or []
             if backfill_reels:
@@ -1149,8 +1155,9 @@ def run_full_pipeline(stages: list = None):
             if regional_purged > 0:
                 logging.info(f"Regional Filter Pass: Marked {regional_purged} disallowed regional trends (Bhojpuri/Haryanvi) as unqualified.")
 
-            # Also delete any stored disallowed regional reels
-            all_reels = sb.table("reels").select("reel_id, audio_title, audio_artist, caption").execute().data or []
+            # Also delete any stored disallowed regional reels (scoped to last 24h to save Supabase egress)
+            _reg_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+            all_reels = sb.table("reels").select("reel_id, audio_title, audio_artist, caption").gte("scraped_at", _reg_cutoff).execute().data or []
             regional_reels_deleted = 0
             for r in all_reels:
                 if is_disallowed_regional_content(r.get("audio_title"), r.get("audio_artist"), r.get("caption")):

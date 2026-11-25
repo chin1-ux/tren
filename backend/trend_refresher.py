@@ -177,6 +177,7 @@ class TrendRefresher:
                     lambda: self.supabase.table("trends")
                     .select("*")
                     .eq("is_seed_data", False)
+                    .in_("status", ["emerging", "rising", "resurging", "peaked", "candidate"])
                     .range(offset, offset + page_size - 1)
                     .execute()
                 )

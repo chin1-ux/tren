@@ -331,6 +331,16 @@ def auto_classify_trends(trend_ids: List[int]) -> Dict[str, Any]:
             elif not t.get("ideal_content_description"):
                 update_payload["ideal_content_description"] = f"Film a high-retention reel matching the pacing and vibe of '{title}' by {artist}."
 
+            # Populate semantic_niches immediately on promotion so niche filters work without waiting
+            try:
+                from niche_classifier import classify_niche
+                sample_text = " ".join(str(c) for c in (t.get("sample_captions") or [])[:5])
+                niche_val = classify_niche(f"{title} {artist} {sample_text}", [], source_hashtag_pool=None)
+            except Exception:
+                niche_val = pattern_res.get("used_for") or "general"
+            if niche_val:
+                update_payload["semantic_niches"] = [niche_val]
+
             sb.table("trends").update(update_payload).eq("id", tid).execute()
             used_for_updated_cnt += 1
         except Exception as e:
