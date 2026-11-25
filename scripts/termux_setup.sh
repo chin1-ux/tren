@@ -8,8 +8,8 @@ pkg update -y && pkg upgrade -y
 pkg install -y proot-distro git curl cronie termux-api
 
 echo "=== 2. Installing Ubuntu inside proot-distro (needed for Firefox/Camoufox) ==="
-if [ ! -d "$PREFIX/var/lib/proot-distro/installed-rootfs/ubuntu" ]; then
-    proot-distro install ubuntu
+if ! proot-distro login ubuntu -- true >/dev/null 2>&1; then
+    proot-distro install ubuntu || true
 fi
 
 echo "=== 3. Setting up Python + Camoufox + Trendrop inside Ubuntu ==="
