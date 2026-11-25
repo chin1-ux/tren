@@ -1,10 +1,10 @@
 import os
 import json
 import logging
-import os
 import re
 import time
 import math
+import random
 import signal
 import asyncio
 from datetime import datetime, timezone, timedelta
@@ -1170,7 +1170,7 @@ class InstagramScraper:
                 logger.info(f"Navigating Camoufox to hashtag page for #{clean_tag}: {target_tag_url}...")
                 await page.goto(target_tag_url, wait_until="domcontentloaded", timeout=15000)
                 try:
-                    await asyncio.wait_for(got_serp.wait(), timeout=8.0)
+                    await asyncio.wait_for(got_serp.wait(), timeout=15.0)
                 except asyncio.TimeoutError:
                     # Scroll to trigger lazy GraphQL response
                     try:
@@ -2155,12 +2155,16 @@ Return ONLY valid JSON, no markdown, no explanation:
                     break
                 if tag_idx > 0:
                     # S3: Randomized 8-25s waits, longer pause (45-60s) every 5 tags
-                    if tag_idx % 5 == 0:
-                        wait_time = random.uniform(45.0, 60.0)
-                        logger.info(f"S3 Batch Pause: waiting {wait_time:.1f}s after {tag_idx} hashtags...")
-                    else:
-                        wait_time = random.uniform(8.0, 25.0)
-                        logger.info(f"S3 Rate Limiting: waiting {wait_time:.1f}s before next hashtag...")
+                    try:
+                        if tag_idx % 5 == 0:
+                            wait_time = random.uniform(45.0, 60.0)
+                            logger.info(f"S3 Batch Pause: waiting {wait_time:.1f}s after {tag_idx} hashtags...")
+                        else:
+                            wait_time = random.uniform(8.0, 25.0)
+                            logger.info(f"S3 Rate Limiting: waiting {wait_time:.1f}s before next hashtag...")
+                    except Exception:
+                        wait_time = 12.0
+                        logger.info(f"S3 Rate Limiting: waiting {wait_time:.1f}s (fallback) before next hashtag...")
                     time.sleep(wait_time)
                 
                 # Resolve per-tag locale config from pool membership for geo-spoofing
