@@ -450,10 +450,9 @@ def run_full_pipeline(stages: list = None):
         # Base pool — mid-tier tags with fast content rotation (always included)
         _base_global = [
             # High-velocity universal viral & edit signals (top priority for SERP ingestion)
-            "viralmusic", "musicreels", "newmusicfriday",
-            "phonk", "driftphonk", "audiosforedits",
-            "reelsbrasil", "perreo", "musicalatina", "reggaetonvibes", "funkviral",
-            "afrobeatsvibes", "amapianovibes", "kpop4thgen", "funkmtg",
+            "driftphonk", "audiosforedits", "reelsbrasil", "trendingaudio", "viralaudio",
+            "phonk", "musicalatina", "reggaetonvibes", "funkviral", "afrobeatsvibes",
+            "amapianovibes", "kpop4thgen", "funkmtg",
             # Additional rotating base tags
             "piseiro", "piseirooriginal", "bregafunk", "pagodebaiano",
             "passinho", "tendenciabrasil", "sertanejoviral", "sertejanoromantico",

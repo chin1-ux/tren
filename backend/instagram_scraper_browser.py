@@ -1199,6 +1199,35 @@ class InstagramScraper:
             if "/accounts/login/" in current_url or "/challenge/" in current_url:
                 raise RuntimeError(f"INSTAGRAM COOKIE EXPIRED/INVALID: Redirected to login/challenge page ({current_url}) during scrape. Please refresh cookies.json.")
 
+            # DOM fallback: if GraphQL SERP did not yield candidates (e.g. redirected to /popular/ or redesigned layout),
+            # extract post / reel shortcodes directly from anchor tags in the page DOM
+            if not serp_candidates:
+                try:
+                    anchors = await page.query_selector_all("a[href*='/p/'], a[href*='/reel/']")
+                    seen_codes = set()
+                    for a in anchors:
+                        href = await a.get_attribute("href")
+                        if href:
+                            m = re.search(r"/(?:reel|p)/([A-Za-z0-9_-]+)/", href)
+                            if m:
+                                code = m.group(1)
+                                if code not in seen_codes:
+                                    seen_codes.add(code)
+                                    try:
+                                        pk = str(shortcode_to_pk(code))
+                                        serp_candidates.append({
+                                            "pk": pk,
+                                            "shortcode": code,
+                                            "code": code,
+                                            "media_type": 2
+                                        })
+                                    except Exception:
+                                        pass
+                    if serp_candidates:
+                        logger.info(f"DOM fallback extracted {len(serp_candidates)} candidate reels from #{clean_tag} page ({current_url})")
+                except Exception as dom_err:
+                    logger.debug(f"DOM candidate extraction failed for #{clean_tag}: {dom_err}")
+
             if not serp_candidates:
                 logger.warning(f"No SERP candidate reels captured for #{clean_tag}")
                 # S4 Failure logging and artifact capture
