@@ -1460,6 +1460,14 @@ class InstagramScraper:
                     continue
                 seen_pks.add(pk)
 
+                # Circuit-breaker: if api_info already returned 401 twice this run,
+                # stop spamming api_info (avoids triggering /accounts/login/ wall)
+                # and pass SERP candidates directly to Step 2b browser backfill.
+                if getattr(self, "_api_info_tripped", False):
+                    candidate["is_top_serp"] = True
+                    medias.append(candidate)
+                    continue
+
                 # In-page fetch using Camoufox page context (preserves active HTTP/2 session and cookies)
                 resolved_media = None
                 try:
@@ -1467,7 +1475,6 @@ class InstagramScraper:
                         info_data = await self._camoufox_page.evaluate(
                             """async (args) => {
                                 const media_pk = args.media_pk;
-                                const code = args.code;
                                 const csrfMatch = document.cookie.match(/csrftoken=([^;]+)/);
                                 const csrf = csrfMatch ? csrfMatch[1] : '';
                                 const baseHeaders = {
@@ -1486,53 +1493,6 @@ class InstagramScraper:
                                     return JSON.parse(text);
                                 };
 
-                                // 1. Try modern GraphQL PolarisPostRootQuery first (web native)
-                                if (code) {
-                                    try {
-                                        const gqlResp = await fetch('https://www.instagram.com/api/graphql', {
-                                            method: 'POST',
-                                            credentials: 'include',
-                                            headers: {
-                                                ...baseHeaders,
-                                                'Content-Type': 'application/x-www-form-urlencoded',
-                                                'X-FB-Friendly-Name': 'PolarisPostRootQuery'
-                                            },
-                                            body: new URLSearchParams({
-                                                doc_id: '8845758582119845',
-                                                variables: JSON.stringify({ shortcode: code })
-                                            })
-                                        });
-                                        if (gqlResp.status === 200) {
-                                            const gqlJson = await parseResp(gqlResp);
-                                            const items = gqlJson?.data?.xdt_api__v1__media__shortcode__web_info?.items;
-                                            if (items && items.length > 0) {
-                                                return { items: items, source: 'graphql' };
-                                            }
-                                        }
-                                    } catch (e) {
-                                        // fall through to next fallback
-                                    }
-                                }
-
-                                // 2. Try classic web JSON endpoint
-                                if (code) {
-                                    try {
-                                        const webResp = await fetch(`https://www.instagram.com/p/${code}/?__a=1&__d=dis`, {
-                                            credentials: 'include',
-                                            headers: baseHeaders
-                                        });
-                                        if (webResp.status === 200) {
-                                            const webJson = await parseResp(webResp);
-                                            if (webJson?.items && webJson.items.length > 0) {
-                                                return { items: webJson.items, source: 'web_json' };
-                                            }
-                                        }
-                                    } catch (e) {
-                                        // fall through
-                                    }
-                                }
-
-                                // 3. Try standard API with full web CSRF headers
                                 if (media_pk) {
                                     try {
                                         const r = await fetch(`https://www.instagram.com/api/v1/media/${media_pk}/info/`, {
@@ -1549,14 +1509,15 @@ class InstagramScraper:
                                     }
                                 }
 
-                                return { error: 'No pk or code provided' };
+                                return { error: 'No pk provided' };
                             }""",
-                            {"media_pk": pk, "code": code}
+                            {"media_pk": pk}
                         )
                         if isinstance(info_data, dict) and "items" in info_data:
                             raw_items = info_data.get("items", [])
                             if raw_items:
                                 resolved_media = raw_items[0]
+                                self._api_info_consecutive_401 = 0
                                 source = info_data.get("source", "unknown")
                                 logger.info(f"Successfully resolved metadata for {code} ({pk}) via {source}")
                                 try:
@@ -1564,7 +1525,16 @@ class InstagramScraper:
                                 except Exception:
                                     await asyncio.sleep(0.6)
                         elif isinstance(info_data, dict) and info_data.get("error_status"):
-                            logger.info(f"Media info fetch status {info_data.get('error_status')} for {code} ({pk})")
+                            err_status = info_data.get("error_status")
+                            logger.info(f"Media info fetch status {err_status} for {code} ({pk})")
+                            if err_status in (401, 403, 429):
+                                self._api_info_consecutive_401 = getattr(self, "_api_info_consecutive_401", 0) + 1
+                                if self._api_info_consecutive_401 >= 2:
+                                    self._api_info_tripped = True
+                                    logger.warning(
+                                        f"Step 1 api_info {err_status} circuit-breaker tripped after 2 consecutive failures — "
+                                        "skipping remaining api_info calls and routing SERP candidates to Step 2b backfill."
+                                    )
                 except Exception as fetch_err:
                     logger.debug(f"In-page media info fetch failed for pk {pk}: {fetch_err}")
 
