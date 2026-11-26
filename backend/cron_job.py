@@ -493,13 +493,18 @@ def run_full_pipeline(stages: list = None):
             "billboardhot100", "popmusic", "popvibes", "darkphonk",
         ]
 
-        slot_pool = [_slot0, _slot1, _slot2][_run_mod]
-        # Put slot_pool FIRST so each run rotates fresh hashtags instead of repeating _base_global first;
-        # cap at 8 tags per run for safe residential/mobile scraping without hitting login walls.
-        _ordered_global = list(dict.fromkeys(slot_pool + _base_global))[:8]
+        # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
+        # Covers ALL ~100 global hashtags sequentially with zero repeats across ~15 runs.
+        _all_global_niche = list(dict.fromkeys(_slot0 + _slot1 + _slot2 + _base_global[13:]))
+        _core_global = _base_global[:13]
+        _core_start = (run_count * 2) % len(_core_global)
+        _picked_core = [_core_global[(_core_start + i) % len(_core_global)] for i in range(2)]
+        _niche_start = (run_count * 6) % len(_all_global_niche)
+        _picked_niche = [_all_global_niche[(_niche_start + i) % len(_all_global_niche)] for i in range(6)]
+        _ordered_global = list(dict.fromkeys(_picked_core + _picked_niche))[:8]
         global_tags = ",".join(_ordered_global)
         os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for global mode (slot {_run_mod}): {len(_ordered_global)} tags (rotated slot-first)")
+        logging.info(f"Set SCRAPER_HASHTAGS for global mode (run_count={run_count}, niche_offset={_niche_start}/{len(_all_global_niche)}): {_ordered_global}")
     elif scrape_mode == "india":
         # India-only mode — dedicated deep-dive into India's audio-first content landscape
         # Rotation strategy: same slot system as global to avoid "top posts" staleness as DB fills.
@@ -555,13 +560,19 @@ def run_full_pipeline(stages: list = None):
             "sareedraping", "bridallook",
         ]
 
-        india_slot_pool = [_india_slot0, _india_slot1, _india_slot2][_india_mod]
-        # Put india_slot_pool FIRST so each run rotates fresh hashtags instead of repeating _india_base first;
-        # cap at 8 tags per run for safe residential/mobile scraping without hitting login walls.
-        _ordered_india = list(dict.fromkeys(india_slot_pool + _india_base))[:8]
+        # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
+        # Covers ALL ~85 India hashtags (Bollywood, Punjabi, South, Dance, Edit, Fashion, Fitness, Food)
+        # sequentially with zero repeats across ~12 runs.
+        _all_india_niche = list(dict.fromkeys(_india_slot0 + _india_slot1 + _india_slot2 + _india_base[10:]))
+        _core_india = _india_base[:10]
+        _core_start = (run_count * 2) % len(_core_india)
+        _picked_core = [_core_india[(_core_start + i) % len(_core_india)] for i in range(2)]
+        _niche_start = (run_count * 6) % len(_all_india_niche)
+        _picked_niche = [_all_india_niche[(_niche_start + i) % len(_all_india_niche)] for i in range(6)]
+        _ordered_india = list(dict.fromkeys(_picked_core + _picked_niche))[:8]
         india_tags = ",".join(_ordered_india)
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for india mode (slot {_india_mod}): {len(_ordered_india)} tags (rotated slot-first)")
+        logging.info(f"Set SCRAPER_HASHTAGS for india mode (run_count={run_count}, niche_offset={_niche_start}/{len(_all_india_niche)}): {_ordered_india}")
     else:
         # Mixed mode — balanced India core + global sample (manual dispatch / fallback)
         mixed_tags = ",".join([
