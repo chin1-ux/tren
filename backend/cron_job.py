@@ -809,17 +809,7 @@ def run_full_pipeline(stages: list = None):
 
                     _bf_loop.run_until_complete(_bf_scraper._close_browser_async())
                 else:
-                    logging.warning("Step 2b: Could not init browser for audio backfill — marking all as unrecoverable after 3 attempts.")
-                    for r in backfill_reels:
-                        rid = r["reel_id"]
-                        attempts = (r.get("audio_backfill_attempts") or 0) + 1
-                        new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
-                        sb.table("reels").update({
-                            "audio_backfill_status": new_status,
-                            "audio_backfill_attempts": attempts,
-                        }).eq("reel_id", rid).execute()
-                        if new_status == "unrecoverable":
-                            audio_backfill_unrecoverable += 1
+                    logging.warning("Step 2b: Could not init browser for audio backfill — skipping without penalizing queued reels.")
 
                 _bf_loop.close()
 

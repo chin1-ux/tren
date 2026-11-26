@@ -16,7 +16,12 @@ echo "=== 3. Setting up Python + Camoufox + Trendrop inside Ubuntu ==="
 proot-distro login ubuntu -- bash -lc '
 set -euo pipefail
 apt-get update -y
-apt-get install -y python3 python3-pip python3-venv git curl wget libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2t64 || apt-get install -y python3 python3-pip python3-venv git curl wget libgtk-3-0 libdbus-glib-1-2 libxt6 libasound2
+apt-get install -y python3 python3-pip python3-venv git curl wget \
+    libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 libnss3 libxcomposite1 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 \
+    libasound2t64 || apt-get install -y python3 python3-pip python3-venv git curl wget \
+    libgtk-3-0 libdbus-glib-1-2 libxt6 libx11-xcb1 libnss3 libxcomposite1 \
+    libxdamage1 libxfixes3 libxrandr2 libgbm1 libpango-1.0-0 libcairo2 libasound2
 
 if [ ! -d "$HOME/tren" ]; then
     git clone https://github.com/chin1-ux/tren.git "$HOME/tren"
@@ -30,6 +35,9 @@ source venv/bin/activate
 pip install --upgrade pip
 pip install -r requirements.txt
 pip install playwright "camoufox[geoip]"
+playwright install-deps firefox || true
+playwright install chromium || true
+playwright install-deps chromium || true
 python3 -m camoufox fetch
 '
 
