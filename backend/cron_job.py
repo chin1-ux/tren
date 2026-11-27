@@ -608,14 +608,19 @@ def run_full_pipeline(stages: list = None):
         try:
             logging.info("Step 1b/5: Harvesting live algorithmic Reels stream (/reels/)...")
             import asyncio
-            from feed_harvester import harvest_algorithmic_feed, save_harvested_reels
+            from feed_harvester import harvest_algorithmic_feed, save_harvested_reels, get_auto_mined_creators
+
+            sb_feed = _get_supabase()
+            auto_creators = get_auto_mined_creators(sb_feed, mode=scrape_mode, run_count=run_count, limit=3)
 
             async def _run_feed_guarded():
-                return await asyncio.wait_for(harvest_algorithmic_feed(scroll_count=6), timeout=35.0)
+                return await asyncio.wait_for(
+                    harvest_algorithmic_feed(scroll_count=6, creator_usernames=auto_creators),
+                    timeout=65.0,
+                )
 
             feed_reels = asyncio.run(_run_feed_guarded())
-            sb_feed = _get_supabase()
-            feed_stats = save_harvested_reels(sb_feed, feed_reels, live=True)
+            feed_stats = save_harvested_reels(sb_feed, feed_reels, live=True, mode=scrape_mode)
             new_feed_count = feed_stats.get("saved", 0)
             new_reels_count += new_feed_count
             reels_scraped += new_feed_count

@@ -57,89 +57,106 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(me
 logger = logging.getLogger("feed_harvester")
 
 
-def extract_reels_from_graphql_payload(data: dict) -> list[dict]:
-    """Extract structured reel metadata from an intercepted GraphQL response."""
+def _media_dict_to_reel(m: dict, source_surface: str = "algorithmic_feed") -> dict | None:
+    """Convert an Instagram media dict into our standardized reel dict."""
+    if not isinstance(m, dict):
+        return None
+    reel_code = m.get("code")
+    if not reel_code:
+        return None
+
+    clips_meta = m.get("clips_metadata") or {}
+    if not clips_meta and m.get("media_type") != 2 and not m.get("play_count"):
+        return None
+
+    cap = m.get("caption")
+    caption_text = cap.get("text", "") if isinstance(cap, dict) else (cap if isinstance(cap, str) else "")
+    hashtags = [t.strip("#").lower() for t in re.findall(r"#\w+", caption_text)]
+
+    music_info = clips_meta.get("music_info")
+    orig_sound = clips_meta.get("original_sound_info")
+
+    audio_id = None
+    audio_title = None
+    audio_artist = None
+    is_trending = False
+
+    if music_info:
+        asset = music_info.get("music_asset_info", {})
+        audio_id = asset.get("audio_cluster_id") or asset.get("id")
+        audio_title = asset.get("title")
+        audio_artist = asset.get("display_artist")
+        is_trending = bool(asset.get("is_trending_in_clips"))
+    elif orig_sound:
+        audio_id = orig_sound.get("audio_asset_id")
+        audio_title = orig_sound.get("original_audio_title")
+        artist_dict = orig_sound.get("ig_artist") or {}
+        audio_artist = artist_dict.get("username") or "Original Audio"
+        is_trending = bool(orig_sound.get("is_trending_in_clips"))
+
+    views = int(m.get("play_count") or m.get("view_count") or 0)
+    return {
+        "reel_id": reel_code,
+        "pk": m.get("pk"),
+        "owner_username": (m.get("user") or {}).get("username"),
+        "owner_follower_count": None,
+        "caption": caption_text,
+        "hashtags": hashtags,
+        "view_count": views,
+        "like_count": int(m.get("like_count") or 0),
+        "comment_count": int(m.get("comment_count") or 0),
+        "audio_id": str(audio_id) if audio_id else None,
+        "audio_title": audio_title,
+        "audio_artist": audio_artist,
+        "is_trending_in_clips": is_trending,
+        "scraped_at": datetime.now(timezone.utc).isoformat(),
+        "source_surface": source_surface,
+    }
+
+
+def extract_reels_from_graphql_payload(data: dict, source_surface: str = "algorithmic_feed") -> list[dict]:
+    """Recursively extract structured reel metadata from GraphQL/SSR JSON responses."""
     reels = []
-    if not isinstance(data, dict):
-        return reels
+    seen = set()
 
-    # Check connection_v2 or generic edges
-    connection = (
-        data.get("data", {}).get("xdt_api__v1__clips__home__connection_v2")
-        or data.get("data", {}).get("xdt_api__v1__clips__home__connection")
-    )
-    edges = connection.get("edges", []) if connection else []
+    def _walk(node, depth=0):
+        if depth > 14 or not node:
+            return
+        if isinstance(node, dict):
+            if "code" in node and ("clips_metadata" in node or "play_count" in node):
+                r = _media_dict_to_reel(node, source_surface=source_surface)
+                if r and r["reel_id"] not in seen:
+                    seen.add(r["reel_id"])
+                    reels.append(r)
+            for v in node.values():
+                if isinstance(v, (dict, list)):
+                    _walk(v, depth + 1)
+        elif isinstance(node, list):
+            for item in node:
+                if isinstance(item, (dict, list)):
+                    _walk(item, depth + 1)
 
-    for edge in edges:
-        m = edge.get("node", {}).get("media") or {}
-        if not m:
-            continue
-
-        reel_code = m.get("code")
-        if not reel_code:
-            continue
-
-        cap = m.get("caption")
-        caption_text = cap.get("text", "") if isinstance(cap, dict) else ""
-
-        # Extract hashtags from caption
-        hashtags = [t.strip("#").lower() for t in re.findall(r"#\w+", caption_text)]
-
-        # Extract audio information
-        clips_meta = m.get("clips_metadata") or {}
-        music_info = clips_meta.get("music_info")
-        orig_sound = clips_meta.get("original_sound_info")
-
-        audio_id = None
-        audio_title = None
-        audio_artist = None
-        is_trending = False
-
-        if music_info:
-            asset = music_info.get("music_asset_info", {})
-            audio_id = asset.get("audio_cluster_id") or asset.get("id")
-            audio_title = asset.get("title")
-            audio_artist = asset.get("display_artist")
-            is_trending = bool(asset.get("is_trending_in_clips"))
-        elif orig_sound:
-            audio_id = orig_sound.get("audio_asset_id")
-            audio_title = orig_sound.get("original_audio_title")
-            artist_dict = orig_sound.get("ig_artist") or {}
-            audio_artist = artist_dict.get("username") or "Original Audio"
-            is_trending = bool(orig_sound.get("is_trending_in_clips"))
-
-        reel_obj = {
-            "reel_id": reel_code,
-            "pk": m.get("pk"),
-            "owner_username": (m.get("user") or {}).get("username"),
-            "owner_follower_count": None,
-            "caption": caption_text,
-            "hashtags": hashtags,
-            "view_count": m.get("play_count") or m.get("view_count") or 0,
-            "like_count": m.get("like_count") or 0,
-            "comment_count": m.get("comment_count") or 0,
-            "audio_id": str(audio_id) if audio_id else None,
-            "audio_title": audio_title,
-            "audio_artist": audio_artist,
-            "is_trending_in_clips": is_trending,
-            "scraped_at": datetime.now(timezone.utc).isoformat(),
-            "source_surface": "algorithmic_feed",
-        }
-        reels.append(reel_obj)
-
+    _walk(data)
     return reels
 
 
-async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
-    """Scroll through Instagram Reels feed and harvest intercepted items."""
-    cookies_raw = []
-    cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
-    if cookies_b64:
-        import base64
-        try:
-            cookies_raw = json.loads(base64.b64decode(cookies_b64).decode("utf-8"))
-        except Exception:
-            pass
+def _load_harvester_cookies() -> list[dict]:
+    """Load active session cookies from cookie_sliding_manager, env, or disk."""
+    cookies_raw = None
+    try:
+        from cookie_sliding_manager import load_active_session_cookies
+        cookies_raw = load_active_session_cookies()
+    except Exception:
+        pass
+
+    if not cookies_raw:
+        cookies_b64 = os.getenv("INSTAGRAM_COOKIES_B64")
+        if cookies_b64:
+            import base64
+            try:
+                cookies_raw = json.loads(base64.b64decode(cookies_b64).decode("utf-8"))
+            except Exception:
+                pass
     if not cookies_raw:
         cookies_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cookies.json")
         if os.path.exists(cookies_path):
@@ -147,10 +164,8 @@ async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
                 cookies_raw = json.load(f)
 
     if not cookies_raw:
-        logger.warning("No Instagram cookies found (INSTAGRAM_COOKIES_B64 or cookies.json). Skipping feed harvest.")
         return []
-
-    formatted_cookies = [
+    return [
         {
             "name": c["name"],
             "value": c["value"],
@@ -158,66 +173,166 @@ async def harvest_algorithmic_feed(scroll_count: int = 5) -> list[dict]:
             "path": c.get("path", "/"),
         }
         for c in cookies_raw
+        if isinstance(c, dict) and "name" in c and "value" in c
     ]
 
-    from playwright.async_api import async_playwright
 
-    all_harvested_reels = []
-    seen_reel_ids = set()
-
-    logger.info(f"Launching Playwright to harvest {scroll_count} scrolls from /reels/...")
-    async with async_playwright() as p:
-        browser = await p.chromium.launch(headless=True)
-        ctx = await browser.new_context(
-            user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
-            locale="en-US"
+def get_auto_mined_creators(sb, mode: str = "india", run_count: int = 0, limit: int = 3) -> list[str]:
+    """
+    Auto-mine repeat high-velocity creators from our own Supabase reels table.
+    Zero manual curation needed; filters out mega-news/paparazzi repost accounts.
+    """
+    if not sb or limit <= 0:
+        return []
+    _exclude = {
+        "filmygyan", "instantbollywood", "viralbhayani", "voompla", "pinkvilla",
+        "manav.manglani", "bollywoodhungama", "zoomtv", "tseries.official",
+    }
+    try:
+        q = (
+            sb.table("reels")
+            .select("owner_username, creator_country, velocity_score")
+            .not_.is_("owner_username", "null")
+            .gt("velocity_score", 1000)
+            .order("velocity_score", desc=True)
+            .limit(400)
         )
-        await ctx.add_cookies(formatted_cookies)
+        rows = q.execute().data or []
+        from collections import Counter
+        counts = Counter()
+        for r in rows:
+            u = (r.get("owner_username") or "").strip().lower()
+            if not u or u in _exclude:
+                continue
+            cc = (r.get("creator_country") or "").upper()
+            if mode == "india" and cc and cc not in ("IN", "INDIA"):
+                continue
+            if mode == "global" and cc == "IN":
+                continue
+            counts[u] += 1
+        ranked = [u for u, _ in counts.most_common(40)]
+        if not ranked:
+            return []
+        start = (run_count * limit) % len(ranked)
+        return [ranked[(start + i) % len(ranked)] for i in range(min(limit, len(ranked)))]
+    except Exception as e:
+        logger.debug(f"Auto-mined creator lookup skipped: {e}")
+        return []
+
+
+def _extract_ssr_scripts(html: str, source_surface: str) -> list[dict]:
+    """Parse Instagram SSR <script type='application/json'> payloads for embedded reels."""
+    found = []
+    for raw in re.findall(r'<script[^>]+type=["\']application/json["\'][^>]*>(.*?)</script>', html, re.S):
+        if "clips_metadata" not in raw and "xdt_api__v1__clips" not in raw:
+            continue
+        try:
+            payload = json.loads(raw)
+            found.extend(extract_reels_from_graphql_payload(payload, source_surface=source_surface))
+        except Exception:
+            pass
+    return found
+
+
+async def harvest_algorithmic_feed(
+    scroll_count: int = 5,
+    creator_usernames: list[str] | None = None,
+) -> list[dict]:
+    """
+    Use Camoufox stealth browser to harvest:
+      1. Instagram's live /reels/ algorithmic stream (SSR HTML + GraphQL XHR)
+      2. Optional auto-mined trendsetter creators' /{username}/reels/ tabs
+    """
+    formatted_cookies = _load_harvester_cookies()
+    if not formatted_cookies:
+        logger.warning("No Instagram cookies found in session manager/env/disk. Skipping feed harvest.")
+        return []
+
+    all_harvested_reels: list[dict] = []
+    seen_reel_ids: set[str] = set()
+    current_surface = "algorithmic_feed"
+
+    def _collect(items: list[dict]):
+        for item in items:
+            rid = item.get("reel_id")
+            if rid and rid not in seen_reel_ids:
+                seen_reel_ids.add(rid)
+                all_harvested_reels.append(item)
+                logger.info(
+                    f"  [INTERCEPTED:{item.get('source_surface')}] Reel {rid} | "
+                    f"Sound: '{item.get('audio_title')}' by {item.get('audio_artist')} | "
+                    f"Plays: {item.get('view_count', 0):,}"
+                )
+
+    async def _run_on_context(ctx):
         page = await ctx.new_page()
 
         async def handle_response(response):
-            if "api/graphql" in response.url or "graphql/query" in response.url or "api/v1/clips/home" in response.url:
+            if any(k in response.url for k in ("api/graphql", "graphql/query", "api/v1/clips/")):
                 try:
                     data = await response.json()
-                    new_items = extract_reels_from_graphql_payload(data)
-                    for item in new_items:
-                        if item["reel_id"] not in seen_reel_ids:
-                            seen_reel_ids.add(item["reel_id"])
-                            all_harvested_reels.append(item)
-                            logger.info(
-                                f"  [INTERCEPTED] Reel {item['reel_id']} | "
-                                f"Sound: '{item['audio_title']}' by {item['audio_artist']} | "
-                                f"Plays: {item['view_count']:,} | Trending: {item['is_trending_in_clips']}"
-                            )
+                    _collect(extract_reels_from_graphql_payload(data, source_surface=current_surface))
                 except Exception:
                     pass
 
         page.on("response", handle_response)
 
-        logger.info("Navigating to https://www.instagram.com/reels/...")
+        # 1. /reels/ algorithmic stream
+        logger.info("Navigating Camoufox to https://www.instagram.com/reels/...")
         await page.goto("https://www.instagram.com/reels/", wait_until="domcontentloaded", timeout=25000)
         await page.wait_for_timeout(3500)
-
-        for step in range(scroll_count):
-            logger.info(f"Advancing feed (scroll step {step + 1}/{scroll_count})...")
-            try:
-                await asyncio.wait_for(page.keyboard.press("ArrowDown"), timeout=4.0)
-                await page.wait_for_timeout(2000)
-            except Exception as scroll_err:
-                logger.warning(f"Scroll step {step + 1} timed out or interrupted ({scroll_err}); stopping feed harvest.")
-                break
-
         try:
-            await asyncio.wait_for(browser.close(), timeout=5.0)
+            _collect(_extract_ssr_scripts(await page.content(), current_surface))
         except Exception:
             pass
 
-    logger.info(f"Harvest complete. Intercepted {len(all_harvested_reels)} unique algorithmic reels.")
+        for step in range(scroll_count):
+            logger.info(f"Advancing /reels/ feed (scroll step {step + 1}/{scroll_count})...")
+            try:
+                await asyncio.wait_for(page.mouse.wheel(0, 900), timeout=3.0)
+                await asyncio.wait_for(page.keyboard.press("ArrowDown"), timeout=3.0)
+                await page.wait_for_timeout(2000)
+            except Exception as scroll_err:
+                logger.warning(f"Scroll step {step + 1} interrupted ({scroll_err}); stopping feed scroll.")
+                break
+
+        # 2. Auto-mined creator /reels/ tabs
+        for uname in (creator_usernames or []):
+            current_surface = f"creator:{uname}"
+            try:
+                logger.info(f"Checking auto-mined creator @{uname}/reels/...")
+                await page.goto(f"https://www.instagram.com/{uname}/reels/", wait_until="domcontentloaded", timeout=20000)
+                await page.wait_for_timeout(2500)
+                _collect(_extract_ssr_scripts(await page.content(), current_surface))
+            except Exception as c_err:
+                logger.debug(f"Creator @{uname} harvest skipped: {c_err}")
+
+    try:
+        from camoufox.async_api import AsyncCamoufox
+        logger.info(f"Launching Camoufox for /reels/ ({scroll_count} scrolls) + {len(creator_usernames or [])} auto-mined creators...")
+        async with AsyncCamoufox(headless=True) as browser:
+            ctx = await browser.new_context(viewport={"width": 1280, "height": 800}, locale="en-US")
+            await ctx.add_cookies(formatted_cookies)
+            await _run_on_context(ctx)
+    except Exception as cam_err:
+        logger.warning(f"Camoufox unavailable ({cam_err}); falling back to Playwright Chromium...")
+        from playwright.async_api import async_playwright
+        async with async_playwright() as p:
+            browser = await p.chromium.launch(headless=True)
+            ctx = await browser.new_context(
+                user_agent="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/128.0.0.0 Safari/537.36",
+                locale="en-US",
+            )
+            await ctx.add_cookies(formatted_cookies)
+            await _run_on_context(ctx)
+            await browser.close()
+
+    logger.info(f"Harvest complete. Intercepted {len(all_harvested_reels)} unique algorithmic/creator reels.")
     return all_harvested_reels
 
 
-def save_harvested_reels(sb, reels: list[dict], live=False) -> dict:
-    """Save newly discovered algorithmic reels into Supabase reels table."""
+def save_harvested_reels(sb, reels: list[dict], live=False, mode: str = "india") -> dict:
+    """Save newly discovered algorithmic/creator reels into Supabase reels table."""
     if not reels:
         return {"saved": 0, "existing": 0}
 
@@ -225,13 +340,14 @@ def save_harvested_reels(sb, reels: list[dict], live=False) -> dict:
     existing = 0
 
     for r in reels:
-        # Check if reel already exists in reels table
         check = sb.table("reels").select("id").eq("reel_id", r["reel_id"]).limit(1).execute()
         if check.data:
             existing += 1
             continue
 
         if live:
+            views = int(r.get("view_count") or 0)
+            vel = round(max(1.0, views / 24.0), 3)
             insert_payload = {
                 "reel_id": r["reel_id"],
                 "audio_id": r["audio_id"],
@@ -239,12 +355,15 @@ def save_harvested_reels(sb, reels: list[dict], live=False) -> dict:
                 "audio_artist": r["audio_artist"],
                 "caption": r["caption"][:1000] if r["caption"] else "",
                 "hashtags": r["hashtags"],
-                "view_count": r["view_count"],
+                "view_count": views,
                 "like_count": r["like_count"],
                 "comment_count": r["comment_count"],
+                "velocity_score": vel,
                 "owner_username": r["owner_username"],
                 "scraped_at": r["scraped_at"],
                 "source_hashtag_pool": "feed",
+                "source_tag": r.get("source_surface") or "algorithmic_feed",
+                "creator_country": "IN" if mode == "india" else None,
             }
             try:
                 sb.table("reels").insert(insert_payload).execute()
