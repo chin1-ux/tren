@@ -440,104 +440,59 @@ def run_full_pipeline(stages: list = None):
     #   ✓ Format+genre combos — dance challenge + region = goldmine for audio discovery
     #   ✗ Mega-generic tags (#reels 500M+, #viral 300M+) — too diluted, buried signal
     #   ✗ One-off artist tags unless they're wave-drivers (badbunny, anitta, etc.)
+    def _pick_stratified_tags(core_pool: list[str], even_buckets: list[list[str]], odd_buckets: list[list[str]], rc: int) -> list[str]:
+        """Select 2 rotating core anchors + 6 stratified niche tags (1 per bucket, alternating parity every run)."""
+        core_start = (rc * 2) % len(core_pool)
+        picked_core = [core_pool[(core_start + i) % len(core_pool)] for i in range(2)]
+        buckets = even_buckets if (rc % 2 == 0) else odd_buckets
+        bucket_step = rc // 2
+        picked_niche = [b[bucket_step % len(b)] for b in buckets if b]
+        return list(dict.fromkeys(picked_core + picked_niche))[:8]
+
     if scrape_mode == "global":
-        # Hashtag rotation strategy: use get-based run_count to rotate between pool slices.
-        # Each pool slice focuses on a different region/genre so we avoid hitting the SAME
-        # mega-hashtag "top posts" wall every run. Smaller tags (1M-30M) rotate content faster.
-        _run_mod = run_count % 3  # 0, 1, 2 rotates across 3 regional emphasis slices
-        logging.info(f"Global hashtag rotation slot: {_run_mod} (run_count={run_count})")
-
-        # Base pool — 8 razor-sharp audio-behavior tags so rotating regional slots always get full coverage
-        _base_global = [
-            "audiosforedits", "viralaudio", "trendingaudio", "funkmtg",
-            "bregafunk", "piseiro", "speedupphonk", "slowedandreverb",
+        _global_core = ["audiosforedits", "viralaudio", "trendingaudio", "speedupphonk"]
+        _global_even_buckets = [
+            ["funkmtg", "bregafunk", "funkbrasil", "lancamentofunk"],
+            ["sertanejoviral", "pagodebaiano", "piseiro", "montagem"],
+            ["kpopdance", "kpopdancechallenge", "kpopchoreography"],
+            ["amapiano", "amapianodance", "amapianochallenge", "afrobeatschallenge"],
+            ["ukdrill", "ukgarage", "frenchrap", "tiktokfrance"],
+            ["slowedandreverb", "darkphonk", "russianphonk"],
         ]
-
-        # Slot 0 — Brazil/Latin emphasis (high-velocity creator/dance tags, zero celebrity spam)
-        _slot0 = [
-            "sertanejo", "sertanejoviral", "sertanejoromantico", "pagodao", "pagodebaiano",
-            "passinho", "tendenciabrasil", "montagem", "forroeletronico",
-            "funkbrasil", "funkcarioca", "lancamentofunk",
-            "reggaetonnuevo", "reggaeton2026", "cumbia",
+        _global_odd_buckets = [
+            ["reggaetonnuevo", "reggaeton2026", "cumbia", "passinho"],
+            ["sertanejo", "sertanejoromantico", "pagodao", "forroeletronico", "tendenciabrasil"],
+            ["opmhits", "musikaindonesia", "jedagjedug", "laguviral", "lagubaru"],
+            ["afrodance", "9jamusic", "funkcarioca"],
+            ["sonviral", "bailesvirales", "musicaitaliana2026", "eurodance"],
+            ["mahraganat", "shaabi", "khaleejimusic", "aghani2026"],
         ]
-        # Slot 1 — Korea/Asia/Africa emphasis (dance/challenge/new-release audio signals)
-        _slot1 = [
-            "kpopdance", "kpopdancechallenge", "kpopchoreography",
-            "opmhits", "musikaindonesia", "jedagjedug", "laguviral", "lagubaru",
-            "amapiano", "amapianodance", "amapianochallenge",
-            "afrobeatschallenge", "afrodance", "9jamusic",
-        ]
-        # Slot 2 — Europe/Mideast/Edits emphasis (creator-reel & viral sound tags, zero English pop spam)
-        _slot2 = [
-            "ukdrill", "ukgarage", "frenchrap", "tiktokfrance", "sonviral",
-            "bailesvirales", "musicaitaliana2026", "eurodance",
-            "mahraganat", "shaabi", "khaleejimusic", "aghani2026",
-            "darkphonk", "russianphonk",
-        ]
-
-        # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
-        # Covers ALL ~100 global hashtags sequentially with zero repeats across ~15 runs.
-        _all_global_niche = list(dict.fromkeys(_slot0 + _slot1 + _slot2 + _base_global[13:]))
-        _core_global = _base_global[:13]
-        _core_start = (run_count * 2) % len(_core_global)
-        _picked_core = [_core_global[(_core_start + i) % len(_core_global)] for i in range(2)]
-        _niche_start = (run_count * 6) % len(_all_global_niche)
-        _picked_niche = [_all_global_niche[(_niche_start + i) % len(_all_global_niche)] for i in range(6)]
-        _ordered_global = list(dict.fromkeys(_picked_core + _picked_niche))[:8]
+        _ordered_global = _pick_stratified_tags(_global_core, _global_even_buckets, _global_odd_buckets, run_count)
         global_tags = ",".join(_ordered_global)
         os.environ["SCRAPER_HASHTAGS"] = global_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for global mode (run_count={run_count}, niche_offset={_niche_start}/{len(_all_global_niche)}): {_ordered_global}")
+        logging.info(f"Set SCRAPER_HASHTAGS for global mode (run_count={run_count}, parity={'even' if run_count % 2 == 0 else 'odd'}): {_ordered_global}")
     elif scrape_mode == "india":
-        # India-only mode — dedicated deep-dive into India's audio-first content landscape
-        # Rotation strategy: same slot system as global to avoid "top posts" staleness as DB fills.
-        # India pool currently yields 100-130 new reels/run — rotation keeps this high long-term.
-        _india_mod = run_count % 3
-        logging.info(f"India hashtag rotation slot: {_india_mod} (run_count={run_count})")
-
-        # Base pool — 8 high-intent India audio/format tags (fits comfortably inside 15-tag runs)
-        _india_base = [
-            "hinditrendingsong", "newhindimusic", "trendinghindimusic", "capcutindia",
-            "reeledit", "fashiontransition", "outfittransition", "bollywoodchoreography",
+        _india_core = ["hinditrendingsong", "newhindimusic", "trendinghindimusic", "viralaudio"]
+        _india_even_buckets = [
+            ["hindireels", "newbollywoodsong", "bollywoodnewsong"],
+            ["punjabireels", "punjabinewsong", "punjabitrendingsong"],
+            ["telugusongs", "telugureels", "tamilsongs", "tamilreels"],
+            ["bollywooddance", "bollywoodchoreography", "hindidance", "punjabidance"],
+            ["fashiontransition", "outfittransition", "desifashionreels", "grwmindia"],
+            ["gymreelsindia", "workoutreelsindia", "fitnessreelsindia"],
         ]
-
-        # Slot 0 — Hindi/Bollywood/Punjabi emphasis (deduplicated, zero e-commerce/fan-club spam)
-        _india_slot0 = [
-            "hindireels", "hindidance", "bollywooddance", "bollywooddancecover",
-            "newbollywoodsong", "bollywoodnewsong", "punjabireels", "punjabidance",
-            "punjabinewsong", "punjabitrendingsong", "desifashionreels", "grwmindia",
-            "coupletransition", "weddingdanceindia",
+        _india_odd_buckets = [
+            ["indianstreetfood", "foodreelsindia", "desifoodreels"],
+            ["capcutindia", "reeledit", "transitionreels"],
+            ["desicomedy", "relatablereels", "coupletransition"],
+            ["kannadasongs", "kannadareels", "malayalamsongs", "malayalamreels", "southindianreels"],
+            ["bhojpurireels", "bhojpuridance", "haryanvisong", "haryanvireels"],
+            ["marathireels", "marathidance", "gujaratireels", "weddingdanceindia"],
         ]
-
-        # Slot 1 — South India emphasis (Telugu, Tamil, Kannada, Malayalam — zero news/fan spam)
-        _india_slot1 = [
-            "telugusongs", "telugureels", "telugudance",
-            "tamilsongs", "tamilreels", "tamildance",
-            "kannadasongs", "kannadareels",
-            "malayalamsongs", "malayalamreels",
-            "southindianmusic", "southindianreels",
-        ]
-
-        # Slot 2 — Regional North/West + Lifestyle emphasis (active creator reels only)
-        _india_slot2 = [
-            "bhojpurireels", "bhojpuridance",
-            "haryanvisong", "haryanvidance", "haryanvireels",
-            "marathisongs", "marathireels", "marathidance",
-            "gujaratireels", "gymreelsindia", "indianstreetfood", "foodreelsindia",
-        ]
-
-        # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
-        # Covers ALL ~85 India hashtags (Bollywood, Punjabi, South, Dance, Edit, Fashion, Fitness, Food)
-        # sequentially with zero repeats across ~12 runs.
-        _all_india_niche = list(dict.fromkeys(_india_slot0 + _india_slot1 + _india_slot2 + _india_base[10:]))
-        _core_india = _india_base[:10]
-        _core_start = (run_count * 2) % len(_core_india)
-        _picked_core = [_core_india[(_core_start + i) % len(_core_india)] for i in range(2)]
-        _niche_start = (run_count * 6) % len(_all_india_niche)
-        _picked_niche = [_all_india_niche[(_niche_start + i) % len(_all_india_niche)] for i in range(6)]
-        _ordered_india = list(dict.fromkeys(_picked_core + _picked_niche))[:8]
+        _ordered_india = _pick_stratified_tags(_india_core, _india_even_buckets, _india_odd_buckets, run_count)
         india_tags = ",".join(_ordered_india)
         os.environ["SCRAPER_HASHTAGS"] = india_tags
-        logging.info(f"Set SCRAPER_HASHTAGS for india mode (run_count={run_count}, niche_offset={_niche_start}/{len(_all_india_niche)}): {_ordered_india}")
+        logging.info(f"Set SCRAPER_HASHTAGS for india mode (run_count={run_count}, parity={'even' if run_count % 2 == 0 else 'odd'}): {_ordered_india}")
     else:
         # Mixed mode — balanced India core + global sample (manual dispatch / fallback)
         mixed_tags = ",".join([
