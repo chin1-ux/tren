@@ -447,50 +447,32 @@ def run_full_pipeline(stages: list = None):
         _run_mod = run_count % 3  # 0, 1, 2 rotates across 3 regional emphasis slices
         logging.info(f"Global hashtag rotation slot: {_run_mod} (run_count={run_count})")
 
-        # Base pool — mid-tier tags with fast content rotation (always included)
+        # Base pool — 8 razor-sharp audio-behavior tags so rotating regional slots always get full coverage
         _base_global = [
-            # High-velocity universal viral & edit signals (top priority for SERP ingestion)
-            "driftphonk", "audiosforedits", "reelsbrasil", "trendingaudio", "viralaudio",
-            "phonk", "musicalatina", "reggaetonvibes", "funkviral", "afrobeatsvibes",
-            "amapianovibes", "kpop4thgen", "funkmtg",
-            # Additional rotating base tags
-            "piseiro", "piseirooriginal", "bregafunk", "pagodebaiano",
-            "passinho", "tendenciabrasil", "sertanejoviral", "sertejanoromantico",
-            "urbanlatin", "bachata", "reggaetonnuevo", "latinpopvibes",
-            "kpop5thgen", "kpopnewrelease", "kpopweekly",
-            "kpopboygroup", "kpopgirlgroup", "jpopnow", "aespa", "lesserafim", "newjeans",
-            "amapianodance", "afrodance", "naijamusic", "nigerianmusic", "afropop",
-            "speedupphonk", "brazilianphonk", "nightcore", "slowedandreverb",
+            "audiosforedits", "viralaudio", "trendingaudio", "funkmtg",
+            "bregafunk", "piseiro", "speedupphonk", "slowedandreverb",
         ]
 
-        # Slot 0 — Brazil/Latin emphasis (runs at 12:45 UTC = Asia evening peak)
+        # Slot 0 — Brazil/Latin emphasis (high-velocity creator/dance tags, zero celebrity spam)
         _slot0 = [
-            "sertanejo", "pagodao", "pagode", "axe", "zouk", "montagem",
-            "forronovinho", "forroeletronico", "funkbrasil", "funkcarioca",
-            "reggaeton", "cumbia", "merengue", "latinvibes",
-            "badbunny", "anitta", "karolg", "maluma",
-            "trapbrasil", "trapbr", "reggaeton2026",
+            "sertanejo", "sertanejoviral", "sertanejoromantico", "pagodao", "pagodebaiano",
+            "passinho", "tendenciabrasil", "montagem", "forroeletronico",
+            "funkbrasil", "funkcarioca", "lancamentofunk",
+            "reggaetonnuevo", "reggaeton2026", "cumbia",
         ]
-        # Slot 1 — Korea/Asia/Africa emphasis (runs at 18:45 UTC = Europe evening peak)
+        # Slot 1 — Korea/Asia/Africa emphasis (dance/challenge/new-release audio signals)
         _slot1 = [
-            "kpop", "kpopdance", "kpopsongs", "kpopchoreography",
-            "jpop", "jpopdance", "animesong", "animemusic",
-            "opmhits", "opm", "musikaindonesia", "jedagjedug", "laguviral",
-            "straykids",
-            "amapiano", "amapianomix", "afrobeats", "afrobeatsmusic",
-            "gqom", "highlife", "burnaboy", "tyla", "davido", "wizkid",
-            "9jamusic",
+            "kpopdance", "kpopdancechallenge", "kpopchoreography",
+            "opmhits", "musikaindonesia", "jedagjedug", "laguviral", "lagubaru",
+            "amapiano", "amapianodance", "amapianochallenge",
+            "afrobeatschallenge", "afrodance", "9jamusic",
         ]
-        # Slot 2 — Europe/Mideast/Pop emphasis (runs at 00:45 UTC = Americas prime time)
+        # Slot 2 — Europe/Mideast/Edits emphasis (creator-reel & viral sound tags, zero English pop spam)
         _slot2 = [
-            "ukdrill", "ukrap", "ukrnb", "grime", "ukgarage",
-            "frenchrap", "frenchpop", "musiquefrancaise",
-            "eurodance", "europop", "italianmusic", "spanishmusic",
-            "russianmusic", "russianrap", "russiandance", "russianphonk",
-            "arabicmusic", "arabicsongs", "arabicpop", "arabicsound",
-            "khaleejimusic", "turkishmusic", "turkishpop",
-            "mahraganat", "shaabi",
-            "billboardhot100", "popmusic", "popvibes", "darkphonk",
+            "ukdrill", "ukgarage", "frenchrap", "tiktokfrance", "sonviral",
+            "bailesvirales", "musicaitaliana2026", "eurodance",
+            "mahraganat", "shaabi", "khaleejimusic", "aghani2026",
+            "darkphonk", "russianphonk",
         ]
 
         # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
@@ -512,52 +494,35 @@ def run_full_pipeline(stages: list = None):
         _india_mod = run_count % 3
         logging.info(f"India hashtag rotation slot: {_india_mod} (run_count={run_count})")
 
-        # Base pool — always scraped (highest-rotation India tags, mid-tier volume)
+        # Base pool — 8 high-intent India audio/format tags (fits comfortably inside 15-tag runs)
         _india_base = [
-            # Core audio signals — verified active & fast rotating
-            "reelsindia", "hindisongs", "punjabisongs", "trendingaudio", "viralaudio",
-            "trendingreels", "reelitfeelit", "hinditrendingsong", "newhindimusic", "trendinghindimusic",
-            # Evergreen dance / choreography (audio-first, always fresh)
-            "danceindia", "indiandance", "choreography", "bollywoodchoreography",
-            "dancecover", "dancereels", "dancechallenge",
-            # Edit formats (CapCut content rotates very fast)
-            "capcutindia", "capcutedit", "reeledit", "lipsyncindia",
-            "desicomedy", "relatablereels",
-            # Fashion / transition (new creator content daily)
-            "fashiontransition", "transitionreels", "outfittransition",
-            "ootdindia", "lookbookindia",
+            "hinditrendingsong", "newhindimusic", "trendinghindimusic", "capcutindia",
+            "reeledit", "fashiontransition", "outfittransition", "bollywoodchoreography",
         ]
 
-        # Slot 0 — Hindi/Bollywood/Punjabi emphasis (biggest volume, runs first)
+        # Slot 0 — Hindi/Bollywood/Punjabi emphasis (deduplicated, zero e-commerce/fan-club spam)
         _india_slot0 = [
-            "hindisongs", "hindireels", "hindidance", "bollywooddance",
-            "bollywoodsteps", "bollywooddancecover", "newbollywoodsong", "bollywoodnewsong",
-            "punjabisongs", "punjabireels", "punjabimusic", "punjabidance",
-            "punjabinewsong", "punjabitrendingsong",
-            "diljitdosanjh", "sidhumoosewala", "apdhillon",
-            "indianfashion", "ethnicwear", "lehenga", "kurti",
+            "hindireels", "hindidance", "bollywooddance", "bollywooddancecover",
+            "newbollywoodsong", "bollywoodnewsong", "punjabireels", "punjabidance",
+            "punjabinewsong", "punjabitrendingsong", "desifashionreels", "grwmindia",
+            "coupletransition", "weddingdanceindia",
         ]
 
-        # Slot 1 — South India emphasis (Telugu, Tamil, Kannada, Malayalam)
+        # Slot 1 — South India emphasis (Telugu, Tamil, Kannada, Malayalam — zero news/fan spam)
         _india_slot1 = [
-            "telugusongs", "telugureels", "telugudance", "tollywood",
-            "tamilsongs", "tamilreels", "tamildance", "kollywood",
-            "kannadasongs", "kannadareels", "sandalwood",
-            "malayalamsongs", "malayalamreels", "mollywood",
-            "southindianmusic", "southindianreels", "southindianactor",
-            "devotionalsong", "bhaktisong",
+            "telugusongs", "telugureels", "telugudance",
+            "tamilsongs", "tamilreels", "tamildance",
+            "kannadasongs", "kannadareels",
+            "malayalamsongs", "malayalamreels",
+            "southindianmusic", "southindianreels",
         ]
 
-        # Slot 2 — Regional North/West + lifestyle emphasis (Bhojpuri, Haryanvi, fitness, food)
+        # Slot 2 — Regional North/West + Lifestyle emphasis (active creator reels only)
         _india_slot2 = [
-            "bhojpurisong", "bhojpurireels", "bhojpuridance",
+            "bhojpurireels", "bhojpuridance",
             "haryanvisong", "haryanvidance", "haryanvireels",
-            "rajasthanisong", "rajasthanidance",
             "marathisongs", "marathireels", "marathidance",
-            "gujaratisong", "gujaratireels",
-            "gymindia", "fitindia", "yogaindia",
-            "indianstreetfood", "desifood", "foodreelsindia",
-            "sareedraping", "bridallook",
+            "gujaratireels", "gymreelsindia", "indianstreetfood", "foodreelsindia",
         ]
 
         # Full-pool rotating window: 2 rotating core anchors + 6 rotating regional/niche tags
