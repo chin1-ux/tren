@@ -450,20 +450,20 @@ def run_full_pipeline(stages: list = None):
         return list(dict.fromkeys(picked_core + picked_niche))[:8]
 
     if scrape_mode == "global":
-        _global_core = ["audiosforedits", "viralaudio", "trendingaudio", "speedupphonk"]
+        _global_core = ["audiosforedits", "viralaudio", "trendingaudio", "spedupaudios"]
         _global_even_buckets = [
-            ["funkmtg", "bregafunk", "funkbrasil", "lancamentofunk"],
+            ["funkmtg", "bregafunk", "funkautomotivo", "montagemfunk"],
             ["sertanejoviral", "pagodebaiano", "piseiro", "montagem"],
             ["kpopdance", "kpopdancechallenge", "kpopchoreography"],
-            ["amapiano", "amapianodance", "amapianochallenge", "afrobeatschallenge"],
+            ["amapiano", "amapianodance", "amapianochallenge", "afrobeatsedits"],
             ["ukdrill", "ukgarage", "frenchrap", "tiktokfrance"],
-            ["slowedandreverb", "darkphonk", "russianphonk"],
+            ["slowedandreverb", "velocityedit", "capcuttemplate", "darkphonk"],
         ]
         _global_odd_buckets = [
             ["reggaetonnuevo", "reggaeton2026", "cumbia", "passinho"],
             ["sertanejo", "sertanejoromantico", "pagodao", "forroeletronico", "tendenciabrasil"],
             ["opmhits", "musikaindonesia", "jedagjedug", "laguviral", "lagubaru"],
-            ["afrodance", "9jamusic", "funkcarioca"],
+            ["afrodance", "9jamusic", "funkcarioca", "lancamentofunk"],
             ["sonviral", "bailesvirales", "musicaitaliana2026", "eurodance"],
             ["mahraganat", "shaabi", "khaleejimusic", "aghani2026"],
         ]
@@ -472,10 +472,10 @@ def run_full_pipeline(stages: list = None):
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set SCRAPER_HASHTAGS for global mode (run_count={run_count}, parity={'even' if run_count % 2 == 0 else 'odd'}): {_ordered_global}")
     elif scrape_mode == "india":
-        _india_core = ["hinditrendingsong", "newhindimusic", "trendinghindimusic", "viralaudio"]
+        _india_core = ["hindiedits", "newhindimusic", "slowedandreverbhindi", "viralaudio"]
         _india_even_buckets = [
-            ["hindireels", "newbollywoodsong", "bollywoodnewsong"],
-            ["punjabireels", "punjabinewsong", "punjabitrendingsong"],
+            ["hindireels", "bollywoodedits", "newbollywoodsong", "bollywoodnewsong"],
+            ["punjabireels", "punjabiedits", "punjabinewsong", "punjabitrendingsong"],
             ["telugusongs", "telugureels", "tamilsongs", "tamilreels"],
             ["bollywooddance", "bollywoodchoreography", "hindidance", "punjabidance"],
             ["fashiontransition", "outfittransition", "desifashionreels", "grwmindia"],
@@ -483,8 +483,8 @@ def run_full_pipeline(stages: list = None):
         ]
         _india_odd_buckets = [
             ["indianstreetfood", "foodreelsindia", "desifoodreels"],
-            ["capcutindia", "reeledit", "transitionreels"],
-            ["desicomedy", "relatablereels", "coupletransition"],
+            ["capcutindia", "capcuttemplateindia", "reeledit", "transitionindia"],
+            ["relatablereels", "coupletransition", "transitionreels"],
             ["kannadasongs", "kannadareels", "malayalamsongs", "malayalamreels", "southindianreels"],
             ["bhojpurireels", "bhojpuridance", "haryanvisong", "haryanvireels"],
             ["marathireels", "marathidance", "gujaratireels", "weddingdanceindia"],
@@ -1541,39 +1541,42 @@ def run_data_retention_job():
     except Exception as e:
         logging.error(f"Error during DB row pruning: {e}")
 
-    # 7. trend_snapshots retention: keep only last 14 snapshots per trend
-    # 14 x 6h intervals = 84h history, sufficient for the 3-snapshot velocity check.
-    # Without this: 42 trends x ~4 snapshots/day x 365 days ≈ 61k rows/year growing forever.
+    # 7. Batched REST retention for snapshot/history tables (prevents statement timeouts & DB quota bloat)
     try:
-        logging.info("Running trend_snapshots retention (keep last 14 per trend)...")
-        import psycopg2 as _psycopg2
-        _db_url = os.getenv("SUPABASE_DB_URL")
-        if _db_url:
-            _conn = _psycopg2.connect(_db_url, connect_timeout=15)
-            _conn.autocommit = True
-            _cur = _conn.cursor()
-            _cur.execute("""
-                DELETE FROM trend_snapshots
-                WHERE id NOT IN (
-                    SELECT id FROM (
-                        SELECT id,
-                               ROW_NUMBER() OVER (
-                                   PARTITION BY trend_id
-                                   ORDER BY captured_at DESC
-                               ) AS rn
-                        FROM trend_snapshots
-                    ) ranked
-                    WHERE rn <= 14
-                );
-            """)
-            deleted_snaps = _cur.rowcount
-            _cur.close()
-            _conn.close()
-            logging.info(f"trend_snapshots retention: deleted {deleted_snaps} old snapshot(s).")
+        logging.info("Running batched retention for trend_snapshots (>7d), reel_snapshots (>14d), and audio_official_counts (>14d)...")
+        import urllib.request as _ureq
+        _sb_url = (os.getenv("SUPABASE_URL") or "").rstrip("/")
+        _sb_key = os.getenv("SUPABASE_SERVICE_ROLE_KEY") or os.getenv("SUPABASE_KEY") or ""
+        if _sb_url and _sb_key:
+            def _prune_table_batched(table_name: str, ts_col: str, keep_days: int, step_days: int = 2) -> None:
+                _cutoff = datetime.now(timezone.utc) - timedelta(days=keep_days)
+                _cur_dt = _cutoff - timedelta(days=45)
+                while _cur_dt <= _cutoff:
+                    _dt_str = _cur_dt.strftime("%Y-%m-%dT%H:%M:%S")
+                    _req = _ureq.Request(
+                        f"{_sb_url}/rest/v1/{table_name}?{ts_col}=lt.{_dt_str}",
+                        method="DELETE",
+                        headers={
+                            "apikey": _sb_key,
+                            "Authorization": f"Bearer {_sb_key}",
+                            "Prefer": "return=minimal",
+                        },
+                    )
+                    try:
+                        with _ureq.urlopen(_req, timeout=15):
+                            pass
+                    except Exception as _batch_err:
+                        logging.debug(f"Batched prune step skipped for {table_name} <= {_dt_str}: {_batch_err}")
+                    _cur_dt += timedelta(days=step_days)
+
+            _prune_table_batched("trend_snapshots", "captured_at", keep_days=7, step_days=2)
+            _prune_table_batched("reel_snapshots", "captured_at", keep_days=14, step_days=3)
+            _prune_table_batched("audio_official_counts", "checked_at", keep_days=14, step_days=3)
+            logging.info("Batched snapshot retention complete.")
         else:
-            logging.warning("trend_snapshots retention skipped: SUPABASE_DB_URL not set.")
+            logging.warning("Batched snapshot retention skipped: SUPABASE_URL or service key not set.")
     except Exception as e:
-        logging.error(f"Error during trend_snapshots retention: {e}")
+        logging.error(f"Error during batched snapshot retention: {e}")
 
     logging.info("Daily Data Retention Cleanup Job Complete.")
 
