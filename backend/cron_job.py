@@ -449,11 +449,41 @@ def run_full_pipeline(stages: list = None):
         picked_niche = [b[bucket_step % len(b)] for b in buckets if b]
         return list(dict.fromkeys(picked_core + picked_niche))[:8]
 
+    _cur_month = datetime.now(timezone.utc).month
+    _SEASONAL_GLOBAL = {
+        11: ["christmas", "christmasdecor", "holidayseason", "winteroutfit"],
+        12: ["christmas", "christmasdecor", "newyearseve", "winteroutfit"],
+        1: ["newyear", "winteroutfit", "cozyvibes", "resetroutine"],
+        2: ["valentinesday", "galentines", "winteroutfit", "dateoutfit"],
+        3: ["springfashion", "springbreak", "pasteloutfits", "travelreels"],
+        4: ["springfashion", "coachella", "festivaloutfit", "easter"],
+        5: ["summervibes", "summeroutfit", "beachvibes", "travelreels"],
+        6: ["summervibes", "summerfashion", "vacationreels", "sunsetvibes"],
+        7: ["summervibes", "summertravel", "beachday", "hotgirlsummer"],
+        8: ["backtoschool", "latesummer", "travelreels", "summeroutfit"],
+        9: ["fallfashion", "autumnvibes", "cozyseason", "outfitideas"],
+        10: ["halloween", "halloweenmakeup", "spookyseason", "fallfashion"],
+    }
+    _SEASONAL_INDIA = {
+        11: ["indianwedding", "shaadi", "winterfashion", "christmasindia"],
+        12: ["indianwedding", "shaadi", "christmasindia", "yearend"],
+        1: ["winterfashion", "makarsankranti", "lohri", "weddingseason"],
+        2: ["valentinesday", "weddingseason", "couplegoals", "springfashion"],
+        3: ["holi", "holireels", "holitransition", "summerfashion"],
+        4: ["baisakhi", "eid", "summerfashion", "summervibes"],
+        5: ["summervibes", "summeroutfit", "vacationindia", "mango"],
+        6: ["monsoon", "monsoonreels", "chai", "rainyday"],
+        7: ["monsoonreels", "rainyvibes", "sawan", "travelindia"],
+        8: ["rakhi", "independenceday", "janmashtami", "monsoon"],
+        9: ["ganeshchaturthi", "navratri", "garba", "festivewear"],
+        10: ["navratri", "garba", "durgapuja", "diwali", "diwalitransition"],
+    }
+
     if scrape_mode == "global":
         _global_core = ["trendingaudio", "viralaudio", "audiosforedits", "spedupaudios"]
         _global_even_buckets = [
-            ["christmas", "christmasdecor", "christmasdecoration", "holidayseason"],
-            ["grwm", "ootd", "winteroutfit", "makeuptransition"],
+            _SEASONAL_GLOBAL.get(_cur_month, ["travelreels", "lifestyle", "aesthetic", "minivlog"]),
+            ["grwm", "ootd", "fashiontransition", "makeuptransition"],
             ["funkmtg", "bregafunk", "sertanejo", "pagodebaiano"],
             ["kpopdance", "dancechallenge", "choreography", "transition"],
             ["amapiano", "afrobeats", "afrodance", "amapianodance"],
@@ -484,7 +514,7 @@ def run_full_pipeline(stages: list = None):
         _india_odd_buckets = [
             ["streetfood", "indianstreetfood", "foodvlog", "desifood"],
             ["makeup", "makeuptransition", "skincare", "hairstyle"],
-            ["winterfashion", "christmasindia", "december", "travelreels"],
+            _SEASONAL_INDIA.get(_cur_month, ["travelreels", "festivewear", "indianwedding", "minivlog"]),
             ["capcut", "reeledit", "transitionreels", "slowedandreverb"],
             ["haryanvisong", "bhojpurireels", "punjabisongs", "hindisongs"],
             ["marathireels", "gujaratireels", "tamilsongs", "telugusongs"],
