@@ -450,44 +450,44 @@ def run_full_pipeline(stages: list = None):
         return list(dict.fromkeys(picked_core + picked_niche))[:8]
 
     if scrape_mode == "global":
-        _global_core = ["audiosforedits", "viralaudio", "trendingaudio", "spedupaudios"]
+        _global_core = ["trendingaudio", "viralaudio", "audiosforedits", "spedupaudios"]
         _global_even_buckets = [
-            ["funkmtg", "bregafunk", "funkautomotivo", "montagemfunk"],
-            ["sertanejoviral", "pagodebaiano", "piseiro", "montagem"],
-            ["kpopdance", "kpopdancechallenge", "kpopchoreography"],
-            ["amapiano", "amapianodance", "amapianochallenge", "afrobeatsedits"],
-            ["ukdrill", "ukgarage", "frenchrap", "tiktokfrance"],
-            ["slowedandreverb", "velocityedit", "capcuttemplate", "darkphonk"],
+            ["christmas", "christmasdecor", "christmasdecoration", "holidayseason"],
+            ["grwm", "ootd", "winteroutfit", "makeuptransition"],
+            ["funkmtg", "bregafunk", "sertanejo", "pagodebaiano"],
+            ["kpopdance", "dancechallenge", "choreography", "transition"],
+            ["amapiano", "afrobeats", "afrodance", "amapianodance"],
+            ["slowedandreverb", "capcut", "velocityedit", "darkphonk"],
         ]
         _global_odd_buckets = [
-            ["reggaetonnuevo", "reggaeton2026", "cumbia", "passinho"],
-            ["sertanejo", "sertanejoromantico", "pagodao", "forroeletronico", "tendenciabrasil"],
-            ["opmhits", "musikaindonesia", "jedagjedug", "laguviral", "lagubaru"],
-            ["afrodance", "9jamusic", "funkcarioca", "lancamentofunk"],
-            ["sonviral", "bailesvirales", "musicaitaliana2026", "eurodance"],
-            ["mahraganat", "shaabi", "khaleejimusic", "aghani2026"],
+            ["minivlog", "cozyvibes", "travelreels", "dayinmylife"],
+            ["gymtok", "workout", "easyrecipes", "foodtok"],
+            ["reggaeton", "reggaetonnuevo", "musicalatina", "cumbia"],
+            ["ukdrill", "frenchrap", "tiktokfrance", "eurodance"],
+            ["musikaindonesia", "jedagjedug", "opmhits", "laguviral"],
+            ["arabicmusic", "mahraganat", "khaleejimusic", "shaabi"],
         ]
         _ordered_global = _pick_stratified_tags(_global_core, _global_even_buckets, _global_odd_buckets, run_count)
         global_tags = ",".join(_ordered_global)
         os.environ["SCRAPER_HASHTAGS"] = global_tags
         logging.info(f"Set SCRAPER_HASHTAGS for global mode (run_count={run_count}, parity={'even' if run_count % 2 == 0 else 'odd'}): {_ordered_global}")
     elif scrape_mode == "india":
-        _india_core = ["hindiedits", "newhindimusic", "slowedandreverbhindi", "viralaudio"]
+        _india_core = ["hindireels", "punjabireels", "viralaudio", "newhindimusic"]
         _india_even_buckets = [
-            ["hindireels", "bollywoodedits", "newbollywoodsong", "bollywoodnewsong"],
-            ["punjabireels", "punjabiedits", "punjabinewsong", "punjabitrendingsong"],
-            ["telugusongs", "telugureels", "tamilsongs", "tamilreels"],
-            ["bollywooddance", "bollywoodchoreography", "hindidance", "punjabidance"],
-            ["fashiontransition", "outfittransition", "desifashionreels", "grwmindia"],
-            ["gymreelsindia", "workoutreelsindia", "fitnessreelsindia"],
+            ["grwm", "grwmindia", "ootd", "fashiontransition"],
+            ["indianwedding", "shaadi", "weddingdance", "sangeetdance"],
+            ["transition", "bollywooddance", "punjabidance", "telugudance"],
+            ["minivlog", "dailyvlog", "couplegoals", "relatable"],
+            ["gym", "gymmotivation", "workout", "fitnessreelsindia"],
+            ["telugureels", "tamilreels", "malayalamreels", "kannadareels"],
         ]
         _india_odd_buckets = [
-            ["indianstreetfood", "foodreelsindia", "desifoodreels"],
-            ["capcutindia", "capcuttemplateindia", "reeledit", "transitionindia"],
-            ["relatablereels", "coupletransition", "transitionreels"],
-            ["kannadasongs", "kannadareels", "malayalamsongs", "malayalamreels", "southindianreels"],
-            ["bhojpurireels", "bhojpuridance", "haryanvisong", "haryanvireels"],
-            ["marathireels", "marathidance", "gujaratireels", "weddingdanceindia"],
+            ["streetfood", "indianstreetfood", "foodvlog", "desifood"],
+            ["makeup", "makeuptransition", "skincare", "hairstyle"],
+            ["winterfashion", "christmasindia", "december", "travelreels"],
+            ["capcut", "reeledit", "transitionreels", "slowedandreverb"],
+            ["haryanvisong", "bhojpurireels", "punjabisongs", "hindisongs"],
+            ["marathireels", "gujaratireels", "tamilsongs", "telugusongs"],
         ]
         _ordered_india = _pick_stratified_tags(_india_core, _india_even_buckets, _india_odd_buckets, run_count)
         india_tags = ",".join(_ordered_india)
