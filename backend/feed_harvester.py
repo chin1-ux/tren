@@ -332,24 +332,30 @@ async def harvest_algorithmic_feed(
 
 
 def save_harvested_reels(sb, reels: list[dict], live=False, mode: str = "india") -> dict:
-    """Save newly discovered algorithmic/creator reels into Supabase reels table."""
+    """Save newly discovered algorithmic/creator reels into Supabase reels table in batched calls."""
     if not reels:
         return {"saved": 0, "existing": 0}
 
-    new_saved = 0
-    existing = 0
+    all_rids = [r["reel_id"] for r in reels if r.get("reel_id")]
+    existing_ids: set[str] = set()
+    for i in range(0, len(all_rids), 200):
+        chunk = all_rids[i:i + 200]
+        try:
+            res = sb.table("reels").select("reel_id").in_("reel_id", chunk).execute()
+            existing_ids.update(row["reel_id"] for row in (res.data or []) if row.get("reel_id"))
+        except Exception as e:
+            logger.warning(f"Batch existence check failed: {e}")
 
+    to_insert = []
     for r in reels:
-        check = sb.table("reels").select("id").eq("reel_id", r["reel_id"]).limit(1).execute()
-        if check.data:
-            existing += 1
+        rid = r.get("reel_id")
+        if not rid or rid in existing_ids:
             continue
-
         if live:
             views = int(r.get("view_count") or 0)
             vel = round(max(1.0, views / 24.0), 3)
-            insert_payload = {
-                "reel_id": r["reel_id"],
+            to_insert.append({
+                "reel_id": rid,
                 "audio_id": r["audio_id"],
                 "audio_title": r["audio_title"],
                 "audio_artist": r["audio_artist"],
@@ -364,16 +370,21 @@ def save_harvested_reels(sb, reels: list[dict], live=False, mode: str = "india")
                 "source_hashtag_pool": "feed",
                 "source_tag": r.get("source_surface") or "algorithmic_feed",
                 "creator_country": "IN" if mode == "india" else None,
-            }
-            try:
-                sb.table("reels").insert(insert_payload).execute()
-                new_saved += 1
-            except Exception as e:
-                logger.warning(f"Error saving reel {r['reel_id']}: {e}")
-        else:
-            new_saved += 1
+            })
 
-    return {"saved": new_saved, "existing": existing}
+    new_saved = 0
+    if live and to_insert:
+        for i in range(0, len(to_insert), 100):
+            batch = to_insert[i:i + 100]
+            try:
+                sb.table("reels").upsert(batch, on_conflict="reel_id", ignore_duplicates=True).execute()
+                new_saved += len(batch)
+            except Exception as e:
+                logger.warning(f"Batch reel upsert failed: {e}")
+    elif not live:
+        new_saved = len(all_rids) - len(existing_ids)
+
+    return {"saved": new_saved, "existing": len(existing_ids)}
 
 
 async def main():

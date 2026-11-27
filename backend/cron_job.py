@@ -1093,13 +1093,13 @@ def run_full_pipeline(stages: list = None):
                 if trend_ids:
                     try:
                         sb_norm = _get_supabase()
-                        for tid in trend_ids:
+                        for i in range(0, len(trend_ids), 200):
                             sb_norm.table("trends").update({
                                 "why_this_works": None,
                                 "used_for_note": None,
                                 "analysis_status": "pending",
                                 "analysis_attempts": 0
-                            }).eq("id", tid).execute()
+                            }).in_("id", trend_ids[i:i + 200]).execute()
                         logging.info(f"Step 3a-1: Post-Ingestion Normalizer initialized {len(trend_ids)} trends to analysis_status='pending' and nulled template text.")
                     except Exception as _norm_err:
                         logging.warning(f"Step 3a-1 Post-Ingestion Normalizer warning (non-fatal): {_norm_err}")
@@ -1117,29 +1117,50 @@ def run_full_pipeline(stages: list = None):
                 run_state["cutoff_reason"] = f"trend engine failed: {e}"
                 logging.error(f"Step 3/5 FAILED (TrendEngine): {e}", exc_info=True)
 
-        # 3b. Regional Filter Pass: purge Bhojpuri & Haryanvi trends & reels (Gujarati & Bengali are preserved)
+        # 3b. Regional Filter Pass: purge Bhojpuri & Haryanvi trends & reels (scoped to recent 24-48h to avoid full-table egress)
         try:
             from language_detection import is_disallowed_regional_content
             sb = _get_supabase()
-            active_trends = sb.table("trends").select("id, audio_title, audio_artist").neq("status", "unqualified").execute().data or []
-            regional_purged = 0
-            for t in active_trends:
-                if is_disallowed_regional_content(t.get("audio_title"), t.get("audio_artist")):
-                    sb.table("trends").update({"status": "unqualified"}).eq("id", t["id"]).execute()
-                    regional_purged += 1
-            if regional_purged > 0:
-                logging.info(f"Regional Filter Pass: Marked {regional_purged} disallowed regional trends (Bhojpuri/Haryanvi) as unqualified.")
+            _cut_48h = (datetime.now(timezone.utc) - timedelta(hours=48)).isoformat()
+            _cut_24h = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
 
-            # Also delete any stored disallowed regional reels (scoped to last 24h to save Supabase egress)
-            _reg_cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
-            all_reels = sb.table("reels").select("reel_id, audio_title, audio_artist, caption").gte("scraped_at", _reg_cutoff).execute().data or []
-            regional_reels_deleted = 0
-            for r in all_reels:
-                if is_disallowed_regional_content(r.get("audio_title"), r.get("audio_artist"), r.get("caption")):
-                    sb.table("reels").delete().eq("reel_id", r["reel_id"]).execute()
-                    regional_reels_deleted += 1
-            if regional_reels_deleted > 0:
-                logging.info(f"Regional Filter Pass: Deleted {regional_reels_deleted} disallowed regional reels.")
+            active_trends = (
+                sb.table("trends")
+                .select("id, audio_title, audio_artist")
+                .neq("status", "unqualified")
+                .gte("last_seen_at", _cut_48h)
+                .limit(500)
+                .execute()
+                .data
+                or []
+            )
+            purge_trend_ids = [
+                t["id"] for t in active_trends
+                if is_disallowed_regional_content(t.get("audio_title"), t.get("audio_artist"))
+            ]
+            for i in range(0, len(purge_trend_ids), 200):
+                sb.table("trends").update({"status": "unqualified"}).in_("id", purge_trend_ids[i:i + 200]).execute()
+            if purge_trend_ids:
+                logging.info(f"Regional Filter Pass: Marked {len(purge_trend_ids)} disallowed regional trends (Bhojpuri/Haryanvi) as unqualified.")
+
+            # Only scan newly scraped reels (last 24h) instead of downloading all 8,000+ captions every run
+            recent_reels = (
+                sb.table("reels")
+                .select("reel_id, audio_title, audio_artist, caption")
+                .gte("scraped_at", _cut_24h)
+                .limit(500)
+                .execute()
+                .data
+                or []
+            )
+            purge_reel_ids = [
+                r["reel_id"] for r in recent_reels
+                if is_disallowed_regional_content(r.get("audio_title"), r.get("audio_artist"), r.get("caption"))
+            ]
+            for i in range(0, len(purge_reel_ids), 200):
+                sb.table("reels").delete().in_("reel_id", purge_reel_ids[i:i + 200]).execute()
+            if purge_reel_ids:
+                logging.info(f"Regional Filter Pass: Deleted {len(purge_reel_ids)} disallowed regional reels.")
         except Exception as _reg_err:
             logging.warning(f"Regional filter pass warning: {_reg_err}")
 
