@@ -721,64 +721,83 @@ def run_full_pipeline(stages: list = None):
             run_state["stage"] = "audio_backfill"
             sb = _get_supabase()
             backfill_res = sb.table("reels") \
-                .select("reel_id, video_url, owner_username, audio_backfill_attempts") \
+                .select("reel_id, video_url, owner_username, view_count, audio_backfill_attempts") \
                 .eq("audio_backfill_status", "needs_audio_backfill") \
                 .lt("audio_backfill_attempts", 3) \
                 .order("id", desc=True) \
-                .limit(80) \
+                .limit(100) \
                 .execute()
             backfill_reels = backfill_res.data or []
             if backfill_reels:
-                logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry via browser.")
-                import asyncio as _bf_asyncio
-                _bf_scraper = InstagramScraper()
-                _bf_loop = _bf_asyncio.new_event_loop()
-                browser_ok = _bf_loop.run_until_complete(_bf_scraper._init_browser_async())
+                logging.info(f"Step 2b: Audio backfill: {len(backfill_reels)} reels to retry.")
+                _scraper = InstagramScraper()
+                bf_headers, bf_cookies = _scraper._load_instagram_cookie_headers()
+                bf_session = requests.Session()
+                bf_session.headers.update(bf_headers)
+                bf_session.cookies.update(bf_cookies)
 
-                if browser_ok:
-                    for r in backfill_reels:
-                        rid = r["reel_id"]  # This IS the shortcode (e.g. "DVDCSv6DDs1")
-                        attempts = (r.get("audio_backfill_attempts") or 0) + 1
-                        recovered = False
-                        try:
-                            meta = _bf_loop.run_until_complete(
-                                _bf_scraper.scrape_reel_post_async(rid)
-                            )
-                            if meta and (meta.get("audio_title") or meta.get("audio_id")):
-                                sb.table("reels").update({
-                                    "audio_title": meta.get("audio_title"),
-                                    "audio_artist": meta.get("audio_artist"),
-                                    "audio_id": meta.get("audio_id") or None,
-                                    "is_original_audio": meta.get("is_original_audio", False),
-                                    "audio_use_count": meta.get("audio_use_count"),
-                                    "audio_backfill_status": "backfilled",
-                                    "audio_backfill_attempts": attempts,
-                                }).eq("reel_id", rid).execute()
-                                audio_backfill_filled += 1
-                                recovered = True
-                                logging.info(
-                                    f"Audio backfill SUCCESS (browser): reel={rid} "
-                                    f"title='{meta.get('audio_title')}' artist='{meta.get('audio_artist')}'"
-                                )
-                        except Exception as bf_err:
-                            logging.debug(f"Audio backfill browser fetch failed for reel={rid}: {bf_err}")
+                alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789-_'
+                consecutive_auth_err = 0
+                for r in backfill_reels:
+                    rid = r["reel_id"]
+                    attempts = (r.get("audio_backfill_attempts") or 0) + 1
+                    recovered = False
+                    auth_blocked = False
+                    try:
+                        pk = 0
+                        for char in rid:
+                            pk = pk * 64 + alphabet.index(char)
+                        info_url = f"https://www.instagram.com/api/v1/media/{pk}/info/"
+                        resp = bf_session.get(info_url, timeout=8)
+                        if resp.status_code in (401, 403, 429):
+                            auth_blocked = True
+                            consecutive_auth_err += 1
+                            if consecutive_auth_err >= 2:
+                                logging.warning(f"Step 2b: Backfill circuit-breaker tripped ({resp.status_code}) — stopping without burning reel attempts.")
+                                break
+                            continue
+                        consecutive_auth_err = 0
+                        if resp.status_code == 200:
+                            data = resp.json()
+                            items = data.get("items", [])
+                            if items:
+                                item0 = items[0]
+                                new_audio_id, new_title, new_artist, is_orig = _scraper._extract_audio_info(item0)
+                                audio_use = _scraper._extract_audio_use_count(item0, audio_id=new_audio_id)
+                                if new_title or new_audio_id:
+                                    upd = {
+                                        "audio_title": new_title,
+                                        "audio_artist": new_artist,
+                                        "audio_id": new_audio_id or None,
+                                        "is_original_audio": is_orig,
+                                        "audio_use_count": audio_use,
+                                        "pk": str(pk),
+                                        "audio_backfill_status": "backfilled",
+                                        "audio_backfill_attempts": attempts,
+                                    }
+                                    real_views = item0.get("play_count") or item0.get("view_count")
+                                    if real_views and int(real_views) > 0:
+                                        upd["view_count"] = int(real_views)
+                                    real_owner = (item0.get("user") or {}).get("username")
+                                    if real_owner and not r.get("owner_username"):
+                                        upd["owner_username"] = real_owner
+                                    sb.table("reels").update(upd).eq("reel_id", rid).execute()
+                                    audio_backfill_filled += 1
+                                    recovered = True
+                                    logging.info(f"Audio backfill SUCCESS: reel={rid} title='{new_title}' artist='{new_artist}'")
+                                    time.sleep(0.04)
+                    except Exception as bf_err:
+                        logging.debug(f"Audio backfill fetch failed for reel={rid}: {bf_err}")
 
-                        if not recovered:
-                            new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
-                            sb.table("reels").update({
-                                "audio_backfill_status": new_status,
-                                "audio_backfill_attempts": attempts,
-                            }).eq("reel_id", rid).execute()
-                            if new_status == "unrecoverable":
-                                audio_backfill_unrecoverable += 1
-                                logging.info(f"Audio backfill UNRECOVERABLE after {attempts} attempts: reel={rid}")
-
-                    _bf_loop.run_until_complete(_bf_scraper._close_browser_async())
-                else:
-                    logging.warning("Step 2b: Could not init browser for audio backfill — skipping without penalizing queued reels.")
-
-                _bf_loop.close()
-
+                    if not recovered and not auth_blocked:
+                        new_status = "unrecoverable" if attempts >= 3 else "needs_audio_backfill"
+                        sb.table("reels").update({
+                            "audio_backfill_status": new_status,
+                            "audio_backfill_attempts": attempts,
+                        }).eq("reel_id", rid).execute()
+                        if new_status == "unrecoverable":
+                            audio_backfill_unrecoverable += 1
+                            logging.info(f"Audio backfill UNRECOVERABLE after {attempts} attempts: reel={rid}")
                 logging.info(
                     f"Step 2b: Audio backfill done. "
                     f"filled={audio_backfill_filled} unrecoverable={audio_backfill_unrecoverable} "
@@ -787,7 +806,7 @@ def run_full_pipeline(stages: list = None):
             else:
                 logging.info("Step 2b: No reels in audio_backfill queue.")
         except Exception as bf_step_err:
-            logging.warning(f"Step 2b audio backfill failed: {bf_step_err}", exc_info=True)
+            logging.warning(f"Step 2b audio backfill failed: {bf_step_err}")
 
     # 2c. Audio Watchlist Re-checks: refresh use_count + velocity for recently-seen audio IDs.
     # Catches acceleration on already-known audio even when hashtag scraping misses new reels.
